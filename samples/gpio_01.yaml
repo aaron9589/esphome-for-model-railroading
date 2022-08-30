@@ -1,0 +1,41 @@
+# gpio YAML for block detection.
+# use with block detectors that are detected by a digital input signal
+# copy/paste the template below and ensure you populate additional variables block_x_topic and block_x_name
+# designed to work with CATS Integration in JMRI.
+
+substitutions:
+  global_debounce: 100ms # Use this to stop circuits flapping between occupied and unoccupied. I found 100ms is a good threshold for this.
+  # Each block has an MQTT topic (Which JMRI watches) and a name (which appears in the ESP Logs)
+  block_1_topic: "/trains/track/turnout/QTSEN-STA-UpYardApproach"
+  block_1_name: "Downhill Approach - Up"
+  # if you create additional blocks, copy and paste these two above and name them as appropriate.
+
+binary_sensor:
+  - platform: gpio
+    pin:
+      number: GPIO14 # the pin you've connected your sensor to.
+      inverted: true
+      mode:
+        input: true
+    id: block_1_sensor # Rename this if you have different blocks (block_2, block_3, etc)
+    internal: true
+    filters:
+      - delayed_on_off: $global_debounce
+    on_press:
+      then:
+        - logger.log:
+            format: "$block_1_name | OCCUPIED" # Rename this variable if you have different blocks ($block_2_name, $block_3_name, etc)
+            level: INFO
+            tag: block_sensor
+        - mqtt.publish:
+            topic: $block_1_topic
+            payload: THROWN
+    on_release:
+      then:
+        - logger.log:
+            format: "$block_1_name | UNOCCUPIED"
+            level: INFO
+            tag: block_sensor
+        - mqtt.publish:
+            topic: $block_1_topic
+            payload: CLOSED

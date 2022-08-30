@@ -1,0 +1,57 @@
+#####
+# ESPHome Layout Control
+# Sample Board Configuration
+# Use this as your starting point
+
+esphome:
+  name: sta-bd-01
+
+# the type of board. If you bought the 38 pin one on my README, you don't need to change this.
+esp32:
+  board: nodemcu-32s
+
+# We selectively enable/disable logging components here.
+logger:
+  level: DEBUG # The base level of logging. We need Debug for Servo calibration but then hide other chatty stuff by setting things to NONE.
+  logs:
+    number: DEBUG # required to be at DEBUG when you are calibrating servos
+    block_sensors: INFO # This is a custom log to make it easier to interpret
+    # Everything else that would be on the board we disable in favour of custom logging.
+    servo: NONE
+    esp32.preferences: NONE
+    sensor: NONE
+    binary_sensor: NONE
+
+# This is where we import component-specific configuration. For each template you bring across and modify,
+# simply uncomment a line that matches the file you copied.
+# if you have multiple files - simply make the key (the left hand side of the colon) unique for each file.
+# the reason for chunking this up is to make it easier to read and group similar bits of code together.
+
+packages:
+  #gpio: !include sta-bd-01/gpio_01.yaml
+  #gpio_2: !include sta-bd-01/gpio_02.yaml
+  #signal_ber_44_6: !include lib/signal_ber_44_6.yaml
+  #servos_01:  !include lib/servos_01.yaml
+  #servo_calibrate: !include template/lib/servos_01_calibrate.yaml
+
+
+# Configure the connection to MQTT. JMRI also connects to this server, and this is
+# how your ESPHome nodes and JMRI will exchange messages.
+mqtt:
+  broker: !secret layout_mqtt_broker_ip # connect to the layout control MQTT Broker.
+  id: mqtt_server
+  discovery: false
+
+# Over-The-Air (OTA) updates allow you to update config on your ESPs once they are registered on your
+# Dashboard. A very useful feature especially for things like Servo configuration which
+# can be done wirelessly whilst still installed in the layout.
+ota:
+  password: !secret ota_password # connecting back to the esphome dashboard
+  safe_mode: false
+
+# lastly the wifi connection. We can't talk to anything unless we're on the network
+
+wifi:
+  ssid: !secret layout_wifi_ssid
+  password: !secret layout_wifi_password
+  power_save_mode: none
