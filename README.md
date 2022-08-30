@@ -84,7 +84,7 @@ OK now we're getting to the interesting part - the actual provisioning of a boar
 
 if you navigate to your ESPHome dashboard webpage and you'll see something like this:
 
-![image-20220830201536127](/Users/aaron/Library/Application Support/typora-user-images/image-20220830201536127.png)
+![image-20220830201536127](_img/image-20220830201536127.png)
 
 There's your board! rename the esp32-01.yaml file to whatever you want to call your board. Once you're done, open up the file in your favourite text editor (if you're stuck - try something like atom that highlights YAML syntax)
 
