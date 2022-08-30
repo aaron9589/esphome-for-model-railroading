@@ -1,7 +1,5 @@
 # ESPHome for Model Railroading
 
-[TOC]
-
 ## Introduction
 
 The repo is a collection of resources for using the home automation tool ESPHome with a model railroad. ESPHome is a great platform to base your automations/control systems on as it abstracts a lot of the authoring of code away from you, so you can focus on creating something that works for your use case, and know that the code running on your microcontrollers is optimised.
