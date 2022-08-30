@@ -143,4 +143,4 @@ So you've built your first board. Now we're going to get it integrated with ESPH
 
 ## Questions? Comments?
 
-If you have any questions about this repo, want to help contribute to make the doco better, or just have a question about how to get it working - please raise an issue and I will try and assist where I can. Thanks for Reading!
+If you have any questions about this repo, want to help contribute to make the doco better, or just have a question about how to get it working - please raise an issue and I will try and assist where I can. Thanks for reading!
