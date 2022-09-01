@@ -32,7 +32,7 @@ CATS talks to JMRI through tables - and those tables are reflected through MQTT 
 
 - ESP32, 38 Pin: https://www.aliexpress.com/item/1005002435072060.html
 - ESP32 Breakout Board: https://www.aliexpress.com/item/1005003909506324.html
-- 6-12v Transformer for the ESP Power Bus (I run mine at about 7v, the onboard regulator on the breakout board drops this to 5v) - I ended up going with a variable voltage 5A power supply with amp meter so I could ensure I stayed within the threshold of the supply.
+- 6-12v Transformer for the ESP Power Bus (I run mine at about 7v, the onboard regulator on the breakout board drops this to 5v) - I ended up going with a variable voltage 5A power supply with amp meter so I could ensure I stayed within the threshold of the supply. I could use Buck Converters off the DCC Bus, but I wanted to keep this completely seperate to preserve the signal/servo state in the event of a short in a power district.
 
 So you've ordered the bits, waited that arbitrary amount of time for it to materialise at your doorstep - now what?
 
@@ -147,4 +147,4 @@ So you've built your first board. Now we're going to get it integrated with ESPH
 
 ## Questions? Comments?
 
-If you have any questions about this repo, want to help contribute to make the doco better, or just have a question about how to get it working - please raise an issue and I will try and assist where I can. Thanks for Reading!
+If you have any questions about this repo, want to help contribute to make the doco better, or just have a question about how to get it working - please raise an issue and I will try and assist where I can. Thanks for reading!
