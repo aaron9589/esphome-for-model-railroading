@@ -124,6 +124,14 @@ As per the article I sourced the current sensors (AS-100) from Digikey - the oth
 
 <img src="_img/detectors_installed.jpg" alt="img" style="zoom:13%;" />
 
+### Additional Detector Notes
+
+- Blocks are highly variable and will require tuning. Don't wire them all at once and test because you'll most likely need to make changes! (I speak from experience here)
+- The coil is quite sensitive. Try with the coil straight through before adding additional windings.
+- Plug the detector straight into the running ESP. Ensure there is nothing on the track. If it flicks straight to occupied with nothing on the track, reduce the number of windings.
+  - If it detects nothing when a load is placed on the track, try adding additional windings.
+  - If you can't maintain the two states without modifying the winding - reset back to a single wire through the coil, and add a 10K potentiometer (something like [this](https://www.jaycar.com.au/10k-ohm-linear-b-single-gang-9mm-potentiometer/p/RP8510)) across the two ends of the detector coil on the board for finer adjustment.
+
 ### Integration with ESPHome
 
 So you've built your first board. Now we're going to get it integrated with ESPHome, detect a train on your track, and feed this information back to MQTT.
