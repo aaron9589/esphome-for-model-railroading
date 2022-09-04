@@ -1,0 +1,70 @@
+# servos_01.yaml
+# sample ESPHome Integration for Point Motor Control with SG90 Servos
+# This is a little bit more involved than block detectors as we have to pass through a few components first.
+# at a high level:
+#
+# MQTT Topic Subscription -> Servo Object -> Output Object (PWM Pin to Drive the Servo)
+
+# HOW TO USE
+#
+# 1) Make a copy of the turnout_01* items under substitutions. Rename as per your preferred naming standard, and update
+#    the values for each property.
+# 2) Make a copy of each component under the output, servo and text_sensor areas
+# 3) change the properties where the old variable name (eg. $turnout_01_pin, turnout_01_name) to the new
+#    name you chose in step 1
+# 4) Upload to your ESP, and test by updating each MQTT Topic.
+# 5) (Optional) If it is a new servo, use the servos_01_calibrate file as well to figure out the servo endpoints
+
+# Set some variables for Servos. Each one contains the Name, pin, and normal/reverse endpoints. Copy/Pase
+substitutions:
+  #single global variable for turnout speed. Adds up to about a 3 second throw
+  turnout_speed: 10s
+
+  # per-servo vars - turnout 1
+  turnout_01_name: sta_up_yard01
+  turnout_01_pin: GPIO21
+  turnout_01_normal_endpoint: "-10.0%"
+  turnout_01_reverse_endpoint: "12.0%"
+
+output: # Set an Output. This is how the Servo Object below communicates with the actual servo to actuate it
+  - platform: ledc
+    id: ${turnout_01_name}_output
+    pin: $turnout_01_pin
+    frequency: 50 Hz # Best value for a SG90 servo
+
+servo:
+  - id: ${turnout_01_name}_servo
+    output: ${turnout_01_name}_output
+    # auto detach time. If at 0s - servo never detaches. If your servo buzzes, look at detatching after 1 second - just keep in mind
+    # it may snap back if its under pressure holding the blade of the point.
+    auto_detach_time: 0s
+    transition_length: $turnout_speed
+    restore: true # I don't think this works - but it'll be a nice to have eventually https://github.com/esphome/issues/issues/3510
+
+text_sensor:
+  - platform: mqtt_subscribe
+    name: "Data from topic"
+    id: $turnout_01_name
+    topic: /trains/track/turnout/QTSWI-${turnout_01_name} # The MQTT Topic we watch to actuate the servo.
+    on_value:
+      if:
+        condition:
+          text_sensor.state:
+            id: $turnout_01_name
+            state: 'THROWN' # Thrown / Closed are what CATS uses as it uses the JMRI turnout table.
+        then:
+          - logger.log:
+              format: "${turnout_01_name} : REVERSE"
+              level: INFO
+              tag: servo_control
+          - servo.write:
+              id: ${turnout_01_name}_servo
+              level: $turnout_01_reverse_endpoint
+        else:
+          - logger.log:
+              format: "${turnout_01_name} : NORMAL"
+              level: INFO
+              tag: servo_control
+          - servo.write:
+              id: ${turnout_01_name}_servo
+              level: $turnout_01_normal_endpoint

@@ -151,6 +151,32 @@ So you've built your first board. Now we're going to get it integrated with ESPH
 4. Open your ESPHome Dashboard - click edit on your board, then click install and select wireless. Your board now that you've uncommented the line in step 3 will recompile and push the updated config over WiFi to the board.
 5. You can now hook up your sensor, loop your track through the current detector, and place a train on the track. If it's all worked, you'll see a log on your ESPHome Dashboard indicating this, and your MQTT topic will change.
 
+## Setting Up Point Control
+
+I've used SG90 servos on my layout, have previously used them with Tam Valley Singlets and they work well. 
+
+There are two files in this repo that will allow you to start using your ESP to control servos for point motor control, further instructions are below.
+
+1) Make a copy of servos_01.yaml and servos_01_calibrate.yaml and move to your device folder.
+2) Uncomment the files in your main YAML file under `packages:` - make sure the file paths to the newly copied files are correct.
+3) Follow the comments in each file, and configure your ESP for your first servo. Upload and reboot your ESP.
+4) Plug in your servo to the same pin defined in the YAML file.
+5) navigate to your devices new web server (eg http://sta-bd-01.local) - a web page will come up.
+6) Select the slider, and press the left or right arrow key. The console will update with the new value. Press the key until you are back at 0.0
+7) Your servo is now centred - mount your servo in your XOver with the tie bar centered between the rails.
+8) Move the slider again and note down the values for your point when Normal/Reversed. 
+9) Update these values in your servos_01.yaml substutions for the point you are installing.
+10) If you have no more to calibrate - comment out the calibration file in the main YAML so the web server doesn't chew up resources and upload the new config to your ESP
+11) Test by changing your MQTT topic for the servo to CLOSED or THROWN (either manually or through something like JMRI/CATS) - confirm the point changes.
+
+### Other Notes
+
+- The Servos don't initialise to open/close on start - you'll need to reset all the points when you power on the ESP. (CATS can do this for you easily). I might try and get it to initialise on boot eventually.
+
+- Servos buzzing can be stopped by changing the detach_time for that servo to something other than 0s.
+
+  
+
 ---
 
 ## Questions? Comments?
