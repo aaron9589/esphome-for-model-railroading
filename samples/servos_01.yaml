@@ -26,6 +26,26 @@ substitutions:
   turnout_01_normal_endpoint: "-10.0%"
   turnout_01_reverse_endpoint: "12.0%"
 
+# On ESP Boot, we do a few things:
+# - detach the servo asap to reduce the snapping effect as the ESP initialises
+# - at the end of ESP init - set the servos to normal, and publish a message to MQTT.
+#   this serves two purposes: publishes a known state of the servo, and also normalises twice - once through
+#   servo.write and once through the MQTT Subscription
+esphome:
+  on_boot:
+    - priority: 800
+      then:
+        - servo.detach: ${turnout_01_name}_servo
+    - priority: -100.0
+      then:
+        - servo.write:
+            id: ${turnout_01_name}_servo
+            level: $turnout_01_normal_endpoint
+        - delay: 1s
+        - mqtt.publish:
+            topic: /trains/track/turnout/QTSWI-${turnout_01_name}
+            payload: "CLOSED"
+
 output: # Set an Output. This is how the Servo Object below communicates with the actual servo to actuate it
   - platform: ledc
     id: ${turnout_01_name}_output
@@ -39,7 +59,6 @@ servo:
     # it may snap back if its under pressure holding the blade of the point.
     auto_detach_time: 0s
     transition_length: $turnout_speed
-    restore: true # I don't think this works - but it'll be a nice to have eventually https://github.com/esphome/issues/issues/3510
 
 text_sensor:
   - platform: mqtt_subscribe
