@@ -57,6 +57,7 @@ servo:
     output: ${turnout_01_name}_output
     # auto detach time. If at 0s - servo never detaches. If your servo buzzes, look at detatching after 1 second - just keep in mind
     # it may snap back if its under pressure holding the blade of the point.
+    # if you can, avoid using detach. It causes the servo to flicker occasionally off its endpoint. just takes a bit more fine tuning.
     auto_detach_time: 0s
     transition_length: $turnout_speed
 
