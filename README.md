@@ -171,9 +171,9 @@ There are two files in this repo that will allow you to start using your ESP to 
 
 ### Other Notes
 
-- The Servos don't initialise to open/close on start - you'll need to reset all the points when you power on the ESP. (CATS can do this for you easily). I might try and get it to initialise on boot eventually.
+- ~The Servos don't initialise to open/close on start - you'll need to reset all the points when you power on the ESP. (CATS can do this for you easily). I might try and get it to initialise on boot eventually.~ This is now fixed, servos initialise when the ESP boots.
 
-- Servos buzzing can be stopped by changing the detach_time for that servo to something other than 0s.
+- ~Servos buzzing can be stopped by changing the detach_time for that servo to something other than 0s.~ After installing a few I've opted to never detach and focus on getting the endpoints exact - too often when detatching the servos would flick away from the endpoint.
 
   
 
