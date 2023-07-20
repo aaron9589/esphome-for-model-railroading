@@ -10,11 +10,11 @@ Currently I'm working on the following 3 use cases:
 - Point Control
 - Signal Control
 
-So far I've got Block Detection to the stage where it is being implemented on my layout, and Point Control will follow shortly. I have some plans to use addressable RGB LEDs for Signal Control which I'll share in this repo once i'm at that stage.
+So far I've got Block Detection to the stage where it is being implemented on my layout, and Point Control is now also available. I have some plans to use addressable RGB LEDs for Signal Control which I'll share in this repo once i'm at that stage.
 
 ## Background
 
-My layout is based on the Illawarra line in the early 2000's between Bomaderry/Nowra, Kiama and other areas of interest. Here's a [slide deck](https://www.dropbox.com/scl/fi/j3us5vd0bijmh6vbv1nti/The-Illawarra-Line.pptx?dl=0&rlkey=eekq5k3a9k8lqploqze55ly3p) I put together to set my vision for the layout, it's still continuing to evolve (particularly in the track plan space).
+My layout is based on the Illawarra line in the early 2000's between Bomaderry/Nowra, Kiama and other areas of interest. Here's a [website](https://illawarraline.net) with some more info.
 
 As I'm building the layout for operations, having a central control system was of utmost importance. I've previously used propietary systems such as Train-Brain by CTI Electronics, which I implemented on a [previous N Scale layout](https://steinosub.blogspot.com) and this worked quite well.
 
@@ -30,19 +30,14 @@ CATS talks to JMRI through tables - and those tables are reflected through MQTT 
 
 ### Components
 
-- ESP32, 38 Pin: https://www.aliexpress.com/item/1005002435072060.html
-- ESP32 Breakout Board: https://www.aliexpress.com/item/1005003909506324.html
-- 6-12v Transformer for the ESP Power Bus (I run mine at about 7v, the onboard regulator on the breakout board drops this to 5v) - I ended up going with a variable voltage 5A power supply with amp meter so I could ensure I stayed within the threshold of the supply. I could use Buck Converters off the DCC Bus, but I wanted to keep this completely seperate to preserve the signal/servo state in the event of a short in a power district.
+Everything except the transformers I source from AliExpress. For the PCA/dupont connectors, do a search and find the cheapest one you can find.
+
+- ESP32, CP2102 and matching board: https://www.aliexpress.com/item/1005004337178335.html
+- PCA9685 Boards
+- 20cm Female-Female Dupont Connectors
+- 2x 6-12v Transformers. I run two buses - one for the ESP at 6.5v and one for Servos at 5v. The 6.5v is dropped to 5v by the breakout boards. I could use Buck Converters off the DCC Bus, but I wanted to keep this completely seperate to preserve the signal/servo state in the event of a short in a power district.
 
 So you've ordered the bits, waited that arbitrary amount of time for it to materialise at your doorstep - now what?
-
-### Modifying the Breakout Board
-
-The board by default has a 3.3v rail down the centre breakout pin, delivered through the ESP which steps down the 5v from the board itself. I wanted 5v on this line to drive servos, LEDs, etc. I made a simple modification by **snipping the 3.3v leg on the ESP**, and running a wire from the 5v out of the regulator to a trace on the other side of the board as per the diagram below
-
-![image-20220830202150013](_img/image-20220830202150013.png)
-
-I also drilled two holes through the centre of the board for mounting.
 
 ### Setup the supporting infrastructure
 
@@ -157,23 +152,15 @@ I've used SG90 servos on my layout, have previously used them with Tam Valley Si
 
 There are two files in this repo that will allow you to start using your ESP to control servos for point motor control, further instructions are below.
 
-1) Make a copy of servos_01.yaml and servos_01_calibrate.yaml and move to your device folder.
+1) Make a copy of servos_01.yaml and move to your device folder.
 2) Uncomment the files in your main YAML file under `packages:` - make sure the file paths to the newly copied files are correct.
 3) Follow the comments in each file, and configure your ESP for your first servo. Upload and reboot your ESP.
 4) Plug in your servo to the same pin defined in the YAML file.
 5) navigate to your devices new web server (eg http://sta-bd-01.local) - a web page will come up.
 6) Select the slider, and press the left or right arrow key. The console will update with the new value. Press the key until you are back at 0.0
 7) Your servo is now centred - mount your servo in your XOver with the tie bar centered between the rails.
-8) Move the slider again and note down the values for your point when Normal/Reversed. 
-9) Update these values in your servos_01.yaml substutions for the point you are installing.
-10) If you have no more to calibrate - comment out the calibration file in the main YAML so the web server doesn't chew up resources and upload the new config to your ESP
-11) Test by changing your MQTT topic for the servo to CLOSED or THROWN (either manually or through something like JMRI/CATS) - confirm the point changes.
-
-### Other Notes
-
-- ~The Servos don't initialise to open/close on start - you'll need to reset all the points when you power on the ESP. (CATS can do this for you easily). I might try and get it to initialise on boot eventually.~ This is now fixed, servos initialise when the ESP boots.
-
-- ~Servos buzzing can be stopped by changing the detach_time for that servo to something other than 0s.~ After installing a few I've opted to never detach and focus on getting the endpoints exact - too often when detatching the servos would flick away from the endpoint.
+8) Move the slider again and update the normal/backoff values. These will save to the ESP.
+9) Test by changing your MQTT topic for the servo to CLOSED or THROWN (either manually or through something like JMRI/CATS) - confirm the point changes.
 
   
 
