@@ -32,6 +32,8 @@ CATS talks to JMRI through tables - and those tables are reflected through MQTT 
 
 Everything except the transformers I source from AliExpress. For the PCA/dupont connectors, do a search and find the cheapest one you can find.
 
+[img](_img/Parts.jpg)
+
 - ESP32, CP2102 and matching board: https://www.aliexpress.com/item/1005004337178335.html
 - PCA9685 Boards
 - 20cm Female-Female Dupont Connectors
