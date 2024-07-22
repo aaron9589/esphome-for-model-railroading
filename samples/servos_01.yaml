@@ -9,8 +9,8 @@ substitutions:
 
   # per-servo vars - turnout 1. You will need to copy/paste these two lines,
   # update the names (eg. turnout_02, turnout_03) etc as you add more servos.
-  turnout_01_name: balloon_loop_xover
-  turnout_01_topic: "/trains/track/turnout/SWI/Staging/Balloon Loop" # This should match what you configure in CATS.
+  turnout_01_name: up_loop
+  turnout_01_topic: trains/track/turnout/Kiama/Up Loop # This should match what you configure in CATS.
 
 
 web_server:
