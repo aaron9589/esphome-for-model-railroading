@@ -10,8 +10,6 @@ Currently I'm working on the following 3 use cases:
 - Point Control
 - Signal Control
 
-So far I've got Block Detection to the stage where it is being implemented on my layout, and Point Control is now also available. I have some plans to use addressable RGB LEDs for Signal Control which I'll share in this repo once i'm at that stage.
-
 ## Background
 
 My layout is based on the Illawarra line in the early 2000's between Bomaderry/Nowra, Kiama and other areas of interest. Here's a [website](https://illawarraline.net) with some more info.
