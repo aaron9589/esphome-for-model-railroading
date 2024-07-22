@@ -6,21 +6,40 @@
 esphome:
   name: sta-bd-01
 
+# Randomly delay the boot of the ESP from 3 to 10 seconds
+  on_boot:
+    - priority: 600
+      then:
+        - lambda: |-
+            int random_delay = random(3000, 10001);  // milliseconds
+            ESP_LOGI("main", "Delaying boot for %d milliseconds", random_delay);
+            int delay_step = 100; // 100 ms delay steps to feed the watchdog
+            for (int i = 0; i < random_delay / delay_step; i++) {
+              delay(delay_step);
+              // Feed the watchdog
+              App.feed_wdt();
+            }
+            // Handle the remainder of the delay
+            delay(random_delay % delay_step);
+            ESP_LOGI("main", "Boot delay completed, continuing initialization");
+
 # the type of board. If you bought the 38 pin one on my README, you don't need to change this.
 esp32:
   board: nodemcu-32s
 
 # We selectively enable/disable logging components here.
 logger:
-  level: DEBUG # The base level of logging. We need Debug for Servo calibration but then hide other chatty stuff by setting things to NONE.
+  level: DEBUG
   logs:
-    number: DEBUG # required to be at DEBUG when you are calibrating servos
-    block_sensors: INFO # This is a custom log to make it easier to interpret
-    # Everything else that would be on the board we disable in favour of custom logging.
+    number: NONE # required to be at DEBUG when you are calibrating servos
+    block_sensors: INFO
+    # upstream components we dont care about
     servo: NONE
+    ledc: DEBUG
     esp32.preferences: NONE
-    sensor: NONE
     binary_sensor: NONE
+    sensor: DEBUG
+    # service logging
 
 # This is where we import component-specific configuration. For each template you bring across and modify,
 # simply uncomment a line that matches the file you copied.
@@ -29,11 +48,8 @@ logger:
 
 packages:
   #gpio: !include sta-bd-01/gpio_01.yaml
-  #gpio_2: !include sta-bd-01/gpio_02.yaml
-  #signal_ber_44_6: !include lib/signal_ber_44_6.yaml
-  #servos_01:  !include lib/servos_01.yaml
-  #servo_calibrate: !include template/lib/servos_01_calibrate.yaml
-
+  #servos_01:  !include sta-bd-01/servos_01.yaml
+  #signals: !include kia-bd-01/wled_signal.yaml
 
 # Configure the connection to MQTT. JMRI also connects to this server, and this is
 # how your ESPHome nodes and JMRI will exchange messages.
@@ -41,6 +57,11 @@ mqtt:
   broker: !secret layout_mqtt_broker_ip # connect to the layout control MQTT Broker.
   id: mqtt_server
   discovery: false
+  on_message:
+    - topic: /trains/track/turnout/ADM/ResetESPs
+      payload: "THROWN"
+      then:
+        - button.press: reboot_esp
 
 # Over-The-Air (OTA) updates allow you to update config on your ESPs once they are registered on your
 # Dashboard. A very useful feature especially for things like Servo configuration which
@@ -55,3 +76,8 @@ wifi:
   ssid: !secret layout_wifi_ssid
   password: !secret layout_wifi_password
   power_save_mode: none
+
+button:
+  - platform: restart
+    id: reboot_esp
+    name: "ESP Restart"

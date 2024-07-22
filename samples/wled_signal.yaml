@@ -1,0 +1,68 @@
+---
+# Using WLED to drive WS2812B-based signals.
+# You can see my implementation of these on my blog:
+# https://illawarraline.net/signals-for-the-illawarra-line/
+
+
+substitutions:
+  # Set the pins you wish to use to communicate over serial to WLED.
+  signal_uart_pin_rx: 3
+  signal_uart_pin_tx: 1
+  # each signal needs a name/topic. Unfortunately id doesn't support - so _ will have to do.
+  signal_01_name: "KIA_45_26"
+  signal_01_topic: "KIA-45.26"
+
+logger:
+  baud_rate: 0 # disable logging via UART. this is required if you're using a UART pin reserved for esphome serial logging.
+
+uart: # Serial bus for the communication with WLED
+  - id: signal_uart
+    tx_pin: ${signal_uart_pin_tx}
+    rx_pin: ${signal_uart_pin_rx}
+    baud_rate: 115200
+
+text_sensor: # Text sensors per signal.
+  - platform: mqtt_subscribe
+    name: ${signal_01_name}
+    id: ${signal_01_name}
+    # integration with CATS masts in MQTT. This requires a custom signal mast, available here:
+    # https://github.com/aaron9589/cats-panel/tree/main/.jmri
+    topic: trains/track/signalmast/${signal_01_topic}
+    on_value:
+      - if: # example where there is a single condition to trigger a signal.
+          condition:
+              - text_sensor.state:
+                  id: ${signal_01_name}
+                  state: 'R292; Lit; Unheld' # Stop in the CATS mast table.
+          then:
+            - logger.log:
+                format: "sending a json payload to WLED"
+                level: INFO
+                tag: block_sensor
+            - uart.write:
+                id: signal_uart
+                # this is a JSON payload. more detail on this JSON payload available on the WLED website, and my
+                # implementation of it here: https://illawarraline.net/build-progress-05-24/
+                data: '{"seg":[{"id":4,"i":["0","ff0000","ff0000","0","0"],"frz":true,"on":true},{"id":5,"frz":true,"on":false}]}'
+
+      - if: # Additional If statements for other signal states.
+          condition:
+                - or:
+                # sometimes you have multiple conditions, here
+                # is an example of that. Helps to massage
+                # some of the signal aspects and push a bit beyond
+                # the CATS logic.
+                    - text_sensor.state:
+                        id: ${signal_01_name}
+                        state: 'R281; Lit; Unheld' # Proceed
+                    - text_sensor.state:
+                        id: ${signal_01_name}
+                        state: 'R282; Lit; Unheld' # Proceed
+          then:
+            - logger.log:
+                format: "sending a json payload to WLED"
+                level: INFO
+                tag: block_sensor
+            - uart.write:
+                id: signal_uart
+                data: '{"seg":[{"id":4,"i":["0","0","0","0","1fff87"],"frz":true,"on":true},{"id":5,"frz":false,"on":false}]}'
