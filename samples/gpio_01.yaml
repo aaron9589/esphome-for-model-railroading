@@ -4,11 +4,22 @@
 # designed to work with CATS Integration in JMRI.
 
 substitutions:
-  global_debounce: 100ms # Use this to stop circuits flapping between occupied and unoccupied. I found 100ms is a good threshold for this.
+  global_debounce: 500ms # Use this to stop circuits flapping between occupied and unoccupied. I found 100ms is a good threshold for this.
   # Each block has an MQTT topic (Which JMRI watches) and a name (which appears in the ESP Logs)
-  block_1_topic: "/trains/track/turnout/QTSEN-STA-UpYardApproach"
-  block_1_name: "Downhill Approach - Up"
+  block_1_topic: "trains/track/sensor/Kiama/Up XOver"
+  block_1_name: "Kiama/Up XOver"
   # if you create additional blocks, copy and paste these two above and name them as appropriate.
+
+esphome:
+  on_boot:
+    - priority: -50.0
+      then: # duplicate this code for the refreshall command required in cats during an unscheduled restart
+        - mqtt.publish:
+            topic: $block_1_topic
+            payload: !lambda |-
+              return id(block_1_sensor).state ? "ACTIVE" : "INACTIVE";
+            retain: false
+            qos: 2
 
 binary_sensor:
   - platform: gpio
@@ -18,18 +29,19 @@ binary_sensor:
       mode:
         input: true
     id: block_1_sensor # Rename this if you have different blocks (block_2, block_3, etc)
-    internal: true
     filters:
       - delayed_on_off: $global_debounce
     on_press:
       then:
         - logger.log:
-            format: "$block_1_name | OCCUPIED" # Rename this variable if you have different blocks ($block_2_name, $block_3_name, etc)
+            format: "$block_1_name | OCCUPIED"
             level: INFO
             tag: block_sensor
         - mqtt.publish:
             topic: $block_1_topic
-            payload: THROWN
+            payload: ACTIVE
+            retain: false
+            qos: 2
     on_release:
       then:
         - logger.log:
@@ -38,4 +50,6 @@ binary_sensor:
             tag: block_sensor
         - mqtt.publish:
             topic: $block_1_topic
-            payload: CLOSED
+            payload: INACTIVE
+            retain: false
+            qos: 2

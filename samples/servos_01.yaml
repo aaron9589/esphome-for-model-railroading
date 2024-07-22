@@ -4,10 +4,12 @@
 substitutions:
   # Global variable. Update this if you feel the servos are throwing too quickly.
   turnout_speed: 10s
-  
+  i2c_sda_pin: 16
+  i2c_scl_pin: 17
+
   # per-servo vars - turnout 1. You will need to copy/paste these two lines,
   # update the names (eg. turnout_02, turnout_03) etc as you add more servos.
-  turnout_01_name: balloon_loop_xover 
+  turnout_01_name: balloon_loop_xover
   turnout_01_topic: "/trains/track/turnout/SWI/Staging/Balloon Loop" # This should match what you configure in CATS.
 
 
@@ -15,8 +17,8 @@ web_server:
 # WebUI Stuff. We need the webserver to make realtime updates to point motor endpoints.
 
 number:
-# each point has 4 'template' entries, one for normal/reverse and backoff/normal endpoints. these again should be copied, 
-# and the 'turnout_01' updated for 'turnout_02', 'turnout_03' etc. This code below is what you see in the web portal to update your 
+# each point has 4 'template' entries, one for normal/reverse and backoff/normal endpoints. these again should be copied,
+# and the 'turnout_01' updated for 'turnout_02', 'turnout_03' etc. This code below is what you see in the web portal to update your
 # servos in realtime, and save the values to the ESP.
   - platform: template
     name: ${turnout_01_name}_servo_endpoint_normal
@@ -78,26 +80,10 @@ number:
             id: ${turnout_01_name}_servo
             level: !lambda 'return x / 100.0;'
 
-esphome:
-  on_boot:
-  
-    - priority: -200.0
-      then:
-        - logger.log:
-            format: 'Publishing Topics'
-            level: INFO
-            tag: init
-       # copy/paste the code below for each servo. This allows you to initialise each servo to normal whenever
-       # the ESP boots, so your control system is in sync.
-        - mqtt.publish:
-            topic: ${turnout_01_topic}
-            payload: 'CLOSED'
-        - delay: 1s
-
 i2c:
   # change these pins depending on where you plug your PCA board into.
-  sda: 33
-  scl: 32
+  sda: ${i2c_sda_pin}
+  scl: ${i2c_scl_pin}
   scan: true
   id: bus_a
 
@@ -161,6 +147,8 @@ text_sensor:
             - mqtt.publish:
                 topic: "${turnout_01_topic}/State"
                 payload: "THROWN"
+                retain: false
+                qos: 2
       - if:
           condition:
             text_sensor.state:
@@ -191,3 +179,5 @@ text_sensor:
             - mqtt.publish:
                 topic: "${turnout_01_topic}/State"
                 payload: "CLOSED"
+                retain: false
+                qos: 2
