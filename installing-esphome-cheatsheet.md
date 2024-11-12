@@ -66,13 +66,13 @@ from having to install applications directly on your PC.
 
 1. Open the ESPHome Dashboard. Select 'New Device'
 
-2. Give your device a name, click next
+2. Give your device a name, and enter in your Wifi details.
    
 4. Under the 'Installation' Step - click skip. We will configure the device further before deploying.
 
-5. Choose your device type. Generally ESP32 works best unless you have one with strange hardware.
+5. Choose your device type. Generally ESP32 works best unless you have one with strange hardware. Click Next.
 
-6. Hit Skip instead of Install.
+6. On the success page, hit Skip instead of Install.
 
 7. Click 'Edit' on the newly created file. Add any additional config such as MQTT brokers, etc.
 
