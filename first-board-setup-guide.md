@@ -43,14 +43,26 @@ Success looks like:
 
 ## Step 3: Create the Modules Folder
 
-The sample board config loads features from a subfolder called `modules/`. You need to create this folder and copy the feature files into it.
+The sample board config loads features from a subfolder called `modules/`. ESPHome stores its config files inside a Docker volume — there is no in-browser file manager, so you create the folder and copy files directly through Windows Explorer.
 
-1. In the ESPHome file browser (the folder icon, top left of the editor), create a new folder called `modules/` next to your board YAML.
-2. Copy [samples/my-first-board/modules/block_detectors.yaml](samples/my-first-board/modules/block_detectors.yaml) into that `modules/` folder.
-3. Copy [samples/my-first-board/modules/point_control.yaml](samples/my-first-board/modules/point_control.yaml) into that `modules/` folder.
+**Open the ESPHome config folder in Windows Explorer:**
+
+1. Press **Win + R**, type the path below, and press Enter:
+   ```
+   \\wsl$\docker-desktop\var\lib\docker\volumes\esphome-config\_data
+   ```
+2. You should see a folder for each device (named after the board you created in Step 2), plus `secrets.yaml`.
+
+**Create the modules folder and copy the sample files:**
+
+3. Open the folder that matches your board name (e.g. `yard-board-01`).
+4. Create a new folder inside it called `modules`.
+5. Copy [samples/my-first-board/modules/block_detectors.yaml](samples/my-first-board/modules/block_detectors.yaml) from this repo into that `modules` folder.
+6. Copy [samples/my-first-board/modules/point_control.yaml](samples/my-first-board/modules/point_control.yaml) from this repo into that `modules` folder.
 
 Success looks like:
-- Both files appear inside the `modules/` folder in the file browser.
+- The `modules` folder sits next to your board's `.yaml` file.
+- Both `block_detectors.yaml` and `point_control.yaml` are inside it.
 
 Note:
 - You can comment out a package line in board.yaml (add `#` at the start) to disable a feature you are not using yet.

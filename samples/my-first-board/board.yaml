@@ -7,8 +7,9 @@
 # HOW TO USE THESE FILES:
 #   1. In ESPHome Dashboard, open your device YAML and replace
 #      its contents with this file (change the name below).
-#   2. In the ESPHome file browser, create a folder called
-#      modules/ next to this file.
+#   2. In Windows Explorer, open the ESPHome config volume at:
+#        \\wsl$\docker-desktop\var\lib\docker\volumes\esphome-config\_data
+#      Open your board's folder and create a subfolder called modules/.
 #   3. Copy point_control.yaml and block_detectors.yaml into
 #      that modules/ folder.
 #   4. Fill in secrets.yaml with your Wi-Fi and MQTT details.
