@@ -5,6 +5,7 @@ This is the easiest path for first-time users on Windows.
 
 Goal:
 - Install Docker Desktop
+- Install VS Code
 - Enable host networking
 - Start MQTT (EMQX)
 - Start ESPHome Dashboard
@@ -23,7 +24,7 @@ Set-ExecutionPolicy Bypass -Scope Process -Force; [System.Net.ServicePointManage
 choco install docker-desktop -y
 ```
 
-Reboot, open Docker Desktop, enable host networking (see Step 2), then run:
+Reboot, open Docker Desktop, install VS Code (see Step 2), enable host networking (see Step 3), then run:
 
 ```powershell
 docker run -d --restart always --name emqx -p 1883:1883 -p 18083:18083 emqx/emqx:5
@@ -75,7 +76,33 @@ If these commands show server info, Docker is ready.
 
 ---
 
-## 2. Enable Host Networking
+## 2. Install VS Code
+
+VS Code makes editing YAML config files much easier — it highlights syntax errors as you type, which saves a lot of frustration with indentation.
+
+Install it with Chocolatey (same window as above):
+
+```powershell
+choco install vscode -y
+```
+
+Or download the installer directly from https://code.visualstudio.com.
+
+Once installed, add the YAML extension for syntax highlighting and error checking:
+
+1. Open VS Code.
+2. Press **Ctrl+Shift+X** to open Extensions.
+3. Search for `YAML` and install the one by **Red Hat**.
+
+You will use VS Code to edit files in the ESPHome config folder later. The config files are stored at:
+```
+\\wsl$\docker-desktop\var\lib\docker\volumes\esphome-config\_data
+```
+You can open this folder directly in VS Code: **File → Open Folder** and paste that path.
+
+---
+
+## 3. Enable Host Networking
 
 Do this before starting any containers. Without it, ESPHome cannot see your ESP boards on the network for OTA updates or device discovery.
 
@@ -96,7 +123,7 @@ docker login
 
 ---
 
-## 3. Start EMQX (MQTT broker)
+## 4. Start EMQX (MQTT broker)
 
 Run:
 
@@ -122,7 +149,7 @@ docker ps --filter "name=emqx"
 
 ---
 
-## 4. Start ESPHome Dashboard
+## 5. Start ESPHome Dashboard
 
 Start ESPHome without port mapping — host networking handles it:
 

@@ -43,29 +43,31 @@ Success looks like:
 
 ## Step 3: Create the Modules Folder
 
-The sample board config loads features from a subfolder called `modules/`. ESPHome stores its config files inside a Docker volume — there is no in-browser file manager, so you create the folder and copy files directly through Windows Explorer.
+The sample board config loads features from a subfolder called `modules/`. ESPHome stores its config files inside a Docker volume — the easiest way to work with them is to open the folder in **VS Code** (installed in the cheatsheet Step 2).
 
-**Open the ESPHome config folder in Windows Explorer:**
+**Open the ESPHome config folder in VS Code:**
 
-1. Press **Win + R**, type the path below, and press Enter:
+1. Open VS Code.
+2. Go to **File → Open Folder**.
+3. Paste this path into the address bar and press Enter:
    ```
    \\wsl$\docker-desktop\var\lib\docker\volumes\esphome-config\_data
    ```
-2. You should see a folder for each device (named after the board you created in Step 2), plus `secrets.yaml`.
+4. You should see a folder for each device (named after the board you created in Step 2), plus `secrets.yaml`.
 
 **Create the modules folder and copy the sample files:**
 
-3. Open the folder that matches your board name (e.g. `yard-board-01`).
-4. Create a new folder inside it called `modules`.
-5. Copy [samples/my-first-board/modules/block_detectors.yaml](samples/my-first-board/modules/block_detectors.yaml) from this repo into that `modules` folder.
-6. Copy [samples/my-first-board/modules/point_control.yaml](samples/my-first-board/modules/point_control.yaml) from this repo into that `modules` folder.
+5. In the VS Code Explorer panel (left sidebar), right-click your board's folder (e.g. `yard-board-01`) and select **New Folder**. Name it `modules`.
+6. Copy [samples/my-first-board/modules/block_detectors.yaml](samples/my-first-board/modules/block_detectors.yaml) from this repo into that `modules` folder.
+7. Copy [samples/my-first-board/modules/point_control.yaml](samples/my-first-board/modules/point_control.yaml) from this repo into that `modules` folder.
 
 Success looks like:
-- The `modules` folder sits next to your board's `.yaml` file.
+- The `modules` folder sits next to your board's `.yaml` file in the VS Code Explorer.
 - Both `block_detectors.yaml` and `point_control.yaml` are inside it.
 
 Note:
 - You can comment out a package line in board.yaml (add `#` at the start) to disable a feature you are not using yet.
+- VS Code will underline YAML errors in red — hover over them to see what is wrong.
 
 ---
 
@@ -73,8 +75,7 @@ Note:
 
 ESPHome keeps passwords in a separate file called `secrets.yaml` so they are never accidentally shared.
 
-1. In ESPHome Dashboard, click the **Secrets** button (top right area).
-2. Replace the contents with the lines below. Fill in every `<...>` with your actual value:
+Open `secrets.yaml` in VS Code (it is in the root of the config folder, next to your board folder). Replace its contents with the lines below, filling in every `<...>` with your actual value:
 
 ```yaml
 wifi_ssid: "<your-wifi-network-name>"
@@ -83,7 +84,7 @@ mqtt_broker: "<your-pc-ip-address>"  # The IP of the PC running EMQX. Find it by
 ota_password: "<choose-any-password-for-over-the-air-updates>"
 ```
 
-3. Click **Save**.
+Save the file (**Ctrl+S**).
 
 To find your PC's IP address, open PowerShell and run:
 ```powershell
