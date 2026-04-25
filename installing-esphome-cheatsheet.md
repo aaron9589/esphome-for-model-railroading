@@ -80,6 +80,8 @@ docker info
 
 If these commands show server info, Docker is ready.
 
+> **Screenshot placeholder:** Docker Desktop main window showing the green **Engine running** indicator in the bottom-left corner and the Containers/Images tabs visible.
+
 ---
 
 ## 2. Install VS Code
@@ -106,6 +108,8 @@ You will use VS Code to edit files in the ESPHome config folder later. The confi
 ```
 You can open this folder directly in VS Code: **File → Open Folder** and paste that path.
 
+> **Screenshot placeholder:** VS Code Extensions panel showing the **YAML** extension by Red Hat installed (green tick/Installed label).
+
 ---
 
 ## 3. Enable Host Networking
@@ -126,6 +130,8 @@ docker login
 3. Go to **Resources → Network**.
 4. Tick **Enable host networking**.
 5. Click **Apply & Restart** and wait for Docker to restart.
+
+> **Screenshot placeholder:** Docker Desktop **Settings → Resources → Network** panel showing the **Enable host networking** checkbox ticked.
 
 ---
 
@@ -153,6 +159,8 @@ Quick check:
 docker ps --filter "name=emqx"
 ```
 
+> **Screenshot placeholder:** EMQX web UI at http://localhost:18083 — the login page, then the dashboard Overview page after signing in, showing 0 or 1 connected clients.
+
 ---
 
 ## 5. Start ESPHome Dashboard
@@ -170,6 +178,8 @@ Quick check:
 ```powershell
 docker ps --filter "name=esphome"
 ```
+
+> **Screenshot placeholder:** ESPHome Dashboard at http://localhost:6052 — the empty dashboard with the **New Device** button visible, confirming the container is running.
 
 ---
 

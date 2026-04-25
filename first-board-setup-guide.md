@@ -18,6 +18,8 @@ Goal:
 Success looks like:
 - You can see a button to create a new device.
 
+> **Screenshot placeholder:** ESPHome Dashboard at http://localhost:6052 with the **New Device** button visible and no device tiles yet (empty dashboard).
+
 ---
 
 ## Step 2: Create Device Entry and Load the Sample Config
@@ -27,6 +29,8 @@ Success looks like:
 3. Enter your 2.4 GHz Wi-Fi name and password (these are only used to register the device — you will replace the YAML next).
 4. Pick your board type. If unsure, choose **ESP32**.
 5. Click **Skip** at the install page for now.
+
+> **Screenshot placeholder:** ESPHome **New Device** wizard showing the device name field filled in and the board type set to **ESP32**.
 
 A new device tile appears. Now replace the generated YAML with the sample config from this repo:
 
@@ -38,6 +42,8 @@ A new device tile appears. Now replace the generated YAML with the sample config
 
 Success looks like:
 - No red error banner after saving.
+
+> **Screenshot placeholder:** ESPHome YAML editor with the sample `board.yaml` contents pasted in and the **name:** field updated, showing no red error banner at the top.
 
 ---
 
@@ -65,6 +71,8 @@ The sample board config loads features from a subfolder called `modules/`. ESPHo
 Success looks like:
 - The `modules` folder sits next to your board's `.yaml` file in the VS Code Explorer.
 - Both `block_detectors.yaml` and `point_control.yaml` are inside it.
+
+> **Screenshot placeholder:** VS Code Explorer panel showing the board folder (e.g. `yard-board-01/`) expanded with `board.yaml` and a `modules/` subfolder containing `block_detectors.yaml` and `point_control.yaml`.
 
 Note:
 - VS Code will underline YAML errors in red — hover over them to see what is wrong.
@@ -96,7 +104,7 @@ Look for the line `IPv4 Address` under your Wi-Fi or Ethernet adapter.
 Success looks like:
 - Your board file can reference `!secret` values without errors.
 
----
+> **Screenshot placeholder:** VS Code showing `secrets.yaml` open with all four keys filled in (real credentials replaced with placeholder values for the screenshot).
 
 ## Step 5: First Flash by USB
 
@@ -108,12 +116,16 @@ The first time you program a board, you must do it by USB. All future updates ca
 4. Select **Plug into this computer**.
 5. A list of serial ports will appear. Select the one that appeared when you plugged in your board (usually named `CP210x` or `CH340`).
 
+> **Screenshot placeholder:** Chrome/Edge browser showing the **Select a serial port** dialog with a `CP210x` or `CH340` port listed and highlighted ready to click Connect.
+
 If no port appears, you need to install a USB driver:
 - CP2102 chip boards: [Silicon Labs CP210x driver](https://www.silabs.com/developers/usb-to-uart-bridge-vcp-drivers)
 - CH340 chip boards: search "CH340 driver Windows" and install from the manufacturer site.
 
 Success looks like:
 - The install progress bar reaches 100% and the board reboots.
+
+> **Screenshot placeholder:** ESPHome Dashboard install progress at 100% (or the flashing complete confirmation screen).
 
 ---
 
@@ -126,6 +138,8 @@ Success looks like:
 Success looks like:
 - You see boot logs and no repeated Wi-Fi connection failures.
 
+> **Screenshot placeholder:** ESPHome Dashboard showing the device tile with the **Online** badge and the Logs panel open, showing successful boot and Wi-Fi connection lines.
+
 ---
 
 ## Step 7: Test MQTT Connection
@@ -136,6 +150,8 @@ Success looks like:
 
 Success looks like:
 - Board appears in EMQX clients list.
+
+> **Screenshot placeholder:** EMQX web UI **Clients** page showing the ESP board listed as a connected client, with its client ID matching the board name.
 
 ---
 
