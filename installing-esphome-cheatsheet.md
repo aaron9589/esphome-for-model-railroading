@@ -24,7 +24,13 @@ Set-ExecutionPolicy Bypass -Scope Process -Force; [System.Net.ServicePointManage
 choco install docker-desktop -y
 ```
 
-Reboot, open Docker Desktop, install VS Code (see Step 2), enable host networking (see Step 3), then run:
+Reboot, open Docker Desktop, then open **PowerShell as Administrator** and run:
+
+```powershell
+choco install vscode -y
+```
+
+Enable host networking (see Step 3), then run:
 
 ```powershell
 docker run -d --restart always --name emqx -p 1883:1883 -p 18083:18083 emqx/emqx:5
@@ -80,7 +86,7 @@ If these commands show server info, Docker is ready.
 
 VS Code makes editing YAML config files much easier — it highlights syntax errors as you type, which saves a lot of frustration with indentation.
 
-Install it with Chocolatey (same window as above):
+Install it with Chocolatey. Open a new **PowerShell as Administrator** window and run:
 
 ```powershell
 choco install vscode -y

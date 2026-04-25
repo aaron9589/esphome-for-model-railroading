@@ -8,7 +8,7 @@ A collection of ESPHome configs, sample files, and guides for using ESP32 boards
 
 New here? Follow these three steps in order:
 
-1. **[Set up your PC](installing-esphome-cheatsheet.md)** — install Docker Desktop, enable host networking, start EMQX (MQTT broker) and ESPHome Dashboard.
+1. **[Set up your PC](installing-esphome-cheatsheet.md)** — install Docker Desktop and VS Code, enable host networking, start EMQX (MQTT broker) and ESPHome Dashboard.
 2. **[Configure your first board](first-board-setup-guide.md)** — create a device in the Dashboard, load the sample config, flash it by USB, confirm it is online.
 3. **[Get help from Copilot](copilot-steering-prompts.md)** — copy-paste prompts to guide you through any step with AI assistance.
 
@@ -27,7 +27,8 @@ Everything except transformers I source from AliExpress.
 
 **Software / Network:**
 
-- Windows 10/11 PC with admin access (Mac/Linux is fine too!)
+- Windows 10/11 PC with admin access
+- VS Code — used to edit YAML config files (the [setup cheatsheet](installing-esphome-cheatsheet.md) covers the install)
 - 2.4 GHz Wi-Fi network with DHCP (ESP boards cannot use 5 GHz)
 - Chrome or Edge browser (required for first-time USB flash)
 - Docker Desktop — the [setup cheatsheet](installing-esphome-cheatsheet.md) walks through the full install

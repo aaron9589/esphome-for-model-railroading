@@ -58,16 +58,17 @@ The sample board config loads features from a subfolder called `modules/`. ESPHo
 **Create the modules folder and copy the sample files:**
 
 5. In the VS Code Explorer panel (left sidebar), right-click your board's folder (e.g. `yard-board-01`) and select **New Folder**. Name it `modules`.
-6. Copy [samples/my-first-board/modules/block_detectors.yaml](samples/my-first-board/modules/block_detectors.yaml) from this repo into that `modules` folder.
-7. Copy [samples/my-first-board/modules/point_control.yaml](samples/my-first-board/modules/point_control.yaml) from this repo into that `modules` folder.
+6. Get the two sample module files from this repo. If you have the repo cloned locally, copy them from there. Otherwise, open each link below in your browser, click the **Raw** button, then save the file (Ctrl+S) into the `modules` folder:
+   - [samples/my-first-board/modules/block_detectors.yaml](samples/my-first-board/modules/block_detectors.yaml)
+   - [samples/my-first-board/modules/point_control.yaml](samples/my-first-board/modules/point_control.yaml)
 
 Success looks like:
 - The `modules` folder sits next to your board's `.yaml` file in the VS Code Explorer.
 - Both `block_detectors.yaml` and `point_control.yaml` are inside it.
 
 Note:
-- You can comment out a package line in board.yaml (add `#` at the start) to disable a feature you are not using yet.
 - VS Code will underline YAML errors in red — hover over them to see what is wrong.
+- To disable a feature you are not using yet, open `board.yaml` in VS Code and add `#` at the start of the relevant `packages:` line.
 
 ---
 
@@ -140,10 +141,12 @@ Success looks like:
 
 ## Add Repo Samples Next (Optional)
 
-When your base board works, add features by editing the substitutions at the top of each module file:
-- [samples/my-first-board/modules/block_detectors.yaml](samples/my-first-board/modules/block_detectors.yaml) — train detection
-- [samples/my-first-board/modules/point_control.yaml](samples/my-first-board/modules/point_control.yaml) — servo turnout control via PCA9685
-- [samples/advanced-samples/wled_signal.yaml](samples/advanced-samples/wled_signal.yaml) — signal head lighting for custom WS2812B Signals
+When your base board works, open the `modules/` folder in VS Code and edit the `substitutions` section at the top of each file to match your layout:
+- [samples/my-first-board/modules/block_detectors.yaml](samples/my-first-board/modules/block_detectors.yaml) — set block names and MQTT topics
+- [samples/my-first-board/modules/point_control.yaml](samples/my-first-board/modules/point_control.yaml) — set turnout names, MQTT topics, and PCA9685 channel numbers
+- [samples/advanced-samples/wled_signal.yaml](samples/advanced-samples/wled_signal.yaml) — signal head lighting for custom WS2812B signals
+
+Save each file (Ctrl+S) then go back to ESPHome Dashboard and click **Install → Wireless** to push the update.
 
 Use Copilot to guide each change with prompts from [copilot-steering-prompts.md](copilot-steering-prompts.md).
 
