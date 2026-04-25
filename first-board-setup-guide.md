@@ -139,127 +139,17 @@ Success looks like:
 
 ---
 
-## Step 8: Connect JMRI and Verify End-to-End
+## Your Board Is Ready
 
-This step confirms that JMRI and your ESP32 board are talking to each other over MQTT. You will create one sensor and one turnout in JMRI, name them to match the topics in your ESPHome config, then watch messages flow in both directions.
+Your ESP32 is online, connected to MQTT, and ready to talk to JMRI.
 
-### Before You Start
+**Next steps — pick one:**
 
-- JMRI must be running with an MQTT connection configured.
-- Open JMRI Preferences → Connections → MQTT and confirm:
-  - The broker IP matches your PC's IP address (the same value in `secrets.yaml`)
-  - Note the **MQTT Channel**, **Sensor receive topic**, and **Turnout send topic** fields — you will use these to build the correct hardware addresses below.
+- **[Verify JMRI communication →](jmri-mqtt-verification-guide.md)**
+  Create a sensor and turnout in JMRI, name them to match your MQTT topics, and watch messages flow in both directions. Good first check before wiring up the whole layout.
 
-> **Screenshot placeholder:** JMRI Preferences → Connections → MQTT panel, showing the broker IP, MQTT Channel field (blank or `trains/`), Sensor receive topic, and Turnout send topic fields.
-
----
-
-### Part 1: Test Block Detection (Sensor → JMRI)
-
-The ESP32 publishes `ACTIVE` or `INACTIVE` to the sensor topic when a train enters or leaves a block. JMRI reads this and updates its Sensor table.
-
-**In JMRI, open the Sensor Table** (Tools → Tables → Sensors) and create a new entry:
-
-| Field | Value |
-|---|---|
-| System Name | `MStrack/sensor/Kiama/Up XOver` |
-| User Name | `Kiama Up XOver` (or anything recognisable) |
-
-The System Name is built from:
-- `M` — MQTT connection prefix
-- `S` — Sensor table prefix
-- Then the **hardware address**, which is the topic path after the MQTT Channel
-
-So if your `block_1_topic` in `block_detectors.yaml` is `trains/track/sensor/Kiama/Up XOver` and your MQTT Channel is blank, the hardware address is `track/sensor/Kiama/Up XOver` and the System Name is `MStrack/sensor/Kiama/Up XOver`.
-
-If your MQTT Channel is `trains/`, the hardware address is just `track/sensor/Kiama/Up XOver` (JMRI strips the channel prefix). Check your own `block_1_topic` substitution and adjust accordingly.
-
-> **Screenshot placeholder:** JMRI Sensor Table with the new sensor entry created, showing the System Name, User Name, and current state (Unknown or Inactive).
-
-**Verify it works:**
-
-1. Open ESPHome Dashboard → **Logs** for your board.
-2. Place a train on the block wired to that detector.
-3. In the logs you should see:
-
-   ```
-   [I][block_detectors:...] Kiama/Up XOver -> OCCUPIED
-   ```
-
-4. Back in JMRI, the sensor's state column should change to **Active**.
-5. Remove the train — the log should show `UNOCCUPIED` and JMRI should show **Inactive**.
-
-> **Screenshot placeholder:** ESPHome logs panel showing the `OCCUPIED` / `UNOCCUPIED` log lines for the block sensor.
-
-> **Screenshot placeholder:** JMRI Sensor Table with the sensor state showing **Active** while a train is on the block.
-
----
-
-### Part 2: Test Point Control (JMRI → Turnout → ESP32)
-
-JMRI publishes `CLOSED` or `THROWN` to the turnout topic when you change a turnout in the table or on a panel. The ESP32 receives this and moves the servo.
-
-**In JMRI, open the Turnout Table** (Tools → Tables → Turnouts) and create a new entry:
-
-| Field | Value |
-|---|---|
-| System Name | `MTtrack/turnout/Kiama/Up Loop` |
-| User Name | `Kiama Up Loop` (or anything recognisable) |
-
-The System Name is built the same way as sensors:
-- `M` — MQTT connection prefix
-- `T` — Turnout table prefix
-- Hardware address = the topic path from `turnout_01_topic` in `point_control.yaml`, minus the MQTT Channel prefix
-
-So if `turnout_01_topic` is `trains/track/turnout/Kiama/Up Loop` and MQTT Channel is blank, the hardware address is `track/turnout/Kiama/Up Loop`.
-
-> **Screenshot placeholder:** JMRI Turnout Table with the new turnout entry created, showing System Name, User Name, and state (Unknown or Closed).
-
-**Verify it works:**
-
-1. Open ESPHome Dashboard → **Logs** for your board.
-2. In the JMRI Turnout Table, click the state column for your new turnout to toggle it to **Thrown**.
-3. In the ESPHome logs you should see:
-
-   ```
-   [I][point_control:...] up_loop -> THROWN (reverse)
-   ```
-
-4. The servo should move to the reverse position.
-5. Toggle back to **Closed** — the log should show `CLOSED (normal)` and the servo should return.
-
-> **Screenshot placeholder:** ESPHome logs panel showing the `THROWN` and `CLOSED` log lines for the turnout.
-
-> **Screenshot placeholder:** JMRI Turnout Table with the state toggled to **Thrown**.
-
-**Optional — verify the state feedback in EMQX:**
-
-1. Open EMQX at http://localhost:18083 → **Diagnose → WebSocket Client**.
-2. Connect, then subscribe to `#` (all topics).
-3. Toggle the turnout in JMRI — you should see two messages:
-   - JMRI publishing `THROWN` to `track/turnout/Kiama/Up Loop`
-   - The ESP32 replying `THROWN` to `track/turnout/Kiama/Up Loop/State`
-
-> **Screenshot placeholder:** EMQX WebSocket Client showing the two MQTT messages — the command from JMRI and the state reply from the ESP32.
-
----
-
-### Troubleshooting This Step
-
-**JMRI sensor state never changes:**
-- Check `block_1_topic` in `block_detectors.yaml` exactly matches the hardware address path in the JMRI System Name (case-sensitive).
-- Open EMQX → Diagnose → WebSocket Client, subscribe to `#`, and place a train on the block. If you see an MQTT message arrive, the board is publishing correctly and the mismatch is in the JMRI System Name.
-
-**Servo does not move when toggling JMRI turnout:**
-- Check `turnout_01_topic` in `point_control.yaml` exactly matches the hardware address path in the JMRI System Name.
-- In EMQX WebSocket Client, subscribe to `#` and toggle the turnout. If no message appears, JMRI is not publishing — check the MQTT connection in JMRI Preferences.
-
-**JMRI System Name format reference:**
-
-| Type | Prefix | Example System Name |
-|---|---|---|
-| Sensor | `MS` | `MStrack/sensor/Kiama/Up XOver` |
-| Turnout | `MT` | `MTtrack/turnout/Kiama/Up Loop` |
+- **[Customise the sample files →](#add-repo-samples-next-optional)**
+  Edit the substitutions in `block_detectors.yaml` and `point_control.yaml` to match your own block and turnout names.
 
 ---
 

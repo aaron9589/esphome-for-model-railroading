@@ -6,11 +6,12 @@ A collection of ESPHome configs, sample files, and guides for using ESP32 boards
 
 ## Getting Started
 
-New here? Follow these three steps in order:
+New here? Follow these steps in order:
 
 1. **[Set up your PC](installing-esphome-cheatsheet.md)** — install Docker Desktop and VS Code, enable host networking, start EMQX (MQTT broker) and ESPHome Dashboard.
 2. **[Configure your first board](first-board-setup-guide.md)** — create a device in the Dashboard, load the sample config, flash it by USB, confirm it is online.
-3. **[Get help from Copilot](copilot-steering-prompts.md)** — copy-paste prompts to guide you through any step with AI assistance.
+3. **[Verify JMRI communication](jmri-mqtt-verification-guide.md)** — create a sensor and turnout in JMRI, confirm messages flow in both directions.
+4. **[Get help from Copilot](copilot-steering-prompts.md)** — copy-paste prompts to guide you through any step with AI assistance.
 
 ### What You'll Need
 
