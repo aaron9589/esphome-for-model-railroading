@@ -33,12 +33,14 @@ When you create a Sensor or Turnout entry in JMRI, the **System Name** encodes t
 
 | Table | Prefix | Example System Name |
 |---|---|---|
-| Sensor | `MS` | `MStrack/sensor/Kiama/Up XOver` |
-| Turnout | `MT` | `MTtrack/turnout/Kiama/Up Loop` |
+| Sensor | `MS` | `MSKiama/Up XOver` |
+| Turnout | `MT` | `MTKiama/Up Loop` |
 
 - `M` — identifies the MQTT connection
-- `S` / `T` — identifies the table type
+- `S` / `T` — identifies the table type (Sensor, Turnout)
 - The rest is the **hardware address** — the full topic path, minus the MQTT Channel prefix
+
+**User Name** is an optional friendly label you can add to any entry. With a well-structured System Name that already encodes the location and type (e.g. `MSKiama/Up XOver`), the User Name is largely redundant — but it can be handy if you want a shorter label to appear on JMRI panels.
 
 **Since JMRI 5.1.2, MQTT Channel defaults to blank.** If you have an older JMRI install, your channel may still be `trains/`. Check your own Preferences to confirm.
 
@@ -70,10 +72,10 @@ track/sensor/Kiama/Up XOver
 ```
 System Name → `MStrack/sensor/Kiama/Up XOver`
 
-| Field | Value |
-|---|---|
-| System Name | `MStrack/sensor/Kiama/Up XOver` *(adjust to match your topic)* |
-| User Name | Anything recognisable, e.g. `Kiama Up XOver` |
+| Field | Value | Notes |
+|---|---|---|
+| System Name | `MStrack/sensor/Kiama/Up XOver` *(adjust to match your topic)* | Required. Encodes the MQTT hardware address. |
+| User Name | e.g. `Kiama Up XOver` | Optional friendly label. With a descriptive System Name it's not really needed, but useful if you want shorter names on panels. |
 
 > **Screenshot placeholder:** JMRI Sensor Table showing the new entry with System Name and User Name filled in, State showing **Unknown** or **Inactive**.
 
@@ -114,10 +116,10 @@ Hardware address (MQTT Channel blank) → `track/turnout/Kiama/Up Loop`
 
 System Name → `MTtrack/turnout/Kiama/Up Loop`
 
-| Field | Value |
-|---|---|
-| System Name | `MTtrack/turnout/Kiama/Up Loop` *(adjust to match your topic)* |
-| User Name | Anything recognisable, e.g. `Kiama Up Loop` |
+| Field | Value | Notes |
+|---|---|---|
+| System Name | `MTtrack/turnout/Kiama/Up Loop` *(adjust to match your topic)* | Required. Encodes the MQTT hardware address. |
+| User Name | e.g. `Kiama Up Loop` | Optional friendly label. With a descriptive System Name it's not really needed, but useful if you want shorter names on panels. |
 
 > **Screenshot placeholder:** JMRI Turnout Table showing the new entry with System Name and User Name filled in, State showing **Unknown** or **Closed**.
 
