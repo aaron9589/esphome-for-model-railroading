@@ -31,16 +31,17 @@ JMRI constructs MQTT topics from three parts:
 
 When you create a Sensor or Turnout entry in JMRI, the **System Name** encodes the hardware address. The format is:
 
-| Table | Prefix | Example System Name |
-|---|---|---|
-| Sensor | `MS` | `MSKiama/Up XOver` |
-| Turnout | `MT` | `MTKiama/Up Loop` |
+| Table | Prefix auto-added | Example Hardware Address | Resulting System Name |
+|---|---|---|---|
+| Sensor | `MS` | `Kiama/Up XOver` | `MSKiama/Up XOver` |
+| Turnout | `MT` | `Kiama/Down Main` | `MTKiama/Down Main` |
 
-- `M` — identifies the MQTT connection
-- `S` / `T` — identifies the table type (Sensor, Turnout)
-- The rest is the **hardware address** — the full topic path, minus the MQTT Channel prefix
+When you add an entry, JMRI asks for the **Hardware Address** — just the location/name portion. It prepends the `M` (MQTT) and `S`/`T` (table type) automatically to form the System Name.
 
-**User Name** is an optional friendly label you can add to any entry. With a well-structured System Name that already encodes the location and type (e.g. `MSKiama/Up XOver`), the User Name is largely redundant — but it can be handy if you want a shorter label to appear on JMRI panels.
+- The **Hardware Address** is what you choose — it becomes the identifying part of the MQTT topic.
+- The full MQTT topic is assembled by JMRI as: `[MQTT Channel] + [topic middle] + [hardware address]`
+
+**User Name** is an optional friendly label. With a descriptive Hardware Address that already encodes the location (e.g. `Kiama/Up XOver`), it's largely redundant — but useful if you want shorter names on JMRI panels.
 
 **Since JMRI 5.1.2, MQTT Channel defaults to blank.** If you have an older JMRI install, your channel may still be `trains/`. Check your own Preferences to confirm.
 
@@ -52,30 +53,32 @@ The ESP32 publishes `ACTIVE` or `INACTIVE` to the sensor topic when a train ente
 
 ### Create the Sensor in JMRI
 
-Open the **Sensor Table** (Tools → Tables → Sensors) and add a new entry.
+Open the **Sensor Table** (Tools → Tables → Sensors) and click **Add**.
 
-To find the right System Name, look at `block_1_topic` in your `block_detectors.yaml`. For example:
+JMRI's Add dialog asks for a **Hardware Address** — this is the part you fill in. When you save, JMRI automatically builds the System Name by prepending `MS` to whatever you entered.
+
+For example, entering `Kiama/Up XOver` as the Hardware Address produces:
+- **System Name:** `MSKiama/Up XOver`
+- **MQTT topic:** `trains/track/sensor/Kiama/Up XOver` (with MQTT Channel `trains/track/sensor/`)
+
+To find the right Hardware Address, look at `block_1_topic` in your `block_detectors.yaml` and strip the MQTT Channel prefix (shown in JMRI Preferences). For example, if:
 
 ```
 block_1_topic: "trains/track/sensor/Kiama/Up XOver"
 ```
 
-If MQTT Channel is **blank**, the hardware address is the full topic string:
-```
-track/sensor/Kiama/Up XOver
-```
-System Name → `MStrack/sensor/Kiama/Up XOver`
+and your Sensor receive topic middle is `track/sensor/`, enter just the hardware address portion — the part that identifies this specific sensor on your layout:
 
-If MQTT Channel is **`trains/`**, JMRI strips that prefix — the hardware address is still:
 ```
-track/sensor/Kiama/Up XOver
+Kiama/Up XOver
 ```
-System Name → `MStrack/sensor/Kiama/Up XOver`
+
+JMRI will publish and subscribe to the full topic by combining Channel + middle + hardware address.
 
 | Field | Value | Notes |
 |---|---|---|
-| System Name | `MStrack/sensor/Kiama/Up XOver` *(adjust to match your topic)* | Required. Encodes the MQTT hardware address. |
-| User Name | e.g. `Kiama Up XOver` | Optional friendly label. With a descriptive System Name it's not really needed, but useful if you want shorter names on panels. |
+| Hardware Address | `Kiama/Up XOver` *(adjust to match your layout)* | JMRI builds the System Name (`MSKiama/Up XOver`) and MQTT topic from this. |
+| User Name | e.g. `Kiama Up XOver` | Optional friendly label. With a descriptive Hardware Address it's not really needed, but useful for shorter panel names. |
 
 > **Screenshot placeholder:** JMRI Sensor Table showing the new entry with System Name and User Name filled in, State showing **Unknown** or **Inactive**.
 
@@ -104,22 +107,30 @@ JMRI publishes `CLOSED` or `THROWN` to the turnout topic when you change a turno
 
 ### Create the Turnout in JMRI
 
-Open the **Turnout Table** (Tools → Tables → Turnouts) and add a new entry.
+Open the **Turnout Table** (Tools → Tables → Turnouts) and click **Add**.
 
-Look at `turnout_01_topic` in your `point_control.yaml`. For example:
+Same principle as sensors — JMRI asks for a **Hardware Address** and automatically prepends `MT` to form the System Name.
+
+For example, entering `Kiama/Down Main` as the Hardware Address produces:
+- **System Name:** `MTKiama/Down Main`
+- **MQTT topic:** `trains/turnout/Kiama/Down Main` (with MQTT Channel `trains/turnout/`)
+
+To find the right Hardware Address, look at `turnout_01_topic` in your `point_control.yaml` and strip the MQTT Channel and topic middle prefixes. For example, if:
 
 ```
 turnout_01_topic: trains/track/turnout/Kiama/Up Loop
 ```
 
-Hardware address (MQTT Channel blank) → `track/turnout/Kiama/Up Loop`
+and your Turnout send topic middle is `track/turnout/`, enter the hardware address portion:
 
-System Name → `MTtrack/turnout/Kiama/Up Loop`
+```
+Kiama/Up Loop
+```
 
 | Field | Value | Notes |
 |---|---|---|
-| System Name | `MTtrack/turnout/Kiama/Up Loop` *(adjust to match your topic)* | Required. Encodes the MQTT hardware address. |
-| User Name | e.g. `Kiama Up Loop` | Optional friendly label. With a descriptive System Name it's not really needed, but useful if you want shorter names on panels. |
+| Hardware Address | `Kiama/Up Loop` *(adjust to match your layout)* | JMRI builds the System Name (`MTKiama/Up Loop`) and MQTT topic from this. |
+| User Name | e.g. `Kiama Up Loop` | Optional friendly label. With a descriptive Hardware Address it's not really needed, but useful for shorter panel names. |
 
 > **Screenshot placeholder:** JMRI Turnout Table showing the new entry with System Name and User Name filled in, State showing **Unknown** or **Closed**.
 
