@@ -1,0 +1,57 @@
+# bellcodes.yaml
+# Play railway bell codes via a DFPlayer MP3 module in response to MQTT topics.
+#
+# WHY YOU NEED THIS:
+#   Traditional railway operations use bell codes to communicate between stations
+#   (e.g., "2 beats = train departure", "3 beats = train arrival").
+#   This template listens for MQTT topics published by CATS/JMRI and triggers
+#   the matching audio file on a DFPlayer Mini board. 
+#
+# HARDWARE:
+#   - DFPlayer Mini (widely available, ~$2 on AliExpress)
+#   - Small speaker (4-8 ohm, <3W)
+#   - Wire DFPlayer TX -> ESP RX pin and DFPlayer RX -> ESP TX pin
+#   - Load MP3 files onto a micro SD card in the DFPlayer
+#     File naming: /mp3/0001.mp3 = file 1, /mp3/0006.mp3 = file 6, etc.
+#
+# MQTT TOPICS:
+#   Publish any payload to the topic to trigger playback.
+#   Topics can be sent by CATS panel buttons, Jython scripts, or other ESPs.
+#
+# HOW TO ADD MORE BELL CODES:
+#   Copy an on_message block and update the topic and file number.
+
+mqtt:
+  on_message:
+    - topic: trains/staff/bellCode/2        # 2 beats: Train departure.
+      then:
+        - dfplayer.play_mp3:
+            file: 4   # File 4 on the SD card (/mp3/0004.mp3).
+
+    - topic: trains/staff/bellCode/3-2-1    # 3-2-1: Train waiting/staff machine action.
+      then:
+        - dfplayer.play_mp3:
+            file: 6
+
+    - topic: trains/staff/bellCode/3        # 3 beats: Train arrival.
+      then:
+        - dfplayer.play_mp3:
+            file: 5
+
+    # Add more codes by copying a block above. Change topic and file number.
+
+
+# DFPlayer component. Uses the ESP UART. Pin numbers below assume ESP32 GPIO1/3.
+# Adjust tx_pin/rx_pin if your DFPlayer is wired to different pins.
+uart:
+  tx_pin: GPIO1
+  rx_pin: GPIO3
+  baud_rate: 9600
+
+dfplayer:
+  on_finished_playback:
+    then:
+      - logger.log:
+          format: "Bell code playback finished"
+          level: INFO
+          tag: bellcodes

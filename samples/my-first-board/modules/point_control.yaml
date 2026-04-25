@@ -1,0 +1,266 @@
+# point_control.yaml
+# ============================================================
+# Controls a servo motor to move a turnout point (also called
+# a "throw").
+#
+# WHAT IT DOES:
+#   - Listens on an MQTT topic for CLOSED or THROWN commands
+#     sent by JMRI/CATS
+#   - Moves the servo to the matching saved position
+#   - Sends a reply (/State) so JMRI knows the move is done
+#
+# FIRST TIME SETUP:
+#   1. Edit the substitutions below (the --- THINGS TO CHANGE ---
+#      section) to match your turnout.
+#   2. Wire the PCA9685 to your ESP32 using the I2C pins defined below.
+#      Power the PCA9685 V+ from a SEPARATE 5V supply - not the ESP32.
+#      Plug the servo into the PCA9685 channel matching turnout_01_channel.
+#      (Orange or white wire = signal, red = 5v, brown/black = GND on servo)
+#   3. Flash the board, then open http://<board-name>.local in
+#      Chrome or Edge to calibrate the servo endpoints.
+#   4. Use the Normal and Reverse sliders to find both ends of
+#      travel. Values save automatically.
+#
+# ADDING MORE TURNOUTS:
+#   1. Add a new set of substitution lines (copy turnout_01_* as turnout_02_*)
+#   2. Copy and paste the number:, output:, servo:, and text_sensor: blocks
+#      below, renaming every turnout_01 reference to turnout_02.
+# ============================================================
+
+
+# ---- THINGS TO CHANGE ----
+
+substitutions:
+
+  turnout_speed: 10s
+  # ^ How long the servo takes to travel from one end to the other.
+  #   Increase this if stock derails during the move (try 15s or 20s).
+
+  turnout_01_name: up_loop
+  # ^ A short ID for this turnout. Used internally only.
+  #   No spaces or dashes. Underscores are fine. Example: up_loop, yard_exit.
+
+  turnout_01_topic: trains/track/turnout/Kiama/Up Loop
+  # ^ The full MQTT topic that JMRI publishes turnout commands to.
+  #
+  #   JMRI builds topics automatically from three parts:
+  #     [MQTT Channel] + [turnout topic middle] + [hardware address]
+  #   For example, with MQTT Channel "trains/" and a turnout named
+  #   "MTKiama/Up Loop" in JMRI, the topic becomes:
+  #     trains/track/turnout/Kiama/Up Loop
+  #
+  #   HOW TO FIND THE RIGHT VALUE:
+  #     In JMRI, open Preferences > Connections > MQTT and note the
+  #     "MQTT Channel" and "Turnout send topic" fields. Then look up
+  #     your turnout's Hardware Address in the Turnout table.
+  #     Concatenate: channel + turnout-topic + hardware-address.
+  #
+  #   NOTE: Since JMRI 5.1.2, MQTT Channel defaults to blank (empty).
+  #   If you upgraded from an older JMRI, your channel may still be
+  #   "trains/". Check your JMRI Preferences to confirm.
+  #
+  #   This value is case-sensitive and must match JMRI exactly.
+
+  turnout_01_channel: "0"
+  # ^ The channel on the PCA9685 that this servo is plugged into.
+  #   Channels are numbered 0-15, left to right on the board.
+  #   Channel 0 is the first set of three pins (GND / VCC / PWM).
+
+# ---- END OF THINGS TO CHANGE ----
+
+
+# Opens a simple web page on the board for calibration.
+# Visit http://<board-name>.local in Chrome or Edge while the board is powered on.
+web_server:
+
+
+# When the board starts up, it tells JMRI the turnout is CLOSED.
+# This stops JMRI from showing an unknown state after a restart.
+esphome:
+  on_boot:
+    - priority: -200.0
+      then:
+        - mqtt.publish:
+            topic: ${turnout_01_topic}
+            payload: 'CLOSED'
+
+
+# Calibration sliders - these appear at http://<board-name>.local
+#
+# NORMAL          = straight-through position (no diverge)
+# NORMAL BACKOFF  = just past normal, slightly relaxed (removes tie-bar tension)
+# REVERSE         = diverging position
+# REVERSE BACKOFF = just past reverse, slightly relaxed
+#
+# Tip: start with all sliders at 0, then gently move Normal and Reverse
+# until the point just closes without straining. Then set the Backoff
+# values 1-2 steps back toward centre (generally until the servo buzz stops)
+number:
+  - platform: template
+    name: "${turnout_01_name} Normal Position"
+    id: turnout_01_name_servo_endpoint_normal
+    min_value: -50
+    max_value: 50
+    initial_value: 0
+    restore_value: true   # Remembers the value after a reboot.
+    optimistic: true
+    step: 0.1
+    set_action:
+      then:
+        - servo.write:
+            id: ${turnout_01_name}_servo
+            level: !lambda 'return x / 100.0;'
+
+  - platform: template
+    name: "${turnout_01_name} Normal Backoff"
+    id: turnout_01_name_servo_endpoint_normal_backoff
+    min_value: -50
+    max_value: 50
+    initial_value: 0
+    restore_value: true
+    optimistic: true
+    step: 0.1
+    set_action:
+      then:
+        - servo.write:
+            id: ${turnout_01_name}_servo
+            level: !lambda 'return x / 100.0;'
+
+  - platform: template
+    name: "${turnout_01_name} Reverse Position"
+    id: turnout_01_name_servo_endpoint_reverse
+    min_value: -50
+    max_value: 50
+    initial_value: 0
+    restore_value: true
+    optimistic: true
+    step: 0.1
+    set_action:
+      then:
+        - servo.write:
+            id: ${turnout_01_name}_servo
+            level: !lambda 'return x / 100.0;'
+
+  - platform: template
+    name: "${turnout_01_name} Reverse Backoff"
+    id: turnout_01_name_servo_endpoint_reverse_backoff
+    min_value: -50
+    max_value: 50
+    initial_value: 0
+    restore_value: true
+    optimistic: true
+    step: 0.1
+    set_action:
+      then:
+        - servo.write:
+            id: ${turnout_01_name}_servo
+            level: !lambda 'return x / 100.0;'
+
+
+# I2C bus - connects the ESP32 to the PCA9685.
+# If you already have other I2C devices on this board, move this block
+# to board.yaml to avoid duplicate definitions.
+i2c:
+  sda: GPIO21    # Data line - connect to SDA on the PCA9685
+  scl: GPIO22    # Clock line - connect to SCL on the PCA9685
+  scan: true     # Logs found I2C addresses on boot - useful for checking wiring
+
+
+# PCA9685 16-channel PWM servo driver.
+#
+# WIRING:
+#   PCA9685 VCC  -> 3.3V on ESP32            (logic power for the chip only)
+#   PCA9685 V+   -> Separate 5V power supply  *** NOT the ESP32's 5V pin ***
+#   PCA9685 GND  -> GND on ESP32 AND GND on the 5V supply (MUST share ground)
+#   PCA9685 SDA  -> GPIO21 on ESP32 (matches i2c: sda above)
+#   PCA9685 SCL  -> GPIO22 on ESP32 (matches i2c: scl above)
+#   Servo        -> plug straight into the channel header on the PCA9685
+#                   (three-pin connector: GND / VCC / PWM)
+#
+# WHY A SEPARATE 5V SUPPLY FOR V+?
+#   Each servo can draw up to 500-700 mA when stalled. Routing that through
+#   the ESP32's onboard 3.3V regulator or a USB port would overload and
+#   damage it. Use a dedicated 5V supply rated for at least 1A per two servos
+#   (e.g. a 2A phone charger with the cable cut, or a bench supply).
+#   The shared GND ensures PWM signals are referenced correctly.
+#
+# I2C ADDRESS:
+#   The PCA9685 defaults to 0x40. If you add a second board, bridge
+#   the A0 solder jumper on the second board to change its address to 0x41,
+#   then add a second pca9685: block with address: 0x41.
+pca9685:
+  frequency: 50Hz   # 50 Hz is the standard PWM frequency for hobby servos.
+
+
+# One output entry per servo. Set channel: to match turnout_01_channel above.
+output:
+  - platform: pca9685
+    id: ${turnout_01_name}_output
+    channel: $turnout_01_channel
+
+
+# Connects the output pin to the servo and applies the speed setting.
+servo:
+  - id: ${turnout_01_name}_servo
+    output: ${turnout_01_name}_output
+    auto_detach_time: 0s          # Keep at 0s. Non-zero causes jitter when the servo re-engages.
+    transition_length: $turnout_speed
+
+
+# Listens for CLOSED or THROWN on the MQTT topic.
+# Moves the servo to the saved calibration position, then backs off to relieve
+# tension on the tie bar. Publishes /State so the JMRI panel icon updates.
+text_sensor:
+  - platform: mqtt_subscribe
+    name: "${turnout_01_name} last command"
+    id: $turnout_01_name
+    topic: $turnout_01_topic
+    on_value:
+      - if:
+          condition:
+            text_sensor.state:
+              id: $turnout_01_name
+              state: 'THROWN'
+          then:
+            - logger.log:
+                format: "${turnout_01_name} -> THROWN (reverse)"
+                level: INFO
+                tag: point_control
+            - servo.write:
+                id: ${turnout_01_name}_servo
+                level: !lambda 'return id(turnout_01_name_servo_endpoint_reverse).state / 100.0;'
+            - delay: 1s
+            - servo.write:    # Relax slightly to remove tie-bar tension.
+                id: ${turnout_01_name}_servo
+                level: !lambda 'return id(turnout_01_name_servo_endpoint_reverse_backoff).state / 100.0;'
+            - mqtt.publish:
+                topic: "${turnout_01_topic}/State"
+                payload: "THROWN"
+                # JMRI expects CLOSED or THROWN on the turnout's receive topic.
+                # We publish to <topic>/State (with the /State suffix) as the
+                # receive topic. This keeps the command topic and the feedback
+                # topic separate so the board does not hear its own reply and
+                # drive the servo in a loop.
+                # To use this, set the Turnout's "receive topic" in JMRI
+                # Preferences to "track/turnout/{0}/State" (or whatever middle
+                # part you are using), so JMRI reads back the confirmed state.
+      - if:
+          condition:
+            text_sensor.state:
+              id: $turnout_01_name
+              state: 'CLOSED'
+          then:
+            - logger.log:
+                format: "${turnout_01_name} -> CLOSED (normal)"
+                level: INFO
+                tag: point_control
+            - servo.write:
+                id: ${turnout_01_name}_servo
+                level: !lambda 'return id(turnout_01_name_servo_endpoint_normal).state / 100.0;'
+            - delay: 1s
+            - servo.write:    # Relax slightly to remove tie-bar tension.
+                id: ${turnout_01_name}_servo
+                level: !lambda 'return id(turnout_01_name_servo_endpoint_normal_backoff).state / 100.0;'
+            - mqtt.publish:
+                topic: "${turnout_01_topic}/State"
+                payload: "CLOSED"

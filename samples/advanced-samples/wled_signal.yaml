@@ -1,0 +1,126 @@
+---
+# wled_signal.yaml
+# Drive WS2812B signals via WLED over UART serial.
+# WLED runs on a second ESP/microcontroller connected by a 3-wire serial link.
+# See https://illawarraline.net/signals-for-the-illawarra-line/ for hardware setup.
+#
+# HOW TO ADD MORE SIGNALS:
+#   Copy a signal_0x block in substitutions and text_sensor, and rename to signal_02, signal_03, etc.
+#
+# SIGNAL STATES from CATS mast table:
+#   R292 = Stop       R285 = Caution     R286 = Caution Turnout
+#   R283A = Medium Turnout               R281/R282 = Proceed
+#   Add or remove 'if' blocks to match the aspects your prototype signals show.
+#
+# WLED JSON PAYLOAD:
+#   Each signal is a WLED segment. The 'i' array sets LED colours by position.
+#   See https://kno.wled.ge/interfaces/json-api/ for format details.
+
+substitutions:
+  signal_uart_pin_rx: "3"
+  signal_uart_pin_tx: "1"
+
+  signal_01_name: "KIA_45_26"   # Used as ESPHome ID - no spaces or dashes.
+  signal_01_topic: "KIA-45.26"  # CATS mast topic suffix: trains/track/signalmast/<topic>
+
+  # Add more signals by copying/pasting these two lines:
+  # signal_02_name: "KIA_45_27"
+  # signal_02_topic: "KIA-45.27"
+
+
+# Disable serial logging because we are using the UART pins for WLED communication.
+logger:
+  baud_rate: 0
+
+
+uart:
+  id: signal_bus
+  tx_pin: ${signal_uart_pin_tx}
+  rx_pin: ${signal_uart_pin_rx}
+  baud_rate: 115200
+
+
+# Mutex script ensures only one WLED command is sent at a time.
+# This prevents crashes when multiple signal aspects change simultaneously.
+globals:
+  - id: uart_busy
+    type: bool
+    restore_value: no
+    initial_value: 'false'
+
+script:
+  - id: uart_mutex_write
+    mode: queued  # Commands queue up rather than being dropped.
+    parameters:
+      msg: string
+    then:
+      - while:
+          condition:
+            lambda: 'return id(uart_busy);'
+          then:
+            - delay: 50ms
+      - lambda: 'id(uart_busy) = true;'
+      - lambda: |-
+          std::vector<uint8_t> bytes(msg.begin(), msg.end());
+          UARTComponent *uart = static_cast<UARTComponent *>(id(signal_bus));
+          uart->write_array(bytes);
+      - delay: 100ms
+      - lambda: 'id(uart_busy) = false;'
+
+
+text_sensor:
+  # Signal 1
+  # Copy this entire text_sensor block for each additional signal.
+  # Update all signal_01 references to signal_02, signal_03, etc.
+  - platform: mqtt_subscribe
+    internal: true
+    name: ${signal_01_name}
+    id: ${signal_01_name}
+    topic: trains/track/signalmast/${signal_01_topic}
+    on_value:
+      - if:
+          condition:
+            text_sensor.state:
+              id: ${signal_01_name}
+              state: 'R292; Lit; Unheld'  # Stop
+          then:
+            - logger.log:
+                format: "${signal_01_name} | STOP"
+                level: INFO
+                tag: signal_control
+            - script.execute:
+                id: uart_mutex_write
+                # JSON payload: set segment 0 to red (stop). Edit to match your WLED segment layout.
+                msg: '{"seg":[{"id":0,"i":["ff0000","ff0000","0"],"frz":true,"on":true}]}'
+
+      - if:
+          condition:
+            text_sensor.state:
+              id: ${signal_01_name}
+              state: 'R285; Lit; Unheld'  # Caution
+          then:
+            - logger.log:
+                format: "${signal_01_name} | CAUTION"
+                level: INFO
+                tag: signal_control
+            - script.execute:
+                id: uart_mutex_write
+                msg: '{"seg":[{"id":0,"i":["0","0","ffc800"],"frz":true,"on":true}]}'
+
+      - if:
+          condition:
+            - or:
+                - text_sensor.state:
+                    id: ${signal_01_name}
+                    state: 'R281; Lit; Unheld'  # Proceed
+                - text_sensor.state:
+                    id: ${signal_01_name}
+                    state: 'R282; Lit; Unheld'  # Proceed (alternative aspect)
+          then:
+            - logger.log:
+                format: "${signal_01_name} | PROCEED"
+                level: INFO
+                tag: signal_control
+            - script.execute:
+                id: uart_mutex_write
+                msg: '{"seg":[{"id":0,"i":["0","1fff87","0"],"frz":true,"on":true}]}'

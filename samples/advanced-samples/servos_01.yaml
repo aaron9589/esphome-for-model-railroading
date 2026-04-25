@@ -1,0 +1,372 @@
+# servos_01.yaml
+# Drive SG90 servos directly from ESP32 GPIO pins (no extra hardware needed).
+# Each servo is connected to one GPIO output pin and controlled via MQTT.
+#
+# HOW TO ADD MORE TURNOUTS:
+#   1. Copy the turnout_01 substitution block and rename to turnout_02, turnout_03, etc.
+#   2. Copy each turnout_01 section in number:, output:, servo:, and text_sensor: and rename accordingly.
+#
+# CALIBRATION:
+#   Open the board's web server (http://<board-name>.local) and use the sliders
+#   to find your normal/reverse endpoints for each servo before mounting.
+#
+# MQTT TOPICS:
+#   Send CLOSED or THROWN to the turnout topic to move the point.
+#   The board also publishes <topic>/State after each move so JMRI/CATS gets feedback.
+
+substitutions:
+  turnout_speed: 10s  # Slow this down if your servos move too fast and derail stock.
+
+  # Turnout 1 - copy these two lines and rename to turnout_02, turnout_03, etc. for each additional servo.
+  turnout_01_name: up_loop                               # Used as IDs - no spaces or dashes.
+  turnout_01_topic: trains/track/turnout/Kiama/Up Loop   # Must match your CATS/JMRI turnout topic.
+  turnout_01_pin: GPIO21                                 # GPIO pin the servo signal wire is connected to.
+
+  # Turnout 2 - example of a second servo. Copy/paste this block for more.
+  turnout_02_name: down_loop
+  turnout_02_topic: trains/track/turnout/Kiama/Down Loop
+  turnout_02_pin: GPIO22
+
+
+# WebUI - needed to calibrate servo endpoints via the browser.
+web_server:
+
+
+esphome:
+  on_boot:
+    # Publish the default CLOSED state to JMRI/CATS on boot so the panel reflects reality.
+    - priority: -200.0
+      then:
+        - mqtt.publish:
+            topic: ${turnout_01_topic}
+            payload: 'CLOSED'
+        - delay: 1s
+        - mqtt.publish:
+            topic: ${turnout_02_topic}
+            payload: 'CLOSED'
+
+
+# Calibration sliders for each servo.
+# Each turnout needs 4 sliders: normal, normal-backoff, reverse, reverse-backoff.
+# Copy this entire block for each additional turnout and rename turnout_01 -> turnout_02 etc.
+number:
+  - platform: template
+    name: ${turnout_01_name}_servo_endpoint_normal
+    id: turnout_01_name_servo_endpoint_normal
+    min_value: -50
+    max_value: 50
+    initial_value: 0
+    restore_value: true
+    optimistic: true
+    step: 0.1
+    set_action:
+      then:
+        - servo.write:
+            id: ${turnout_01_name}_servo
+            level: !lambda 'return x / 100.0;'
+
+  - platform: template
+    name: ${turnout_01_name}_servo_endpoint_normal_backoff
+    id: turnout_01_name_servo_endpoint_normal_backoff
+    min_value: -50
+    max_value: 50
+    initial_value: 0
+    restore_value: true
+    optimistic: true
+    step: 0.1
+    set_action:
+      then:
+        - servo.write:
+            id: ${turnout_01_name}_servo
+            level: !lambda 'return x / 100.0;'
+
+  - platform: template
+    name: ${turnout_01_name}_servo_endpoint_reverse
+    id: turnout_01_name_servo_endpoint_reverse
+    min_value: -50
+    max_value: 50
+    initial_value: 0
+    restore_value: true
+    optimistic: true
+    step: 0.1
+    set_action:
+      then:
+        - servo.write:
+            id: ${turnout_01_name}_servo
+            level: !lambda 'return x / 100.0;'
+
+  - platform: template
+    name: ${turnout_01_name}_servo_endpoint_reverse_backoff
+    id: turnout_01_name_servo_endpoint_reverse_backoff
+    min_value: -50
+    max_value: 50
+    initial_value: 0
+    restore_value: true
+    optimistic: true
+    step: 0.1
+    set_action:
+      then:
+        - servo.write:
+            id: ${turnout_01_name}_servo
+            level: !lambda 'return x / 100.0;'
+
+  # --- Copy above block for turnout_02, turnout_03, etc. ---
+
+  - platform: template
+    name: ${turnout_02_name}_servo_endpoint_normal
+    id: turnout_02_name_servo_endpoint_normal
+    min_value: -50
+    max_value: 50
+    initial_value: 0
+    restore_value: true
+    optimistic: true
+    step: 0.1
+    set_action:
+      then:
+        - servo.write:
+            id: ${turnout_02_name}_servo
+            level: !lambda 'return x / 100.0;'
+
+  - platform: template
+    name: ${turnout_02_name}_servo_endpoint_normal_backoff
+    id: turnout_02_name_servo_endpoint_normal_backoff
+    min_value: -50
+    max_value: 50
+    initial_value: 0
+    restore_value: true
+    optimistic: true
+    step: 0.1
+    set_action:
+      then:
+        - servo.write:
+            id: ${turnout_02_name}_servo
+            level: !lambda 'return x / 100.0;'
+
+  - platform: template
+    name: ${turnout_02_name}_servo_endpoint_reverse
+    id: turnout_02_name_servo_endpoint_reverse
+    min_value: -50
+    max_value: 50
+    initial_value: 0
+    restore_value: true
+    optimistic: true
+    step: 0.1
+    set_action:
+      then:
+        - servo.write:
+            id: ${turnout_02_name}_servo
+            level: !lambda 'return x / 100.0;'
+
+  - platform: template
+    name: ${turnout_02_name}_servo_endpoint_reverse_backoff
+    id: turnout_02_name_servo_endpoint_reverse_backoff
+    min_value: -50
+    max_value: 50
+    initial_value: 0
+    restore_value: true
+    optimistic: true
+    step: 0.1
+    set_action:
+      then:
+        - servo.write:
+            id: ${turnout_02_name}_servo
+            level: !lambda 'return x / 100.0;'
+
+
+# Direct GPIO servo outputs using ESP32 LEDC (PWM).
+# One output per servo. Copy/paste for each turnout.
+output:
+  - platform: ledc
+    id: ${turnout_01_name}_output
+    pin: $turnout_01_pin
+    frequency: 50 Hz
+
+  - platform: ledc
+    id: ${turnout_02_name}_output
+    pin: $turnout_02_pin
+    frequency: 50 Hz
+
+
+servo:
+  - id: ${turnout_01_name}_servo
+    output: ${turnout_01_name}_output
+    auto_detach_time: 0s  # Keep at 0s to prevent servo jitter when re-attaching.
+    transition_length: $turnout_speed
+
+  - id: ${turnout_02_name}_servo
+    output: ${turnout_02_name}_output
+    auto_detach_time: 0s
+    transition_length: $turnout_speed
+
+
+# MQTT subscribers - listen for CLOSED/THROWN and move the servo to the saved endpoint.
+# Copy this block for each additional turnout. Update all turnout_01 references to turnout_02 etc.
+text_sensor:
+  - platform: mqtt_subscribe
+    name: "${turnout_01_name}_state"
+    id: $turnout_01_name
+    topic: $turnout_01_topic
+    on_value:
+      - if:
+          condition:
+            text_sensor.state:
+              id: $turnout_01_name
+              state: 'THROWN'
+          then:
+            - logger.log:
+                format: "${turnout_01_name} : REVERSE"
+                level: INFO
+                tag: servo_control
+            - servo.write:
+                id: ${turnout_01_name}_servo
+                level: !lambda 'return id(turnout_01_name_servo_endpoint_reverse).state / 100.0;'
+            - delay: 1s
+            - servo.write:  # Back off slightly to relieve tension on the tie bar.
+                id: ${turnout_01_name}_servo
+                level: !lambda 'return id(turnout_01_name_servo_endpoint_reverse_backoff).state / 100.0;'
+            - mqtt.publish:
+                topic: "${turnout_01_topic}/State"
+                payload: "THROWN"
+      - if:
+          condition:
+            text_sensor.state:
+              id: $turnout_01_name
+              state: 'CLOSED'
+          then:
+            - logger.log:
+                format: "${turnout_01_name} : NORMAL"
+                level: INFO
+                tag: servo_control
+            - servo.write:
+                id: ${turnout_01_name}_servo
+                level: !lambda 'return id(turnout_01_name_servo_endpoint_normal).state / 100.0;'
+            - delay: 1s
+            - servo.write:
+                id: ${turnout_01_name}_servo
+                level: !lambda 'return id(turnout_01_name_servo_endpoint_normal_backoff).state / 100.0;'
+            - mqtt.publish:
+                topic: "${turnout_01_topic}/State"
+                payload: "CLOSED"
+
+  # --- Copy above text_sensor block for turnout_02, turnout_03, etc. ---
+
+  - platform: mqtt_subscribe
+    name: "${turnout_02_name}_state"
+    id: $turnout_02_name
+    topic: $turnout_02_topic
+    on_value:
+      - if:
+          condition:
+            text_sensor.state:
+              id: $turnout_02_name
+              state: 'THROWN'
+          then:
+            - servo.write:
+                id: ${turnout_02_name}_servo
+                level: !lambda 'return id(turnout_02_name_servo_endpoint_reverse).state / 100.0;'
+            - delay: 1s
+            - servo.write:
+                id: ${turnout_02_name}_servo
+                level: !lambda 'return id(turnout_02_name_servo_endpoint_reverse_backoff).state / 100.0;'
+            - mqtt.publish:
+                topic: "${turnout_02_topic}/State"
+                payload: "THROWN"
+      - if:
+          condition:
+            text_sensor.state:
+              id: $turnout_02_name
+              state: 'CLOSED'
+          then:
+            - servo.write:
+                id: ${turnout_02_name}_servo
+                level: !lambda 'return id(turnout_02_name_servo_endpoint_normal).state / 100.0;'
+            - delay: 1s
+            - servo.write:
+                id: ${turnout_02_name}_servo
+                level: !lambda 'return id(turnout_02_name_servo_endpoint_normal_backoff).state / 100.0;'
+            - mqtt.publish:
+                topic: "${turnout_02_topic}/State"
+                payload: "CLOSED"
+
+servo:
+  # copy/paste this code for each servo you add, and update the
+  # id as per the previous copy/paste exercises.
+  - id: ${turnout_01_name}_servo
+    output: ${turnout_01_name}_output
+    auto_detach_time: 0s # set to 0s so we don't detach and cause weird flip outs when re-attaching.
+    transition_length: $turnout_speed
+
+text_sensor:
+  # copy/paste this code for each servo you add, and update the
+  # id as per the previous copy/paste exercises.
+  # this is the actual code throwing the servo based on an MQTT topic it listens to, from the substiutions defined at the top
+  # of this file.
+  - platform: mqtt_subscribe
+    name: "${turnout_01_name}_state"
+    id: $turnout_01_name
+    topic: $turnout_01_topic
+    on_value:
+      - if:
+          condition:
+            text_sensor.state:
+              id: $turnout_01_name
+              state: 'THROWN'
+          then:
+            - logger.log:
+                format: "${turnout_01_name} : REVERSE"
+                level: INFO
+                tag: servo_control
+            - logger.log:
+                format: "%.1f"
+                args: [id(turnout_01_name_servo_endpoint_reverse).state]
+                level: INFO
+                tag: servo_control
+            - logger.log:
+                format: "%.1f"
+                args: [id(turnout_01_name_servo_endpoint_reverse_backoff).state]
+                level: INFO
+                tag: servo_control
+            - servo.write:
+                id: ${turnout_01_name}_servo
+                level: !lambda 'return id(turnout_01_name_servo_endpoint_reverse).state / 100.0;'
+            - delay: 1s
+            - servo.write:
+                id: ${turnout_01_name}_servo
+                level: !lambda 'return id( turnout_01_name_servo_endpoint_reverse_backoff).state / 100.0;'
+            - mqtt.publish:
+                topic: "${turnout_01_topic}/State"
+                payload: "THROWN"
+                retain: false
+                qos: 2
+      - if:
+          condition:
+            text_sensor.state:
+              id: $turnout_01_name
+              state: 'CLOSED'
+          then:
+            - logger.log:
+                format: "${turnout_01_name} : NORMAL"
+                level: INFO
+                tag: servo_control
+            - logger.log:
+                format: "%.1f"
+                args: [id(turnout_01_name_servo_endpoint_normal).state]
+                level: INFO
+                tag: servo_control
+            - servo.write:
+                id: ${turnout_01_name}_servo
+                level: !lambda 'return id(turnout_01_name_servo_endpoint_normal).state / 100.0;'
+            - delay: 1s
+            - logger.log:
+                format: "%.1f"
+                args: [id(turnout_01_name_servo_endpoint_normal_backoff).state]
+                level: INFO
+                tag: servo_control
+            - servo.write:
+                id: ${turnout_01_name}_servo
+                level: !lambda 'return id(turnout_01_name_servo_endpoint_normal_backoff).state / 100.0;'
+            - mqtt.publish:
+                topic: "${turnout_01_topic}/State"
+                payload: "CLOSED"
+                retain: false
+                qos: 2

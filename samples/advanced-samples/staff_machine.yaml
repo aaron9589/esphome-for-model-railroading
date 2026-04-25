@@ -1,0 +1,251 @@
+# staff_machine.yaml
+# RFID-based staff token machine for single-line working (train order operations).
+#
+# WHY YOU NEED THIS:
+#   On a single-track section, only one train may be on the line at a time.
+#   A staff token physically represents authority to be on the line.
+#   This template uses an RC522 RFID reader to scan tokens (cards/fobs).
+#   Scanning a token "issues" it — publishing to MQTT so CATS knows the train has authority.
+#   Scanning the same token again "returns" it — telling CATS the train has cleared the section.
+#
+# HOW IT WORKS:
+#   1. No token scanned: staff topic is empty. CATS shows section unoccupied.
+#   2. Valid token scanned IN: staff topic is set to the token ID. CATS locks the section.
+#   3. Same token scanned again: staff topic cleared. CATS unlocks the section.
+#   4. Remote lockout via MQTT: CATS panel can issue/clear the token without physical scanning.
+#
+# MQTT TOPICS (change the section name to match your layout):
+#   trains/staff/<section>         - set to token ID when issued, empty when returned.
+#   trains/staff/<section>/lastOut - records which end the staff last left from.
+#   trains/track/sensor/<section>  - toggles ACTIVE/INACTIVE while digitally locked out.
+#
+# HARDWARE:
+#   - RC522 SPI RFID reader
+#   - RFID cards or fobs (any MIFARE Classic)
+#   - DFPlayer Mini for audio feedback (optional but recommended for operational feel)
+#   - LED or gauge light to show section state (optional)
+#
+# SETUP:
+#   1. Change <your-section> placeholders below to match your section name (e.g. nowra-berry).
+#   2. Add your valid RFID token IDs to the valid_tokens list (read them from the logs on first scan).
+#   3. Adjust pin assignments for your wiring.
+
+substitutions:
+  section_name: "nowra-berry"  # Section this machine controls. Used in all MQTT topics.
+
+
+globals:
+  - id: token_scanned
+    type: bool
+    restore_value: no
+    initial_value: "false"
+
+  - id: scanned_token_id
+    type: std::string
+    restore_value: no
+    initial_value: '""'
+
+  - id: valid_tokens
+    type: std::vector<std::string>
+    restore_value: no
+    # Replace with your actual token IDs. Read them from the ESPHome logs on first scan.
+    initial_value: 'std::vector<std::string> {"AA-BB-CC-DD", "11-22-33-44"}'
+
+  - id: lockout_active
+    type: bool
+    restore_value: no
+    initial_value: "false"
+
+  - id: toggle_state
+    type: bool
+    restore_value: no
+    initial_value: "false"
+
+  - id: staff_value
+    type: std::string
+    restore_value: no
+    initial_value: '""'
+
+
+esphome:
+  on_boot:
+    # Clear any retained staff token on restart so the panel reflects reality.
+    - priority: -50.0
+      then:
+        - mqtt.publish:
+            topic: trains/staff/${section_name}
+            payload: ""
+            retain: true
+        - mqtt.publish:
+            topic: trains/track/sensor/${section_name}
+            payload: INACTIVE
+            retain: false
+            qos: 2
+
+
+# SPI bus for the RC522 RFID reader.
+spi:
+  clk_pin: GPIO14
+  mosi_pin: GPIO13
+  miso_pin: GPIO27
+
+rc522_spi:
+  cs_pin: GPIO22
+  update_interval: 1s
+  on_tag:
+    then:
+      - if:
+          condition:  # Only respond to tokens in the valid_tokens list.
+            lambda: |-
+              bool valid = false;
+              for (auto& token : id(valid_tokens)) {
+                if (token == x) { valid = true; break; }
+              }
+              return valid;
+          then:
+            - if:
+                condition:
+                  lambda: 'return !id(token_scanned);'
+                then:  # Token scanned IN - issue staff.
+                  - lambda: |-
+                      id(scanned_token_id) = x;
+                      id(token_scanned) = true;
+                  - logger.log:
+                      format: "Staff token issued"
+                      level: INFO
+                      tag: staff_machine
+                  - mqtt.publish:
+                      topic: trains/staff/bellCode/3-2-1
+                      payload: ACTIVE
+                      retain: false
+                      qos: 2
+                  - delay: 4s
+                  - dfplayer.play_mp3:
+                      file: 2  # Play "staff retrieved" audio.
+                  - delay: 2s
+                  - mqtt.publish:
+                      topic: trains/staff/${section_name}
+                      payload: !lambda 'return x;'
+                      retain: true
+                  - mqtt.publish:
+                      topic: trains/track/sensor/${section_name}
+                      payload: ACTIVE
+                      retain: false
+                      qos: 2
+                else:
+                  - if:
+                      condition:
+                        lambda: 'return id(scanned_token_id) == x;'
+                      then:  # Same token scanned again - return staff.
+                        - lambda: |-
+                            id(token_scanned) = false;
+                            id(scanned_token_id) = "";
+                        - logger.log:
+                            format: "Staff token returned"
+                            level: INFO
+                            tag: staff_machine
+                        - dfplayer.play_mp3:
+                            file: 3  # Play "staff returned" audio.
+                        - delay: 2s
+                        - mqtt.publish:
+                            topic: trains/staff/${section_name}
+                            payload: ""
+                            retain: true
+                        - mqtt.publish:
+                            topic: trains/track/sensor/${section_name}
+                            payload: INACTIVE
+                            retain: false
+                            qos: 2
+          else:
+            # Unknown token - log but take no action.
+            - logger.log:
+                format: "Unknown token scanned - add to valid_tokens if this is yours"
+                level: WARN
+                tag: staff_machine
+
+
+mqtt:
+  on_message:
+    - topic: trains/staff/${section_name}
+      then:
+        - lambda: 'id(staff_value) = x;'
+
+    # Remote lockout: CATS panel can lock/unlock the section digitally.
+    - topic: trains/track/sensor/${section_name}/lockOut
+      then:
+        - if:
+            condition:
+              lambda: 'return x == "ACTIVE";'
+            then:
+              - if:
+                  condition:
+                    lambda: 'return !id(staff_value).empty();'
+                  then:
+                    - logger.log: "Lockout ignored: staff token already issued"
+                  else:
+                    - lambda: 'id(token_scanned) = true; id(lockout_active) = true;'
+                    - mqtt.publish:
+                        topic: trains/staff/bellCode/3-2-1
+                        payload: ACTIVE
+                        retain: false
+                        qos: 2
+                    - mqtt.publish:
+                        topic: trains/staff/${section_name}/lastOut
+                        payload: "DIGITAL"
+                        retain: true
+                    - mqtt.publish:
+                        topic: trains/staff/${section_name}
+                        payload: "CATS"
+                        retain: true
+            else:
+              - if:
+                  condition:
+                    lambda: 'return id(lockout_active);'
+                  then:
+                    - lambda: 'id(token_scanned) = false; id(lockout_active) = false;'
+                    - delay: 2s
+                    - mqtt.publish:
+                        topic: trains/staff/${section_name}
+                        payload: ""
+                        retain: true
+
+
+# Flashing interval while digitally locked out so the panel shows activity.
+interval:
+  - interval: 1s
+    then:
+      - if:
+          condition:
+            lambda: 'return id(lockout_active);'
+          then:
+            - if:
+                condition:
+                  lambda: 'return id(toggle_state);'
+                then:
+                  - mqtt.publish:
+                      topic: trains/track/sensor/${section_name}
+                      payload: ACTIVE
+                      retain: false
+                      qos: 2
+                else:
+                  - mqtt.publish:
+                      topic: trains/track/sensor/${section_name}
+                      payload: INACTIVE
+                      retain: false
+                      qos: 2
+            - lambda: 'id(toggle_state) = !id(toggle_state);'
+
+
+# DFPlayer for audio feedback on token scan events.
+uart:
+  tx_pin: GPIO1
+  rx_pin: GPIO4
+  baud_rate: 9600
+
+dfplayer:
+  on_finished_playback:
+    then:
+      - logger.log:
+          format: "Staff machine audio finished"
+          level: INFO
+          tag: staff_machine

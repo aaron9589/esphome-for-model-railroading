@@ -4,6 +4,12 @@
 
 The repo is a collection of resources for using the home automation tool ESPHome with a model railroad. ESPHome is a great platform to base your automations/control systems on as it abstracts a lot of the authoring of code away from you, so you can focus on creating something that works for your use case, and know that the code running on your microcontrollers is optimised.
 
+If you are new to all of this, start here first:
+
+1. **[Set up your PC](installing-esphome-cheatsheet.md)** — install Docker Desktop, start MQTT and ESPHome Dashboard.
+2. **[Configure your first board](first-board-setup-guide.md)** — create a device, flash it by USB, confirm it is online.
+3. **[Get help from Copilot](copilot-steering-prompts.md)** — copy-paste prompts to guide you through any step.
+
 Currently I'm working on the following 3 use cases:
 
 - Block Detection
@@ -47,23 +53,11 @@ To use ESPHome, you require:
 
 - A computer (obviously) - if you have a computer with JMRI installed already - thats a good place to start.
 
-- Docker Desktop to install ESPHome and (optionally) an MQTT Broker - follow the [Cheatsheet](/installing-esphome-cheatsheet.md) which details this further for a windwos PC.
+- Docker Desktop to install ESPHome and (optionally) an MQTT Broker — follow the [setup cheatsheet](installing-esphome-cheatsheet.md) for step-by-step instructions on a Windows PC.
 
 - Note down your computer's IP address, and your Wifi network Name and password - you'll need it shortly.
 
-### Setup ESPHome Dashboard
-
-If you're not familiar with Docker or Python, this will be a bit tricky. In short, you need to setup a copy of ESPHome to run the dashboard - this makes it easy to see all your configured boards in one spot, and make any changes over the wifi once the board is registered in the dashboard. More details on the dashboard can be found [here](https://esphome.io/guides/getting_started_command_line.html#bonus-esphome-dashboard). However, the [Cheatsheet](/installing-esphome-cheatsheet.md) shows how you can deploy the dashboard using Docker Desktop on a windows PC. Have a read of that article, and come back here once you've setup ESPHome and (optionally) EMQX.
-
-If your container has started, navigate to http://localhost:6052 and you'll see something like this:
-
-![image-20220830201121554](_img/image-20220830201121554.png)
-
-Success! you are ready to configure your first board.
-
-### Configure Your First ESPHome Board
-
-Refer to the [Cheatsheet](/installing-esphome-cheatsheet.md) which goes through this in more detail.
+Once your PC is set up, follow [first-board-setup-guide.md](first-board-setup-guide.md) to create your first device, flash it by USB, and confirm it is online.
 
 ## Setting Up Block Detection
 
@@ -85,60 +79,73 @@ As per the article I sourced the current sensors (AS-100) from Digikey - the oth
 
 ### Integration with ESPHome
 
-_These Steps assume you have followed the cheatsheet to configure your ESPHome and EMQX/MQTT Broker, and you're fairly confident with using the board_
+_Assumes you have followed the cheatsheet and have ESPHome Dashboard and EMQX running, and completed [first-board-setup-guide.md](first-board-setup-guide.md)._
 
-So you've built your first board. Now we're going to get it integrated with ESPHome, detect a train on your track, and feed this information back to MQTT. We are going to use the samples in this Repo to help make that easier.
-
-1. Create a folder the same name of your board where your current YAML config file is (Remember the WSL Path in the [Cheatsheet!](/installing-esphome-cheatsheet.md). You can call the folder whatever you like, but for consistencies sake the board name will do.
-
-2. Make a copy of gpio_01.yaml in the samples folder of this repo, and place it into the folder you created. Review the comments so you have an idea on what its doing.
-
-3. In your boards main YAML file, you will need to add the following:
-
+1. Copy [samples/my-first-board/modules/block_detectors.yaml](samples/my-first-board/modules/block_detectors.yaml) into the `modules/` folder in your ESPHome config.
+2. Edit the `substitutions` section at the top to match your block names and MQTT topics.
+3. The include is already in the sample `board.yaml` — make sure the `sensors:` line is uncommented:
    ```yaml
    packages:
-     gpio: !include <your-board-folder>/gpio_01.yaml
+     sensors:  !include modules/block_detectors.yaml
    ```
-   Rename the `sta-bd-01` section to the name of the folder you created.
+4. Click **Install > Wireless** to push the update over Wi-Fi.
+5. Wire your block detector and place a train on the track. Check the ESPHome logs — you should see `OCCUPIED` / `UNOCCUPIED` messages and the MQTT topic will change.
 
-   *Hint - you can reference as many files as you like using this method - just make sure the left hand side of the colon (gpio:) is unique, eg gpio2: gpio3: etc.*
-
-5. Open your ESPHome Dashboard - click edit on your board, then click install and select wireless. Your board now that you've uncommented the line in step 3 will recompile and push the updated config over WiFi to the board.
-6. You can now hook up your sensor, loop your track through the current detector, and place a train on the track. If it's all worked, you'll see a log on your ESPHome Dashboard indicating this, and your MQTT topic will change.
+**Need CATS train-describer direction handling?** Add [samples/advanced-samples/end_of_block.yaml](samples/advanced-samples/end_of_block.yaml) as a second package for each block that needs it.
 
 ## Setting Up Point Control
 
-I've used SG90 servos on my layout, have previously used them with Tam Valley Singlets and they work well. 
+[samples/my-first-board/modules/point_control.yaml](samples/my-first-board/modules/point_control.yaml) drives servos via a **PCA9685 PWM driver board**, which lets you control up to 16 servos from a single ESP32 over I2C. The PCA9685 V+ rail must be powered from a dedicated 5V supply — not from the ESP32.
 
-There are two files in this repo that will allow you to start using your ESP to control servos for point motor control, further instructions are below.
-
-1) Make a copy of servos_01.yaml and move to your device folder.
-2) Add the following block to your devices yaml file:
+1. Copy `point_control.yaml` into the `modules/` folder in your ESPHome config and edit the substitutions (turnout name, MQTT topic, PCA9685 channel).
+2. The include is already in the sample `board.yaml` — make sure the `points:` line is uncommented:
    ```yaml
    packages:
-     gpio: !include <your-board-folder>/servos_01.yaml
+     points:   !include modules/point_control.yaml
    ```
-4) Follow the comments in each file, and configure your ESP for your first servo. Upload and reboot your ESP.
-5) Plug in your servo to the same pin defined in the YAML file.
-6) navigate to your devices new web server (eg http://<my-device-name>.local) - a web page will come up.
-7) Select the slider, and press the left or right arrow key. The console will update with the new value. Press the key until you are back at 0.0
-8) Your servo is now centred - mount your servo in your XOver with the tie bar centered between the rails.
-9) Move the slider again and update the normal/backoff values. These will save to the ESP.
-10) Test by changing your MQTT topic for the servo to CLOSED or THROWN (either manually or through something like JMRI/CATS) - confirm the point changes.
+3. Install wirelessly. Open `http://<board-name>.local` in Chrome or Edge — you will see the calibration sliders.
+4. Use the sliders to find the normal and reverse endpoints for each servo. Values are saved to the ESP automatically.
+5. Mount the servo centred, then fine-tune endpoints.
+6. Send `CLOSED` or `THROWN` to the turnout's MQTT topic to confirm the point moves.
 
-## Adding other useful components
+**Ground throws (manual levers)?** Use [samples/advanced-samples/ground_throws.yaml](samples/advanced-samples/ground_throws.yaml) to read physical lever inputs and publish the same MQTT topics. Includes optional signal interlocking.
 
-`` the [samples](/samples/sample_board_config.yaml) contains a couple of other useful things you may want to use.
-
-- A random delay, that helps to spread the load of all the devices starting at once on your network.
-- A button and MQTT topic for resetting the ESP Device.
-- Some other config that i've tried to add comments in for as to why its there.
-  
 ## Setting up Signals
 
-The signalling i've chosen is a little more complex, as I'm using [WLED](https://kno.wled.ge) to control custom LEDs.
+Signals use [WLED](https://kno.wled.ge) running on a second ESP to drive WS2812B LED signal heads over a serial link.
 
-I've detailed this more on my blog, https://illawarraline.net/signals-for-the-illawarra-line/  
+- [samples/advanced-samples/wled_signal.yaml](samples/advanced-samples/wled_signal.yaml) subscribes to CATS signal mast topics and sends JSON commands to WLED. Open the file — the comments at the top explain the WLED segment/LED layout and how to match aspects to your prototype signals.
+- See https://illawarraline.net/signals-for-the-illawarra-line/ for the full hardware build.
+
+## Sample Files
+
+The [samples](samples) folder is split into two areas.
+
+### Start here — my-first-board/
+
+Three files that work together. The `board.yaml` is your main config; `block_detectors.yaml` and `point_control.yaml` go in a `modules/` subfolder next to it in your ESPHome config.
+
+| File | Purpose |
+|---|---|
+| [my-first-board/board.yaml](samples/my-first-board/board.yaml) | Main board file — Wi-Fi, MQTT, OTA, and feature file includes |
+| [my-first-board/modules/block_detectors.yaml](samples/my-first-board/modules/block_detectors.yaml) | Train detection in track blocks via current detector |
+| [my-first-board/modules/point_control.yaml](samples/my-first-board/modules/point_control.yaml) | Servo-driven turnout control via PCA9685 |
+| [secrets.yaml](samples/secrets.yaml) | Template for Wi-Fi and MQTT credentials |
+
+### Advanced components — advanced-samples/
+
+These add more capability once your first board is working.
+
+| File | Purpose |
+|---|---|
+| [advanced-samples/sample_board_config.yaml](samples/advanced-samples/sample_board_config.yaml) | Board template with random boot delay (multi-board layouts) |
+| [advanced-samples/end_of_block.yaml](samples/advanced-samples/end_of_block.yaml) | EOB sensors for CATS train-describer direction handling |
+| [advanced-samples/ground_throws.yaml](samples/advanced-samples/ground_throws.yaml) | Physical lever inputs publishing turnout MQTT topics |
+| [advanced-samples/wled_signal.yaml](samples/advanced-samples/wled_signal.yaml) | WS2812B signal heads via WLED + UART serial |
+| [advanced-samples/bellcodes.yaml](samples/advanced-samples/bellcodes.yaml) | Railway bell code audio via DFPlayer Mini |
+| [advanced-samples/staff_machine.yaml](samples/advanced-samples/staff_machine.yaml) | RFID staff token machine for single-line working |
+
+Each file is commented to explain what to change and how to add more instances.  
 
 ---
 

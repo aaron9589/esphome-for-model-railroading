@@ -1,0 +1,105 @@
+# ground_throws.yaml
+# Physical ground throw (lever) inputs that move turnouts and optionally enforce signal interlocking.
+#
+# WHY YOU NEED THIS:
+#   Some turnouts on a layout are operated manually by a ground throw rather than a servo.
+#   This template reads the physical lever position via a GPIO input and publishes the
+#   corresponding CLOSED/THROWN MQTT topic so that JMRI/CATS tracks the state correctly.
+#
+# INTERLOCKING:
+#   The optional interlocking check reads a signal lever state from MQTT before
+#   allowing the turnout to move. This prevents setting a point under a cleared signal.
+#   Remove or comment out the 'if' condition blocks to disable interlocking.
+#
+# HOW TO ADD MORE THROWS:
+#   Copy the turnout_0x_topic substitution for each additional throw.
+#   Copy the matching binary_sensor block and update id, pin, and topic references.
+#
+# WIRING:
+#   Wire a microswitch or reed contact across the ground throw mechanism.
+#   Connect to the GPIO pin with the other leg to GND. The pullup mode in the config
+#   means you do not need an external pull-up resistor.
+
+substitutions:
+  turnout_01_topic: "trains/track/turnout/Berry/Up Siding"   # CATS/JMRI turnout topic for throw 1.
+  turnout_02_topic: "trains/track/turnout/Berry/Down Siding" # CATS/JMRI turnout topic for throw 2.
+
+  # Optional: the MQTT signal lever topic used to enforce interlocking.
+  # Remove the 'if' condition in the binary_sensor blocks below to disable this.
+  interlock_lever_topic: "trains/track/signal/Berry/4"
+
+
+text_sensor:
+  # Reads the interlocking lever state so the binary sensors can check it.
+  # Remove this block if you are not using interlocking.
+  - platform: mqtt_subscribe
+    internal: true
+    name: "Interlock Lever State"
+    id: interlock_lever_state
+    topic: $interlock_lever_topic
+
+
+binary_sensor:
+  # Ground throw 1 - normal (CLOSED) position detector.
+  # Fires when the lever is moved to the normal/closed position.
+  - platform: gpio
+    internal: true
+    pin:
+      number: GPIO17  # Change to the GPIO pin your microswitch is wired to.
+      mode:
+        input: true
+        pullup: true
+      inverted: true
+    filters:
+      - delayed_on_off: 250ms  # Debounce the lever contact.
+    id: throw_01_normal
+    on_press:
+      - if:
+          condition:
+            # Only move the turnout if the interlocking lever is THROWN (cleared).
+            # Remove this 'if' wrapper and leave just the mqtt.publish if you don't use interlocking.
+            - text_sensor.state:
+                id: interlock_lever_state
+                state: 'THROWN'
+          then:
+            - logger.log:
+                format: "Throw 1 : CLOSED"
+                level: DEBUG
+                tag: ground_throw
+            - mqtt.publish:
+                topic: $turnout_01_topic
+                payload: 'CLOSED'
+                qos: 2
+                retain: true
+
+  # Ground throw 1 - reverse (THROWN) position detector.
+  - platform: gpio
+    internal: true
+    pin:
+      number: GPIO19  # Change to the GPIO pin your reverse-position microswitch is wired to.
+      mode:
+        input: true
+        pullup: true
+      inverted: true
+    filters:
+      - delayed_on_off: 250ms
+    id: throw_01_reverse
+    on_press:
+      - if:
+          condition:
+            - text_sensor.state:
+                id: interlock_lever_state
+                state: 'THROWN'
+          then:
+            - logger.log:
+                format: "Throw 1 : THROWN"
+                level: DEBUG
+                tag: ground_throw
+            - mqtt.publish:
+                topic: $turnout_01_topic
+                payload: 'THROWN'
+                qos: 2
+                retain: true
+
+  # --- Copy the two binary_sensor blocks above for additional ground throws ---
+  # Change the pin numbers, update throw_01 -> throw_02, and update the topic reference.

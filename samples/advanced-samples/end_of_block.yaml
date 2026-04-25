@@ -1,0 +1,91 @@
+# end_of_block.yaml
+# End-of-block (EOB) sensors for CATS train-describer direction handling.
+#
+# WHY YOU NEED THIS:
+#   When a train enters a block from the wrong direction (wrong-road running),
+#   CATS needs to see the EOB topic go ACTIVE briefly before the block sensor fires.
+#   This nudges the train describer to move correctly in the CATS panel.
+#   Without EOB sensors, wrong-road running shows incorrect routing on the panel.
+#
+# HOW IT WORKS:
+#   The EOB sensor fires momentarily ACTIVE on block entry, then returns to INACTIVE.
+#   The main block sensor (gpio_01.yaml) then sets the block to ACTIVE.
+#   This sequence tells CATS which end of the block the train entered from.
+#
+# HOW TO ADD MORE EOB SENSORS:
+#   Copy the substitution pair (eob_x_topic / eob_x_name) for each additional sensor.
+#   Copy the matching on_boot mqtt.publish and binary_sensor blocks.
+#
+# WIRING:
+#   Same as gpio_01.yaml - connect a current detector output to the GPIO pin.
+#   One EOB sensor per block entry point where wrong-road running is possible.
+
+substitutions:
+  eob_1_topic: "trains/track/sensor/Kiama/Up XOver/EOB"
+  eob_1_name: "Kiama/Up XOver EOB"
+
+  # Add more EOB sensors by copying these two lines:
+  # eob_2_topic: "trains/track/sensor/Kiama/Down XOver/EOB"
+  # eob_2_name: "Kiama/Down XOver EOB"
+
+
+esphome:
+  on_boot:
+    # Publish INACTIVE on boot to clear any stale retained topic in MQTT.
+    - priority: -50.0
+      then:
+        - logger.log:
+            format: "Refreshing EOB Sensors"
+            level: INFO
+            tag: eob_sensor
+        - mqtt.publish:
+            topic: $eob_1_topic
+            payload: INACTIVE
+            qos: 2
+            retain: false
+        # Then republish the current hardware state so CATS is in sync after a restart.
+        - mqtt.publish:
+            topic: $eob_1_topic
+            payload: !lambda |-
+              return id(eob_1_sensor).state ? "ACTIVE" : "INACTIVE";
+            qos: 2
+            retain: false
+
+
+binary_sensor:
+  - platform: gpio
+    internal: true  # EOB is used internally, not exposed to the CATS panel directly.
+    pin:
+      number: GPIO23  # Change to the pin your EOB sensor is wired to.
+      inverted: true
+      mode:
+        input: true
+        pullup: true
+    id: eob_1_sensor
+    filters:
+      - delayed_off: 5s   # Hold ACTIVE for 5 seconds after the train exits to give CATS time to react.
+      - delayed_on: 0s
+    on_press:
+      then:
+        - logger.log:
+            format: "$eob_1_name | ACTIVE"
+            level: INFO
+            tag: eob_sensor
+        - mqtt.publish:
+            topic: $eob_1_topic
+            payload: ACTIVE
+            qos: 2
+            retain: false
+    on_release:
+      then:
+        - logger.log:
+            format: "$eob_1_name | INACTIVE"
+            level: INFO
+            tag: eob_sensor
+        - mqtt.publish:
+            topic: $eob_1_topic
+            payload: INACTIVE
+            qos: 2
+            retain: false
+
+  # --- Copy above binary_sensor block for eob_2_sensor, eob_3_sensor, etc. ---

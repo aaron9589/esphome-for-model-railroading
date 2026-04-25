@@ -1,89 +1,196 @@
 
-# Step-by-Step Guide for Setting Up Your System with Chocolatey, WSL, Docker, and ESPHome
+# Simple Setup: ESPHome + EMQX on Windows
 
-This guide provides a comprehensive walkthrough for installing and configuring essential tools like Chocolatey, WSL (Windows Subsystem for Linux), Docker Desktop, and ESPHome. Follow these steps carefully to ensure a smooth setup.
+This is the easiest path for first-time users on Windows.
 
----
+Goal:
+- Install Docker Desktop
+- Enable host networking
+- Start MQTT (EMQX)
+- Start ESPHome Dashboard
+- Create and flash your first board
 
-## Step 1: Install Chocolatey
-
-Chocolatey is a Package Manager that makes it easy to install applications. We will use Chocolatey to install Docker Desktop. Docker Desktop is used to run containers, which is what the ESPHome dashboard and EMQX (the MQTT Broker) run in. It saves you
-from having to install applications directly on your PC.
-
-1. Open **PowerShell** as an administrator:
-   - Press `Win + S`, type "PowerShell," right-click, and select **Run as administrator**.
-
-2. Run the following command to install Chocolatey:
-   ```powershell
-   Set-ExecutionPolicy Bypass -Scope Process -Force; [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072; iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
-   ```
-
-3. After installation, close PowerShell and reopen it as an administrator.
+If you get stuck, use the Copilot prompts in [copilot-steering-prompts.md](copilot-steering-prompts.md).
 
 ---
 
-## Step 2: Install Docker Desktop Using Chocolatey
+## 10-Minute Quickstart
 
-1. Use Chocolatey to install Docker Desktop:
-   ```powershell
-   choco install docker-desktop
-   ```
+If you only want the fastest path, run these in **PowerShell as Administrator**:
 
-2. Once installed:
-   - Open Docker Desktop.
-   - Sign in with your Docker account.
-   - Enable **Auto Start** in the settings.
+```powershell
+Set-ExecutionPolicy Bypass -Scope Process -Force; [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072; iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
+choco install docker-desktop -y
+```
 
-3. Navigate to **Resources > Network** in Docker Desktop and enable **Host Networking**.
+Reboot, open Docker Desktop, enable host networking (see Step 2), then run:
 
-4. Ensure at the bottom left, the Docker engine is running. 
+```powershell
+docker run -d --restart always --name emqx -p 1883:1883 -p 18083:18083 emqx/emqx:5
+docker run -d --restart always --name esphome --network host -e ESPHOME_DASHBOARD_USE_PING=true -v esphome-config:/config ghcr.io/esphome/esphome:stable dashboard /config
+```
 
----
+Open:
+- EMQX: http://localhost:18083
+- ESPHome: http://localhost:6052
 
-## Step 3: Deploy EMQX MQTT Broker
-
-1. Run the following command in PowerShell to deploy the EMQX broker:
-   ```powershell
-   docker run -d --restart always --name emqx -p 1883:1883 -p 8083:8083 -p 8084:8084 -p 8883:8883 -p 18083:18083 emqx/emqx:latest
-   ```
-
-2. Once running, access the EMQX dashboard by navigating to http://localhost:18083/ using the following credentials:
-   - **Username:** `admin`
-   - **Password:** `public`
+If this fails, go straight to the **If Something Fails** section.
 
 ---
 
-## Step 4: Deploy ESPHome
+## Before You Start
 
-1. Deploy ESPHome using the following command:
-   ```powershell
-   docker run -d --restart always --net=host --name esphome -e ESPHOME_DASHBOARD_USE_PING=true -v esphome-config:/config -it ghcr.io/esphome/esphome
-   ```
+You need:
+- Windows 10/11
+- Admin access on your PC
+- 2.4 GHz Wi-Fi (ESP boards usually cannot use 5 GHz)
+- Chrome or Edge (for first-time USB flash)
 
-2. Once Running, browse to http://localhost:6052 to access the ESPHome Dashboard. From here you can start creating a new device in the right hand corner by clicking 'new device'
-
-## Step 5: Create Your First Device
-
-1. Open the ESPHome Dashboard. Select 'New Device'
-
-2. Give your device a name, and enter in your Wifi details.
-   
-4. Under the 'Installation' Step - click skip. We will configure the device further before deploying.
-
-5. Choose your device type. Generally ESP32 works best unless you have one with strange hardware. Click Next.
-
-6. On the success page, hit Skip instead of Install.
-
-7. Click 'Edit' on the newly created file. Add any additional config such as MQTT brokers, etc.
-
-8. Once ready, hit install. Generally on first provision of a device, you want to use your web browser (Chrome or Edge only). Afterwards you can deploy wirelessly.
+Open **PowerShell as Administrator** once and keep using that same window.
 
 ---
 
-## Troubleshooting Tips
+## 1. Install Docker Desktop (includes WSL support)
 
-- Ensure you have administrator privileges for every step requiring elevated access.
-- Restart PowerShell or your machine if you encounter any installation issues.
-- Verify Docker Desktop and its settings if services fail to start.
+Run these commands:
+
+```powershell
+Set-ExecutionPolicy Bypass -Scope Process -Force; [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072; iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
+choco install docker-desktop -y
+```
+
+Then:
+1. Reboot Windows.
+2. Open Docker Desktop and finish first-run setup.
+3. Wait until Docker says it is running.
+
+Quick check:
+
+```powershell
+docker version
+docker info
+```
+
+If these commands show server info, Docker is ready.
 
 ---
+
+## 2. Enable Host Networking
+
+Do this before starting any containers. Without it, ESPHome cannot see your ESP boards on the network for OTA updates or device discovery.
+
+Host networking lets containers share your PC's network adapter directly, so they can reach mDNS announcements from ESP boards on your LAN.
+
+**You must be logged in to Docker Hub.** Create a free account at https://hub.docker.com if you don't have one, then log in:
+
+```powershell
+docker login
+```
+
+**Enable host networking in Docker Desktop:**
+1. Open Docker Desktop.
+2. Click the **Settings** gear (top right).
+3. Go to **Resources → Network**.
+4. Tick **Enable host networking**.
+5. Click **Apply & Restart** and wait for Docker to restart.
+
+---
+
+## 3. Start EMQX (MQTT broker)
+
+Run:
+
+```powershell
+docker run -d --restart always --name emqx -p 1883:1883 -p 18083:18083 emqx/emqx:5
+```
+
+Open http://localhost:18083
+
+Default login:
+- Username: admin
+- Password: public
+
+Important:
+- Change the admin password immediately.
+- Create a normal user for your ESP devices.
+
+Quick check:
+
+```powershell
+docker ps --filter "name=emqx"
+```
+
+---
+
+## 4. Start ESPHome Dashboard
+
+Start ESPHome without port mapping — host networking handles it:
+
+```powershell
+docker run -d --restart always --name esphome --network host -e ESPHOME_DASHBOARD_USE_PING=true -v esphome-config:/config ghcr.io/esphome/esphome:stable dashboard /config
+```
+
+Open http://localhost:6052
+
+Quick check:
+
+```powershell
+docker ps --filter "name=esphome"
+```
+
+---
+
+## Next Step
+
+Your PC is ready. Now go to [first-board-setup-guide.md](first-board-setup-guide.md) to create and flash your first board.
+
+---
+
+## Useful Docker Commands
+
+Keep these handy for day-to-day use.
+
+Check what is running:
+
+```powershell
+docker ps
+```
+
+View recent logs:
+
+```powershell
+docker logs emqx --tail 50
+docker logs esphome --tail 50
+```
+
+Restart a service:
+
+```powershell
+docker restart emqx
+docker restart esphome
+```
+
+---
+
+## If Something Fails
+
+**Docker command not found or fails:**
+Docker Desktop is not running yet. Open it from the Start menu and wait 1-2 minutes until it shows "Running".
+
+**Port already in use:**
+Something else on your PC is using port 1883, 18083, or 6052. Run this to find the process:
+```powershell
+netstat -ano | findstr ":1883 :18083 :6052"
+```
+Then close the conflicting program, or contact your IT support.
+
+**ESP board not found on first flash:**
+- Use a data USB cable, not a charge-only cable. Charge-only cables look identical but carry no data.
+- Install the board's USB chip driver. Boards with a CP2102 chip: [Silicon Labs CP210x driver](https://www.silabs.com/developers/usb-to-uart-bridge-vcp-drivers). Boards with a CH340 chip: search "CH340 driver Windows".
+- Close any other programs that may be using the serial port (e.g. Arduino IDE, PuTTY).
+- Use Chrome or Edge. Firefox does not support WebSerial.
+
+**Board will not connect to Wi-Fi:**
+- Confirm your network is 2.4 GHz. ESP boards cannot use 5 GHz.
+- Double-check the Wi-Fi name and password in `secrets.yaml`. Both are case-sensitive.
+- Make sure your router has DHCP enabled (it almost always is by default).

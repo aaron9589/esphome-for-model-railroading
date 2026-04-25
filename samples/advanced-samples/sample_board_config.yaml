@@ -57,18 +57,13 @@ mqtt:
   broker: !secret layout_mqtt_broker_ip # connect to the layout control MQTT Broker.
   id: mqtt_server
   discovery: false
-  on_message:
-    - topic: /trains/track/turnout/ADM/ResetESPs
-      payload: "THROWN"
-      then:
-        - button.press: reboot_esp
 
 # Over-The-Air (OTA) updates allow you to update config on your ESPs once they are registered on your
 # Dashboard. A very useful feature especially for things like Servo configuration which
 # can be done wirelessly whilst still installed in the layout.
 ota:
-  password: !secret ota_password # connecting back to the esphome dashboard
-  safe_mode: false
+  - platform: esphome
+    password: !secret ota_password # connecting back to the esphome dashboard
 
 # lastly the wifi connection. We can't talk to anything unless we're on the network
 

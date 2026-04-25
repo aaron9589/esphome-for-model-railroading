@@ -1,0 +1,163 @@
+# block_detectors.yaml
+# ============================================================
+# Detects whether a train is present in a section of track
+# (called a "block").
+#
+# WHAT IT DOES:
+#   - Reads a current detector circuit wired to a GPIO pin
+#   - Sends ACTIVE to an MQTT topic when a train is detected
+#   - Sends INACTIVE when the block clears
+#   - On startup, publishes the current real state so JMRI
+#     is always in sync
+#
+# WHAT YOU NEED:
+#   - A current detector circuit for each block
+#     (See the README for the detector design used here)
+#   - One GPIO input pin on your ESP32 per detector
+#
+# ADDING MORE BLOCKS:
+#   1. Add a new block_2_topic and block_2_name in substitutions
+#      (copy the block_1 lines and rename to block_2, etc.)
+#   2. Copy the entire binary_sensor block below and rename
+#      every block_1 reference to block_2, etc.
+# ============================================================
+
+
+# ---- THINGS TO CHANGE ----
+
+substitutions:
+
+  block_debounce: 500ms
+  # ^ How long the signal must stay steady before it counts as a change.
+  #   This stops the detector flickering between OCCUPIED and UNOCCUPIED
+  #   due to brief electrical noise. 500ms works well for most layouts.
+
+  block_1_topic: "trains/track/sensor/Kiama/Up XOver"
+  # ^ The full MQTT topic this sensor publishes to.
+  #
+  #   JMRI builds topics automatically from three parts:
+  #     [MQTT Channel] + [sensor topic middle] + [hardware address]
+  #   For example, with MQTT Channel "trains/" and a sensor named
+  #   "MSKiama/Up XOver" in JMRI, the topic becomes:
+  #     trains/track/sensor/Kiama/Up XOver (MS being the prefix in the JMRI Table that references **M**qtt and the **S**ensor table)
+  #
+  #   HOW TO FIND THE RIGHT VALUE:
+  #     In JMRI, open Preferences > Connections > MQTT and note the
+  #     "MQTT Channel" and "Sensor receive topic" fields. Then look up
+  #     your sensor's Hardware Address in the Sensor table.
+  #     Concatenate: channel + sensor-topic + hardware-address.
+  #
+  #   NOTE: Since JMRI 5.1.2, MQTT Channel defaults to blank (empty).
+  #   If you upgraded from an older JMRI, your channel may still be
+  #   "trains/". Check your JMRI Preferences to confirm.
+  #
+  #   This value is case-sensitive and must match JMRI exactly.
+
+  block_1_name: "Kiama/Up XOver"
+  # ^ A friendly label used in your ESPHome logs.
+  #   Can be anything - it does not need to match JMRI.
+
+  block_2_topic: "trains/track/sensor/Bombo/Down Crossover"
+  # ^ MQTT topic for the second block detector.
+  #   Must match your JMRI sensor hardware address path exactly.
+
+  block_2_name: "Bombo/Down Crossover"
+  # ^ Friendly name for logs for block 2.
+
+# ---- END OF THINGS TO CHANGE ----
+
+
+# When the board restarts, it immediately publishes the real state of each block.
+# This keeps JMRI in sync if the board loses power briefly.
+#
+# WHY retain: false + on_boot publish?
+#   JMRI picks up retained MQTT messages when it loads a panel. If we used
+#   retain: true, a stale "ACTIVE" could sit on the broker and confuse JMRI
+#   the next time it starts. Instead we publish retain: false on every state
+#   change, and republish the real current state on boot so JMRI always gets
+#   a fresh value when needed.
+esphome:
+  on_boot:
+    - priority: -50.0
+      then:
+        - mqtt.publish:
+            topic: $block_1_topic
+            payload: !lambda |-
+              return id(block_1_sensor).state ? "ACTIVE" : "INACTIVE";
+            retain: false
+            qos: 2
+        - mqtt.publish:
+            topic: $block_2_topic
+            payload: !lambda |-
+              return id(block_2_sensor).state ? "ACTIVE" : "INACTIVE";
+            retain: false
+            qos: 2
+
+
+# Reads the GPIO pin and publishes ACTIVE/INACTIVE to MQTT.
+binary_sensor:
+  - platform: gpio
+    pin:
+      number: GPIO14   # Change to the pin your detector output wire is connected to.
+      inverted: true   # true = the detector pulls LOW when a train is present (standard for this circuit).
+      mode:
+        input: true    # This pin is an input (reading, not sending).
+    id: block_1_sensor
+    name: "$block_1_name"
+    filters:
+      - delayed_on_off: $block_debounce   # Only trigger after the signal has been stable for the debounce time.
+    on_press:   # Fires when the pin goes active (train detected).
+      then:
+        - logger.log:
+            format: "$block_1_name | OCCUPIED"
+            level: INFO
+            tag: block_sensor
+        - mqtt.publish:
+            topic: $block_1_topic
+            payload: ACTIVE     # JMRI only accepts ACTIVE or INACTIVE for sensors. Any other value is ignored.
+            retain: false
+            qos: 2              # QoS 2 = guaranteed delivery. Matches what JMRI uses when it publishes.
+    on_release:   # Fires when the pin goes inactive (block cleared).
+      then:
+        - logger.log:
+            format: "$block_1_name | UNOCCUPIED"
+            level: INFO
+            tag: block_sensor
+        - mqtt.publish:
+            topic: $block_1_topic
+            payload: INACTIVE
+            retain: false
+            qos: 2
+
+  - platform: gpio
+    pin:
+      number: GPIO27   # Change to the pin your second detector output wire is connected to.
+      inverted: true   # true = the detector pulls LOW when a train is present (standard for this circuit).
+      mode:
+        input: true    # This pin is an input (reading, not sending).
+    id: block_2_sensor
+    name: "$block_2_name"
+    filters:
+      - delayed_on_off: $block_debounce   # Only trigger after the signal has been stable for the debounce time.
+    on_press:   # Fires when the pin goes active (train detected).
+      then:
+        - logger.log:
+            format: "$block_2_name | OCCUPIED"
+            level: INFO
+            tag: block_sensor
+        - mqtt.publish:
+            topic: $block_2_topic
+            payload: ACTIVE
+            retain: false
+            qos: 2
+    on_release:   # Fires when the pin goes inactive (block cleared).
+      then:
+        - logger.log:
+            format: "$block_2_name | UNOCCUPIED"
+            level: INFO
+            tag: block_sensor
+        - mqtt.publish:
+            topic: $block_2_topic
+            payload: INACTIVE
+            retain: false
+            qos: 2

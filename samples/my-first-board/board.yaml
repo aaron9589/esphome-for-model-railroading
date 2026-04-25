@@ -1,0 +1,77 @@
+# board.yaml
+# ============================================================
+# This is the main file for your ESP32 board.
+# It tells ESPHome the board name, how to connect to Wi-Fi and
+# MQTT, and which feature files to load.
+#
+# HOW TO USE THESE FILES:
+#   1. In ESPHome Dashboard, open your device YAML and replace
+#      its contents with this file (change the name below).
+#   2. In the ESPHome file browser, create a folder called
+#      modules/ next to this file.
+#   3. Copy point_control.yaml and block_detectors.yaml into
+#      that modules/ folder.
+#   4. Fill in secrets.yaml with your Wi-Fi and MQTT details.
+#      (See first-board-setup-guide.md Step 4 for instructions.)
+# ============================================================
+
+
+esphome:
+  # Give your board a unique name. Use lowercase letters, numbers, and dashes only.
+  # This name appears in ESPHome Dashboard and is used for wireless updates.
+  # Example: yard-board-01, station-board-02
+  name: my-first-board
+
+
+# Board type. If you bought the 38-pin ESP32 board linked in the README, leave this as-is.
+esp32:
+  board: nodemcu-32s
+
+
+# Logging shows what your board is doing in real time.
+# Open "Logs" in ESPHome Dashboard to see it.
+logger:
+  level: DEBUG
+
+
+# Feature files. Each line below loads a set of features onto this board.
+# Remove the # at the start of a line to turn that feature on.
+# The word on the left (e.g. "points") can be anything - just make each key unique.
+#
+# These files must be in a folder called modules/ next to this file in your ESPHome config.
+packages:
+  points:   !include modules/point_control.yaml    # Servo-driven turnout control
+  sensors:  !include modules/block_detectors.yaml  # Train detection in track sections
+
+
+# MQTT is the messaging system that connects your board to JMRI/CATS.
+# When a train enters a block, the board sends a message here.
+# When JMRI wants to move a turnout, it sends a message here.
+# These values come from secrets.yaml so your password is never in this file.
+mqtt:
+  broker: !secret mqtt_broker      # IP address of the PC running EMQX
+  id: mqtt_server
+  discovery: false                  # Keeps MQTT tidy - prevents auto-discovery noise
+
+
+# Over-the-Air updates. After the first USB flash, all future updates are sent wirelessly.
+# The password below protects the OTA endpoint. ESPHome generates one for you - you can
+# also set it to any string you like, or remove the password: line to allow open OTA.
+ota:
+  - platform: esphome
+    password: !secret ota_password
+
+
+# Wi-Fi connection. Values come from secrets.yaml.
+# Make sure your Wi-Fi is 2.4 GHz - ESP boards cannot connect to 5 GHz networks.
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  power_save_mode: none   # Disables Wi-Fi sleep to keep the board responsive
+
+
+# A button in the ESPHome Dashboard that lets you restart the board remotely.
+button:
+  - platform: restart
+    id: reboot_esp
+    name: "Restart Board"
