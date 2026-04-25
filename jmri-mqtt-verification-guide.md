@@ -26,8 +26,12 @@ Goal:
 JMRI constructs MQTT topics from three parts:
 
 ```
-[MQTT Channel] + [table topic middle] + [hardware address]
+[MQTT Channel] + [object type topic] + [hardware address]
 ```
+
+- **MQTT Channel** — a single prefix applied to every MQTT message JMRI sends or receives (e.g. `trains/` in older installs, blank since JMRI 5.1.2).
+- **Object type topic** — a separate per-type field in JMRI Preferences (e.g. `Sensor receive topic`, `Turnout send topic`). Each table has its own value such as `track/sensor/` or `track/turnout/`.
+- **Hardware address** — the location/name you enter when adding an entry to the table.
 
 When you create a Sensor or Turnout entry in JMRI, the **System Name** encodes the hardware address. The format is:
 
@@ -39,7 +43,7 @@ When you create a Sensor or Turnout entry in JMRI, the **System Name** encodes t
 When you add an entry, JMRI asks for the **Hardware Address** — just the location/name portion. It prepends the `M` (MQTT) and `S`/`T` (table type) automatically to form the System Name.
 
 - The **Hardware Address** is what you choose — it becomes the identifying part of the MQTT topic.
-- The full MQTT topic is assembled by JMRI as: `[MQTT Channel] + [topic middle] + [hardware address]`
+- The full MQTT topic is assembled by JMRI as: `[MQTT Channel]` + `[object type topic]` + `[hardware address]`
 
 **User Name** is an optional friendly label. With a descriptive Hardware Address that already encodes the location (e.g. `Kiama/Up XOver`), it's largely redundant — but useful if you want shorter names on JMRI panels.
 
@@ -59,21 +63,21 @@ JMRI's Add dialog asks for a **Hardware Address** — this is the part you fill 
 
 For example, entering `Kiama/Up XOver` as the Hardware Address produces:
 - **System Name:** `MSKiama/Up XOver`
-- **MQTT topic:** `trains/track/sensor/Kiama/Up XOver` (with MQTT Channel `trains/track/sensor/`)
+- **MQTT topic:** `trains/track/sensor/Kiama/Up XOver` (MQTT Channel `trains/` + Sensor receive topic `track/sensor/` + hardware address)
 
-To find the right Hardware Address, look at `block_1_topic` in your `block_detectors.yaml` and strip the MQTT Channel prefix (shown in JMRI Preferences). For example, if:
+To find the right Hardware Address, look at `block_1_topic` in your `block_detectors.yaml` and strip the MQTT Channel and Sensor receive topic values (both shown in JMRI Preferences → Additional Connection Settings). For example, if:
 
 ```
 block_1_topic: "trains/track/sensor/Kiama/Up XOver"
 ```
 
-and your Sensor receive topic middle is `track/sensor/`, enter just the hardware address portion — the part that identifies this specific sensor on your layout:
+and your MQTT Channel is `trains/` and Sensor receive topic is `track/sensor/`, enter just the hardware address portion — the part that identifies this specific sensor on your layout:
 
 ```
 Kiama/Up XOver
 ```
 
-JMRI will publish and subscribe to the full topic by combining Channel + middle + hardware address.
+JMRI assembles the full topic by combining MQTT Channel + Sensor receive topic + hardware address.
 
 | Field | Value | Notes |
 |---|---|---|
@@ -113,15 +117,15 @@ Same principle as sensors — JMRI asks for a **Hardware Address** and automatic
 
 For example, entering `Kiama/Down Main` as the Hardware Address produces:
 - **System Name:** `MTKiama/Down Main`
-- **MQTT topic:** `trains/turnout/Kiama/Down Main` (with MQTT Channel `trains/turnout/`)
+- **MQTT topic:** `trains/track/turnout/Kiama/Down Main` (MQTT Channel `trains/` + Turnout send topic `track/turnout/` + hardware address)
 
-To find the right Hardware Address, look at `turnout_01_topic` in your `point_control.yaml` and strip the MQTT Channel and topic middle prefixes. For example, if:
+To find the right Hardware Address, look at `turnout_01_topic` in your `point_control.yaml` and strip the MQTT Channel and Turnout send topic values (both shown in JMRI Preferences → Additional Connection Settings). For example, if:
 
 ```
 turnout_01_topic: trains/track/turnout/Kiama/Up Loop
 ```
 
-and your Turnout send topic middle is `track/turnout/`, enter the hardware address portion:
+and your MQTT Channel is `trains/` and Turnout send topic is `track/turnout/`, enter the hardware address portion:
 
 ```
 Kiama/Up Loop
@@ -160,8 +164,8 @@ When the ESP32 moves a turnout it publishes a confirmation back to `<topic>/Stat
 1. Open EMQX at http://localhost:18083 → **Diagnose → WebSocket Client**.
 2. Connect, then subscribe to `#` (all topics).
 3. Toggle the turnout in JMRI — you should see two messages arrive:
-   - JMRI publishing `THROWN` to `track/turnout/Kiama/Up Loop`
-   - The ESP32 replying `THROWN` to `track/turnout/Kiama/Up Loop/State`
+   - JMRI publishing `THROWN` to `trains/track/turnout/Kiama/Up Loop`
+   - The ESP32 replying `THROWN` to `trains/track/turnout/Kiama/Up Loop/State`
 
 The `/State` reply is what JMRI reads back to confirm the move happened. This keeps the panel icon in sync even if the servo takes a few seconds to travel.
 
