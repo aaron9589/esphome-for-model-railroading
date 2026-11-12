@@ -12,9 +12,10 @@ Goal:
 ## Before You Start
 
 - Your ESP32 board must be online (showing **Online** in ESPHome Dashboard).
+- Your config must include at least one block detector and one point (Configurator **My First Board** preset, or modules enabled — see [first-board-setup-guide.md](first-board-setup-guide.md)).
 - JMRI must be running with an MQTT connection configured.
 - Open JMRI **Edit → Preferences → Connections → MQTT** and confirm:
-  - The **broker IP** matches your PC's IP address (the same value as `mqtt_broker` in `secrets.yaml`)
+  - The **broker IP** matches your PC's IP address (the same value as `mqtt:` → `broker:` in your board YAML)
   - Note the **MQTT Channel**, **Sensor receive topic**, and **Turnout send topic** fields — you will use these to build the correct System Names below.
 
 > **Screenshot placeholder:** JMRI Preferences → Connections → MQTT panel, showing the broker IP, MQTT Channel field (blank or `trains/`), Sensor receive topic, and Turnout send topic fields.
@@ -38,7 +39,7 @@ When you create a Sensor or Turnout entry in JMRI, the **System Name** encodes t
 | Table | Prefix auto-added | Example Hardware Address | Resulting System Name |
 |---|---|---|---|
 | Sensor | `MS` | `Kiama/Up XOver` | `MSKiama/Up XOver` |
-| Turnout | `MT` | `Kiama/Down Main` | `MTKiama/Down Main` |
+| Turnout | `MT` | `Kiama/Up Loop` | `MTKiama/Up Loop` |
 
 When you add an entry, JMRI asks for the **Hardware Address** — just the location/name portion. It prepends the `M` (MQTT) and `S`/`T` (table type) automatically to form the System Name.
 
@@ -93,8 +94,10 @@ JMRI assembles the full topic by combining MQTT Channel + Sensor receive topic +
 3. In the logs you should see a line like:
 
    ```
-   [I][block_detectors:...] Kiama/Up XOver -> OCCUPIED
+   [I][block_sensor:...] Kiama/Up XOver | OCCUPIED
    ```
+
+   (`Kiama/Up XOver` comes from `block_1_name` in `block_detectors.yaml` — a log label, not the MQTT topic.)
 
 4. Back in JMRI, the **State** column for that sensor should change to **Active**.
 5. Remove the train — the log should show `UNOCCUPIED` and JMRI should show **Inactive**.
@@ -115,9 +118,9 @@ Open the **Turnout Table** (Tools → Tables → Turnouts) and click **Add**.
 
 Same principle as sensors — JMRI asks for a **Hardware Address** and automatically prepends `MT` to form the System Name.
 
-For example, entering `Kiama/Down Main` as the Hardware Address produces:
-- **System Name:** `MTKiama/Down Main`
-- **MQTT topic:** `trains/track/turnout/Kiama/Down Main` (MQTT Channel `trains/` + Turnout send topic `track/turnout/` + hardware address)
+For example, entering `Kiama/Up Loop` as the Hardware Address produces:
+- **System Name:** `MTKiama/Up Loop`
+- **MQTT topic:** `trains/track/turnout/Kiama/Up Loop` (MQTT Channel `trains/` + Turnout send topic `track/turnout/` + hardware address)
 
 To find the right Hardware Address, look at `turnout_01_topic` in your `point_control.yaml` and strip the MQTT Channel and Turnout send topic values (both shown in JMRI Preferences → Additional Connection Settings). For example, if:
 
@@ -157,19 +160,24 @@ Kiama/Up Loop
 
 ---
 
-## Optional: Verify State Feedback in EMQX
+## Optional: Verify State Feedback in Mosquitto
 
-When the ESP32 moves a turnout it publishes a confirmation back to `<topic>/State`. You can watch both messages in EMQX.
+When the ESP32 moves a turnout it publishes a confirmation back to `<topic>/State`. You can watch both messages with Mosquitto's command-line tools or [MQTT Explorer](https://mqtt-explorer.com/).
 
-1. Open EMQX at http://localhost:18083 → **Diagnose → WebSocket Client**.
-2. Connect, then subscribe to `#` (all topics).
-3. Toggle the turnout in JMRI — you should see two messages arrive:
+1. Subscribe to every topic:
+
+   ```bash
+   mosquitto_sub -h localhost -t '#' -v
+   ```
+
+   Or connect MQTT Explorer to `localhost` port `1883` and subscribe to `#`.
+2. Toggle the turnout in JMRI — you should see two messages arrive:
    - JMRI publishing `THROWN` to `trains/track/turnout/Kiama/Up Loop`
    - The ESP32 replying `THROWN` to `trains/track/turnout/Kiama/Up Loop/State`
 
 The `/State` reply is what JMRI reads back to confirm the move happened. This keeps the panel icon in sync even if the servo takes a few seconds to travel.
 
-> **Screenshot placeholder:** EMQX WebSocket Client showing both MQTT messages — the `THROWN` command from JMRI and the `THROWN` state reply from the ESP32, with timestamps.
+> **Screenshot placeholder:** MQTT Explorer showing both MQTT messages — the `THROWN` command from JMRI and the `THROWN` state reply from the ESP32, with timestamps.
 
 ---
 
@@ -177,13 +185,13 @@ The `/State` reply is what JMRI reads back to confirm the move happened. This ke
 
 **JMRI sensor state never changes:**
 - Check `block_1_topic` in `block_detectors.yaml` exactly matches the hardware address in the JMRI System Name. This is case-sensitive.
-- Open EMQX → Diagnose → WebSocket Client, subscribe to `#`, and place a train on the block. If a message appears, the board is publishing correctly and the mismatch is in the JMRI System Name.
+- Run `mosquitto_sub -h localhost -t '#' -v` (or MQTT Explorer) and place a train on the block. If a message appears, the board is publishing correctly and the mismatch is in the JMRI System Name.
 - If no message appears, check the board is **Online** in ESPHome and the block detector is wired correctly.
 
 **Servo does not move when toggling JMRI turnout:**
 - Check `turnout_01_topic` in `point_control.yaml` exactly matches the hardware address in the JMRI System Name.
-- In EMQX WebSocket Client, subscribe to `#` and toggle the turnout. If no message appears, JMRI is not publishing — check the MQTT connection status in JMRI Preferences.
-- If a message appears in EMQX but the servo doesn't move, check the board logs for any errors.
+- Subscribe to `#` with `mosquitto_sub` or MQTT Explorer and toggle the turnout. If no message appears, JMRI is not publishing — check the MQTT connection status in JMRI Preferences.
+- If a message appears on the broker but the servo doesn't move, check the board logs for any errors.
 
 **State shows Unknown in JMRI after reboot:**
 - This is normal on first boot if no train is on the block. The board publishes its real state on startup — wait a few seconds and the state should update.
@@ -195,4 +203,4 @@ The `/State` reply is what JMRI reads back to confirm the move happened. This ke
 
 Your JMRI integration is confirmed. Now customise your layout:
 
-→ Go back to [first-board-setup-guide.md](first-board-setup-guide.md) and follow **Add Repo Samples** to set your own block names, MQTT topics, and turnout channels.
+→ Re-import your `board.yaml` in the [Board Configurator](https://aaron9589.github.io/esphome-for-model-railroading/) and follow **Customise in the Configurator** in [first-board-setup-guide.md](first-board-setup-guide.md).

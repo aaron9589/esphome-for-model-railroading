@@ -1,0 +1,8 @@
+{
+  "name": "esphome-mr-configurator",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node test/generator.test.js"
+  }
+}

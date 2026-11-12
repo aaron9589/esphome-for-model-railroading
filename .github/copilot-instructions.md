@@ -9,17 +9,15 @@ Purpose:
 
 - Use plain language.
 - Give one step at a time for setup and troubleshooting.
-- Include exact commands for Windows PowerShell.
+- Include exact commands for the user's OS (Windows PowerShell or macOS Terminal).
 - After each command, explain what successful output should look like.
 - If something fails, suggest only the next best check.
 
 ## Technical Defaults
 
-- Assume Windows + Docker Desktop.
-- Prefer explicit port mapping over host networking for reliability.
-- Prefer stable image tags over latest when suggesting Docker images.
-- Keep ESPHome YAML modular using package includes from samples.
-- Keep MQTT examples aligned with EMQX defaults, but remind user to change default credentials.
+- Assume the ESPHome Device Builder desktop app and native Mosquitto. Do not suggest Docker unless the user already uses it and asks to keep it.
+- MQTT is Mosquitto on port 1883, anonymous on a trusted home LAN, broker address = the PC's LAN IP (never localhost in board YAML).
+- Beginner YAML comes from the Board Configurator (credentials embedded). Modular `samples/` + `secrets.yaml` is the hand-edit path only.
 
 ## Editing Rules
 
@@ -31,12 +29,12 @@ Purpose:
 ## Troubleshooting Order
 
 When diagnosing issues, check in this order:
-1. Docker Desktop running
-2. Container status
-3. Port conflicts
+1. ESPHome Device Builder running (http://localhost:6052)
+2. Mosquitto running and listening on 1883 (not local-only)
+3. Port conflicts (1883, 6052)
 4. ESP USB/serial connectivity
 5. Wi-Fi (2.4 GHz + DHCP)
-6. MQTT connectivity and credentials
+6. MQTT broker IP is the PC's LAN address, and firewall allows inbound 1883
 
 ## Safety
 
@@ -55,7 +53,7 @@ When diagnosing issues, check in this order:
 ## Beginner Onboarding Path
 
 If a user seems new, guide them through this order without skipping steps:
-1. installing-esphome-cheatsheet.md — set up Docker, EMQX, and ESPHome on Windows.
-2. first-board-setup-guide.md — create device, fill in secrets.yaml, flash by USB.
+1. installing-esphome-cheatsheet.md — install ESPHome Device Builder and Mosquitto on Windows or Mac.
+2. first-board-setup-guide.md — paste Configurator YAML, flash by USB, confirm MQTT with mosquitto_sub.
 3. samples/ — add block detection, servos, signals or other components as packages.
 4. copilot-steering-prompts.md — share this file with the user if they want guided prompts.

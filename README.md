@@ -8,10 +8,13 @@ A collection of ESPHome configs, sample files, and guides for using ESP32 boards
 
 New here? Follow these steps in order:
 
-1. **[Set up your PC](installing-esphome-cheatsheet.md)** — install Docker Desktop and VS Code, enable host networking, start EMQX (MQTT broker) and ESPHome Dashboard.
-2. **[Configure your first board](first-board-setup-guide.md)** — create a device in the Dashboard, load the sample config, flash it by USB, confirm it is online.
-3. **[Verify JMRI communication](jmri-mqtt-verification-guide.md)** — create a sensor and turnout in JMRI, confirm messages flow in both directions.
-4. **[Get help from Copilot](copilot-steering-prompts.md)** — copy-paste prompts to guide you through any step with AI assistance.
+1. **[Set up your PC](installing-esphome-cheatsheet.md)** — install the ESPHome Device Builder desktop app and Mosquitto (MQTT broker). No Docker.
+2. **[Build your board.yaml in the Configurator](https://aaron9589.github.io/esphome-for-model-railroading/)** — pick My First Board, add blocks and points, fill in Wi-Fi / MQTT / OTA, download one file. Requires ESPHome ≥ 2024.6.0. (After the first merge to `main`, enable **Settings → Pages → Source: GitHub Actions** if the link 404s.)
+3. **[Flash and go online](first-board-setup-guide.md)** — create a device in the Dashboard, paste the downloaded YAML, flash by USB, confirm it is online.
+4. **[Verify JMRI communication](jmri-mqtt-verification-guide.md)** — create a sensor and turnout in JMRI, confirm messages flow in both directions.
+5. **[Get help from Copilot](copilot-steering-prompts.md)** — copy-paste prompts to guide you through any step with AI assistance.
+
+Prefer editing later? Re-import the same `board.yaml` into the Configurator instead of hand-editing YAML. The downloaded file embeds your credentials — do not commit it to a public repo.
 
 ### What You'll Need
 
@@ -28,11 +31,10 @@ Everything except transformers I source from AliExpress.
 
 **Software / Network:**
 
-- Windows 10/11 PC with admin access
-- VS Code — used to edit YAML config files (the [setup cheatsheet](installing-esphome-cheatsheet.md) covers the install)
+- Windows 10/11, or a Mac (Apple Silicon preferred)
+- ESPHome Device Builder and Mosquitto — the [setup cheatsheet](installing-esphome-cheatsheet.md) walks through both installs
 - 2.4 GHz Wi-Fi network with DHCP (ESP boards cannot use 5 GHz)
 - Chrome or Edge browser (required for first-time USB flash)
-- Docker Desktop — the [setup cheatsheet](installing-esphome-cheatsheet.md) walks through the full install
 
 ---
 
@@ -73,13 +75,13 @@ Current sensors (AS-100) from Digikey; prototype boards from AliExpress: https:/
 
 1. Copy [samples/my-first-board/modules/block_detectors.yaml](samples/my-first-board/modules/block_detectors.yaml) into the `modules/` folder in your ESPHome config.
 2. Edit the `substitutions` section at the top to match your block names and MQTT topics.
-3. In `board.yaml`, make sure the `sensors:` line is uncommented:
+3. In `board.yaml`, uncomment the `sensors:` package line (remove the leading `#`):
    ```yaml
    packages:
      sensors:  !include modules/block_detectors.yaml
    ```
 4. Click **Install → Wireless** to push the update.
-5. Place a train on the track and check ESPHome logs — you should see `OCCUPIED` / `UNOCCUPIED` and the MQTT topic changing.
+5. Place a train on the track and check ESPHome logs — you should see `OCCUPIED` / `UNOCCUPIED` (tag `block_sensor`) and the MQTT topic changing.
 
 ### Point Control
 
@@ -90,7 +92,7 @@ See [samples/my-first-board/modules/point_control.yaml](samples/my-first-board/m
 **Adding to ESPHome** *(assumes PC setup and first board flashed)*:
 
 1. Copy `point_control.yaml` into the `modules/` folder in your ESPHome config and edit the substitutions (turnout name, MQTT topic, PCA9685 channel number).
-2. In `board.yaml`, make sure the `points:` line is uncommented:
+2. In `board.yaml`, uncomment the `points:` package line (remove the leading `#`):
    ```yaml
    packages:
      points:   !include modules/point_control.yaml
@@ -110,24 +112,28 @@ Signals use [WLED](https://kno.wled.ge) running on a second ESP to drive WS2812B
 
 ## Sample Files
 
-### Beginner — my-first-board/
+### Beginner — Configurator + my-first-board/
 
-Three files that work together. `board.yaml` is your main config; the two module files go in a `modules/` subfolder next to it.
+Default path: use the **[Board Configurator](https://aaron9589.github.io/esphome-for-model-railroading/)** to download one `board.yaml` with credentials embedded.
+
+The files below remain as a hand-edit / modular reference (packages + `!secret`):
 
 | File | Purpose |
 |---|---|
 | [my-first-board/board.yaml](samples/my-first-board/board.yaml) | Main board — Wi-Fi, MQTT, OTA, and package includes |
 | [my-first-board/modules/block_detectors.yaml](samples/my-first-board/modules/block_detectors.yaml) | Train detection via current detector |
 | [my-first-board/modules/point_control.yaml](samples/my-first-board/modules/point_control.yaml) | Servo turnout control via PCA9685 |
-| [secrets.yaml](samples/secrets.yaml) | Template for Wi-Fi and MQTT credentials |
+| [secrets.yaml](samples/secrets.yaml) | Template for Wi-Fi and MQTT credentials (modules path only) |
 
 ### Advanced — advanced-samples/
 
-These add more capability once your first board is working. Each file is commented to explain what to change and how to add more instances.
+These add more capability once your first board is working. Copy feature files into your board's `modules/` folder and uncomment the matching `packages:` lines in [sample_board_config.yaml](samples/advanced-samples/sample_board_config.yaml) (or your beginner `board.yaml`). Secret keys are the same as [secrets.yaml](samples/secrets.yaml).
 
 | File | Purpose |
 |---|---|
 | [advanced-samples/sample_board_config.yaml](samples/advanced-samples/sample_board_config.yaml) | Board template with random boot delay (multi-board layouts) |
+| [advanced-samples/gpio_01.yaml](samples/advanced-samples/gpio_01.yaml) | Extra GPIO block-detector pattern |
+| [advanced-samples/servos_01.yaml](samples/advanced-samples/servos_01.yaml) | Multi-turnout servo example (PCA9685) |
 | [advanced-samples/end_of_block.yaml](samples/advanced-samples/end_of_block.yaml) | EOB sensors for CATS train-describer direction handling |
 | [advanced-samples/ground_throws.yaml](samples/advanced-samples/ground_throws.yaml) | Physical lever inputs publishing turnout MQTT topics |
 | [advanced-samples/wled_signal.yaml](samples/advanced-samples/wled_signal.yaml) | WS2812B signal heads via WLED + UART serial |

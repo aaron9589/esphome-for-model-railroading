@@ -46,15 +46,22 @@ logger:
 # if you have multiple files - simply make the key (the left hand side of the colon) unique for each file.
 # the reason for chunking this up is to make it easier to read and group similar bits of code together.
 
+# Copy the feature YAML files into a modules/ folder next to this board config,
+# then uncomment the matching line. Paths are relative to this file's folder.
 packages:
-  #gpio: !include sta-bd-01/gpio_01.yaml
-  #servos_01:  !include sta-bd-01/servos_01.yaml
-  #signals: !include kia-bd-01/wled_signal.yaml
+  # gpio: !include modules/gpio_01.yaml
+  # servos_01: !include modules/servos_01.yaml
+  # signals: !include modules/wled_signal.yaml
+  # eob: !include modules/end_of_block.yaml
+  # ground_throws: !include modules/ground_throws.yaml
+  # bellcodes: !include modules/bellcodes.yaml
+  # staff_machine: !include modules/staff_machine.yaml
 
 # Configure the connection to MQTT. JMRI also connects to this server, and this is
 # how your ESPHome nodes and JMRI will exchange messages.
+# Secret keys match samples/secrets.yaml (same as the beginner board).
 mqtt:
-  broker: !secret layout_mqtt_broker_ip # connect to the layout control MQTT Broker.
+  broker: !secret mqtt_broker
   id: mqtt_server
   discovery: false
 
@@ -68,8 +75,8 @@ ota:
 # lastly the wifi connection. We can't talk to anything unless we're on the network
 
 wifi:
-  ssid: !secret layout_wifi_ssid
-  password: !secret layout_wifi_password
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
   power_save_mode: none
 
 button:

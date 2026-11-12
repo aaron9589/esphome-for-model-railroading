@@ -1,239 +1,247 @@
+# Simple Setup: ESPHome + Mosquitto (Windows and Mac)
 
-# Simple Setup: ESPHome + EMQX on Windows
-
-This is the easiest path for first-time users on Windows.
+This is the easiest path for a first-time layout PC. It does not use Docker, so you do not need Intel VT or host networking.
 
 Goal:
-- Install Docker Desktop
-- Install VS Code
-- Enable host networking
-- Start MQTT (EMQX)
-- Start ESPHome Dashboard
-- Create and flash your first board
+- Install the ESPHome Device Builder desktop app
+- Install Mosquitto (the MQTT broker JMRI and your ESP boards talk to)
+- Confirm both are running
 
-If you get stuck, use the Copilot prompts in [copilot-steering-prompts.md](copilot-steering-prompts.md).
+Creating and flashing your first board is covered in [first-board-setup-guide.md](first-board-setup-guide.md).
+
+If you get stuck, use the prompts in [copilot-steering-prompts.md](copilot-steering-prompts.md).
+
+The manual steps are below. If you want the script to do the install, use one command instead.
 
 ---
 
-## 10-Minute Quickstart
+## One command
 
-If you only want the fastest path, run these in **PowerShell as Administrator**:
+The script installs ESPHome Device Builder and Mosquitto, opens port 1883 on a home network (no MQTT username), checks that publish/subscribe works, and launches the dashboard. It is safe to run again. It prints every step and saves a log.
 
-```powershell
-Set-ExecutionPolicy Bypass -Scope Process -Force; [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072; iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
-choco install docker-desktop -y
+It does **not** put your Wi-Fi password anywhere. You still paste a Configurator `board.yaml` afterwards.
+
+**Mac** — open Terminal and paste:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/aaron9589/esphome-for-model-railroading/doc-improvements/scripts/install-mac.sh | bash
 ```
 
-Reboot, open Docker Desktop, then open **PowerShell as Administrator** and run:
+It will ask for your Mac login password when Homebrew or the firewall needs it. If a popup asks to install command line tools, click Install, wait until that finishes, then paste the command again.
+
+**Windows** — open PowerShell (you do not need to right-click Run as administrator) and paste:
 
 ```powershell
-choco install vscode -y
+irm https://raw.githubusercontent.com/aaron9589/esphome-for-model-railroading/doc-improvements/scripts/install-windows.ps1 -OutFile "$env:TEMP\esphome-mr-setup.ps1"; Start-Process powershell -Verb RunAs -Wait -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$env:TEMP\esphome-mr-setup.ps1`""
 ```
 
-Enable host networking (see Step 3), then run:
+Approve the User Account Control prompt. Leave the blue window open until it says setup finished, then press Enter.
 
-```powershell
-docker run -d --restart always --name emqx -p 1883:1883 -p 18083:18083 emqx/emqx:5
-docker run -d --restart always --name esphome --network host -e ESPHOME_DASHBOARD_USE_PING=true -v esphome-config:/config ghcr.io/esphome/esphome:stable dashboard /config
-```
+Logs:
+- Mac: `~/Library/Logs/esphome-mr-setup.log`
+- Windows: `C:\Users\you\esphome-mr-setup.log`
 
-Open:
-- EMQX: http://localhost:18083
-- ESPHome: http://localhost:6052
-
-If this fails, go straight to the **If Something Fails** section.
+If you already cloned this repo, you can run the same scripts from disk: `bash scripts/install-mac.sh` or the PowerShell file `scripts/install-windows.ps1`.
 
 ---
 
 ## Before You Start
 
 You need:
-- Windows 10/11
-- Admin access on your PC
-- 2.4 GHz Wi-Fi (ESP boards usually cannot use 5 GHz)
-- Chrome or Edge (for first-time USB flash)
+- Windows 10/11, or macOS 10.15 or newer (Apple Silicon preferred; Intel Mac support in ESPHome is ending)
+- A 2.4 GHz Wi-Fi network with DHCP (ESP boards cannot use 5 GHz)
+- Chrome or Edge for the first USB flash
 
-Open **PowerShell as Administrator** once and keep using that same window.
-
----
-
-## 1. Install Docker Desktop (includes WSL support)
-
-Run these commands:
-
-```powershell
-Set-ExecutionPolicy Bypass -Scope Process -Force; [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072; iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
-choco install docker-desktop -y
-```
-
-Then:
-1. Reboot Windows.
-2. Open Docker Desktop and finish first-run setup.
-3. Wait until Docker says it is running.
-
-Quick check:
-
-```powershell
-docker version
-docker info
-```
-
-If these commands show server info, Docker is ready.
-
-> **Screenshot placeholder:** Docker Desktop main window showing the green **Engine running** indicator in the bottom-left corner and the Containers/Images tabs visible.
+You do **not** need Docker, WSL, or a Docker Hub account.
 
 ---
 
-## 2. Install VS Code
+## 1. Install ESPHome Device Builder
 
-VS Code makes editing YAML config files much easier — it highlights syntax errors as you type, which saves a lot of frustration with indentation.
+Download the desktop app from [esphome.io/install](https://esphome.io/install/) (same installers as [desktop.esphome.io](https://desktop.esphome.io/)). It bundles Python. There is nothing else to install for ESPHome.
 
-Install it with Chocolatey. Open a new **PowerShell as Administrator** window and run:
+**Windows**
 
-```powershell
-choco install vscode -y
-```
+1. Download the `.exe` installer.
+2. Run it. If Windows asks to allow changes, choose **Yes**.
+3. If you see "Windows protected your PC", click **More info → Run anyway**.
+4. Launch **ESPHome Device Builder** from the Start menu.
 
-Or download the installer directly from https://code.visualstudio.com.
+**Mac**
 
-Once installed, add the YAML extension for syntax highlighting and error checking:
+1. Download the `.dmg` that matches your Mac (Apple menu → About This Mac: Apple M1/M2/M3/M4 = Apple Silicon; Intel = Intel).
+2. Open the disk image and drag **ESPHome Device Builder** into **Applications**.
+3. Open it from Applications. The first time, macOS may ask you to confirm — click **Open**.
 
-1. Open VS Code.
-2. Press **Ctrl+Shift+X** to open Extensions.
-3. Search for `YAML` and install the one by **Red Hat**.
+The first launch downloads ESPHome in the background and can take a few minutes. When it finishes, your browser opens http://localhost:6052.
 
-You will use VS Code to edit files in the ESPHome config folder later. The config files are stored at:
-```
-\\wsl$\docker-desktop\var\lib\docker\volumes\esphome-config\_data
-```
-You can open this folder directly in VS Code: **File → Open Folder** and paste that path.
+Success looks like:
+- The dashboard loads and shows a **New Device** button.
+- An ESPHome icon sits in the menu bar (Mac) or notification area (Windows).
 
-> **Screenshot placeholder:** VS Code Extensions panel showing the **YAML** extension by Red Hat installed (green tick/Installed label).
+Your board YAML files live in your home folder:
 
----
+| | Config folder |
+|---|---|
+| Mac | `~/esphome` (for example `/Users/you/esphome`) |
+| Windows | `C:\Users\you\esphome` |
 
-## 3. Enable Host Networking
+Tray / menu-bar icon → **Open Config Folder** opens that directory. You only need it if you edit files by hand. The [Board Configurator](https://aaron9589.github.io/esphome-for-model-railroading/) is the usual way to produce `board.yaml`.
 
-Do this before starting any containers. Without it, ESPHome cannot see your ESP boards on the network for OTA updates or device discovery.
+> **Screenshot placeholder:** ESPHome Dashboard at http://localhost:6052 — empty dashboard with the **New Device** button, and the ESPHome menu-bar or tray icon visible.
 
-Host networking lets containers share your PC's network adapter directly, so they can reach mDNS announcements from ESP boards on your LAN.
-
-**You must be logged in to Docker Hub.** Create a free account at https://hub.docker.com if you don't have one, then log in:
-
-```powershell
-docker login
-```
-
-**Enable host networking in Docker Desktop:**
-1. Open Docker Desktop.
-2. Click the **Settings** gear (top right).
-3. Go to **Resources → Network**.
-4. Tick **Enable host networking**.
-5. Click **Apply & Restart** and wait for Docker to restart.
-
-> **Screenshot placeholder:** Docker Desktop **Settings → Resources → Network** panel showing the **Enable host networking** checkbox ticked.
+The desktop app installs a current ESPHome. This repo's generated YAML needs **ESPHome 2024.6.0 or newer** (`ota: platform: esphome`).
 
 ---
 
-## 4. Start EMQX (MQTT broker)
+## 2. Install Mosquitto (MQTT broker)
 
-Run:
+Mosquitto is a small native broker. ESP boards and JMRI connect to it on port **1883**. It has no web page — that is expected.
 
-```powershell
-docker run -d --restart always --name emqx -p 1883:1883 -p 18083:18083 emqx/emqx:5
+### Windows
+
+1. Download the 64-bit installer from [mosquitto.org/download](https://mosquitto.org/download/).
+2. Run it. Leave the **Service** component selected so Mosquitto starts with Windows.
+3. Open `C:\Program Files\mosquitto\mosquitto.conf` in Notepad **as Administrator**.
+4. Make sure these two lines exist and are not commented out (no `#` in front):
+
+```conf
+listener 1883
+allow_anonymous true
 ```
 
-Open http://localhost:18083
-
-Default login:
-- Username: admin
-- Password: public
-
-Important:
-- Change the admin password immediately.
-- Create a normal user for your ESP devices.
-
-Quick check:
+5. Save, then in an Administrator PowerShell window:
 
 ```powershell
-docker ps --filter "name=emqx"
+net stop mosquitto
+net start mosquitto
 ```
 
-> **Screenshot placeholder:** EMQX web UI at http://localhost:18083 — the login page, then the dashboard Overview page after signing in, showing 0 or 1 connected clients.
+6. Allow Mosquitto through Windows Firewall when prompted, or add an inbound rule for TCP **1883**. Boards on Wi-Fi cannot connect if the firewall blocks that port.
+
+`mosquitto_pub` and `mosquitto_sub` live in `C:\Program Files\mosquitto`. If the commands below are not found, `cd` there first.
+
+### Mac
+
+1. Install [Homebrew](https://brew.sh/) if you do not already have it.
+2. In Terminal:
+
+```bash
+brew install mosquitto
+brew services start mosquitto
+```
+
+3. Open the config file:
+   - Apple Silicon: `/opt/homebrew/etc/mosquitto/mosquitto.conf`
+   - Intel Mac: `/usr/local/etc/mosquitto/mosquitto.conf`
+4. Make sure these two lines exist and are not commented out:
+
+```conf
+listener 1883
+allow_anonymous true
+```
+
+5. Restart it:
+
+```bash
+brew services restart mosquitto
+```
+
+If macOS asks to allow incoming connections for `mosquitto`, allow them. Otherwise boards on Wi-Fi cannot reach the broker.
+
+### Why those two lines
+
+Mosquitto 2 only listens on this computer until you set `listener 1883`. `allow_anonymous true` matches the beginner YAML from the Configurator, which connects with no MQTT username or password. Use this only on a home network you trust. If you add a username later, put the same username and password in the board YAML and in JMRI.
+
+### Check that it works
+
+**Mac** (or Windows if the tools are on your PATH):
+
+```bash
+mosquitto_sub -h localhost -t 'test/#' -v
+```
+
+Leave that running. In a second terminal:
+
+```bash
+mosquitto_pub -h localhost -t 'test/hello' -m 'Mosquitto works'
+```
+
+The first terminal should print `test/hello Mosquitto works`.
+
+### The address your boards and JMRI use
+
+`localhost` only works for programs on this PC. The ESP board must use this computer's **LAN IP**.
+
+- **Windows:** PowerShell → `ipconfig` → `IPv4 Address` on your Wi-Fi or Ethernet adapter.
+- **Mac:** System Settings → Network → Wi-Fi (or Ethernet) → Details → IP address. Or, for Wi-Fi: `ipconfig getifaddr en0`.
+
+Put that address in the Configurator as **MQTT broker IP** (for example `192.168.1.50`). Use the same address in JMRI's MQTT connection. Do not use `localhost` or `127.0.0.1` in the board YAML.
 
 ---
 
-## 5. Start ESPHome Dashboard
+## 3. Optional: MQTT Explorer
 
-Start ESPHome without port mapping — host networking handles it:
+Mosquitto does not show connected clients in a browser. [MQTT Explorer](https://mqtt-explorer.com/) is a free desktop app for watching topics.
 
-```powershell
-docker run -d --restart always --name esphome --network host -e ESPHOME_DASHBOARD_USE_PING=true -v esphome-config:/config ghcr.io/esphome/esphome:stable dashboard /config
-```
+1. Install it and create a connection to `localhost` port `1883` with no username.
+2. Subscribe to `#` to see every message.
 
-Open http://localhost:6052
+Use it later to confirm a board is publishing, or that JMRI and the ESP both see `THROWN`.
 
-Quick check:
-
-```powershell
-docker ps --filter "name=esphome"
-```
-
-> **Screenshot placeholder:** ESPHome Dashboard at http://localhost:6052 — the empty dashboard with the **New Device** button visible, confirming the container is running.
+> **Screenshot placeholder:** MQTT Explorer connected to localhost:1883, subscribed to `#`, showing a test message.
 
 ---
 
 ## Next Step
 
-Your PC is ready. Now go to [first-board-setup-guide.md](first-board-setup-guide.md) to create and flash your first board.
-
----
-
-## Useful Docker Commands
-
-Keep these handy for day-to-day use.
-
-Check what is running:
-
-```powershell
-docker ps
-```
-
-View recent logs:
-
-```powershell
-docker logs emqx --tail 50
-docker logs esphome --tail 50
-```
-
-Restart a service:
-
-```powershell
-docker restart emqx
-docker restart esphome
-```
+Your PC is ready. Go to [first-board-setup-guide.md](first-board-setup-guide.md) to paste a Configurator `board.yaml` and flash your first board.
 
 ---
 
 ## If Something Fails
 
-**Docker command not found or fails:**
-Docker Desktop is not running yet. Open it from the Start menu and wait 1-2 minutes until it shows "Running".
+**ESPHome dashboard does not open:**
+The first launch is still downloading. Wait a few minutes, then use the menu-bar or tray icon → **Open Dashboard**. If it still fails, icon → **View Logs**.
 
 **Port already in use:**
-Something else on your PC is using port 1883, 18083, or 6052. Run this to find the process:
+Something else is using 1883 (Mosquitto) or 6052 (ESPHome).
+
+Windows:
+
 ```powershell
-netstat -ano | findstr ":1883 :18083 :6052"
+netstat -ano | findstr ":1883 :6052"
 ```
-Then close the conflicting program, or contact your IT support.
+
+Mac:
+
+```bash
+lsof -nP -iTCP:1883 -sTCP:LISTEN
+lsof -nP -iTCP:6052 -sTCP:LISTEN
+```
+
+Quit the other program, or stop a leftover Docker container if you used to run EMQX or ESPHome that way.
+
+**`mosquitto_pub` says connection refused:**
+The service is not running. Windows: `net start mosquitto`. Mac: `brew services start mosquitto`.
+
+**A program on this PC can connect, but the ESP or JMRI cannot:**
+- `listener 1883` is missing or still commented out, so Mosquitto is in local-only mode. Add the line and restart.
+- The board YAML or JMRI is using `localhost` instead of the PC's LAN IP.
+- The firewall is blocking inbound TCP 1883.
 
 **ESP board not found on first flash:**
-- Use a data USB cable, not a charge-only cable. Charge-only cables look identical but carry no data.
-- Install the board's USB chip driver. Boards with a CP2102 chip: [Silicon Labs CP210x driver](https://www.silabs.com/developers/usb-to-uart-bridge-vcp-drivers). Boards with a CH340 chip: search "CH340 driver Windows".
-- Close any other programs that may be using the serial port (e.g. Arduino IDE, PuTTY).
+- Use a data USB cable, not a charge-only cable.
 - Use Chrome or Edge. Firefox does not support WebSerial.
+- Close anything else that has the serial port open (Arduino IDE, a serial monitor).
+- CP2102 boards: [Silicon Labs CP210x driver](https://www.silabs.com/developers/usb-to-uart-bridge-vcp-drivers). CH340 boards: install the manufacturer's CH340 driver for your OS.
 
 **Board will not connect to Wi-Fi:**
-- Confirm your network is 2.4 GHz. ESP boards cannot use 5 GHz.
-- Double-check the Wi-Fi name and password in `secrets.yaml`. Both are case-sensitive.
-- Make sure your router has DHCP enabled (it almost always is by default).
+- The network must be 2.4 GHz.
+- The Wi-Fi name and password in the downloaded YAML are case-sensitive.
+- The router must be handing out addresses with DHCP.
+
+**Board is Online in ESPHome but never talks to MQTT:**
+- Broker IP in the YAML is the PC's LAN IP, not `localhost`.
+- Mosquitto is running and listening on 1883 (see the pub/sub check above, then try `mosquitto_sub -h <LAN-IP> -t 'test/#' -v` from this PC).
+- No MQTT username is set on the broker unless you also set it in the YAML and in JMRI.

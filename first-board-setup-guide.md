@@ -1,6 +1,6 @@
 # First Board Setup Guide (No Technical Background Needed)
 
-Use this after you complete the Windows setup in [installing-esphome-cheatsheet.md](installing-esphome-cheatsheet.md).
+Use this after you complete the setup in [installing-esphome-cheatsheet.md](installing-esphome-cheatsheet.md) (Windows or Mac).
 
 Goal:
 - Create one ESP board in ESPHome
@@ -22,91 +22,46 @@ Success looks like:
 
 ---
 
-## Step 2: Create Device Entry and Load the Sample Config
+## Step 2: Create Device Entry and Paste Configurator YAML
 
 1. Click **New Device**.
-2. Enter a device name (example: `yard-board-01`). Use lowercase letters, numbers, and dashes only.
+2. Enter a device name (example: `yard-board-01`). Use lowercase letters, numbers, and dashes only — this should match the board name you set in the Configurator.
 3. Enter your 2.4 GHz Wi-Fi name and password (these are only used to register the device — you will replace the YAML next).
 4. Pick your board type. If unsure, choose **ESP32**.
 5. Click **Skip** at the install page for now.
 
 > **Screenshot placeholder:** ESPHome **New Device** wizard showing the device name field filled in and the board type set to **ESP32**.
 
-A new device tile appears. Now replace the generated YAML with the sample config from this repo:
+A new device tile appears. Now paste the YAML from the Configurator:
 
-1. Click **Edit** on the device tile.
-2. Select all the text in the editor and delete it.
-3. Copy the full contents of [samples/my-first-board/board.yaml](samples/my-first-board/board.yaml) and paste it in.
-4. Change the `name:` field at the top to match the name you entered in step 2 above.
+1. Open the **[Board Configurator](https://aaron9589.github.io/esphome-for-model-railroading/)**, load **My First Board** (or import a previous download), fill in Wi-Fi / MQTT broker IP / OTA password, then **Download board.yaml**.
+2. Click **Edit** on the device tile in ESPHome Dashboard.
+3. Select all the text in the editor and delete it.
+4. Paste the full contents of the downloaded `board.yaml`.
 5. Click **Save**.
+
+The Configurator writes Wi-Fi, MQTT, and OTA values directly into the file (no `secrets.yaml` needed for this path). Requires **ESPHome ≥ 2024.6.0**.
 
 Success looks like:
 - No red error banner after saving.
 
-> **Screenshot placeholder:** ESPHome YAML editor with the sample `board.yaml` contents pasted in and the **name:** field updated, showing no red error banner at the top.
+> **Screenshot placeholder:** ESPHome YAML editor with the Configurator `board.yaml` pasted in, showing no red error banner at the top.
+
+To change blocks or points later, re-import that same file in the Configurator, edit there, download again, and paste over the device YAML (then **Install → Wireless**).
 
 ---
 
-## Step 3: Create the Modules Folder
+## Step 3 (Optional): Hand-edit with modules/
 
-The sample board config loads features from a subfolder called `modules/`. ESPHome stores its config files inside a Docker volume — the easiest way to work with them is to open the folder in **VS Code** (installed in the cheatsheet Step 2).
+Prefer the modular sample files instead of the Configurator? ESPHome Device Builder stores configs in your home folder (`~/esphome` on Mac, `C:\Users\you\esphome` on Windows). Menu-bar or tray icon → **Open Config Folder**.
 
-**Open the ESPHome config folder in VS Code:**
-
-1. Open VS Code.
-2. Go to **File → Open Folder**.
-3. Paste this path into the address bar and press Enter:
-   ```
-   \\wsl$\docker-desktop\var\lib\docker\volumes\esphome-config\_data
-   ```
-4. You should see a folder for each device (named after the board you created in Step 2), plus `secrets.yaml`.
-
-**Create the modules folder and copy the sample files:**
-
-5. In the VS Code Explorer panel (left sidebar), right-click your board's folder (e.g. `yard-board-01`) and select **New Folder**. Name it `modules`.
-6. Get the two sample module files from this repo. If you have the repo cloned locally, copy them from there. Otherwise, open each link below in your browser, click the **Raw** button, then save the file (Ctrl+S) into the `modules` folder:
-   - [samples/my-first-board/modules/block_detectors.yaml](samples/my-first-board/modules/block_detectors.yaml)
-   - [samples/my-first-board/modules/point_control.yaml](samples/my-first-board/modules/point_control.yaml)
-
-Success looks like:
-- The `modules` folder sits next to your board's `.yaml` file in the VS Code Explorer.
-- Both `block_detectors.yaml` and `point_control.yaml` are inside it.
+Copy [samples/my-first-board/](samples/my-first-board/) into your board folder, uncomment the `packages:` lines in `board.yaml`, and fill [samples/secrets.yaml](samples/secrets.yaml) in that same config folder. This path is for people who want to maintain separate module files by hand.
 
 > **Screenshot placeholder:** VS Code Explorer panel showing the board folder (e.g. `yard-board-01/`) expanded with `board.yaml` and a `modules/` subfolder containing `block_detectors.yaml` and `point_control.yaml`.
 
-Note:
-- VS Code will underline YAML errors in red — hover over them to see what is wrong.
-- To disable a feature you are not using yet, open `board.yaml` in VS Code and add `#` at the start of the relevant `packages:` line.
-
 ---
 
-## Step 4: Fill In secrets.yaml
-
-ESPHome keeps passwords in a separate file called `secrets.yaml` so they are never accidentally shared.
-
-Open `secrets.yaml` in VS Code (it is in the root of the config folder, next to your board folder). Replace its contents with the lines below, filling in every `<...>` with your actual value:
-
-```yaml
-wifi_ssid: "<your-wifi-network-name>"
-wifi_password: "<your-wifi-password>"
-mqtt_broker: "<your-pc-ip-address>"  # The IP of the PC running EMQX. Find it by running: ipconfig
-ota_password: "<choose-any-password-for-over-the-air-updates>"
-```
-
-Save the file (**Ctrl+S**).
-
-To find your PC's IP address, open PowerShell and run:
-```powershell
-ipconfig
-```
-Look for the line `IPv4 Address` under your Wi-Fi or Ethernet adapter.
-
-Success looks like:
-- Your board file can reference `!secret` values without errors.
-
-> **Screenshot placeholder:** VS Code showing `secrets.yaml` open with all four keys filled in (real credentials replaced with placeholder values for the screenshot).
-
-## Step 5: First Flash by USB
+## Step 4: First Flash by USB
 
 The first time you program a board, you must do it by USB. All future updates can be done wirelessly.
 
@@ -118,9 +73,9 @@ The first time you program a board, you must do it by USB. All future updates ca
 
 > **Screenshot placeholder:** Chrome/Edge browser showing the **Select a serial port** dialog with a `CP210x` or `CH340` port listed and highlighted ready to click Connect.
 
-If no port appears, you need to install a USB driver:
-- CP2102 chip boards: [Silicon Labs CP210x driver](https://www.silabs.com/developers/usb-to-uart-bridge-vcp-drivers)
-- CH340 chip boards: search "CH340 driver Windows" and install from the manufacturer site.
+If no port appears, install a USB driver for your chip:
+- CP2102: [Silicon Labs CP210x driver](https://www.silabs.com/developers/usb-to-uart-bridge-vcp-drivers)
+- CH340: the manufacturer's driver for Windows or Mac
 
 Success looks like:
 - The install progress bar reaches 100% and the board reboots.
@@ -129,7 +84,7 @@ Success looks like:
 
 ---
 
-## Step 6: Confirm Board Is Online
+## Step 5: Confirm Board Is Online
 
 1. Wait up to 2 minutes after first flash.
 2. Device should show **Online** in ESPHome.
@@ -142,16 +97,25 @@ Success looks like:
 
 ---
 
-## Step 7: Test MQTT Connection
+## Step 6: Test MQTT Connection
 
-1. Open EMQX at http://localhost:18083
-2. Check connected clients.
-3. Your board should appear as an MQTT client.
+Mosquitto has no client list. Watch the broker with a subscriber on this PC.
+
+1. In a terminal, run (use the LAN IP from the cheatsheet, not only `localhost`):
+
+   ```bash
+   mosquitto_sub -h localhost -t '#' -v
+   ```
+
+2. Restart the board from the ESPHome dashboard (**Restart Board**, or power-cycle it).
+3. You should see MQTT traffic from the board (sensor state and, if you have a point, a `CLOSED` message). On Windows, run `mosquitto_sub` from `C:\Program Files\mosquitto` if it is not on your PATH.
+
+[MQTT Explorer](https://mqtt-explorer.com/) shows the same traffic if you prefer a window over a terminal. Connect it to `localhost` port `1883`.
 
 Success looks like:
-- Board appears in EMQX clients list.
+- Messages appear when the board boots or a block changes.
 
-> **Screenshot placeholder:** EMQX web UI **Clients** page showing the ESP board listed as a connected client, with its client ID matching the board name.
+> **Screenshot placeholder:** MQTT Explorer or a terminal running `mosquitto_sub -t '#' -v`, showing the board's topic after it comes online.
 
 ---
 
@@ -164,21 +128,17 @@ Your ESP32 is online, connected to MQTT, and ready to talk to JMRI.
 - **[Verify JMRI communication →](jmri-mqtt-verification-guide.md)**
   Create a sensor and turnout in JMRI, name them to match your MQTT topics, and watch messages flow in both directions. Good first check before wiring up the whole layout.
 
-- **[Customise the sample files →](#add-repo-samples-next-optional)**
-  Edit the substitutions in `block_detectors.yaml` and `point_control.yaml` to match your own block and turnout names.
+- **[Customise in the Configurator →](https://aaron9589.github.io/esphome-for-model-railroading/)**
+  Re-import your `board.yaml`, change block/point names and topics, download again, paste into ESPHome, then **Install → Wireless**.
 
 ---
 
-## Add Repo Samples Next (Optional)
+## Add More Later (Optional)
 
-When your base board works, open the `modules/` folder in VS Code and edit the `substitutions` section at the top of each file to match your layout:
-- [samples/my-first-board/modules/block_detectors.yaml](samples/my-first-board/modules/block_detectors.yaml) — set block names and MQTT topics
-- [samples/my-first-board/modules/point_control.yaml](samples/my-first-board/modules/point_control.yaml) — set turnout names, MQTT topics, and PCA9685 channel numbers
-- [samples/advanced-samples/wled_signal.yaml](samples/advanced-samples/wled_signal.yaml) — signal head lighting for custom WS2812B signals
+- Prefer hand-edited modules? See [Step 3](#step-3-optional-hand-edit-with-modules) and [samples/my-first-board/](samples/my-first-board/).
+- Signals and other advanced patterns: [samples/advanced-samples/](samples/advanced-samples/) (not in the Configurator yet).
 
-Save each file (Ctrl+S) then go back to ESPHome Dashboard and click **Install → Wireless** to push the update.
-
-Use Copilot to guide each change with prompts from [copilot-steering-prompts.md](copilot-steering-prompts.md).
+Use Copilot to guide changes with prompts from [copilot-steering-prompts.md](copilot-steering-prompts.md).
 
 ---
 

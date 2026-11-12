@@ -7,12 +7,12 @@
 # HOW TO USE THESE FILES:
 #   1. In ESPHome Dashboard, open your device YAML and replace
 #      its contents with this file (change the name below).
-#   2. In Windows Explorer, open the ESPHome config volume at:
-#        \\wsl$\docker-desktop\var\lib\docker\volumes\esphome-config\_data
-#      Open your board's folder and create a subfolder called modules/.
+#   2. Open the ESPHome config folder (menu-bar/tray icon → Open Config Folder,
+#      usually ~/esphome). Open your board's folder and create modules/.
 #   3. Copy point_control.yaml and block_detectors.yaml into
 #      that modules/ folder.
-#   4. Fill in secrets.yaml with your Wi-Fi and MQTT details.
+#   4. Uncomment the packages lines below for the features you want.
+#   5. Fill in secrets.yaml with your Wi-Fi and MQTT details.
 #      (See first-board-setup-guide.md Step 4 for instructions.)
 # ============================================================
 
@@ -36,21 +36,27 @@ logger:
 
 
 # Feature files. Each line below loads a set of features onto this board.
-# Remove the # at the start of a line to turn that feature on.
+# Leave them commented for the first flash so the board can come online
+# without modules/ present. After you copy the module files (Step 3 in
+# first-board-setup-guide.md), remove the # to turn a feature on.
 # The word on the left (e.g. "points") can be anything - just make each key unique.
 #
 # These files must be in a folder called modules/ next to this file in your ESPHome config.
 packages:
-  points:   !include modules/point_control.yaml    # Servo-driven turnout control
-  sensors:  !include modules/block_detectors.yaml  # Train detection in track sections
+  # points:   !include modules/point_control.yaml    # Servo-driven turnout control
+  # sensors:  !include modules/block_detectors.yaml  # Train detection in track sections
 
 
 # MQTT is the messaging system that connects your board to JMRI/CATS.
 # When a train enters a block, the board sends a message here.
 # When JMRI wants to move a turnout, it sends a message here.
 # These values come from secrets.yaml so your password is never in this file.
+#
+# First-time setup leaves Mosquitto open (no MQTT username/password).
+# If you later enable MQTT authentication, add username/password here
+# and matching keys in secrets.yaml.
 mqtt:
-  broker: !secret mqtt_broker      # IP address of the PC running EMQX
+  broker: !secret mqtt_broker      # LAN IP of the PC running Mosquitto
   id: mqtt_server
   discovery: false                  # Keeps MQTT tidy - prevents auto-discovery noise
 

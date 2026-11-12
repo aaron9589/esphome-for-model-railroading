@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Board configurator</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="app">
+      <header class="topbar">
+        <div class="brand">
+          <p class="kicker">ESPHome for model railroading</p>
+          <h1>Board configurator</h1>
+        </div>
+        <div class="top-actions">
+          <span class="chip">ESPHome 2024.6.0+</span>
+          <button type="button" id="btn-preset">My first board</button>
+          <label class="btn file-btn">
+            Import
+            <input type="file" id="import-file" accept=".yaml,.yml,text/yaml,text/plain" />
+          </label>
+          <button type="button" id="btn-copy">Copy</button>
+          <button type="button" id="btn-download" class="primary">Download YAML</button>
+        </div>
+      </header>
+
+      <div class="shell">
+        <nav class="nav" aria-label="Sections">
+          <button type="button" class="nav-item is-active" data-view="board">
+            <span>Board</span>
+            <span class="nav-hint">Name, Wi-Fi, MQTT</span>
+          </button>
+          <button type="button" class="nav-item" data-view="blocks">
+            <span>Blocks</span>
+            <span class="nav-hint"><span id="count-blocks">0</span> detectors</span>
+          </button>
+          <button type="button" class="nav-item" data-view="points">
+            <span>Points</span>
+            <span class="nav-hint"><span id="count-points">0</span> servos</span>
+          </button>
+          <button type="button" class="nav-item" data-view="yaml">
+            <span>YAML</span>
+            <span class="nav-hint">Generated file</span>
+          </button>
+        </nav>
+
+        <main>
+          <div id="messages" class="messages" aria-live="polite"></div>
+
+          <section class="view is-active" data-panel="board">
+            <header class="view-head">
+              <div>
+                <h2>Board</h2>
+                <p>Credentials stay in this browser until you clear them. They are written into the downloaded file.</p>
+              </div>
+              <button type="button" id="btn-clear-creds" class="text">Clear saved credentials</button>
+            </header>
+            <div class="card">
+              <h3>Identity</h3>
+              <div class="fields" id="board-identity"></div>
+            </div>
+            <div class="card">
+              <h3>Network</h3>
+              <div class="fields" id="board-network"></div>
+            </div>
+          </section>
+
+          <section class="view" data-panel="blocks" hidden>
+            <header class="view-head">
+              <div>
+                <h2>Block detectors</h2>
+                <p>One GPIO per occupancy detector. The topic must match the JMRI sensor hardware address path.</p>
+              </div>
+              <div class="view-actions">
+                <button type="button" id="btn-clear">Remove all</button>
+                <button type="button" id="btn-add-block" class="primary">Add block</button>
+              </div>
+            </header>
+            <div id="blocks-list"></div>
+            <p id="blocks-empty" class="empty" hidden>No blocks yet. Add one, or load My first board.</p>
+          </section>
+
+          <section class="view" data-panel="points" hidden>
+            <header class="view-head">
+              <div>
+                <h2>Points</h2>
+                <p>Servos on one PCA9685. Power the servo rail from a separate 5V supply.</p>
+              </div>
+              <button type="button" id="btn-add-point" class="primary">Add point</button>
+            </header>
+            <aside class="note">
+              <strong>You set the closed and thrown positions after the board is running, not here.</strong>
+              <p>
+                Flash the board, then open <code>http://&lt;board-name&gt;.local</code> in Chrome or Edge
+                (the name you set on the Board page). Each turnout has sliders for the straight and diverging ends.
+                Move them until the point closes without straining. The ESP saves those positions, so you can adjust
+                them later without downloading a new YAML. Travel time on this page is only how fast the throw moves.
+              </p>
+            </aside>
+            <div class="card" id="i2c-card">
+              <h3>PCA9685 bus</h3>
+              <div class="fields" id="i2c-fields"></div>
+            </div>
+            <div id="points-list"></div>
+            <p id="points-empty" class="empty" hidden>No points yet.</p>
+          </section>
+
+          <section class="view" data-panel="yaml" hidden>
+            <header class="view-head">
+              <div>
+                <h2>board.yaml</h2>
+                <p>
+                  Paste into ESPHome Dashboard. To change it later, import the same file here.
+                  <a href="https://github.com/aaron9589/esphome-for-model-railroading/blob/main/first-board-setup-guide.md">Setup guide</a>
+                  ·
+                  <a href="https://github.com/aaron9589/esphome-for-model-railroading/blob/main/jmri-mqtt-verification-guide.md">JMRI check</a>
+                </p>
+              </div>
+            </header>
+            <pre id="yaml-preview"></pre>
+          </section>
+        </main>
+      </div>
+    </div>
+
+    <div id="toasts" class="toasts" aria-live="polite"></div>
+
+    <!-- board-fields kept as a hidden mount so older selectors stay valid -->
+    <div id="board-fields" hidden></div>
+
+    <script src="./generator.js"></script>
+    <script src="./app.js"></script>
+  </body>
+</html>

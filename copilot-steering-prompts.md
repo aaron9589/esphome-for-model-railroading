@@ -14,17 +14,17 @@ Tip:
 Prompt:
 
 ```text
-Review my environment for this repo and tell me exactly what to do next for ESPHome + EMQX on Windows. Keep it beginner-friendly and only give one step at a time.
+Review my environment for this repo and tell me exactly what to do next for ESPHome Device Builder + Mosquitto on Windows or Mac. Keep it beginner-friendly and only give one step at a time. Do not suggest Docker.
 ```
 
 ---
 
-## 2. Docker Health Check
+## 2. Broker and Dashboard Check
 
 Prompt:
 
 ```text
-Check my Docker-based ESPHome setup in this repo and give me a pass/fail checklist for Docker, EMQX, and ESPHome. Include the exact PowerShell commands and what success looks like.
+Check my native ESPHome + Mosquitto setup against installing-esphome-cheatsheet.md. Give me a pass/fail checklist for the desktop app, Mosquitto listener 1883, and a mosquitto_pub/sub test. Include the exact commands for my OS and what success looks like. Do not suggest Docker.
 ```
 
 ---
@@ -44,7 +44,7 @@ Use the samples in this repo to help me create my first board config. Ask me for
 Prompt:
 
 ```text
-Help me add MQTT config to my ESPHome board YAML for EMQX on this PC. Keep defaults safe and explain each field in one sentence.
+Help me add MQTT config to my ESPHome board YAML for Mosquitto on this PC. Broker is the PC's LAN IP, port 1883, no username. Explain each field in one sentence.
 ```
 
 ---
@@ -54,7 +54,7 @@ Help me add MQTT config to my ESPHome board YAML for EMQX on this PC. Keep defau
 Prompt:
 
 ```text
-My first USB flash is failing. Give me a fastest-path troubleshooting flow for Windows, including cable, driver, COM port, and browser checks. Stop after each step and wait for my result.
+My first USB flash is failing. Give me a fastest-path troubleshooting flow for Windows or Mac, including cable, driver, serial port, and Chrome/Edge checks. Stop after each step and wait for my result.
 ```
 
 ---
