@@ -2,14 +2,10 @@
 
 Work through these in order — earlier ones set up the context for later ones.
 
-## installing-esphome-cheatsheet.md
+## first-board-setup-guide.md
 
 - [ ] ESPHome Dashboard at http://localhost:6052 — empty, **New Device** button, menu-bar or tray icon visible
 - [ ] MQTTX connected to localhost:1883, subscribed to `#`, showing a test message
-
-## first-board-setup-guide.md
-
-- [ ] ESPHome Dashboard — empty, New Device button visible (same as above, can reuse)
 - [ ] ESPHome **New Device** wizard — device name filled in, ESP32 selected
 - [ ] ESPHome YAML editor — Configurator `board.yaml` pasted in, no red error banner
 - [ ] Board Configurator — credentials filled (use placeholder values, not real credentials)

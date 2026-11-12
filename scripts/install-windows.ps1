@@ -27,7 +27,7 @@ if (-not (Test-IsAdmin)) {
     if (-not $scriptPath) {
         Write-Host ''
         Write-Host 'This script was piped into PowerShell, so Windows cannot show the admin prompt from it.' -ForegroundColor Yellow
-        Write-Host 'Use the one-liner in docs/installing-esphome-cheatsheet.md. It saves the file, then asks for admin.' -ForegroundColor Yellow
+        Write-Host 'Use the one-liner in the README. It saves the file, then asks for admin.' -ForegroundColor Yellow
         exit 1
     }
     Write-Host 'Windows needs administrator permission to install Mosquitto and open the firewall.'

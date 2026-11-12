@@ -1,6 +1,6 @@
 # First Board Setup Guide (No Technical Background Needed)
 
-Use this after the install script from the [README](../README.md) finishes (or after the manual steps in [installing-esphome-cheatsheet.md](installing-esphome-cheatsheet.md)). The script opens the ESPHome dashboard for you.
+Use this after the install script from the [README](../README.md) finishes. The script opens the ESPHome dashboard for you.
 
 Goal:
 - Create one ESP board in ESPHome
@@ -91,7 +91,7 @@ Success looks like:
 
 Mosquitto has no client list. Watch the broker with a subscriber on this PC.
 
-1. In a terminal, run (use the LAN IP from the cheatsheet, not only `localhost`):
+1. In a terminal, run:
 
    ```bash
    mosquitto_sub -h localhost -t '#' -v
@@ -100,12 +100,14 @@ Mosquitto has no client list. Watch the broker with a subscriber on this PC.
 2. Restart the board from the ESPHome dashboard (**Restart Board**, or power-cycle it).
 3. You should see MQTT traffic from the board (sensor state and, if you have a point, a `CLOSED` message). On Windows, run `mosquitto_sub` from `C:\Program Files\mosquitto` if it is not on your PATH.
 
-[MQTTX](https://mqttx.app/) shows the same traffic if you prefer a window over a terminal. Connect it to `localhost` port `1883`.
+[MQTTX](https://mqttx.app/) shows the same traffic if you prefer a window over a terminal. Connect it to `127.0.0.1` port `1883` with no username.
 
 Success looks like:
 - Messages appear when the board boots or a block changes.
 
 > **Screenshot placeholder:** MQTTX or a terminal running `mosquitto_sub -t '#' -v`, showing the board's topic after it comes online.
+
+Remember: `localhost` is fine for MQTTX / `mosquitto_sub` on this PC. The board YAML and JMRI must use this computer's **LAN IP**.
 
 ---
 
@@ -131,4 +133,46 @@ Your ESP32 is online, connected to MQTT, and ready to talk to JMRI.
 
 ## If Something Fails
 
-Go to [installing-esphome-cheatsheet.md](installing-esphome-cheatsheet.md) and use the **If Something Fails** section.
+**ESPHome dashboard does not open:**
+The first launch is still downloading. Wait a few minutes, then use the menu-bar or tray icon → **Open Dashboard**. If it still fails, icon → **View Logs**. Re-run the install script from the [README](../README.md) if the app is missing.
+
+**Port already in use:**
+Something else is using 1883 (Mosquitto) or 6052 (ESPHome).
+
+Windows:
+
+```powershell
+netstat -ano | findstr ":1883 :6052"
+```
+
+Mac:
+
+```bash
+lsof -nP -iTCP:1883 -sTCP:LISTEN
+lsof -nP -iTCP:6052 -sTCP:LISTEN
+```
+
+Quit the other program, or stop a leftover Docker container if you used to run EMQX or ESPHome that way.
+
+**`mosquitto_pub` / `mosquitto_sub` says connection refused:**
+Mosquitto is not running. Windows: `Set-Service mosquitto -StartupType Automatic; Start-Service mosquitto`. Mac: `brew services start mosquitto`.
+
+**Mosquitto does not come back after reboot:**
+- Windows: `Set-Service mosquitto -StartupType Automatic`
+- Mac: `brew services start mosquitto` (check with `brew services info mosquitto`)
+
+**Board is Online in ESPHome but never talks to MQTT:**
+- Broker IP in the YAML is the PC's LAN IP, not `localhost`.
+- Mosquitto is running on 1883 (`mosquitto_sub -h <LAN-IP> -t 'test/#' -v` from this PC).
+- The firewall allows inbound TCP 1883. On Windows, the Wi-Fi profile may need to be **Private**.
+
+**ESP board not found on first flash:**
+- Use a data USB cable, not a charge-only cable.
+- Use Chrome or Edge. Firefox does not support WebSerial.
+- Close anything else that has the serial port open (Arduino IDE, a serial monitor).
+- CP2102 boards: [Silicon Labs CP210x driver](https://www.silabs.com/developers/usb-to-uart-bridge-vcp-drivers). CH340 boards: install the manufacturer's CH340 driver for your OS.
+
+**Board will not connect to Wi-Fi:**
+- The network must be 2.4 GHz.
+- The Wi-Fi name and password in the downloaded YAML are case-sensitive.
+- The router must be handing out addresses with DHCP.
