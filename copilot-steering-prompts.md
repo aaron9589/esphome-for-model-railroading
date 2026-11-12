@@ -14,7 +14,7 @@ Tip:
 Prompt:
 
 ```text
-Review my environment for this repo and tell me exactly what to do next for ESPHome Device Builder + Mosquitto on Windows or Mac. Keep it beginner-friendly and only give one step at a time. Do not suggest Docker.
+Review my environment for this repo and tell me exactly what to do next. The supported install is the one-liner in README.md (scripts/install-mac.sh or scripts/install-windows.ps1). Keep it beginner-friendly and only give one step at a time. Do not suggest Docker.
 ```
 
 ---

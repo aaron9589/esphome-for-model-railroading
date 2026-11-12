@@ -8,7 +8,22 @@ ESP32 boards for a model railroad: block detection and point control, talking to
 
 That page builds your `board.yaml`. Click **My first board**, fill in Wi-Fi and this computer’s MQTT address, add the blocks and points you actually have, then download the file. Paste it into ESPHome. Don’t edit the YAML by hand — import the same file back into the configurator when you want to change something. The file contains your Wi-Fi password, so don’t commit it.
 
-1. **[Install ESPHome and Mosquitto](installing-esphome-cheatsheet.md)** on Windows or Mac.
+1. **Install ESPHome and Mosquitto.** The script asks install or uninstall. Install opens the dashboard when it finishes.
+
+   Mac — Terminal:
+
+   ```bash
+   curl -fsSL https://raw.githubusercontent.com/aaron9589/esphome-for-model-railroading/main/scripts/install-mac.sh -o /tmp/esphome-mr-setup.sh && bash /tmp/esphome-mr-setup.sh
+   ```
+
+   Windows — PowerShell. You do not need to start it as administrator. The script asks for that itself.
+
+   ```powershell
+   irm https://raw.githubusercontent.com/aaron9589/esphome-for-model-railroading/main/scripts/install-windows.ps1 -OutFile "$env:TEMP\esphome-mr-setup.ps1"; Start-Process powershell -Verb RunAs -Wait -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$env:TEMP\esphome-mr-setup.ps1`""
+   ```
+
+   Type `1` to install. The click-by-click version is [installing-esphome-cheatsheet.md](installing-esphome-cheatsheet.md).
+
 2. **[Flash the downloaded file](first-board-setup-guide.md)** by USB the first time.
 3. **[Check it in JMRI](jmri-mqtt-verification-guide.md)** once a train and a turnout move.
 
@@ -26,7 +41,7 @@ That page builds your `board.yaml`. Click **My first board**, fill in Wi-Fi and 
 **On the computer**
 
 - Windows 10/11, or a Mac
-- [ESPHome Device Builder and Mosquitto](installing-esphome-cheatsheet.md)
+- ESPHome Device Builder and Mosquitto, from the install script above
 - 2.4 GHz Wi-Fi with DHCP (these boards cannot use 5 GHz)
 - Chrome or Edge for the first USB flash
 
@@ -45,7 +60,11 @@ JMRI is the backbone. CATS does the signalling logic and writes it into JMRI tab
 
 ### Block detection
 
-The detector is the *DCC Track Occupancy Transistor-based Current Detection Circuit - Revised* from [sumidacrossing.org](http://sumidacrossing.org/LayoutControl/TrainDetection/InductiveDetectionCircuit/). About $5 a block, and it wires to one ESP input.
+The detector is the *DCC Track Occupancy Transistor-based Current Detection Circuit - Revised*. About $5 a block, and it wires to one ESP input. The diagram is stored in this repo because the Sumida Crossing page it came from no longer loads.
+
+![DCC track occupancy detector schematic](_img/dcc-occupancy-detector.png)
+
+Sumida Crossing, CC BY-NC 3.0. Based on a design by [Reinhard Müller](http://dcc-mueller.de/wire4dcc/sensor_e.htm). The original page was http://sumidacrossing.org/LayoutControl/TrainDetection/InductiveDetectionCircuit/.
 
 Current sensors (AS-100) from Digikey. Prototype boards from AliExpress: https://www.aliexpress.com/item/32923792538.html — each board splits lengthways into two detectors.
 

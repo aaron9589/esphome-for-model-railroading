@@ -4,7 +4,7 @@
 # Re-running this script is safe: it skips what is already in place.
 #
 # One line (Terminal). Do not pipe this into bash — the menu needs your keyboard.
-#   curl -fsSL https://raw.githubusercontent.com/aaron9589/esphome-for-model-railroading/doc-improvements/scripts/install-mac.sh -o /tmp/esphome-mr-setup.sh && bash /tmp/esphome-mr-setup.sh
+#   curl -fsSL https://raw.githubusercontent.com/aaron9589/esphome-for-model-railroading/main/scripts/install-mac.sh -o /tmp/esphome-mr-setup.sh && bash /tmp/esphome-mr-setup.sh
 
 set -euo pipefail
 
@@ -438,7 +438,7 @@ require_mac_user
 if [[ ! -t 0 || ! -t 1 ]]; then
   log "This setup asks whether to install or uninstall, so it has to run in Terminal."
   log "Paste this instead of piping the script into bash:"
-  log "  curl -fsSL https://raw.githubusercontent.com/aaron9589/esphome-for-model-railroading/doc-improvements/scripts/install-mac.sh -o /tmp/esphome-mr-setup.sh && bash /tmp/esphome-mr-setup.sh"
+  log "  curl -fsSL https://raw.githubusercontent.com/aaron9589/esphome-for-model-railroading/main/scripts/install-mac.sh -o /tmp/esphome-mr-setup.sh && bash /tmp/esphome-mr-setup.sh"
   exit 1
 fi
 

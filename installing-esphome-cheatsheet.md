@@ -11,7 +11,7 @@ Creating and flashing your first board is covered in [first-board-setup-guide.md
 
 If you get stuck, use the prompts in [copilot-steering-prompts.md](copilot-steering-prompts.md).
 
-The manual steps are below. If you want the script to do the install, use one command instead.
+The commands below are the same ones as in the [README](README.md). They are the normal way to install. The click-by-click steps under that are only if you would rather do it yourself.
 
 ---
 
@@ -24,7 +24,7 @@ It does **not** put your Wi-Fi password anywhere. You still paste a Configurator
 **Mac** — open Terminal and paste:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/aaron9589/esphome-for-model-railroading/doc-improvements/scripts/install-mac.sh -o /tmp/esphome-mr-setup.sh && bash /tmp/esphome-mr-setup.sh
+curl -fsSL https://raw.githubusercontent.com/aaron9589/esphome-for-model-railroading/main/scripts/install-mac.sh -o /tmp/esphome-mr-setup.sh && bash /tmp/esphome-mr-setup.sh
 ```
 
 It asks you to type 1 (install), 2 (uninstall), or 3 (quit). Uninstall then asks you to type `uninstall`. It will ask for your Mac login password when Homebrew or the firewall needs it. If a popup asks to install command line tools, click Install, wait until that finishes, then paste the command again.
@@ -32,7 +32,7 @@ It asks you to type 1 (install), 2 (uninstall), or 3 (quit). Uninstall then asks
 **Windows** — open PowerShell (you do not need to right-click Run as administrator) and paste:
 
 ```powershell
-irm https://raw.githubusercontent.com/aaron9589/esphome-for-model-railroading/doc-improvements/scripts/install-windows.ps1 -OutFile "$env:TEMP\esphome-mr-setup.ps1"; Start-Process powershell -Verb RunAs -Wait -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$env:TEMP\esphome-mr-setup.ps1`""
+irm https://raw.githubusercontent.com/aaron9589/esphome-for-model-railroading/main/scripts/install-windows.ps1 -OutFile "$env:TEMP\esphome-mr-setup.ps1"; Start-Process powershell -Verb RunAs -Wait -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$env:TEMP\esphome-mr-setup.ps1`""
 ```
 
 Approve the User Account Control prompt. In the blue window, type 1 (install), 2 (uninstall), or 3 (quit). Uninstall then asks you to type `uninstall`. Leave that window open until it finishes, then press Enter.

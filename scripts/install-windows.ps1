@@ -3,7 +3,7 @@
 # Re-running this script is safe: it skips what is already in place.
 #
 # Open PowerShell (you do NOT need "Run as administrator") and paste:
-#   irm https://raw.githubusercontent.com/aaron9589/esphome-for-model-railroading/doc-improvements/scripts/install-windows.ps1 -OutFile "$env:TEMP\esphome-mr-setup.ps1"; Start-Process powershell -Verb RunAs -Wait -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$env:TEMP\esphome-mr-setup.ps1`""
+#   irm https://raw.githubusercontent.com/aaron9589/esphome-for-model-railroading/main/scripts/install-windows.ps1 -OutFile "$env:TEMP\esphome-mr-setup.ps1"; Start-Process powershell -Verb RunAs -Wait -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$env:TEMP\esphome-mr-setup.ps1`""
 
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'

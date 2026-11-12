@@ -45,7 +45,7 @@ When diagnosing issues, check in this order:
 ## Repo-Aware Suggestions
 
 - Point users to sample files in samples for reusable configs.
-- Point users to installing-esphome-cheatsheet.md for first-time environment setup.
+- Point users to the install scripts first (README one-liners: scripts/install-mac.sh and scripts/install-windows.ps1). The cheatsheet is the manual fallback.
 - Point users to first-board-setup-guide.md for first board configuration steps.
 - Point users to copilot-steering-prompts.md for copy-paste prompts they can use in this chat.
 - Keep recommendations aligned with the model railroading use case in README.md.
@@ -53,7 +53,7 @@ When diagnosing issues, check in this order:
 ## Beginner Onboarding Path
 
 If a user seems new, guide them through this order without skipping steps:
-1. installing-esphome-cheatsheet.md — install ESPHome Device Builder and Mosquitto on Windows or Mac.
+1. README install script (scripts/install-mac.sh or scripts/install-windows.ps1) — ESPHome Device Builder and Mosquitto. installing-esphome-cheatsheet.md is the same steps by hand.
 2. first-board-setup-guide.md — paste Configurator YAML, flash by USB, confirm MQTT with mosquitto_sub.
 3. samples/ — add block detection, servos, signals or other components as packages.
 4. copilot-steering-prompts.md — share this file with the user if they want guided prompts.
