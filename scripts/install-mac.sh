@@ -430,7 +430,7 @@ log "  Put that LAN IP in the Configurator and in JMRI. Do not use localhost in 
 
 step "7/7 Done"
 log "Setup finished."
-log "Next: https://aaron9589.github.io/esphome-for-model-railroading/  then first-board-setup-guide.md"
+log "Next: https://aaron9589.github.io/esphome-for-model-railroading/  then docs/first-board-setup-guide.md"
 log "Full log: $LOG"
 }
 

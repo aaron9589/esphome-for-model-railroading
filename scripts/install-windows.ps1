@@ -26,7 +26,7 @@ if (-not (Test-IsAdmin)) {
     if (-not $scriptPath) {
         Write-Host ''
         Write-Host 'This script was piped into PowerShell, so Windows cannot show the admin prompt from it.' -ForegroundColor Yellow
-        Write-Host 'Use the one-liner in installing-esphome-cheatsheet.md. It saves the file, then asks for admin.' -ForegroundColor Yellow
+        Write-Host 'Use the one-liner in docs/installing-esphome-cheatsheet.md. It saves the file, then asks for admin.' -ForegroundColor Yellow
         exit 1
     }
     Write-Host 'Windows needs administrator permission to install Mosquitto and open the firewall.'
@@ -476,7 +476,7 @@ try {
 
     Write-Step '6/7 Done'
     Write-Host 'Setup finished.' -ForegroundColor Green
-    Write-Host 'Next: https://aaron9589.github.io/esphome-for-model-railroading/  then first-board-setup-guide.md'
+    Write-Host 'Next: https://aaron9589.github.io/esphome-for-model-railroading/  then docs/first-board-setup-guide.md'
     Write-Host "Full log: $Log"
 } catch {
     $exitCode = 1

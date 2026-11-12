@@ -9,8 +9,6 @@ Goal:
 
 Creating and flashing your first board is covered in [first-board-setup-guide.md](first-board-setup-guide.md).
 
-If you get stuck, use the prompts in [copilot-steering-prompts.md](copilot-steering-prompts.md).
-
 The commands below are the same ones as in the [README](README.md). They are the normal way to install. The click-by-click steps under that are only if you would rather do it yourself.
 
 ---

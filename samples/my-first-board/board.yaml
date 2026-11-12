@@ -13,7 +13,7 @@
 #      that modules/ folder.
 #   4. Uncomment the packages lines below for the features you want.
 #   5. Fill in secrets.yaml with your Wi-Fi and MQTT details.
-#      (See first-board-setup-guide.md Step 4 for instructions.)
+#      (See docs/first-board-setup-guide.md Step 4 for instructions.)
 # ============================================================
 
 
@@ -38,7 +38,7 @@ logger:
 # Feature files. Each line below loads a set of features onto this board.
 # Leave them commented for the first flash so the board can come online
 # without modules/ present. After you copy the module files (Step 3 in
-# first-board-setup-guide.md), remove the # to turn a feature on.
+# docs/first-board-setup-guide.md), remove the # to turn a feature on.
 # The word on the left (e.g. "points") can be anything - just make each key unique.
 #
 # These files must be in a folder called modules/ next to this file in your ESPHome config.

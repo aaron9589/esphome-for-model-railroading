@@ -55,7 +55,7 @@ To change blocks or points later, re-import that same file in the Configurator, 
 
 Prefer the modular sample files instead of the Configurator? ESPHome Device Builder stores configs in your home folder (`~/esphome` on Mac, `C:\Users\you\esphome` on Windows). Menu-bar or tray icon → **Open Config Folder**.
 
-Copy [samples/my-first-board/](samples/my-first-board/) into your board folder, uncomment the `packages:` lines in `board.yaml`, and fill [samples/secrets.yaml](samples/secrets.yaml) in that same config folder. This path is for people who want to maintain separate module files by hand.
+Copy [samples/my-first-board/](../samples/my-first-board/) into your board folder, uncomment the `packages:` lines in `board.yaml`, and fill [samples/secrets.yaml](../samples/secrets.yaml) in that same config folder. This path is for people who want to maintain separate module files by hand.
 
 > **Screenshot placeholder:** VS Code Explorer panel showing the board folder (e.g. `yard-board-01/`) expanded with `board.yaml` and a `modules/` subfolder containing `block_detectors.yaml` and `point_control.yaml`.
 
@@ -135,10 +135,8 @@ Your ESP32 is online, connected to MQTT, and ready to talk to JMRI.
 
 ## Add More Later (Optional)
 
-- Prefer hand-edited modules? See [Step 3](#step-3-optional-hand-edit-with-modules) and [samples/my-first-board/](samples/my-first-board/).
-- Signals and other advanced patterns: [samples/advanced-samples/](samples/advanced-samples/) (not in the Configurator yet).
-
-Use Copilot to guide changes with prompts from [copilot-steering-prompts.md](copilot-steering-prompts.md).
+- Prefer hand-edited modules? See [Step 3](#step-3-optional-hand-edit-with-modules) and [samples/my-first-board/](../samples/my-first-board/).
+- Signals and other advanced patterns: [samples/advanced-samples/](../samples/advanced-samples/) (not in the Configurator yet).
 
 ---
 
