@@ -32,6 +32,19 @@ function uniqueIds(items, nameKey = "name") {
   });
 }
 
+function topicFor(kind, name) {
+  const prefix = kind === "block" ? "trains/track/sensor/" : "trains/track/turnout/";
+  const trimmed = String(name || "").trim();
+  if (!trimmed) return "";
+  return prefix + trimmed;
+}
+
+function stateTopic(topic) {
+  const base = String(topic || "").replace(/\/+$/, "");
+  if (!base) return "";
+  return `${base}/State`;
+}
+
 function myFirstBoardPreset() {
   return {
     board: {
@@ -195,16 +208,18 @@ function generateYaml(config) {
   const i2c = config.i2c || { sda: "GPIO21", scl: "GPIO22" };
   const stateForBlob = {
     board: { ...board },
-    blocks: (config.blocks || []).map(({ name, topic, gpio, inverted, debounce }) => ({
+    blocks: (config.blocks || []).map(({ name, topic, topicCustom, gpio, inverted, debounce }) => ({
       name,
       topic,
+      topicCustom: !!topicCustom,
       gpio,
       inverted: !!inverted,
       debounce,
     })),
-    points: (config.points || []).map(({ name, topic, channel, travelTime }) => ({
+    points: (config.points || []).map(({ name, topic, topicCustom, channel, travelTime }) => ({
       name,
       topic,
+      topicCustom: !!topicCustom,
       channel: Number(channel),
       travelTime,
     })),
@@ -454,6 +469,8 @@ function generateYaml(config) {
     uniqueIds,
     myFirstBoardPreset,
     emptyConfig,
+    topicFor,
+    stateTopic,
     validateConfig,
     parseConfigFromYaml,
     generateYaml,

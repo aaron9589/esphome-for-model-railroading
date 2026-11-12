@@ -260,6 +260,23 @@ select {
   font-size: 0.95rem;
 }
 
+input:disabled {
+  background: #f3f4f6;
+  color: #6b7280;
+  border-style: dashed;
+  cursor: default;
+}
+
+label.linked {
+  margin-top: -0.35rem;
+  padding-left: 0.85rem;
+  border-left: 2px solid #d1d5db;
+}
+
+label.linked .field-label {
+  color: var(--muted);
+}
+
 input:focus,
 select:focus,
 button:focus-visible {
