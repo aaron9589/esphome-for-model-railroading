@@ -18,6 +18,8 @@ const {
   generateYaml,
   myFirstBoardPreset,
   parseConfigFromYaml,
+  topicFor,
+  stateTopic,
   uniqueIds,
   validateConfig,
 } = context.EsphomeMr;
@@ -137,6 +139,19 @@ test("validation catches pin and channel clashes", () => {
   const { warnings } = validateConfig(config);
   assert.ok(warnings.some((w) => w.includes("GPIO clash")));
   assert.ok(warnings.some((w) => w.includes("PCA9685 channel clash")));
+});
+
+test("topic follows the name and state topic is the command topic plus /State", () => {
+  assert.equal(topicFor("point", "Kiama/Up Loop"), "trains/track/turnout/Kiama/Up Loop");
+  assert.equal(topicFor("block", "Kiama/Up XOver"), "trains/track/sensor/Kiama/Up XOver");
+  const config = myFirstBoardPreset();
+  config.board.wifiSsid = "x";
+  config.board.wifiPassword = "y";
+  config.board.mqttBroker = "1.2.3.4";
+  config.board.otaPassword = "z";
+  const yaml = generateYaml(config);
+  assert.match(yaml, /topic: "trains\/track\/turnout\/Kiama\/Up Loop\/State"/);
+  assert.equal(stateTopic(config.points[0].topic), "trains/track/turnout/Kiama/Up Loop/State");
 });
 
 test("uniqueIds sanitizes names", () => {

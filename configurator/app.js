@@ -4,6 +4,8 @@ const {
   generateYaml,
   myFirstBoardPreset,
   parseConfigFromYaml,
+  stateTopic,
+  topicFor,
   validateConfig,
 } = globalThis.EsphomeMr;
 
@@ -19,6 +21,7 @@ const boardTypeOptions = [
 const CRED_FIELDS = ["wifiSsid", "wifiPassword", "mqttBroker", "otaPassword"];
 
 let state = loadState() || myFirstBoardPreset();
+normalizeTopics(state);
 applyCredentials(state, loadCredentials());
 ensureOtaPassword();
 persist();
@@ -84,9 +87,11 @@ document.getElementById("btn-clear-creds").addEventListener("click", () => {
 });
 
 document.getElementById("btn-add-block").addEventListener("click", () => {
+  const name = `Block ${state.blocks.length + 1}`;
   state.blocks.push({
-    name: `Block ${state.blocks.length + 1}`,
-    topic: "trains/track/sensor/Location/Block",
+    name,
+    topic: topicFor("block", name),
+    topicCustom: false,
     gpio: "GPIO14",
     inverted: true,
     debounce: "500ms",
@@ -99,9 +104,11 @@ document.getElementById("btn-add-point").addEventListener("click", () => {
   const used = new Set(state.points.map((p) => Number(p.channel)));
   let channel = 0;
   while (used.has(channel) && channel < 15) channel += 1;
+  const name = `Point ${state.points.length + 1}`;
   state.points.push({
-    name: `Point ${state.points.length + 1}`,
-    topic: "trains/track/turnout/Location/Turnout",
+    name,
+    topic: topicFor("point", name),
+    topicCustom: false,
     channel,
     travelTime: "10s",
   });
@@ -143,6 +150,7 @@ el.importFile.addEventListener("change", async (event) => {
     const text = await file.text();
     state = parseConfigFromYaml(text);
     if (!state.i2c) state.i2c = { sda: "GPIO21", scl: "GPIO22" };
+    normalizeTopics(state);
     // Prefer credentials from the imported file when present; otherwise keep browser-saved ones.
     const fromFile = extractCredentials(state.board);
     const saved = loadCredentials();
@@ -175,6 +183,29 @@ function ensureOtaPassword() {
     state.board.otaPassword = generateOtaPassword();
     saveCredentials(state.board);
   }
+}
+
+function normalizeTopics(config) {
+  for (const block of config.blocks || []) {
+    if (typeof block.topicCustom !== "boolean") {
+      block.topicCustom = block.topic !== topicFor("block", block.name);
+    }
+  }
+  for (const point of config.points || []) {
+    if (typeof point.topicCustom !== "boolean") {
+      point.topicCustom = point.topic !== topicFor("point", point.name);
+    }
+  }
+}
+
+function followName(item, kind, card) {
+  if (!item.topicCustom) {
+    item.topic = topicFor(kind, item.name);
+    const topicInput = card.querySelector("[data-role=topic]");
+    if (topicInput) topicInput.value = item.topic;
+  }
+  const stateInput = card.querySelector("[data-role=state-topic]");
+  if (stateInput) stateInput.value = stateTopic(item.topic);
 }
 
 function extractCredentials(board = {}) {
@@ -244,6 +275,21 @@ function flash(kind, text) {
   div.textContent = text;
   el.toasts.append(div);
   setTimeout(() => div.remove(), 4000);
+}
+
+function linkedField(labelText, value, hint) {
+  const label = document.createElement("label");
+  label.classList.add("full", "linked");
+  const title = document.createElement("span");
+  title.className = "field-label";
+  title.textContent = labelText;
+  const input = document.createElement("input");
+  input.type = "text";
+  input.disabled = true;
+  input.value = value;
+  input.dataset.role = "state-topic";
+  label.append(title, input, hintEl(hint));
+  return label;
 }
 
 function field(labelText, value, onInput, opts = {}) {
@@ -392,25 +438,29 @@ function renderBlocks() {
 
     const fields = document.createElement("div");
     fields.className = "fields";
+    const topicField = field("MQTT topic", block.topic, (v) => {
+      block.topic = v;
+      block.topicCustom = v !== topicFor("block", block.name);
+      persist();
+      updatePreview();
+    }, {
+      full: true,
+      hint: "Filled in from the name: trains/track/sensor/ plus the name. Change it if JMRI listens on a different topic.",
+    });
+    topicField.querySelector("input").dataset.role = "topic";
     fields.append(
       field("Name", block.name, (v) => {
         block.name = v;
         title.textContent = v || `Block ${index + 1}`;
+        followName(block, "block", card);
         persist();
         updatePreview();
       }, {
         placeholder: "Kiama/Up XOver",
         full: true,
-        hint: "Shown in ESPHome logs, for example “Kiama/Up XOver | OCCUPIED”. It does not have to match the JMRI name.",
+        hint: "Shown in ESPHome logs, for example “Kiama/Up XOver | OCCUPIED”. It does not have to match the JMRI name. The MQTT topic below is filled in from this.",
       }),
-      field("MQTT topic", block.topic, (v) => {
-        block.topic = v;
-        persist();
-        updatePreview();
-      }, {
-        full: true,
-        hint: "The topic this detector publishes when a train enters or leaves. It must be exactly the topic JMRI is listening on. Copy it from JMRI, or build it as channel + sensor topic + hardware address.",
-      }),
+      topicField,
       field("GPIO", block.gpio, (v) => {
         block.gpio = v.trim().toUpperCase();
         persist();
@@ -465,10 +515,24 @@ function renderPoints() {
 
     const fields = document.createElement("div");
     fields.className = "fields";
+    const topicField = field("MQTT topic", point.topic, (v) => {
+      point.topic = v;
+      point.topicCustom = v !== topicFor("point", point.name);
+      const stateInput = card.querySelector("[data-role=state-topic]");
+      if (stateInput) stateInput.value = stateTopic(point.topic);
+      persist();
+      updatePreview();
+    }, {
+      full: true,
+      hint: "Filled in from the name: trains/track/turnout/ plus the name. JMRI sends CLOSED or THROWN here. Change it if your topic is different.",
+    });
+    topicField.querySelector("input").dataset.role = "topic";
+
     fields.append(
       field("Name", point.name, (v) => {
         point.name = v;
         title.textContent = v || `Point ${index + 1}`;
+        followName(point, "point", card);
         persist();
         updatePreview();
       }, {
@@ -476,14 +540,12 @@ function renderPoints() {
         full: true,
         hint: "Shown on the calibration page and in the logs, for example “Kiama/Up Loop -> THROWN”. It does not have to match the JMRI name.",
       }),
-      field("MQTT topic", point.topic, (v) => {
-        point.topic = v;
-        persist();
-        updatePreview();
-      }, {
-        full: true,
-        hint: "Topic JMRI publishes CLOSED or THROWN to. Built from MQTT Channel + Turnout send topic + hardware address. The board replies on the same topic with /State.",
-      }),
+      topicField,
+      linkedField(
+        "State topic",
+        stateTopic(point.topic),
+        "The board publishes CLOSED or THROWN here after the point moves. It always follows the topic above, with /State on the end. Use it for state reporting if your control system reads a separate topic."
+      ),
       field("PCA9685 channel (0–15)", point.channel, (v) => {
         point.channel = Number(v);
         persist();
