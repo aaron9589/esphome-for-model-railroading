@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 340" role="img" aria-labelledby="staffTitle staffDesc">
+  <title id="staffTitle">Staff token machine</title>
+  <desc id="staffDesc">A valid RFID scan issues the token id on the staff topic and marks the section sensor ACTIVE. Scanning the same token clears both. A lockOut topic can occupy the section from CATS without a card.</desc>
+  <rect width="880" height="340" fill="#f4f1ea"/>
+  <rect x="16" y="16" width="848" height="308" rx="16" fill="#faeeda"/>
+  <text x="36" y="46" fill="#854f0b" font-family="ui-sans-serif, system-ui, sans-serif" font-size="15" font-weight="600">Issue or return a staff token</text>
+
+  <rect x="36" y="68" width="180" height="88" rx="10" fill="#fffdf8" stroke="#854f0b"/>
+  <text x="126" y="100" text-anchor="middle" fill="#1c1917" font-family="ui-sans-serif, system-ui, sans-serif" font-size="15" font-weight="600">RC522</text>
+  <text x="126" y="122" text-anchor="middle" fill="#57534e" font-family="ui-sans-serif, system-ui, sans-serif" font-size="12">SPI, valid tokens only</text>
+  <text x="126" y="140" text-anchor="middle" fill="#57534e" font-family="ui-sans-serif, system-ui, sans-serif" font-size="12">same card returns it</text>
+
+  <line x1="216" y1="112" x2="268" y2="112" stroke="#854f0b" stroke-width="1.75"/>
+  <polygon points="278,112 269,107.5 269,116.5" fill="#854f0b"/>
+
+  <rect x="286" y="68" width="200" height="88" rx="10" fill="#fffdf8" stroke="#44403c"/>
+  <text x="386" y="100" text-anchor="middle" fill="#1c1917" font-family="ui-sans-serif, system-ui, sans-serif" font-size="15" font-weight="600">ESP32</text>
+  <text x="386" y="122" text-anchor="middle" fill="#57534e" font-family="ui-sans-serif, system-ui, sans-serif" font-size="12">bell, then staff topic</text>
+  <text x="386" y="140" text-anchor="middle" fill="#57534e" font-family="ui-sans-serif, system-ui, sans-serif" font-size="12">DFPlayer GPIO1 / GPIO4</text>
+
+  <line x1="486" y1="112" x2="548" y2="112" stroke="#854f0b" stroke-width="1.75"/>
+  <polygon points="558,112 549,107.5 549,116.5" fill="#854f0b"/>
+
+  <rect x="566" y="68" width="270" height="88" rx="10" fill="#faeeda" stroke="#854f0b"/>
+  <text x="701" y="100" text-anchor="middle" fill="#1c1917" font-family="ui-sans-serif, system-ui, sans-serif" font-size="15" font-weight="600">Mosquitto ’ CATS</text>
+  <text x="701" y="122" text-anchor="middle" fill="#57534e" font-family="ui-sans-serif, system-ui, sans-serif" font-size="12">token id is retained</text>
+  <text x="701" y="140" text-anchor="middle" fill="#57534e" font-family="ui-sans-serif, system-ui, sans-serif" font-size="12">sensor is not</text>
+
+  <rect x="56" y="176" width="768" height="28" rx="8" fill="#fffdf8"/>
+  <text x="440" y="195" text-anchor="middle" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">trains/staff/nowra-berry</text>
+
+  <rect x="56" y="212" width="768" height="28" rx="8" fill="#fffdf8"/>
+  <text x="440" y="231" text-anchor="middle" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">trains/track/sensor/nowra-berry</text>
+
+  <rect x="56" y="248" width="768" height="52" rx="8" fill="#fffdf8"/>
+  <text x="440" y="270" text-anchor="middle" fill="#44403c" font-family="ui-sans-serif, system-ui, sans-serif" font-size="13">Remote lock: trains/track/sensor/nowra-berry/lockOut = ACTIVE</text>
+  <text x="440" y="290" text-anchor="middle" fill="#57534e" font-family="ui-sans-serif, system-ui, sans-serif" font-size="12">Staff payload becomes CATS. The sensor topic then flips every second.</text>
+</svg>

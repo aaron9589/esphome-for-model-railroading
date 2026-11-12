@@ -1,83 +1,91 @@
 # Advanced samples
 
-These YAML files are **not** Board Configurator compatible. They are kept for interest — patterns used on a real layout where ESPHome does more than block detectors and PCA9685 points.
+These YAML files are **not** Board Configurator compatible. They are patterns from a working layout where ESPHome does more than block detectors and PCA9685 points.
 
-For a first board, use the [Board Configurator](https://aaron9589.github.io/esphome-for-model-railroading/) instead. Block detection and points live there now.
+For a first board, use the [Board Configurator](https://aaron9589.github.io/esphome-for-model-railroading/). Ordinary blocks and points live there. Copy ideas from these files into your own ESPHome config. Import in the Configurator will not understand them.
 
-Each file below is a fragment or a specialised board. Copy ideas into your own ESPHome config; do not expect Import in the Configurator to understand them.
+![End-of-block sensors, ground throws, bell codes, a staff machine, and a signal ESP all talk MQTT to Mosquitto, JMRI, and CATS. A sample board config is the shell those fragments hang off.](_img/overview.svg)
 
----
+`sample_board_config.yaml` is the shell: ESP32, Wi-Fi and MQTT from ESPHome secrets, a 3–10 second random boot delay, and commented `packages:` lines. Copy a fragment into a `modules/` folder next to it and uncomment the matching line. The topics below are the ones written in the files (Illawarra names). Change the substitutions to match your panel.
 
-## What’s here
-
-| File | What it shows |
+| File | What the YAML actually does |
 |---|---|
-| [sample_board_config.yaml](sample_board_config.yaml) | A full board shell (Wi-Fi, MQTT, logging, boot delay) that other packages can hang off |
-| [end_of_block.yaml](end_of_block.yaml) | Short “end of block” pulses so CATS train describers know which way a train entered |
-| [ground_throws.yaml](ground_throws.yaml) | Manual ground-throw levers reported to JMRI/CATS (optional signal interlocking) |
-| [bellcodes.yaml](bellcodes.yaml) | MQTT → DFPlayer MP3 bell codes between stations |
-| [staff_machine.yaml](staff_machine.yaml) | RFID staff token machine for single-line working |
-| [wled_signal.yaml](wled_signal.yaml) | Signal masts via WLED on a second ESP (UART + WS2812B) |
+| [sample_board_config.yaml](sample_board_config.yaml) | Board shell and package list |
+| [end_of_block.yaml](end_of_block.yaml) | Short occupancy pulse on an `/EOB` sensor topic |
+| [ground_throws.yaml](ground_throws.yaml) | Lever switches publish a retained turnout topic |
+| [bellcodes.yaml](bellcodes.yaml) | Bell-code topics play numbered MP3s |
+| [staff_machine.yaml](staff_machine.yaml) | RFID staff token, with a remote lockout |
+| [wled_signal.yaml](wled_signal.yaml) | Mast aspect strings become WLED JSON over UART |
 
 ---
 
-## Layout sketch
+## End of block
 
-How these pieces sit relative to the usual Configurator board:
+Wrong-road running needs CATS to see which end of the block the train entered. This sensor is `internal` (it is not a panel object of its own). On press it publishes `ACTIVE`. `delayed_off: 5s` holds that until the pin has been clear for five seconds, then it publishes `INACTIVE`. Both use QoS 2 and `retain: false`. On boot it publishes `INACTIVE`, then publishes whatever the pin is doing now.
 
-```text
-                    ┌─────────────────────┐
-                    │  JMRI / CATS panel  │
-                    └──────────┬──────────┘
-                               │ MQTT
-                    ┌──────────▼──────────┐
-                    │     Mosquitto       │
-                    └──────────┬──────────┘
-           ┌───────────────────┼───────────────────┐
-           │                   │                   │
-           ▼                   ▼                   ▼
-   ┌───────────────┐   ┌───────────────┐   ┌───────────────┐
-   │ Configurator  │   │ Staff / bells │   │ WLED signals  │
-   │ board (blocks │   │ (this folder) │   │ (2nd ESP)     │
-   │ + PCA points) │   │               │   │               │
-   └───────────────┘   └───────────────┘   └───────────────┘
-```
+The example pin is GPIO23, inverted, with the internal pull-up on. Wiring is the same kind of current-detector output as a Configurator block.
+
+![A GPIO detector publishes ACTIVE then INACTIVE on the EOB topic so CATS can see which end the train used.](_img/eob.svg)
+
+Example topic: `trains/track/sensor/Kiama/Up XOver/EOB`.
 
 ---
 
-## Brief notes
+## Ground throws
 
-### End of block
+Some points are moved by hand. Two microswitches (pull-up, inverted, 250 ms debounce) report the lever: GPIO17 publishes `CLOSED`, GPIO19 publishes `THROWN`. Both messages are QoS 2 and **retained**, so JMRI still sees the lever after a broker restart.
 
-Wrong-road running needs a brief ACTIVE on an EOB topic **before** the main block sensor, so the train describer flips the right way.
+The publish is wrapped in a check. The ESP subscribes to `trains/track/signal/Berry/4` and only sends the turnout message when that text is exactly `THROWN`. Delete the `if` if you do not want that interlock.
 
-```text
-  train →  [EOB pulse]  →  [block OCCUPIED]
-                │                │
-                └──── MQTT ──────┘
-```
+![Two lever switches publish CLOSED or THROWN only when the interlocking signal topic reads THROWN.](_img/ground-throws.svg)
 
-### Ground throws
+Example turnout topic: `trains/track/turnout/Berry/Up Siding`.
 
-A microswitch on the lever publishes CLOSED/THROWN. Optional check: refuse the move while a signal is cleared.
+---
 
-```text
-  lever ──GPIO──► ESP ──MQTT──► JMRI turnout
-                     ▲
-                     └── optional signal lever topic
-```
+## Bell codes
 
-### Bell codes
+Any payload on a bell topic plays one file on a DFPlayer Mini. UART is 9600 baud, TX GPIO1, RX GPIO3. Files on the card are `/mp3/0001.mp3` and so on. The YAML maps:
 
-CATS/JMRI (or another ESP) publishes a topic; the DFPlayer plays the matching MP3 (departure, arrival, staff action, and so on).
+| Topic | File | Meaning in the comments |
+|---|---|---|
+| `trains/staff/bellCode/2` | 4 | departure |
+| `trains/staff/bellCode/3` | 5 | arrival |
+| `trains/staff/bellCode/3-2-1` | 6 | train waiting / staff action |
 
-### Staff machine
+![A panel topic reaches the ESP, which plays one MP3 on the DFPlayer.](_img/bellcodes.svg)
 
-Scan an RFID token to issue authority on a single track; scan again to return it. MQTT tells CATS the section is locked or free. Optional DFPlayer/LED for feedback.
+The staff machine also publishes `trains/staff/bellCode/3-2-1` when a token is issued or a digital lockout starts.
 
-### WLED signals
+---
 
-The layout ESP talks UART to a second board running [WLED](https://kno.wled.ge). CATS mast aspects become LED colours on WS2812B heads. Hardware notes: https://illawarraline.net/signals-for-the-illawarra-line/
+## Staff machine
+
+One RC522 reader stands for a single-line staff. SPI is clock GPIO14, MOSI GPIO13, MISO GPIO27, chip-select GPIO22. Only IDs in `valid_tokens` do anything. An unknown card is logged and ignored.
+
+First scan of a valid token: publish `trains/staff/bellCode/3-2-1` as `ACTIVE`, play DFPlayer file 2, then set `trains/staff/nowra-berry` to the token id (`retain: true`) and `trains/track/sensor/nowra-berry` to `ACTIVE`. Scanning that same token again plays file 3, clears the staff topic (retained empty string), and publishes the sensor `INACTIVE`. Boot also clears the staff topic and publishes the sensor `INACTIVE`, so a restart does not leave a stale token.
+
+Remote lockout uses `trains/track/sensor/nowra-berry/lockOut`. `ACTIVE` is ignored if a real token is already out. Otherwise the staff payload becomes `CATS` (retained), `.../lastOut` becomes `DIGITAL`, and the section sensor flips `ACTIVE` / `INACTIVE` every second until lockout clears. UART for the DFPlayer here is TX GPIO1 and RX GPIO4 (not GPIO3, which the bell-only sample uses).
+
+![A valid RFID card issues or returns the staff topic. CATS can also lock the section without a card.](_img/staff.svg)
+
+---
+
+## WLED signals
+
+This ESP does not drive the LEDs itself. It subscribes to `trains/track/signalmast/KIA-45.26` and, for one matching string, queues a JSON frame onto a second board running [WLED](https://kno.wled.ge). UART is 115200 on TX pin 1 and RX pin 3, so USB logging is turned off (`logger` baud 0). A queued script waits if the bus is already busy, so two aspects cannot overlap on the wire.
+
+The strings this file actually handles, including the trailing `; Lit; Unheld`:
+
+| Payload | Log | LEDs (segment 0) |
+|---|---|---|
+| `R292; Lit; Unheld` | STOP | red |
+| `R285; Lit; Unheld` | CAUTION | amber |
+| `R281; Lit; Unheld` or `R282; Lit; Unheld` | PROCEED | green |
+
+The file header also mentions caution-turnout and medium-turnout aspects. Those are not in the `if` blocks, so they do nothing until you add them. Hardware notes: https://illawarraline.net/signals-for-the-illawarra-line/
+
+![A mast topic becomes one WLED JSON frame on a serial link.](_img/wled.svg)
 
 ---
 

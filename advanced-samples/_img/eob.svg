@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 280" role="img" aria-labelledby="eobTitle eobDesc">
+  <title id="eobTitle">End-of-block pulse</title>
+  <desc id="eobDesc">A GPIO detector publishes ACTIVE, holds about five seconds, then INACTIVE, on the EOB topic. CATS sees that pulse before the main block sensor.</desc>
+  <rect width="880" height="280" fill="#f4f1ea"/>
+  <rect x="16" y="16" width="848" height="248" rx="16" fill="#e7f6ef"/>
+  <text x="36" y="46" fill="#0f6e56" font-family="ui-sans-serif, system-ui, sans-serif" font-size="15" font-weight="600">Train crosses an end-of-block detector</text>
+
+  <rect x="36" y="68" width="180" height="72" rx="10" fill="#fffdf8" stroke="#0f6e56"/>
+  <text x="126" y="96" text-anchor="middle" fill="#1c1917" font-family="ui-sans-serif, system-ui, sans-serif" font-size="16" font-weight="600">Detector</text>
+  <text x="126" y="118" text-anchor="middle" fill="#57534e" font-family="ui-sans-serif, system-ui, sans-serif" font-size="13">GPIO23, pull-up</text>
+
+  <line x1="216" y1="104" x2="268" y2="104" stroke="#0f6e56" stroke-width="1.75"/>
+  <polygon points="278,104 269,99.5 269,108.5" fill="#0f6e56"/>
+
+  <rect x="286" y="68" width="200" height="72" rx="10" fill="#fffdf8" stroke="#0f6e56"/>
+  <text x="386" y="96" text-anchor="middle" fill="#1c1917" font-family="ui-sans-serif, system-ui, sans-serif" font-size="16" font-weight="600">ESP32</text>
+  <text x="386" y="118" text-anchor="middle" fill="#57534e" font-family="ui-sans-serif, system-ui, sans-serif" font-size="13">ACTIVE, then INACTIVE</text>
+
+  <line x1="486" y1="104" x2="548" y2="104" stroke="#0f6e56" stroke-width="1.75"/>
+  <polygon points="558,104 549,99.5 549,108.5" fill="#0f6e56"/>
+
+  <rect x="566" y="68" width="270" height="72" rx="10" fill="#faeeda" stroke="#854f0b"/>
+  <text x="701" y="96" text-anchor="middle" fill="#1c1917" font-family="ui-sans-serif, system-ui, sans-serif" font-size="16" font-weight="600">Mosquitto ’ CATS</text>
+  <text x="701" y="118" text-anchor="middle" fill="#57534e" font-family="ui-sans-serif, system-ui, sans-serif" font-size="13">describer sees the end</text>
+
+  <rect x="96" y="160" width="688" height="36" rx="8" fill="#fffdf8"/>
+  <text x="440" y="183" text-anchor="middle" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">trains/track/sensor/Kiama/Up XOver/EOB</text>
+
+  <text x="440" y="228" text-anchor="middle" fill="#57534e" font-family="ui-sans-serif, system-ui, sans-serif" font-size="13">delayed_off 5s holds ACTIVE. retain: false. Boot republishes INACTIVE, then the live pin.</text>
+</svg>

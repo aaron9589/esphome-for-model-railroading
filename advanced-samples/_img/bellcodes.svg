@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 280" role="img" aria-labelledby="bellTitle bellDesc">
+  <title id="bellTitle">Bell code playback</title>
+  <desc id="bellDesc">Any payload on a bell-code topic makes the ESP play a numbered MP3 on a DFPlayer over UART.</desc>
+  <rect width="880" height="280" fill="#f4f1ea"/>
+  <rect x="16" y="16" width="848" height="248" rx="16" fill="#faeeda"/>
+  <text x="36" y="46" fill="#854f0b" font-family="ui-sans-serif, system-ui, sans-serif" font-size="15" font-weight="600">CATS or JMRI rings a code</text>
+
+  <rect x="36" y="68" width="200" height="72" rx="10" fill="#fffdf8" stroke="#854f0b"/>
+  <text x="136" y="96" text-anchor="middle" fill="#1c1917" font-family="ui-sans-serif, system-ui, sans-serif" font-size="16" font-weight="600">Panel</text>
+  <text x="136" y="118" text-anchor="middle" fill="#57534e" font-family="ui-sans-serif, system-ui, sans-serif" font-size="13">publishes the topic</text>
+
+  <line x1="236" y1="104" x2="298" y2="104" stroke="#854f0b" stroke-width="1.75"/>
+  <polygon points="308,104 299,99.5 299,108.5" fill="#854f0b"/>
+
+  <rect x="316" y="68" width="200" height="72" rx="10" fill="#faeeda" stroke="#854f0b"/>
+  <text x="416" y="110" text-anchor="middle" fill="#1c1917" font-family="ui-sans-serif, system-ui, sans-serif" font-size="16" font-weight="600">Mosquitto</text>
+
+  <line x1="516" y1="104" x2="578" y2="104" stroke="#854f0b" stroke-width="1.75"/>
+  <polygon points="588,104 579,99.5 579,108.5" fill="#854f0b"/>
+
+  <rect x="596" y="68" width="240" height="72" rx="10" fill="#fffdf8" stroke="#44403c"/>
+  <text x="716" y="96" text-anchor="middle" fill="#1c1917" font-family="ui-sans-serif, system-ui, sans-serif" font-size="16" font-weight="600">ESP + DFPlayer</text>
+  <text x="716" y="118" text-anchor="middle" fill="#57534e" font-family="ui-sans-serif, system-ui, sans-serif" font-size="13">UART 9600, GPIO1 / GPIO3</text>
+
+  <rect x="56" y="160" width="768" height="80" rx="8" fill="#fffdf8"/>
+  <text x="440" y="186" text-anchor="middle" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">trains/staff/bellCode/2      ’  /mp3/0004.mp3   departure</text>
+  <text x="440" y="208" text-anchor="middle" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">trains/staff/bellCode/3      ’  /mp3/0005.mp3   arrival</text>
+  <text x="440" y="230" text-anchor="middle" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">trains/staff/bellCode/3-2-1  ’  /mp3/0006.mp3   staff action</text>
+</svg>

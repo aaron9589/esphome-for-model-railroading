@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 300" role="img" aria-labelledby="gtTitle gtDesc">
+  <title id="gtTitle">Ground throw to MQTT</title>
+  <desc id="gtDesc">Two GPIO switches report CLOSED or THROWN. The ESP publishes only when the subscribed signal lever topic is THROWN. The turnout topic is retained.</desc>
+  <rect width="880" height="300" fill="#f4f1ea"/>
+  <rect x="16" y="16" width="848" height="268" rx="16" fill="#e8f1fb"/>
+  <text x="36" y="46" fill="#185fa5" font-family="ui-sans-serif, system-ui, sans-serif" font-size="15" font-weight="600">A lever moves a ground throw</text>
+
+  <rect x="36" y="68" width="170" height="88" rx="10" fill="#fffdf8" stroke="#185fa5"/>
+  <text x="121" y="100" text-anchor="middle" fill="#1c1917" font-family="ui-sans-serif, system-ui, sans-serif" font-size="15" font-weight="600">Lever switches</text>
+  <text x="121" y="122" text-anchor="middle" fill="#57534e" font-family="ui-sans-serif, system-ui, sans-serif" font-size="12">GPIO17 closed</text>
+  <text x="121" y="140" text-anchor="middle" fill="#57534e" font-family="ui-sans-serif, system-ui, sans-serif" font-size="12">GPIO19 thrown</text>
+
+  <line x1="206" y1="112" x2="258" y2="112" stroke="#185fa5" stroke-width="1.75"/>
+  <polygon points="268,112 259,107.5 259,116.5" fill="#185fa5"/>
+
+  <rect x="276" y="68" width="190" height="88" rx="10" fill="#fffdf8" stroke="#185fa5"/>
+  <text x="371" y="100" text-anchor="middle" fill="#1c1917" font-family="ui-sans-serif, system-ui, sans-serif" font-size="15" font-weight="600">ESP32</text>
+  <text x="371" y="122" text-anchor="middle" fill="#57534e" font-family="ui-sans-serif, system-ui, sans-serif" font-size="12">publishes if lever</text>
+  <text x="371" y="140" text-anchor="middle" fill="#57534e" font-family="ui-sans-serif, system-ui, sans-serif" font-size="12">topic is THROWN</text>
+
+  <line x1="466" y1="100" x2="518" y2="100" stroke="#185fa5" stroke-width="1.75"/>
+  <polygon points="528,100 519,95.5 519,104.5" fill="#185fa5"/>
+  <text x="497" y="92" text-anchor="middle" fill="#185fa5" font-family="ui-sans-serif, system-ui, sans-serif" font-size="11">CLOSED</text>
+
+  <line x1="466" y1="128" x2="518" y2="128" stroke="#0f6e56" stroke-width="1.75"/>
+  <polygon points="528,128 519,123.5 519,132.5" fill="#0f6e56"/>
+  <text x="497" y="148" text-anchor="middle" fill="#0f6e56" font-family="ui-sans-serif, system-ui, sans-serif" font-size="11">THROWN</text>
+
+  <rect x="536" y="68" width="300" height="88" rx="10" fill="#faeeda" stroke="#854f0b"/>
+  <text x="686" y="108" text-anchor="middle" fill="#1c1917" font-family="ui-sans-serif, system-ui, sans-serif" font-size="16" font-weight="600">Mosquitto ’ JMRI</text>
+  <text x="686" y="130" text-anchor="middle" fill="#57534e" font-family="ui-sans-serif, system-ui, sans-serif" font-size="13">retain: true, qos 2</text>
+
+  <rect x="96" y="176" width="688" height="32" rx="8" fill="#fffdf8"/>
+  <text x="440" y="197" text-anchor="middle" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">trains/track/turnout/Berry/Up Siding</text>
+
+  <rect x="176" y="218" width="528" height="32" rx="8" fill="#fffdf8"/>
+  <text x="440" y="239" text-anchor="middle" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">interlock: trains/track/signal/Berry/4</text>
+</svg>

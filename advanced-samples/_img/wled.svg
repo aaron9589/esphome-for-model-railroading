@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 300" role="img" aria-labelledby="wledTitle wledDesc">
+  <title id="wledTitle">Signal mast to WLED</title>
+  <desc id="wledDesc">The signal ESP subscribes to a CATS mast topic. Stop, caution, and proceed strings become one JSON frame on a 115200 UART to WLED.</desc>
+  <rect width="880" height="300" fill="#f4f1ea"/>
+  <rect x="16" y="16" width="848" height="268" rx="16" fill="#e8f1fb"/>
+  <text x="36" y="46" fill="#185fa5" font-family="ui-sans-serif, system-ui, sans-serif" font-size="15" font-weight="600">CATS changes a signal mast</text>
+
+  <rect x="36" y="68" width="190" height="72" rx="10" fill="#fffdf8" stroke="#44403c"/>
+  <text x="131" y="96" text-anchor="middle" fill="#1c1917" font-family="ui-sans-serif, system-ui, sans-serif" font-size="16" font-weight="600">CATS / JMRI</text>
+  <text x="131" y="118" text-anchor="middle" fill="#57534e" font-family="ui-sans-serif, system-ui, sans-serif" font-size="13">mast aspect string</text>
+
+  <line x1="226" y1="104" x2="288" y2="104" stroke="#185fa5" stroke-width="1.75"/>
+  <polygon points="298,104 289,99.5 289,108.5" fill="#185fa5"/>
+
+  <rect x="306" y="68" width="180" height="72" rx="10" fill="#faeeda" stroke="#854f0b"/>
+  <text x="396" y="110" text-anchor="middle" fill="#1c1917" font-family="ui-sans-serif, system-ui, sans-serif" font-size="16" font-weight="600">Mosquitto</text>
+
+  <line x1="486" y1="104" x2="548" y2="104" stroke="#185fa5" stroke-width="1.75"/>
+  <polygon points="558,104 549,99.5 549,108.5" fill="#185fa5"/>
+
+  <rect x="566" y="68" width="270" height="72" rx="10" fill="#e8f1fb" stroke="#185fa5"/>
+  <text x="701" y="96" text-anchor="middle" fill="#1c1917" font-family="ui-sans-serif, system-ui, sans-serif" font-size="16" font-weight="600">Signal ESP</text>
+  <text x="701" y="118" text-anchor="middle" fill="#57534e" font-family="ui-sans-serif, system-ui, sans-serif" font-size="13">one JSON at a time</text>
+
+  <line x1="701" y1="140" x2="701" y2="168" stroke="#44403c" stroke-width="1.5"/>
+  <polygon points="701,178 696.5,169 705.5,169" fill="#44403c"/>
+  <text x="716" y="164" fill="#57534e" font-family="ui-sans-serif, system-ui, sans-serif" font-size="12">UART 115200</text>
+
+  <rect x="566" y="184" width="270" height="56" rx="10" fill="#f5f5f4" stroke="#78716c"/>
+  <text x="701" y="208" text-anchor="middle" fill="#1c1917" font-family="ui-sans-serif, system-ui, sans-serif" font-size="15" font-weight="600">WLED board</text>
+  <text x="701" y="226" text-anchor="middle" fill="#57534e" font-family="ui-sans-serif, system-ui, sans-serif" font-size="12">WS2812B segment 0</text>
+
+  <rect x="36" y="168" width="500" height="84" rx="8" fill="#fffdf8"/>
+  <text x="286" y="192" text-anchor="middle" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="12">trains/track/signalmast/KIA-45.26</text>
+  <text x="286" y="214" text-anchor="middle" fill="#57534e" font-family="ui-sans-serif, system-ui, sans-serif" font-size="12">R292 stop · R285 caution · R281 or R282 proceed</text>
+  <text x="286" y="234" text-anchor="middle" fill="#57534e" font-family="ui-sans-serif, system-ui, sans-serif" font-size="12">each must end with ; Lit; Unheld</text>
+</svg>
