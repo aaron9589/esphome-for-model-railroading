@@ -117,10 +117,14 @@ function Offer-Configurator([string]$LanIp = '') {
 }
 
 function Update-MosquittoConf {
-    param([string]$Path)
+    param(
+        [string]$Path,
+        [string]$PersistDir
+    )
     $dir = Split-Path $Path -Parent
     if (-not (Test-Path $dir)) { New-Item -ItemType Directory -Path $dir -Force | Out-Null }
     if (-not (Test-Path $Path)) { New-Item -ItemType File -Path $Path -Force | Out-Null }
+    if (-not (Test-Path $PersistDir)) { New-Item -ItemType Directory -Path $PersistDir -Force | Out-Null }
     Copy-Item -Path $Path -Destination "$Path.esphome-mr-backup" -Force
     Write-Info "Backed up config to $Path.esphome-mr-backup"
 
@@ -135,6 +139,10 @@ function Update-MosquittoConf {
             continue
         }
         if ($trim -match '^(allow_anonymous|bind_address)\s+') {
+            $cleaned.Add("# $line  # disabled by esphome-for-model-railroading setup")
+            continue
+        }
+        if ($trim -match '^(persistence|persistence_location|autosave_interval)\s+') {
             $cleaned.Add("# $line  # disabled by esphome-for-model-railroading setup")
             continue
         }
@@ -156,9 +164,16 @@ function Update-MosquittoConf {
         }
     }
 
+    # Mosquitto wants a directory path with a trailing separator; use forward slashes for spaces.
+    $persistConf = ($PersistDir.TrimEnd('\', '/') + '/').Replace('\', '/')
     $block = @($MarkerBegin, 'allow_anonymous true')
     if (-not $hasLanListener) { $block += 'listener 1883' }
-    $block += $MarkerEnd
+    $block += @(
+        'persistence true',
+        "persistence_location $persistConf",
+        'autosave_interval 60',
+        $MarkerEnd
+    )
     $body = ($cleaned -join "`r`n").TrimEnd()
     $text = $body + "`r`n`r`n" + ($block -join "`r`n") + "`r`n"
     Set-Content -Path $Path -Value $text -Encoding ascii
@@ -445,8 +460,10 @@ try {
     }
 
     $conf = Join-Path ${env:ProgramFiles} 'mosquitto\mosquitto.conf'
-    Update-MosquittoConf -Path $conf
+    $persistDir = Join-Path $env:ProgramData 'mosquitto'
+    Update-MosquittoConf -Path $conf -PersistDir $persistDir
     Write-Ok 'Mosquitto will accept connections on port 1883 with no username (home network)'
+    Write-Ok "Mosquitto will keep retained messages across broker restarts ($persistDir)"
 
     $service = Get-Service -Name mosquitto -ErrorAction SilentlyContinue
     if (-not $service) {
@@ -457,11 +474,14 @@ try {
     $service = Get-Service -Name mosquitto -ErrorAction SilentlyContinue
     if (-not $service) { throw 'The Mosquitto service was not created. Install Mosquitto from the downloaded exe and include the Service component.' }
 
+    Write-Info 'Setting Mosquitto to Automatic start...'
+    Set-Service -Name mosquitto -StartupType Automatic
     if ($service.Status -eq 'Running') {
         Restart-Service mosquitto -Force
     } else {
         Start-Service mosquitto
     }
+    $service.Refresh()
     $service.WaitForStatus('Running', '00:00:20')
     Write-Ok 'Mosquitto service is running'
 
@@ -514,6 +534,23 @@ try {
     } else {
         Write-Ok 'Firewall rule already exists'
     }
+
+    Write-Info 'Postflight: checking Mosquitto is running and set to Automatic start...'
+    Set-Service -Name mosquitto -StartupType Automatic
+    $service = Get-Service -Name mosquitto -ErrorAction Stop
+    if ($service.Status -ne 'Running') {
+        Start-Service mosquitto
+        $service.WaitForStatus('Running', '00:00:20')
+    }
+    $service.Refresh()
+    if ($service.Status -ne 'Running') {
+        throw 'Mosquitto service is not running after postflight start.'
+    }
+    $startMode = (Get-CimInstance Win32_Service -Filter "Name='mosquitto'").StartMode
+    if ($startMode -ne 'Auto') {
+        throw "Mosquitto start mode is '$startMode', expected Automatic. Run: Set-Service mosquitto -StartupType Automatic"
+    }
+    Write-Ok 'Mosquitto is running and set to Automatic start'
 
     Write-Step '3/7  ESPHome Device Builder'
     Write-Info 'Asking GitHub for the latest official desktop app...'

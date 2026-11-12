@@ -366,7 +366,8 @@ else
 fi
 
 CONF="$(brew --prefix)/etc/mosquitto/mosquitto.conf"
-mkdir -p "$(dirname "$CONF")"
+PERSIST_DIR="$(brew --prefix)/var/mosquitto"
+mkdir -p "$(dirname "$CONF")" "$PERSIST_DIR"
 if [[ ! -f "$CONF" ]]; then
   info "No config file yet. Creating $CONF"
   touch "$CONF"
@@ -376,10 +377,12 @@ BACKUP="${CONF}.esphome-mr-backup"
 cp -p "$CONF" "$BACKUP"
 info "Backed up config to $BACKUP"
 
-python3 - "$CONF" "$MARKER_BEGIN" "$MARKER_END" <<'PY'
+# Keep a trailing slash — Mosquitto expects a directory path here.
+PERSIST_DIR_CONF="${PERSIST_DIR%/}/"
+python3 - "$CONF" "$MARKER_BEGIN" "$MARKER_END" "$PERSIST_DIR_CONF" <<'PY'
 import sys
 from pathlib import Path
-path, begin, end = sys.argv[1:]
+path, begin, end, persist_dir = sys.argv[1:]
 text = Path(path).read_text(encoding="utf-8", errors="replace")
 lines = text.splitlines()
 cleaned = []
@@ -394,6 +397,9 @@ for line in lines:
         continue
     stripped = line.strip()
     if stripped.startswith("allow_anonymous ") or stripped.startswith("bind_address "):
+        cleaned.append("# " + line + "  # disabled by esphome-for-model-railroading setup")
+        continue
+    if stripped.startswith("persistence ") or stripped.startswith("persistence_location ") or stripped.startswith("autosave_interval "):
         cleaned.append("# " + line + "  # disabled by esphome-for-model-railroading setup")
         continue
     if stripped.startswith("listener ") and "127.0.0.1" in stripped:
@@ -415,12 +421,18 @@ for line in cleaned:
 block = [begin, "allow_anonymous true"]
 if not has_lan_listener:
     block.append("listener 1883")
-block.append(end)
+block.extend([
+    "persistence true",
+    f"persistence_location {persist_dir}",
+    "autosave_interval 60",
+    end,
+])
 out = joined.rstrip() + "\n\n" + "\n".join(block) + "\n"
 Path(path).write_text(out, encoding="utf-8")
 print("lan_listener_added" if not has_lan_listener else "lan_listener_kept")
 PY
 ok "Mosquitto will accept connections on port 1883 with no username (home network)"
+ok "Mosquitto will keep retained messages across broker restarts ($PERSIST_DIR_CONF)"
 
 info "Starting Mosquitto so it comes back after a reboot..."
 brew services restart mosquitto
@@ -481,6 +493,52 @@ if echo "$FW_STATE" | grep -qi "enabled"; then
 else
   ok "macOS firewall is off, so boards can reach port 1883"
 fi
+
+info "Postflight: checking Mosquitto is running and set to start at login..."
+brew services start mosquitto >/dev/null
+sleep 1
+MOSQ_SVC_JSON="$(brew services info mosquitto --json 2>/dev/null || true)"
+MOSQ_SVC_STATE="$(MOSQ_SVC_JSON="$MOSQ_SVC_JSON" python3 - <<'PY'
+import json, os, sys
+raw = os.environ.get("MOSQ_SVC_JSON", "").strip()
+if not raw:
+    print("missing")
+    raise SystemExit(0)
+data = json.loads(raw)
+info = data[0] if isinstance(data, list) and data else data
+running = bool(info.get("running"))
+loaded = bool(info.get("loaded") or info.get("registered"))
+if running and loaded:
+    print("ok")
+elif running and not loaded:
+    print("running_not_autostart")
+elif loaded and not running:
+    print("autostart_not_running")
+else:
+    print("down")
+PY
+)"
+case "$MOSQ_SVC_STATE" in
+  ok)
+    ok "Mosquitto is running and will start again when you log in"
+    ;;
+  running_not_autostart)
+    warn "Mosquitto is running now, but brew did not register it for login. Trying again..."
+    brew services restart mosquitto >/dev/null
+    sleep 2
+    if brew services info mosquitto --json 2>/dev/null | python3 -c 'import json,sys; i=json.load(sys.stdin); i=i[0] if isinstance(i,list) else i; raise SystemExit(0 if (i.get("running") and (i.get("loaded") or i.get("registered"))) else 1)'; then
+      ok "Mosquitto is running and will start again when you log in"
+    else
+      die "Mosquitto is running but not set to auto-start. Run: brew services start mosquitto"
+    fi
+    ;;
+  autostart_not_running)
+    die "Mosquitto is set to auto-start but is not running. Look at: brew services info mosquitto"
+    ;;
+  *)
+    die "Mosquitto service check failed. Look at: brew services info mosquitto"
+    ;;
+esac
 
 step "4/8  ESPHome Device Builder"
 info "Asking GitHub for the latest official desktop app..."

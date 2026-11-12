@@ -17,7 +17,7 @@ The commands below are the same ones as in the [README](../README.md). They are 
 
 ## One command
 
-The script asks you to **Install** or **Uninstall**. Install sets up ESPHome Device Builder, Mosquitto, and MQTTX, opens port 1883 on a home network (no MQTT username), checks that publish/subscribe works, and launches the dashboard plus MQTTX. At the end it offers to open the [Board Configurator](https://aaron9589.github.io/esphome-for-model-railroading/) in your browser (press Enter, or type `n` to skip). In MQTTX connect to `127.0.0.1` port `1883` with no username. Uninstall removes those three and leaves Homebrew (Mac) and your board files in place. It is safe to run again. It prints every step and saves a log.
+The script asks you to **Install** or **Uninstall**. Install sets up ESPHome Device Builder, Mosquitto, and MQTTX, opens port 1883 on a home network (no MQTT username), turns on Mosquitto persistence (retained messages survive a broker restart), checks that the broker is running and set to auto-start, checks that publish/subscribe works, and launches the dashboard plus MQTTX. At the end it offers to open the [Board Configurator](https://aaron9589.github.io/esphome-for-model-railroading/) in your browser (press Enter, or type `n` to skip). In MQTTX connect to `127.0.0.1` port `1883` with no username. Uninstall removes those three and leaves Homebrew (Mac) and your board files in place. It is safe to run again. It prints every step and saves a log.
 
 It does **not** put your Wi-Fi password anywhere. You still paste a Configurator `board.yaml` afterwards.
 
@@ -152,6 +152,8 @@ If macOS asks to allow incoming connections for `mosquitto`, allow them. Otherwi
 ### Why those two lines
 
 Mosquitto 2 only listens on this computer until you set `listener 1883`. `allow_anonymous true` matches the beginner YAML from the Configurator, which connects with no MQTT username or password. Use this only on a home network you trust. If you add a username later, put the same username and password in the board YAML and in JMRI.
+
+The install script also sets `persistence true` so retained MQTT messages survive a Mosquitto restart (JMRI can keep turnout state that way). It checks the broker is running and set to start automatically (Homebrew services on Mac, Automatic Windows service on PC).
 
 ### Check that it works
 
