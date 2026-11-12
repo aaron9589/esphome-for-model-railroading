@@ -50,7 +50,7 @@ Windows — PowerShell. You do not need to start it as administrator. The script
 irm https://raw.githubusercontent.com/aaron9589/esphome-for-model-railroading/main/scripts/install-windows.ps1 -OutFile "$env:TEMP\esphome-mr-setup.ps1"; Start-Process powershell -Verb RunAs -Wait -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$env:TEMP\esphome-mr-setup.ps1`""
 ```
 
-Type `1` to install. The click-by-click version is [installing-esphome-cheatsheet.md](docs/installing-esphome-cheatsheet.md).
+Type `1` to install. If something fails later, see **If Something Fails** in [first-board-setup-guide.md](docs/first-board-setup-guide.md).
 
 ### 2. Build `board.yaml`
 
@@ -73,9 +73,11 @@ Wiring, detector tuning, how points remember their positions, and the layout thi
 | If you want… | Go here |
 |---|---|
 | The detector schematic and how to tune a block | [How the boards work](docs/README.md) |
+| Flash and MQTT smoke test | [first-board-setup-guide.md](docs/first-board-setup-guide.md) |
 | Advanced layout patterns (not Configurator YAML) | [advanced-samples/](advanced-samples/) |
-| Install without the script | [installing-esphome-cheatsheet.md](docs/installing-esphome-cheatsheet.md) |
 
-Signals are not in the configurator. They use WLED on a second ESP. That sample is [wled_signal.yaml](advanced-samples/wled_signal.yaml).
+Signals, staff tokens, bell codes, end-of-block pulses, and hand throws are not in the configurator. The diagrams and the YAML are in [advanced-samples](advanced-samples/README.md).
+
+![End-of-block sensors, ground throws, bell codes, a staff machine, and a signal ESP all talk MQTT to Mosquitto, JMRI, and CATS.](_img/advanced-overview.svg)
 
 Open an issue if you get stuck. I’ll help where I can.

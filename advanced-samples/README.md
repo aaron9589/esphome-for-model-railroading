@@ -4,7 +4,7 @@ These YAML files are **not** Board Configurator compatible. They are patterns fr
 
 For a first board, use the [Board Configurator](https://aaron9589.github.io/esphome-for-model-railroading/). Ordinary blocks and points live there. Copy ideas from these files into your own ESPHome config. Import in the Configurator will not understand them.
 
-![End-of-block sensors, ground throws, bell codes, a staff machine, and a signal ESP all talk MQTT to Mosquitto, JMRI, and CATS. A sample board config is the shell those fragments hang off.](_img/overview.svg)
+![End-of-block sensors, ground throws, bell codes, a staff machine, and a signal ESP all talk MQTT to Mosquitto, JMRI, and CATS. A sample board config is the shell those fragments hang off.](../_img/advanced-overview.svg)
 
 `sample_board_config.yaml` is the shell: ESP32, Wi-Fi and MQTT from ESPHome secrets, a 3–10 second random boot delay, and commented `packages:` lines. Copy a fragment into a `modules/` folder next to it and uncomment the matching line. The topics below are the ones written in the files (Illawarra names). Change the substitutions to match your panel.
 
@@ -25,7 +25,7 @@ Wrong-road running needs CATS to see which end of the block the train entered. T
 
 The example pin is GPIO23, inverted, with the internal pull-up on. Wiring is the same kind of current-detector output as a Configurator block.
 
-![A GPIO detector publishes ACTIVE then INACTIVE on the EOB topic so CATS can see which end the train used.](_img/eob.svg)
+![A GPIO detector publishes ACTIVE then INACTIVE on the EOB topic so CATS can see which end the train used.](../_img/advanced-eob.svg)
 
 Example topic: `trains/track/sensor/Kiama/Up XOver/EOB`.
 
@@ -37,7 +37,7 @@ Some points are moved by hand. Two microswitches (pull-up, inverted, 250 ms debo
 
 The publish is wrapped in a check. The ESP subscribes to `trains/track/signal/Berry/4` and only sends the turnout message when that text is exactly `THROWN`. Delete the `if` if you do not want that interlock.
 
-![Two lever switches publish CLOSED or THROWN only when the interlocking signal topic reads THROWN.](_img/ground-throws.svg)
+![Two lever switches publish CLOSED or THROWN only when the interlocking signal topic reads THROWN.](../_img/advanced-ground-throws.svg)
 
 Example turnout topic: `trains/track/turnout/Berry/Up Siding`.
 
@@ -53,7 +53,7 @@ Any payload on a bell topic plays one file on a DFPlayer Mini. UART is 9600 baud
 | `trains/staff/bellCode/3` | 5 | arrival |
 | `trains/staff/bellCode/3-2-1` | 6 | train waiting / staff action |
 
-![A panel topic reaches the ESP, which plays one MP3 on the DFPlayer.](_img/bellcodes.svg)
+![A panel topic reaches the ESP, which plays one MP3 on the DFPlayer.](../_img/advanced-bellcodes.svg)
 
 The staff machine also publishes `trains/staff/bellCode/3-2-1` when a token is issued or a digital lockout starts.
 
@@ -67,7 +67,7 @@ First scan of a valid token: publish `trains/staff/bellCode/3-2-1` as `ACTIVE`, 
 
 Remote lockout uses `trains/track/sensor/nowra-berry/lockOut`. `ACTIVE` is ignored if a real token is already out. Otherwise the staff payload becomes `CATS` (retained), `.../lastOut` becomes `DIGITAL`, and the section sensor flips `ACTIVE` / `INACTIVE` every second until lockout clears. UART for the DFPlayer here is TX GPIO1 and RX GPIO4 (not GPIO3, which the bell-only sample uses).
 
-![A valid RFID card issues or returns the staff topic. CATS can also lock the section without a card.](_img/staff.svg)
+![A valid RFID card issues or returns the staff topic. CATS can also lock the section without a card.](../_img/advanced-staff.svg)
 
 ---
 
@@ -85,7 +85,7 @@ The strings this file actually handles, including the trailing `; Lit; Unheld`:
 
 The file header also mentions caution-turnout and medium-turnout aspects. Those are not in the `if` blocks, so they do nothing until you add them. Hardware notes: https://illawarraline.net/signals-for-the-illawarra-line/
 
-![A mast topic becomes one WLED JSON frame on a serial link.](_img/wled.svg)
+![A mast topic becomes one WLED JSON frame on a serial link.](../_img/advanced-wled.svg)
 
 ---
 

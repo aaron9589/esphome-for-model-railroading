@@ -21,8 +21,7 @@ This repo is a beginner path for model-railroad ESP32 boards that talk to JMRI/C
 | `README.md` | Start here: parts, install one-liners, configurator, first flash |
 | `scripts/install-mac.sh` | Mac setup: ESPHome Device Builder, Mosquitto, MQTTX, then Configurator prompt |
 | `scripts/install-windows.ps1` | Same for Windows 10/11 |
-| `docs/installing-esphome-cheatsheet.md` | Same install by hand, plus failure checks |
-| `docs/first-board-setup-guide.md` | Paste Configurator YAML, USB flash, MQTT smoke test |
+| `docs/first-board-setup-guide.md` | Paste Configurator YAML, USB flash, MQTT smoke test, failure checks |
 | `docs/jmri-mqtt-verification-guide.md` | JMRI sensor/turnout topics and panel checks |
 | `docs/README.md` | Detector wiring, point calibration, layout notes |
 | `configurator/` | Static GitHub Pages Board Configurator |
@@ -31,7 +30,7 @@ This repo is a beginner path for model-railroad ESP32 boards that talk to JMRI/C
 
 ## Install and MQTT
 
-- Supported install: `scripts/install-mac.sh` or `scripts/install-windows.ps1`. One-liners are in `README.md`.
+- Supported install: `scripts/install-mac.sh` or `scripts/install-windows.ps1` only. One-liners are in `README.md`. Do not maintain a parallel hand-install guide.
 - ESPHome is the Device Builder desktop app at http://localhost:6052. Config files live in `~/esphome` (Mac) or `%USERPROFILE%\esphome` (Windows).
 - MQTT is Mosquitto on port **1883**, anonymous, on a trusted home LAN. Setup writes `listener 1883`, `allow_anonymous true`, and `persistence true` (retained messages survive a broker restart), then checks the service is running with auto-start.
 - MQTTX is the GUI topic browser (not MQTT Explorer — Mac Gatekeeper breaks those builds). Connect to `127.0.0.1:1883` with no username to watch the local broker.
@@ -60,7 +59,7 @@ This repo is a beginner path for model-railroad ESP32 boards that talk to JMRI/C
 
 - Guides live under `docs/`. Prefer linking the existing guide over inventing new steps in chat.
 - Screenshot placeholders in the guides are intentional; do not invent fake screenshots.
-- Architecture pictures: `_img/architecture.svg`, `_img/mqtt-flow.svg`.
+- Architecture pictures: `_img/architecture.svg`, `_img/mqtt-flow.svg`. Advanced-sample pictures: `_img/advanced-*.svg`, embedded from `README.md` and `advanced-samples/README.md`.
 
 ## When something fails, check in this order
 
