@@ -4,13 +4,23 @@ These YAML files are **not** Board Configurator compatible. They are patterns fr
 
 For a first board, use the [Board Configurator](https://aaron9589.github.io/esphome-for-model-railroading/). Ordinary blocks and points live there. Copy ideas from these files into your own ESPHome config. Import in the Configurator will not understand them.
 
-![End-of-block sensors, ground throws, bell codes, a staff machine, and a signal ESP all talk MQTT to Mosquitto, JMRI, and CATS. A sample board config is the shell those fragments hang off.](../_img/advanced-overview.svg)
+![End-of-block sensors, ground throws, bell codes, a staff machine, and a signal ESP all talk MQTT to Mosquitto, JMRI, and CATS. Pull the ones you need in as ESPHome packages.](../_img/advanced-overview.svg)
 
-`sample_board_config.yaml` is the shell: ESP32, Wi-Fi and MQTT from ESPHome secrets, a 3–10 second random boot delay, and commented `packages:` lines. Copy a fragment into a `modules/` folder next to it and uncomment the matching line. The topics below are the ones written in the files (Illawarra names). Change the substitutions to match your panel.
+Keep these off the Configurator board. Add only the files you need as ESPHome packages on a separate device, so each job stays in its own file:
+
+```yaml
+packages:
+  eob: !include end_of_block.yaml
+  bells: !include bellcodes.yaml
+  staff: !include staff_machine.yaml
+  throws: !include ground_throws.yaml
+  signals: !include wled_signal.yaml
+```
+
+The topics below are the ones written in the files (Illawarra names). Change the substitutions to match your panel.
 
 | File | What the YAML actually does |
 |---|---|
-| [sample_board_config.yaml](sample_board_config.yaml) | Board shell and package list |
 | [end_of_block.yaml](end_of_block.yaml) | Short occupancy pulse on an `/EOB` sensor topic |
 | [ground_throws.yaml](ground_throws.yaml) | Lever switches publish a retained turnout topic |
 | [bellcodes.yaml](bellcodes.yaml) | Bell-code topics play numbered MP3s |
