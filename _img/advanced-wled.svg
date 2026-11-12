@@ -32,6 +32,6 @@
 
   <rect x="36" y="168" width="500" height="84" rx="8" fill="#fffdf8"/>
   <text x="286" y="192" text-anchor="middle" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="12">trains/track/signalmast/KIA-45.26</text>
-  <text x="286" y="214" text-anchor="middle" fill="#57534e" font-family="ui-sans-serif, system-ui, sans-serif" font-size="12">R292 stop · R285 caution · R281 or R282 proceed</text>
-  <text x="286" y="234" text-anchor="middle" fill="#57534e" font-family="ui-sans-serif, system-ui, sans-serif" font-size="12">each must end with ; Lit; Unheld</text>
+  <text x="286" y="214" text-anchor="middle" fill="#57534e" font-family="ui-sans-serif, system-ui, sans-serif" font-size="12">R292 stop / R285 caution / R281 or R282 proceed</text>
+  <text x="286" y="234" text-anchor="middle" fill="#57534e" font-family="ui-sans-serif, system-ui, sans-serif" font-size="12">each must end with &quot;; Lit; Unheld&quot;</text>
 </svg>

@@ -22,7 +22,7 @@
   <polygon points="558,112 549,107.5 549,116.5" fill="#854f0b"/>
 
   <rect x="566" y="68" width="270" height="88" rx="10" fill="#faeeda" stroke="#854f0b"/>
-  <text x="701" y="100" text-anchor="middle" fill="#1c1917" font-family="ui-sans-serif, system-ui, sans-serif" font-size="15" font-weight="600">Mosquitto ’ CATS</text>
+  <text x="701" y="100" text-anchor="middle" fill="#1c1917" font-family="ui-sans-serif, system-ui, sans-serif" font-size="15" font-weight="600">Mosquitto to CATS</text>
   <text x="701" y="122" text-anchor="middle" fill="#57534e" font-family="ui-sans-serif, system-ui, sans-serif" font-size="12">token id is retained</text>
   <text x="701" y="140" text-anchor="middle" fill="#57534e" font-family="ui-sans-serif, system-ui, sans-serif" font-size="12">sensor is not</text>
 

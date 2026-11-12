@@ -23,7 +23,7 @@
   <text x="716" y="118" text-anchor="middle" fill="#57534e" font-family="ui-sans-serif, system-ui, sans-serif" font-size="13">UART 9600, GPIO1 / GPIO3</text>
 
   <rect x="56" y="160" width="768" height="80" rx="8" fill="#fffdf8"/>
-  <text x="440" y="186" text-anchor="middle" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">trains/staff/bellCode/2      ’  /mp3/0004.mp3   departure</text>
-  <text x="440" y="208" text-anchor="middle" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">trains/staff/bellCode/3      ’  /mp3/0005.mp3   arrival</text>
-  <text x="440" y="230" text-anchor="middle" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">trains/staff/bellCode/3-2-1  ’  /mp3/0006.mp3   staff action</text>
+  <text x="440" y="186" text-anchor="middle" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">trains/staff/bellCode/2      ->  /mp3/0004.mp3   departure</text>
+  <text x="440" y="208" text-anchor="middle" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">trains/staff/bellCode/3      ->  /mp3/0005.mp3   arrival</text>
+  <text x="440" y="230" text-anchor="middle" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">trains/staff/bellCode/3-2-1  ->  /mp3/0006.mp3   staff action</text>
 </svg>
