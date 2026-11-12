@@ -17,17 +17,17 @@ The manual steps are below. If you want the script to do the install, use one co
 
 ## One command
 
-The script installs ESPHome Device Builder and Mosquitto, opens port 1883 on a home network (no MQTT username), checks that publish/subscribe works, and launches the dashboard. It is safe to run again. It prints every step and saves a log.
+The script asks you to **Install** or **Uninstall**. Install sets up ESPHome Device Builder and Mosquitto, opens port 1883 on a home network (no MQTT username), checks that publish/subscribe works, and launches the dashboard. Uninstall removes those two and leaves Homebrew (Mac) and your board files in place. It is safe to run again. It prints every step and saves a log.
 
 It does **not** put your Wi-Fi password anywhere. You still paste a Configurator `board.yaml` afterwards.
 
 **Mac** — open Terminal and paste:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/aaron9589/esphome-for-model-railroading/doc-improvements/scripts/install-mac.sh | bash
+curl -fsSL https://raw.githubusercontent.com/aaron9589/esphome-for-model-railroading/doc-improvements/scripts/install-mac.sh -o /tmp/esphome-mr-setup.sh && bash /tmp/esphome-mr-setup.sh
 ```
 
-It will ask for your Mac login password when Homebrew or the firewall needs it. If a popup asks to install command line tools, click Install, wait until that finishes, then paste the command again.
+It asks you to type 1 (install), 2 (uninstall), or 3 (quit). Uninstall then asks you to type `uninstall`. It will ask for your Mac login password when Homebrew or the firewall needs it. If a popup asks to install command line tools, click Install, wait until that finishes, then paste the command again.
 
 **Windows** — open PowerShell (you do not need to right-click Run as administrator) and paste:
 
@@ -35,7 +35,7 @@ It will ask for your Mac login password when Homebrew or the firewall needs it. 
 irm https://raw.githubusercontent.com/aaron9589/esphome-for-model-railroading/doc-improvements/scripts/install-windows.ps1 -OutFile "$env:TEMP\esphome-mr-setup.ps1"; Start-Process powershell -Verb RunAs -Wait -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$env:TEMP\esphome-mr-setup.ps1`""
 ```
 
-Approve the User Account Control prompt. Leave the blue window open until it says setup finished, then press Enter.
+Approve the User Account Control prompt. In the blue window, type 1 (install), 2 (uninstall), or 3 (quit). Uninstall then asks you to type `uninstall`. Leave that window open until it finishes, then press Enter.
 
 Logs:
 - Mac: `~/Library/Logs/esphome-mr-setup.log`
