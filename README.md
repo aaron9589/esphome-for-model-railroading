@@ -28,15 +28,15 @@ A block publishes `ACTIVE` or `INACTIVE`. Leaving the block publishes `INACTIVE`
 **On the computer**
 
 - Windows 10/11, or a Mac
-- ESPHome Device Builder, Mosquitto, and MQTT Explorer, from the install script below
+- ESPHome Device Builder, Mosquitto, and MQTTX, from the install script below
 - 2.4 GHz Wi-Fi with DHCP (these boards cannot use 5 GHz)
 - Chrome or Edge for the first USB flash
 
 ## Start here
 
-### 1. Install ESPHome, Mosquitto, and MQTT Explorer
+### 1. Install ESPHome, Mosquitto, and MQTTX
 
-The script asks install or uninstall. Install opens the ESPHome dashboard and MQTT Explorer when it finishes. In MQTT Explorer connect to `127.0.0.1` port `1883` (no username) to watch Mosquitto traffic.
+The script asks install or uninstall. Install opens the ESPHome dashboard and MQTTX when it finishes, then offers to open the Board Configurator in your browser. In MQTTX connect to `127.0.0.1` port `1883` (no username) to watch Mosquitto traffic.
 
 Mac — Terminal:
 

@@ -1,4 +1,4 @@
-# ESPHome Device Builder + Mosquitto + MQTT Explorer setup for Windows 10/11.
+# ESPHome Device Builder + Mosquitto + MQTTX setup for Windows 10/11.
 # Anonymous MQTT on port 1883 is for a trusted home network only.
 # Re-running this script is safe: it skips what is already in place.
 #
@@ -14,6 +14,7 @@ $FirewallName = 'Mosquitto MQTT 1883 (ESPHome model railroad)'
 $MinFreeGb = 8
 $Log = Join-Path $env:USERPROFILE 'esphome-mr-setup.log'
 $DownloadDir = Join-Path $env:USERPROFILE 'esphome-mr-installers'
+$ConfiguratorUrl = 'https://aaron9589.github.io/esphome-for-model-railroading/'
 
 function Test-IsAdmin {
     $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
@@ -91,6 +92,28 @@ function Write-Kv([string]$Label, [string]$Value) {
     $pad = if ($Label.Length -lt 14) { ' ' * (14 - $Label.Length) } else { '' }
     Write-Host -NoNewline "  $Label$pad" -ForegroundColor DarkGray
     Write-Host " $Value" -ForegroundColor Gray
+}
+
+function Offer-Configurator([string]$LanIp = '') {
+    Write-Step 'Next: Board Configurator'
+    Write-Host '  Your PC is ready. Next you build board.yaml in the Board Configurator.' -ForegroundColor Gray
+    if ($LanIp) {
+        Write-Info "When the form asks for the MQTT broker IP, use $LanIp."
+    } else {
+        Write-Info 'When the form asks for the MQTT broker IP, use this PC''s LAN address (from ipconfig).'
+    }
+    Write-Host ''
+    Write-Host '  Press Enter to open the Configurator in your browser' -ForegroundColor White
+    Write-Host '  (or type n then Enter to skip)' -ForegroundColor DarkGray
+    Write-Host ''
+    $ans = Read-Host '  >'
+    if ($ans -in @('n', 'N', 'q', 'Q', 'no', 'No')) {
+        Write-Info "Skipped. Open later: $ConfiguratorUrl"
+    } else {
+        Start-Process $ConfiguratorUrl
+        Write-Ok 'Opened Board Configurator'
+        Write-Info 'Click My first board, fill Wi-Fi and the MQTT broker IP, then Download board.yaml.'
+    }
 }
 
 function Update-MosquittoConf {
@@ -182,7 +205,7 @@ function Select-SetupAction {
     Write-Host ''
     Write-Host -NoNewline '  [ 1 ]  ' -ForegroundColor Green
     Write-Host -NoNewline 'Install    ' -ForegroundColor White
-    Write-Host 'ESPHome, Mosquitto, and MQTT Explorer' -ForegroundColor Gray
+    Write-Host 'ESPHome, Mosquitto, and MQTTX' -ForegroundColor Gray
     Write-Host -NoNewline '  [ 2 ]  ' -ForegroundColor Yellow
     Write-Host -NoNewline 'Uninstall  ' -ForegroundColor White
     Write-Host 'those three (keeps your board files)' -ForegroundColor Gray
@@ -231,33 +254,31 @@ function Invoke-SilentUninstall($Entry) {
     return $true
 }
 
-function Get-LatestMqttExplorerUrl {
-    Write-Info 'Asking GitHub for MQTT Explorer (topic browser for Mosquitto)...'
-    $releases = Invoke-RestMethod -Headers @{
+function Get-LatestMqttxUrl {
+    Write-Info 'Asking GitHub for MQTTX (topic browser for Mosquitto)...'
+    $release = Invoke-RestMethod -Headers @{
         'User-Agent' = 'esphome-for-model-railroading-setup'
         'Accept' = 'application/vnd.github+json'
-    } -Uri 'https://api.github.com/repos/thomasnordquist/MQTT-Explorer/releases?per_page=20'
-    foreach ($release in $releases) {
-        $asset = @($release.assets | Where-Object { $_.name -like 'MQTT-Explorer-Setup-*.exe' } | Select-Object -First 1)
-        if (-not $asset) {
-            $asset = @($release.assets | Where-Object { $_.name -like 'MQTT-Explorer-Setup*.exe' } | Select-Object -First 1)
-        }
-        if ($asset -and $asset.browser_download_url) {
-            $version = $release.tag_name.TrimStart('v')
-            Write-Info "Latest MQTT Explorer: $version"
-            return [pscustomobject]@{
-                Version = $version
-                Url = $asset.browser_download_url
-                Name = $asset.name
-            }
-        }
+    } -Uri 'https://api.github.com/repos/emqx/MQTTX/releases/latest'
+    $asset = @($release.assets | Where-Object { $_.name -like 'MQTTX-Setup-*-x64.exe' } | Select-Object -First 1)
+    if (-not $asset) {
+        $asset = @($release.assets | Where-Object { $_.name -eq 'MQTTX-Setup-' + $release.tag_name.TrimStart('v') + '.exe' } | Select-Object -First 1)
     }
-    throw 'Could not find an MQTT Explorer Windows installer in recent GitHub releases.'
+    if (-not $asset -or -not $asset.browser_download_url) {
+        throw 'Could not find an MQTTX Windows installer in the latest GitHub release.'
+    }
+    $version = $release.tag_name.TrimStart('v')
+    Write-Info "Latest MQTTX: $version"
+    return [pscustomobject]@{
+        Version = $version
+        Url = $asset.browser_download_url
+        Name = $asset.name
+    }
 }
 
 function Invoke-OurUninstall {
     Write-Step 'Uninstall'
-    Write-Host '  This removes ESPHome Device Builder, Mosquitto, and MQTT Explorer.' -ForegroundColor Gray
+    Write-Host '  This removes ESPHome Device Builder, Mosquitto, and MQTTX.' -ForegroundColor Gray
     Write-Info "Your board files in $env:USERPROFILE\esphome stay."
     Write-Host ''
     $confirm = Read-Host '  Type uninstall to continue'
@@ -270,6 +291,8 @@ function Invoke-OurUninstall {
         Where-Object {
             $_.ProcessName -like '*ESPHome*' -or
             $_.ProcessName -eq 'mosquitto' -or
+            $_.ProcessName -like '*MQTTX*' -or
+            $_.ProcessName -eq 'MQTTX' -or
             $_.ProcessName -like '*MQTT Explorer*' -or
             $_.ProcessName -eq 'MQTT Explorer'
         } |
@@ -313,12 +336,17 @@ function Invoke-OurUninstall {
         Write-Ok 'ESPHome Device Builder was not installed'
     }
 
-    $mqttApps = @(Get-UninstallEntries '*MQTT Explorer*')
+    $mqttApps = @(Get-UninstallEntries '*MQTTX*')
     if ($mqttApps.Count -gt 0) {
         foreach ($app in $mqttApps) { Invoke-SilentUninstall $app | Out-Null }
-        Write-Ok 'Removed MQTT Explorer'
+        Write-Ok 'Removed MQTTX'
     } else {
-        Write-Ok 'MQTT Explorer was not installed'
+        Write-Ok 'MQTTX was not installed'
+    }
+    $legacyMqtt = @(Get-UninstallEntries '*MQTT Explorer*')
+    if ($legacyMqtt.Count -gt 0) {
+        foreach ($app in $legacyMqtt) { Invoke-SilentUninstall $app | Out-Null }
+        Write-Ok 'Removed leftover MQTT Explorer'
     }
 
     Write-Step 'Done'
@@ -342,7 +370,7 @@ try {
         return
     }
 
-    Write-Host '  This installs ESPHome Device Builder, the Mosquitto MQTT broker, and MQTT Explorer.' -ForegroundColor Gray
+    Write-Host '  This installs ESPHome Device Builder, the Mosquitto MQTT broker, and MQTTX.' -ForegroundColor Gray
     Write-Step '1/7  Preflight'
     $os = Get-CimInstance Win32_OperatingSystem
     Write-Info "Windows: $($os.Caption) ($($os.Version))"
@@ -521,27 +549,32 @@ try {
         Write-Ok "Installed ESPHome Device Builder $version"
     }
 
-    Write-Step '4/7  MQTT Explorer'
-    $mqttExplorer = Get-LatestMqttExplorerUrl
-    $mqttSetup = Join-Path $DownloadDir $mqttExplorer.Name
-    $mqttAlready = @(Get-UninstallEntries '*MQTT Explorer*') | Select-Object -First 1
-    # Electron betas often report a shorter DisplayVersion than the GitHub tag, so
-    # treat "already present" as enough on re-runs. Uninstall first for a fresh copy.
-    if ($mqttAlready) {
-        Write-Ok "MQTT Explorer is already installed ($($mqttAlready.DisplayVersion)). Skipping download."
+    Write-Step '4/7  MQTTX'
+    $legacyMqtt = @(Get-UninstallEntries '*MQTT Explorer*')
+    if ($legacyMqtt.Count -gt 0) {
+        Write-Info 'Removing leftover MQTT Explorer (replaced by MQTTX)...'
+        foreach ($app in $legacyMqtt) { Invoke-SilentUninstall $app | Out-Null }
+        Write-Ok 'Removed leftover MQTT Explorer'
+    }
+    $mqttx = Get-LatestMqttxUrl
+    $mqttSetup = Join-Path $DownloadDir $mqttx.Name
+    $mqttAlready = @(Get-UninstallEntries '*MQTTX*') | Select-Object -First 1
+    if ($mqttAlready -and $mqttAlready.DisplayVersion -eq $mqttx.Version) {
+        Write-Ok "MQTTX $($mqttx.Version) is already installed. Skipping download."
     } else {
-        Write-Info "Downloading $($mqttExplorer.Url)"
-        & curl.exe -fL --retry 3 --retry-delay 2 -o $mqttSetup $mqttExplorer.Url
+        if ($mqttAlready) { Write-Info "Installed version is $($mqttAlready.DisplayVersion). Upgrading to $($mqttx.Version)." }
+        Write-Info "Downloading $($mqttx.Url)"
+        & curl.exe -fL --retry 3 --retry-delay 2 -o $mqttSetup $mqttx.Url
         if ($LASTEXITCODE -ne 0 -or -not (Test-Path $mqttSetup)) {
-            throw "MQTT Explorer download failed. URL was $($mqttExplorer.Url)"
+            throw "MQTTX download failed. URL was $($mqttx.Url)"
         }
         Unblock-File -Path $mqttSetup
-        Write-Info 'Running the MQTT Explorer installer silently...'
+        Write-Info 'Running the MQTTX installer silently...'
         $mqttInstall = Start-Process -FilePath $mqttSetup -ArgumentList '/S' -Wait -PassThru
         if ($mqttInstall.ExitCode -ne 0) {
-            throw "MQTT Explorer installer exited with code $($mqttInstall.ExitCode). Double-click $mqttSetup and finish it by hand. If Windows says it protected your PC, choose More info → Run anyway."
+            throw "MQTTX installer exited with code $($mqttInstall.ExitCode). Double-click $mqttSetup and finish it by hand. If Windows says it protected your PC, choose More info → Run anyway."
         }
-        Write-Ok "Installed MQTT Explorer $($mqttExplorer.Version)"
+        Write-Ok "Installed MQTTX $($mqttx.Version)"
     }
 
     Write-Step '5/7  Open the apps'
@@ -563,14 +596,14 @@ try {
         Write-Warn 'Could not find the ESPHome app to start it. Open "ESPHome Device Builder" from the Start menu.'
     }
 
-    Write-Info 'Launching MQTT Explorer. Connect to host 127.0.0.1 port 1883 with no username or password.'
+    Write-Info 'Launching MQTTX. Connect to host 127.0.0.1 port 1883 with no username or password.'
     $mqttLaunch = @(
-        (Join-Path $env:LOCALAPPDATA 'Programs\MQTT Explorer\MQTT Explorer.exe'),
-        (Join-Path $env:LOCALAPPDATA 'MQTT Explorer\MQTT Explorer.exe'),
-        (Join-Path ${env:ProgramFiles} 'MQTT Explorer\MQTT Explorer.exe')
+        (Join-Path $env:LOCALAPPDATA 'Programs\MQTTX\MQTTX.exe'),
+        (Join-Path $env:LOCALAPPDATA 'MQTTX\MQTTX.exe'),
+        (Join-Path ${env:ProgramFiles} 'MQTTX\MQTTX.exe')
     ) | Where-Object { Test-Path $_ } | Select-Object -First 1
     if (-not $mqttLaunch) {
-        $mqttShortcut = Get-ChildItem -Path "$env:ProgramData\Microsoft\Windows\Start Menu\Programs", "$env:APPDATA\Microsoft\Windows\Start Menu\Programs" -Filter '*MQTT Explorer*.lnk' -Recurse -ErrorAction SilentlyContinue |
+        $mqttShortcut = Get-ChildItem -Path "$env:ProgramData\Microsoft\Windows\Start Menu\Programs", "$env:APPDATA\Microsoft\Windows\Start Menu\Programs" -Filter '*MQTTX*.lnk' -Recurse -ErrorAction SilentlyContinue |
             Select-Object -First 1
         if ($mqttShortcut) { $mqttLaunch = $mqttShortcut.FullName }
     }
@@ -578,7 +611,7 @@ try {
         Start-Process -FilePath $mqttLaunch
         Write-Ok "Started $mqttLaunch"
     } else {
-        Write-Warn 'Could not find MQTT Explorer to start it. Open "MQTT Explorer" from the Start menu.'
+        Write-Warn 'Could not find MQTTX to start it. Open "MQTTX" from the Start menu.'
     }
 
     Write-Step '6/7  What you should see'
@@ -589,21 +622,22 @@ try {
     Write-Info 'Notification area: an ESPHome icon. Use Open Dashboard and Open Config Folder.'
     Write-Kv 'Config files:' "$env:USERPROFILE\esphome"
     Write-Kv 'Dashboard:' 'http://localhost:6052'
-    Write-Kv 'MQTT Explorer:' 'host 127.0.0.1   port 1883   (no username/password)'
+    Write-Kv 'MQTTX:' 'host 127.0.0.1   port 1883   (no username/password)'
     if ($lan) {
         Write-Kv 'MQTT broker:' "$($lan.IP)   port 1883   (no username/password)"
     } else {
         Write-Kv 'MQTT broker:' '(the IPv4 address from ipconfig)   port 1883'
     }
     Write-Info 'Put that LAN IP in the Configurator and in JMRI. Do not use localhost in the board YAML.'
-    Write-Info 'In MQTT Explorer, use 127.0.0.1 so you can watch topics on this PC.'
+    Write-Info 'In MQTTX, use 127.0.0.1 so you can watch topics on this PC.'
     Write-Kv 'Installers:' $DownloadDir
 
     Write-Step '7/7  Done'
     Write-Ok 'Setup finished.'
-    Write-Kv 'Next:' 'https://aaron9589.github.io/esphome-for-model-railroading/'
-    Write-Kv 'Then:' 'docs/first-board-setup-guide.md'
     Write-Kv 'Log:' $Log
+    Write-Kv 'Then:' 'docs/first-board-setup-guide.md'
+    $lanIp = if ($lan) { $lan.IP } else { '' }
+    Offer-Configurator -LanIp $lanIp
 } catch {
     $exitCode = 1
     Write-Fail $_.Exception.Message

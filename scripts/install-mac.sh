@@ -1,5 +1,5 @@
 #!/bin/bash
-# ESPHome Device Builder + Mosquitto + MQTT Explorer setup for macOS.
+# ESPHome Device Builder + Mosquitto + MQTTX setup for macOS.
 # Anonymous MQTT on port 1883 is for a trusted home network only.
 # Re-running this script is safe: it skips what is already in place.
 #
@@ -9,6 +9,7 @@
 set -euo pipefail
 
 LOG="${HOME}/Library/Logs/esphome-mr-setup.log"
+CONFIGURATOR_URL="https://aaron9589.github.io/esphome-for-model-railroading/"
 MARKER_BEGIN="# BEGIN esphome-for-model-railroading"
 MARKER_END="# END esphome-for-model-railroading"
 MIN_FREE_GB=8
@@ -99,6 +100,36 @@ kv() {
   log_file "  $1 $2"
 }
 
+offer_configurator() {
+  local lan_ip="${1:-}"
+  step "Next: Board Configurator"
+  say "Your Mac is ready. Next you build board.yaml in the Board Configurator."
+  if [[ -n "$lan_ip" ]]; then
+    info "When the form asks for the MQTT broker IP, use ${lan_ip}."
+  else
+    info "When the form asks for the MQTT broker IP, use this Mac's LAN address (System Settings → Network)."
+  fi
+  printf '\n' >&2
+  printf '  %sPress Enter%s to open the Configurator in your browser\n' "$C_BOLD" "$C_RESET" >&2
+  printf '  %s(or type n then Enter to skip)%s\n\n' "$C_MUTE" "$C_RESET" >&2
+  printf '  %s>%s ' "$C_ACCENT" "$C_RESET" >&2
+  local ans=""
+  if ! read -r ans; then
+    info "Skipped. Open later: $CONFIGURATOR_URL"
+    return
+  fi
+  case "$ans" in
+    n|N|q|Q|no|No)
+      info "Skipped. Open later: $CONFIGURATOR_URL"
+      ;;
+    *)
+      open "$CONFIGURATOR_URL" || warn "Could not open a browser. Go to: $CONFIGURATOR_URL"
+      ok "Opened Board Configurator"
+      info "Click My first board, fill Wi-Fi and the MQTT broker IP, then Download board.yaml."
+      ;;
+  esac
+}
+
 report_issue() {
   trap - ERR
   printf '\n' >&2
@@ -147,7 +178,7 @@ require_mac_user() {
 choose_action() {
   banner "macOS setup"
   printf '  %sWhat would you like to do?%s\n\n' "$C_BOLD" "$C_RESET" >&2
-  printf '  %s┌─ 1 ─┐%s  %sInstall%s    ESPHome, Mosquitto, and MQTT Explorer\n' "$C_OK" "$C_RESET" "$C_BOLD" "$C_RESET" >&2
+  printf '  %s┌─ 1 ─┐%s  %sInstall%s    ESPHome, Mosquitto, and MQTTX\n' "$C_OK" "$C_RESET" "$C_BOLD" "$C_RESET" >&2
   printf '  %s┌─ 2 ─┐%s  %sUninstall%s  those three (keeps Homebrew and board files)\n' "$C_WARN" "$C_RESET" "$C_BOLD" "$C_RESET" >&2
   printf '  %s┌─ 3 ─┐%s  Quit\n\n' "$C_MUTE" "$C_RESET" >&2
   info "A full copy of this run is saved to $LOG"
@@ -169,7 +200,7 @@ choose_action() {
 
 cmd_uninstall() {
   step "Uninstall"
-  say "This removes ESPHome Device Builder, Mosquitto, and MQTT Explorer."
+  say "This removes ESPHome Device Builder, Mosquitto, and MQTTX."
   info "Homebrew stays. Board files in ${HOME}/esphome stay."
   printf '\n  %sType uninstall to continue:%s ' "$C_BOLD" "$C_RESET" >&2
   local confirm
@@ -182,6 +213,7 @@ cmd_uninstall() {
   fi
 
   osascript -e 'quit app "ESPHome Device Builder"' >/dev/null 2>&1 || true
+  osascript -e 'quit app "MQTTX"' >/dev/null 2>&1 || true
   osascript -e 'quit app "MQTT Explorer"' >/dev/null 2>&1 || true
   if [[ -d "/Applications/ESPHome Device Builder.app" ]]; then
     info "Removing /Applications/ESPHome Device Builder.app (password prompt is normal)..."
@@ -190,15 +222,24 @@ cmd_uninstall() {
   else
     ok "ESPHome Device Builder was not in /Applications"
   fi
-  if [[ -d "/Applications/MQTT Explorer.app" ]]; then
-    info "Removing /Applications/MQTT Explorer.app (password prompt is normal)..."
-    sudo rm -rf "/Applications/MQTT Explorer.app"
-    ok "Removed MQTT Explorer"
-  else
-    ok "MQTT Explorer was not in /Applications"
-  fi
 
   load_brew
+  if command -v brew >/dev/null 2>&1 && brew list --cask mqttx >/dev/null 2>&1; then
+    brew uninstall --cask mqttx
+    ok "Removed MQTTX"
+  elif [[ -d "/Applications/MQTTX.app" ]]; then
+    info "Removing /Applications/MQTTX.app (password prompt is normal)..."
+    sudo rm -rf "/Applications/MQTTX.app"
+    ok "Removed MQTTX"
+  else
+    ok "MQTTX was not installed"
+  fi
+  if [[ -d "/Applications/MQTT Explorer.app" ]]; then
+    info "Removing leftover MQTT Explorer.app..."
+    sudo rm -rf "/Applications/MQTT Explorer.app"
+    ok "Removed leftover MQTT Explorer"
+  fi
+
   local mosq_bin=""
   if command -v brew >/dev/null 2>&1; then
     local prefix
@@ -229,7 +270,7 @@ cmd_uninstall() {
 }
 
 cmd_install() {
-say "This installs ESPHome Device Builder, the Mosquitto MQTT broker, and MQTT Explorer."
+say "This installs ESPHome Device Builder, the Mosquitto MQTT broker, and MQTTX."
 info "You may be asked for your Mac login password (the one you use to unlock the Mac)."
 
 step "1/8  Preflight"
@@ -239,12 +280,10 @@ ARCH="$(uname -m)"
 case "$ARCH" in
   arm64)
     ESPHOME_ASSET_SUFFIX="_aarch64.dmg"
-    MQTT_EXPLORER_KIND="arm64-dmg"
     ok "Apple Silicon ($ARCH)"
     ;;
   x86_64)
     ESPHOME_ASSET_SUFFIX="_x64.dmg"
-    MQTT_EXPLORER_KIND="intel-dmg"
     warn "Intel Mac. ESPHome is dropping Intel Mac support (around 2027.6). This still installs today's x64 app."
     ;;
   *) die "Unrecognised CPU architecture: $ARCH" ;;
@@ -499,83 +538,29 @@ else
   ok "Installed ESPHome Device Builder $ESPHOME_VERSION"
 fi
 
-step "5/8  MQTT Explorer"
-info "Asking GitHub for MQTT Explorer (topic browser for Mosquitto)..."
-# Prefer the newest release that ships a Mac disk image for this CPU, including betas.
-# Homebrew's mqtt-explorer cask is disabled / Intel-only, so we install from GitHub.
-MQTT_RELEASES_JSON="$(curl -fsSL -H "User-Agent: esphome-for-model-railroading-setup" -H "Accept: application/vnd.github+json" "https://api.github.com/repos/thomasnordquist/MQTT-Explorer/releases?per_page=20")"
-MQTT_PARSED="$(MQTT_RELEASES_JSON="$MQTT_RELEASES_JSON" python3 - "$MQTT_EXPLORER_KIND" <<'PY'
-import json, os, sys
-kind = sys.argv[1]
-releases = json.loads(os.environ["MQTT_RELEASES_JSON"])
-for data in releases:
-    tag = data.get("tag_name", "")
-    version = tag[1:] if tag.startswith("v") else tag
-    assets = data.get("assets", [])
-    chosen = None
-    if kind == "arm64-dmg":
-        for asset in assets:
-            name = asset.get("name", "")
-            if name.endswith("-arm64.dmg"):
-                chosen = asset
-                break
-    else:
-        for asset in assets:
-            name = asset.get("name", "")
-            if name.endswith(".dmg") and "arm64" not in name and "blockmap" not in name:
-                chosen = asset
-                break
-    if chosen and version:
-        print(version)
-        print(chosen["browser_download_url"])
-        raise SystemExit(0)
-sys.exit("Could not find an MQTT Explorer Mac disk image in recent GitHub releases.")
-PY
-)"
-MQTT_VERSION="$(printf '%s\n' "$MQTT_PARSED" | sed -n '1p')"
-MQTT_URL="$(printf '%s\n' "$MQTT_PARSED" | sed -n '2p')"
-info "Latest MQTT Explorer: $MQTT_VERSION"
-info "Download: $MQTT_URL"
-
-MQTT_APP="/Applications/MQTT Explorer.app"
-MQTT_INSTALLED=""
-if [[ -d "$MQTT_APP" ]]; then
-  MQTT_INSTALLED="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$MQTT_APP/Contents/Info.plist" 2>/dev/null || true)"
-  info "Already installed: ${MQTT_INSTALLED:-unknown}"
+step "5/8  MQTTX"
+# MQTTX is the topic browser for Mosquitto. Prefer Homebrew — MQTT Explorer's Mac
+# builds currently trip Gatekeeper ("damaged and can't be opened").
+if [[ -d "/Applications/MQTT Explorer.app" ]]; then
+  info "Removing leftover MQTT Explorer.app (replaced by MQTTX)..."
+  osascript -e 'quit app "MQTT Explorer"' >/dev/null 2>&1 || true
+  sudo rm -rf "/Applications/MQTT Explorer.app" || true
+  ok "Removed leftover MQTT Explorer"
 fi
-
-# Electron betas often report a shorter plist version than the GitHub tag, so treat
-# "already present" as enough on re-runs. Uninstall first if you want a fresh copy.
-if [[ -d "$MQTT_APP" ]]; then
-  ok "MQTT Explorer is already in Applications (${MQTT_INSTALLED:-$MQTT_VERSION}). Skipping download."
+if brew list --cask mqttx >/dev/null 2>&1 || [[ -d "/Applications/MQTTX.app" ]]; then
+  ok "MQTTX is already installed"
 else
-  WORK="$(mktemp -d)"
-  info "Downloading MQTT Explorer (about 100 MB)..."
-  curl -fL --retry 3 --retry-delay 2 -o "$WORK/MQTT-Explorer.dmg" "$MQTT_URL"
-  MOUNT="$WORK/mnt"
-  mkdir -p "$MOUNT"
-  hdiutil attach -nobrowse -readonly -mountpoint "$MOUNT" "$WORK/MQTT-Explorer.dmg" >/dev/null
-  SRC_APP="$(find "$MOUNT" -maxdepth 2 -name '*.app' -print -quit)"
-  if [[ -z "$SRC_APP" ]]; then
-    hdiutil detach "$MOUNT" >/dev/null || true
-    die "The MQTT Explorer disk image did not contain an app."
-  fi
-  info "Copying into /Applications (password prompt is normal)..."
-  sudo rm -rf "$MQTT_APP"
-  sudo ditto "$SRC_APP" "$MQTT_APP"
-  sudo chown -R "$(whoami):staff" "$MQTT_APP" || sudo chown -R "$(whoami)" "$MQTT_APP"
-  sudo xattr -dr com.apple.quarantine "$MQTT_APP" || true
-  hdiutil detach "$MOUNT" >/dev/null || true
-  rm -rf "$WORK"
-  ok "Installed MQTT Explorer $MQTT_VERSION"
+  info "Installing MQTTX with Homebrew..."
+  brew install --cask mqttx
+  ok "MQTTX installed"
 fi
 
 step "6/8  Open the apps"
 info "Launching ESPHome. The first time, it downloads its own Python and can sit there for several minutes."
 info "When it is ready it opens http://localhost:6052"
 open -a "ESPHome Device Builder" || warn "Could not launch the app. Open ESPHome Device Builder from Applications."
-info "Launching MQTT Explorer. Connect to host 127.0.0.1 port 1883 with no username or password."
-open -a "MQTT Explorer" || warn "Could not launch MQTT Explorer. Open it from Applications."
+info "Launching MQTTX. Connect to host 127.0.0.1 port 1883 with no username or password."
+open -a "MQTTX" || warn "Could not launch MQTTX. Open it from Applications."
 
 step "7/8  What you should see"
 printf '\n' >&2
@@ -585,20 +570,20 @@ printf '  %s%s└─────────────────────
 info "Menu bar: an ESPHome icon. Use Open Dashboard and Open Config Folder."
 kv "Config files:" "${HOME}/esphome"
 kv "Dashboard:" "http://localhost:6052"
-kv "MQTT Explorer:" "host 127.0.0.1   port 1883   (no username/password)"
+kv "MQTTX:" "host 127.0.0.1   port 1883   (no username/password)"
 if [[ -n "$LAN_IP" ]]; then
   kv "MQTT broker:" "${LAN_IP}   port 1883   (no username/password)"
 else
   kv "MQTT broker:" "(LAN IP from System Settings → Network)   port 1883"
 fi
 info "Put that LAN IP in the Configurator and in JMRI. Do not use localhost in the board YAML."
-info "In MQTT Explorer, use 127.0.0.1 so you can watch topics on this Mac."
+info "In MQTTX, use 127.0.0.1 so you can watch topics on this Mac."
 
 step "8/8  Done"
 ok "Setup finished."
-kv "Next:" "https://aaron9589.github.io/esphome-for-model-railroading/"
-kv "Then:" "docs/first-board-setup-guide.md"
 kv "Log:" "$LOG"
+kv "Then:" "docs/first-board-setup-guide.md"
+offer_configurator "${LAN_IP:-}"
 }
 
 require_mac_user

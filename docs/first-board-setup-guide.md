@@ -110,12 +110,12 @@ Mosquitto has no client list. Watch the broker with a subscriber on this PC.
 2. Restart the board from the ESPHome dashboard (**Restart Board**, or power-cycle it).
 3. You should see MQTT traffic from the board (sensor state and, if you have a point, a `CLOSED` message). On Windows, run `mosquitto_sub` from `C:\Program Files\mosquitto` if it is not on your PATH.
 
-[MQTT Explorer](https://mqtt-explorer.com/) shows the same traffic if you prefer a window over a terminal. Connect it to `localhost` port `1883`.
+[MQTTX](https://mqttx.app/) shows the same traffic if you prefer a window over a terminal. Connect it to `localhost` port `1883`.
 
 Success looks like:
 - Messages appear when the board boots or a block changes.
 
-> **Screenshot placeholder:** MQTT Explorer or a terminal running `mosquitto_sub -t '#' -v`, showing the board's topic after it comes online.
+> **Screenshot placeholder:** MQTTX or a terminal running `mosquitto_sub -t '#' -v`, showing the board's topic after it comes online.
 
 ---
 

@@ -5,8 +5,9 @@ This is the easiest path for a first-time layout PC. It does not use Docker, so 
 Goal:
 - Install the ESPHome Device Builder desktop app
 - Install Mosquitto (the MQTT broker JMRI and your ESP boards talk to)
-- Install MQTT Explorer so you can watch topics on the broker
+- Install MQTTX so you can watch topics on the broker
 - Confirm they are running
+- Open the Board Configurator to build `board.yaml`
 
 Creating and flashing your first board is covered in [first-board-setup-guide.md](first-board-setup-guide.md).
 
@@ -16,7 +17,7 @@ The commands below are the same ones as in the [README](../README.md). They are 
 
 ## One command
 
-The script asks you to **Install** or **Uninstall**. Install sets up ESPHome Device Builder, Mosquitto, and MQTT Explorer, opens port 1883 on a home network (no MQTT username), checks that publish/subscribe works, and launches the dashboard plus MQTT Explorer. In MQTT Explorer connect to `127.0.0.1` port `1883` with no username. Uninstall removes those three and leaves Homebrew (Mac) and your board files in place. It is safe to run again. It prints every step and saves a log.
+The script asks you to **Install** or **Uninstall**. Install sets up ESPHome Device Builder, Mosquitto, and MQTTX, opens port 1883 on a home network (no MQTT username), checks that publish/subscribe works, and launches the dashboard plus MQTTX. At the end it offers to open the [Board Configurator](https://aaron9589.github.io/esphome-for-model-railroading/) in your browser (press Enter, or type `n` to skip). In MQTTX connect to `127.0.0.1` port `1883` with no username. Uninstall removes those three and leaves Homebrew (Mac) and your board files in place. It is safe to run again. It prints every step and saves a log.
 
 It does **not** put your Wi-Fi password anywhere. You still paste a Configurator `board.yaml` afterwards.
 
@@ -179,16 +180,16 @@ Put that address in the Configurator as **MQTT broker IP** (for example `192.168
 
 ---
 
-## 3. MQTT Explorer
+## 3. MQTTX
 
-Mosquitto does not show connected clients in a browser. The install script puts [MQTT Explorer](https://mqtt-explorer.com/) on the PC for watching topics. If you installed by hand instead, download it from that site.
+Mosquitto does not show connected clients in a browser. The install script puts [MQTTX](https://mqttx.app/) on the PC for watching topics. If you installed by hand instead: Mac `brew install --cask mqttx`, or download from that site on Windows.
 
-1. Open MQTT Explorer and create a connection to `127.0.0.1` (or `localhost`) port `1883` with no username.
+1. Open MQTTX and create a connection to `127.0.0.1` (or `localhost`) port `1883` with no username.
 2. Subscribe to `#` to see every message.
 
 Use it later to confirm a board is publishing, or that JMRI and the ESP both see `THROWN`.
 
-> **Screenshot placeholder:** MQTT Explorer connected to localhost:1883, subscribed to `#`, showing a test message.
+> **Screenshot placeholder:** MQTTX connected to localhost:1883, subscribed to `#`, showing a test message.
 
 ---
 

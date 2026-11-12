@@ -5,7 +5,7 @@ Work through these in order — earlier ones set up the context for later ones.
 ## installing-esphome-cheatsheet.md
 
 - [ ] ESPHome Dashboard at http://localhost:6052 — empty, **New Device** button, menu-bar or tray icon visible
-- [ ] MQTT Explorer connected to localhost:1883, subscribed to `#`, showing a test message
+- [ ] MQTTX connected to localhost:1883, subscribed to `#`, showing a test message
 
 ## first-board-setup-guide.md
 
@@ -17,7 +17,7 @@ Work through these in order — earlier ones set up the context for later ones.
 - [ ] Chrome/Edge **Select a serial port** dialog — CP210x or CH340 port listed
 - [ ] ESPHome flash progress — 100% complete screen
 - [ ] ESPHome Dashboard — device tile showing **Online** badge + Logs panel open with boot lines
-- [ ] MQTT Explorer or `mosquitto_sub -t '#' -v` showing the board's topic after it comes online
+- [ ] MQTTX or `mosquitto_sub -t '#' -v` showing the board's topic after it comes online
 
 ## jmri-mqtt-verification-guide.md
 
@@ -28,4 +28,4 @@ Work through these in order — earlier ones set up the context for later ones.
 - [ ] JMRI Turnout Table — new entry added, State showing Unknown or Closed
 - [ ] ESPHome Logs — `THROWN (reverse)` and `CLOSED (normal)` lines as JMRI turnout toggled
 - [ ] JMRI Turnout Table — State column showing **Thrown**
-- [ ] MQTT Explorer — both MQTT messages visible: THROWN command from JMRI + THROWN state reply from ESP32
+- [ ] MQTTX — both MQTT messages visible: THROWN command from JMRI + THROWN state reply from ESP32

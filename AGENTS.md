@@ -18,7 +18,8 @@ This repo is a beginner path for model-railroad ESP32 boards that talk to JMRI/C
 - Supported install: `scripts/install-mac.sh` or `scripts/install-windows.ps1`. The one-liners are in `README.md`. `docs/installing-esphome-cheatsheet.md` is the same steps by hand.
 - ESPHome is the Device Builder desktop app at http://localhost:6052. Config files live in `~/esphome`.
 - MQTT is Mosquitto on port 1883, anonymous, on a trusted home LAN.
-- MQTT Explorer is the GUI topic browser. Connect to `127.0.0.1:1883` with no username to watch the local broker.
+- MQTTX is the GUI topic browser. Connect to `127.0.0.1:1883` with no username to watch the local broker.
+- After install, the script offers to open the Board Configurator (`https://aaron9589.github.io/esphome-for-model-railroading/`).
 - The broker address in board YAML and in JMRI is the computer's LAN IP. Never `localhost`.
 - Generated YAML needs ESPHome 2024.6.0 or newer (`ota` platform `esphome`, `min_version`).
 

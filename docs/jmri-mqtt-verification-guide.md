@@ -162,7 +162,7 @@ Kiama/Up Loop
 
 ## Optional: Verify State Feedback in Mosquitto
 
-When the ESP32 moves a turnout it publishes a confirmation back to `<topic>/State`. You can watch both messages with Mosquitto's command-line tools or [MQTT Explorer](https://mqtt-explorer.com/).
+When the ESP32 moves a turnout it publishes a confirmation back to `<topic>/State`. You can watch both messages with Mosquitto's command-line tools or [MQTTX](https://mqttx.app/).
 
 1. Subscribe to every topic:
 
@@ -170,14 +170,14 @@ When the ESP32 moves a turnout it publishes a confirmation back to `<topic>/Stat
    mosquitto_sub -h localhost -t '#' -v
    ```
 
-   Or connect MQTT Explorer to `localhost` port `1883` and subscribe to `#`.
+   Or connect MQTTX to `localhost` port `1883` and subscribe to `#`.
 2. Toggle the turnout in JMRI — you should see two messages arrive:
    - JMRI publishing `THROWN` to `trains/track/turnout/Kiama/Up Loop`
    - The ESP32 replying `THROWN` to `trains/track/turnout/Kiama/Up Loop/State`
 
 The `/State` reply is what JMRI reads back to confirm the move happened. This keeps the panel icon in sync even if the servo takes a few seconds to travel.
 
-> **Screenshot placeholder:** MQTT Explorer showing both MQTT messages — the `THROWN` command from JMRI and the `THROWN` state reply from the ESP32, with timestamps.
+> **Screenshot placeholder:** MQTTX showing both MQTT messages — the `THROWN` command from JMRI and the `THROWN` state reply from the ESP32, with timestamps.
 
 ---
 
@@ -185,12 +185,12 @@ The `/State` reply is what JMRI reads back to confirm the move happened. This ke
 
 **JMRI sensor state never changes:**
 - Check `block_1_topic` in `block_detectors.yaml` exactly matches the hardware address in the JMRI System Name. This is case-sensitive.
-- Run `mosquitto_sub -h localhost -t '#' -v` (or MQTT Explorer) and place a train on the block. If a message appears, the board is publishing correctly and the mismatch is in the JMRI System Name.
+- Run `mosquitto_sub -h localhost -t '#' -v` (or MQTTX) and place a train on the block. If a message appears, the board is publishing correctly and the mismatch is in the JMRI System Name.
 - If no message appears, check the board is **Online** in ESPHome and the block detector is wired correctly.
 
 **Servo does not move when toggling JMRI turnout:**
 - Check `turnout_01_topic` in `point_control.yaml` exactly matches the hardware address in the JMRI System Name.
-- Subscribe to `#` with `mosquitto_sub` or MQTT Explorer and toggle the turnout. If no message appears, JMRI is not publishing — check the MQTT connection status in JMRI Preferences.
+- Subscribe to `#` with `mosquitto_sub` or MQTTX and toggle the turnout. If no message appears, JMRI is not publishing — check the MQTT connection status in JMRI Preferences.
 - If a message appears on the broker but the servo doesn't move, check the board logs for any errors.
 
 **State shows Unknown in JMRI after reboot:**
