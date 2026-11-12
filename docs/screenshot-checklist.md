@@ -12,7 +12,6 @@ Work through these in order — earlier ones set up the context for later ones.
 - [ ] ESPHome Dashboard — empty, New Device button visible (same as above, can reuse)
 - [ ] ESPHome **New Device** wizard — device name filled in, ESP32 selected
 - [ ] ESPHome YAML editor — Configurator `board.yaml` pasted in, no red error banner
-- [ ] VS Code Explorer — optional modules path: board folder expanded showing `board.yaml` + `modules/`
 - [ ] Board Configurator — credentials filled (use placeholder values, not real credentials)
 - [ ] Chrome/Edge **Select a serial port** dialog — CP210x or CH340 port listed
 - [ ] ESPHome flash progress — 100% complete screen

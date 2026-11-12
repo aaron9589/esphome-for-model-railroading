@@ -9,7 +9,7 @@
 #
 # HOW IT WORKS:
 #   The EOB sensor fires momentarily ACTIVE on block entry, then returns to INACTIVE.
-#   The main block sensor (gpio_01.yaml) then sets the block to ACTIVE.
+#   The main block sensor (from the Configurator board YAML) then sets the block to ACTIVE.
 #   This sequence tells CATS which end of the block the train entered from.
 #
 # HOW TO ADD MORE EOB SENSORS:
@@ -17,7 +17,7 @@
 #   Copy the matching on_boot mqtt.publish and binary_sensor blocks.
 #
 # WIRING:
-#   Same as gpio_01.yaml - connect a current detector output to the GPIO pin.
+#   Same wiring as a Configurator block detector — current detector output to the GPIO pin.
 #   One EOB sensor per block entry point where wrong-road running is possible.
 
 substitutions:

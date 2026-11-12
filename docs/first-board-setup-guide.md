@@ -51,17 +51,7 @@ To change blocks or points later, re-import that same file in the Configurator, 
 
 ---
 
-## Step 3 (Optional): Hand-edit with modules/
-
-Prefer the modular sample files instead of the Configurator? ESPHome Device Builder stores configs in your home folder (`~/esphome` on Mac, `C:\Users\you\esphome` on Windows). Menu-bar or tray icon → **Open Config Folder**.
-
-Copy [samples/my-first-board/](../samples/my-first-board/) into your board folder, uncomment the `packages:` lines in `board.yaml`, and fill [samples/secrets.yaml](../samples/secrets.yaml) in that same config folder. This path is for people who want to maintain separate module files by hand.
-
-> **Screenshot placeholder:** VS Code Explorer panel showing the board folder (e.g. `yard-board-01/`) expanded with `board.yaml` and a `modules/` subfolder containing `block_detectors.yaml` and `point_control.yaml`.
-
----
-
-## Step 4: First Flash by USB
+## Step 3: First Flash by USB
 
 The first time you program a board, you must do it by USB. All future updates can be done wirelessly.
 
@@ -84,7 +74,7 @@ Success looks like:
 
 ---
 
-## Step 5: Confirm Board Is Online
+## Step 4: Confirm Board Is Online
 
 1. Wait up to 2 minutes after first flash.
 2. Device should show **Online** in ESPHome.
@@ -97,7 +87,7 @@ Success looks like:
 
 ---
 
-## Step 6: Test MQTT Connection
+## Step 5: Test MQTT Connection
 
 Mosquitto has no client list. Watch the broker with a subscriber on this PC.
 
@@ -135,8 +125,7 @@ Your ESP32 is online, connected to MQTT, and ready to talk to JMRI.
 
 ## Add More Later (Optional)
 
-- Prefer hand-edited modules? See [Step 3](#step-3-optional-hand-edit-with-modules) and [samples/my-first-board/](../samples/my-first-board/).
-- Signals and other advanced patterns: [samples/advanced-samples/](../samples/advanced-samples/) (not in the Configurator yet).
+- Signals, staff machines, bell codes, and other non-Configurator patterns: [advanced-samples/](../advanced-samples/).
 
 ---
 

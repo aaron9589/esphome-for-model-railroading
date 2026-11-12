@@ -44,22 +44,13 @@ In the [configurator](https://aaron9589.github.io/esphome-for-model-railroading/
 
 ### Signals
 
-Signals are not in the configurator. They use [WLED](https://kno.wled.ge) on a second ESP driving WS2812B heads. The sample is [wled_signal.yaml](../samples/advanced-samples/wled_signal.yaml). The build notes are at https://illawarraline.net/signals-for-the-illawarra-line/.
+Signals are not in the configurator. They use [WLED](https://kno.wled.ge) on a second ESP driving WS2812B heads. The sample is [wled_signal.yaml](../advanced-samples/wled_signal.yaml). The build notes are at https://illawarraline.net/signals-for-the-illawarra-line/.
 
 ---
 
-## If you want the YAML files
+## Advanced samples
 
-The configurator is the way to build a board. These files are the same ideas, split up, for when you want to edit them yourself.
-
-| File | What it is |
-|---|---|
-| [my-first-board/board.yaml](../samples/my-first-board/board.yaml) | Wi-Fi, MQTT, and which modules to load |
-| [block_detectors.yaml](../samples/my-first-board/modules/block_detectors.yaml) | Current detectors |
-| [point_control.yaml](../samples/my-first-board/modules/point_control.yaml) | PCA9685 servos |
-| [secrets.yaml](../samples/secrets.yaml) | Placeholder Wi-Fi and MQTT values for the hand-edited files |
-
-Other layouts (end-of-block sensors, ground throws, bell codes, a staff machine) are in [samples/advanced-samples/](../samples/advanced-samples/).
+Hand-edited patterns that are **not** Configurator-compatible (end-of-block sensors, ground throws, bell codes, staff machine, WLED signals) live in [advanced-samples/](../advanced-samples/).
 
 ---
 

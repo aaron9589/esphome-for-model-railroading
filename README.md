@@ -73,9 +73,9 @@ Wiring, detector tuning, how points remember their positions, and the layout thi
 | If you want… | Go here |
 |---|---|
 | The detector schematic and how to tune a block | [How the boards work](docs/README.md) |
-| The same YAML, split into files you edit yourself | [samples/](samples/) |
+| Advanced layout patterns (not Configurator YAML) | [advanced-samples/](advanced-samples/) |
 | Install without the script | [installing-esphome-cheatsheet.md](docs/installing-esphome-cheatsheet.md) |
 
-Signals are not in the configurator. They use WLED on a second ESP. That sample is [wled_signal.yaml](samples/advanced-samples/wled_signal.yaml).
+Signals are not in the configurator. They use WLED on a second ESP. That sample is [wled_signal.yaml](advanced-samples/wled_signal.yaml).
 
 Open an issue if you get stuck. I’ll help where I can.

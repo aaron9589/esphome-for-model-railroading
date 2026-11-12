@@ -46,11 +46,10 @@ logger:
 # if you have multiple files - simply make the key (the left hand side of the colon) unique for each file.
 # the reason for chunking this up is to make it easier to read and group similar bits of code together.
 
-# Copy the feature YAML files into a modules/ folder next to this board config,
-# then uncomment the matching line. Paths are relative to this file's folder.
+# Copy feature YAML from this folder into a modules/ directory next to this
+# board config, then uncomment the matching line. Paths are relative here.
+# Block detectors and PCA9685 points belong in the Board Configurator instead.
 packages:
-  # gpio: !include modules/gpio_01.yaml
-  # servos_01: !include modules/servos_01.yaml
   # signals: !include modules/wled_signal.yaml
   # eob: !include modules/end_of_block.yaml
   # ground_throws: !include modules/ground_throws.yaml
@@ -59,7 +58,8 @@ packages:
 
 # Configure the connection to MQTT. JMRI also connects to this server, and this is
 # how your ESPHome nodes and JMRI will exchange messages.
-# Secret keys match samples/secrets.yaml (same as the beginner board).
+# Uses ESPHome secrets (wifi_ssid, wifi_password, mqtt_broker, ota_password).
+# This file is not Board Configurator compatible — edit by hand if you use it.
 mqtt:
   broker: !secret mqtt_broker
   id: mqtt_server
