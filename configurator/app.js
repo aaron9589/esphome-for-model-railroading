@@ -43,6 +43,10 @@ document.querySelectorAll(".nav-item").forEach((button) => {
   button.addEventListener("click", () => showView(button.dataset.view));
 });
 
+document.querySelectorAll("[data-goto]").forEach((button) => {
+  button.addEventListener("click", () => showView(button.dataset.goto));
+});
+
 function showView(name) {
   document.querySelectorAll(".nav-item").forEach((button) => {
     button.classList.toggle("is-active", button.dataset.view === name);
@@ -50,6 +54,7 @@ function showView(name) {
   document.querySelectorAll(".view").forEach((panel) => {
     panel.hidden = panel.dataset.panel !== name;
   });
+  window.scrollTo(0, 0);
 }
 
 document.getElementById("btn-preset").addEventListener("click", () => {
@@ -319,7 +324,7 @@ function renderBoard() {
     }),
     field("MQTT broker IP", b.mqttBroker, (v) => setCredential("mqttBroker", v), {
       placeholder: "192.168.1.10",
-      hint: "LAN address of the PC running EMQX. Use ipconfig — not localhost. JMRI connects to the same broker.",
+      hint: "The address of this computer on your network — the machine running Mosquitto. Windows: ipconfig. Mac: System Settings → Network. Not localhost. JMRI uses the same address.",
     })
   );
   const otaField = field("OTA password", b.otaPassword, (v) => setCredential("otaPassword", v), {
@@ -395,6 +400,7 @@ function renderBlocks() {
         updatePreview();
       }, {
         placeholder: "Kiama/Up XOver",
+        full: true,
         hint: "Shown in ESPHome logs, for example “Kiama/Up XOver | OCCUPIED”. It does not have to match the JMRI name.",
       }),
       field("MQTT topic", block.topic, (v) => {
@@ -403,7 +409,7 @@ function renderBlocks() {
         updatePreview();
       }, {
         full: true,
-        hint: "Full topic the board publishes ACTIVE or INACTIVE on. JMRI builds the same path from MQTT Channel + Sensor receive topic + hardware address. Case-sensitive.",
+        hint: "The topic this detector publishes when a train enters or leaves. It must be exactly the topic JMRI is listening on. Copy it from JMRI, or build it as channel + sensor topic + hardware address.",
       }),
       field("GPIO", block.gpio, (v) => {
         block.gpio = v.trim().toUpperCase();

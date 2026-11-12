@@ -139,13 +139,132 @@ function Get-LanIPv4 {
     return $null
 }
 
+function Select-SetupAction {
+    Write-Host ''
+    Write-Host 'ESPHome for Model Railroading'
+    Write-Host ''
+    Write-Host '  1) Install    ESPHome Device Builder and Mosquitto'
+    Write-Host '  2) Uninstall  those two (keeps your board files)'
+    Write-Host '  3) Quit'
+    Write-Host ''
+    while ($true) {
+        $choice = Read-Host 'Choose 1, 2, or 3'
+        switch ($choice) {
+            { $_ -in '1', 'install' } { return 'install' }
+            { $_ -in '2', 'uninstall' } { return 'uninstall' }
+            { $_ -in '3', 'q', 'quit' } { return 'quit' }
+            default { Write-Host 'Type 1, 2, or 3.' }
+        }
+    }
+}
+
+function Get-UninstallEntries([string]$NameLike) {
+    $paths = @(
+        'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*',
+        'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*',
+        'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*'
+    )
+    foreach ($path in $paths) {
+        Get-ItemProperty $path -ErrorAction SilentlyContinue |
+            Where-Object { $_.DisplayName -like $NameLike }
+    }
+}
+
+function Invoke-SilentUninstall($Entry) {
+    $command = $Entry.QuietUninstallString
+    if (-not $command) { $command = $Entry.UninstallString }
+    if (-not $command) { return $false }
+    $exe = $null
+    if ($command -match '"([^"]+\.exe)"') { $exe = $Matches[1] }
+    elseif ($command -match '([A-Za-z]:\\.+?\.exe)') { $exe = $Matches[1] }
+    if ($exe -and (Test-Path $exe)) {
+        $proc = Start-Process -FilePath $exe -ArgumentList '/S' -Wait -PassThru
+        if ($proc.ExitCode -ne 0) { throw "Uninstall of $($Entry.DisplayName) exited with code $($proc.ExitCode)" }
+        return $true
+    }
+    cmd.exe /c $command
+    if ($LASTEXITCODE -ne 0) { throw "Uninstall of $($Entry.DisplayName) exited with code $LASTEXITCODE" }
+    return $true
+}
+
+function Invoke-OurUninstall {
+    Write-Step 'Uninstall'
+    Write-Host 'This removes the ESPHome Device Builder app and the Mosquitto broker.'
+    Write-Host "Your board files in $env:USERPROFILE\esphome stay."
+    Write-Host ''
+    $confirm = Read-Host 'Type uninstall to continue'
+    if ($confirm -ne 'uninstall') {
+        Write-Host 'Cancelled. Nothing was removed.'
+        return
+    }
+
+    Get-Process -ErrorAction SilentlyContinue |
+        Where-Object { $_.ProcessName -like '*ESPHome*' -or $_.ProcessName -eq 'mosquitto' } |
+        Stop-Process -Force -ErrorAction SilentlyContinue
+
+    $rule = Get-NetFirewallRule -DisplayName $FirewallName -ErrorAction SilentlyContinue
+    if ($rule) {
+        Remove-NetFirewallRule -DisplayName $FirewallName
+        Write-Ok 'Removed the port 1883 firewall rule'
+    } else {
+        Write-Ok 'No setup firewall rule was present'
+    }
+
+    $mosquittoExe = Join-Path ${env:ProgramFiles} 'mosquitto\mosquitto.exe'
+    $service = Get-Service -Name mosquitto -ErrorAction SilentlyContinue
+    if ($service) {
+        if ($service.Status -eq 'Running') { Stop-Service mosquitto -Force -ErrorAction SilentlyContinue }
+        if (Test-Path $mosquittoExe) {
+            & $mosquittoExe uninstall
+        }
+        & sc.exe delete mosquitto | Out-Null
+        Write-Ok 'Removed the Mosquitto service'
+    } else {
+        Write-Ok 'Mosquitto service was not installed'
+    }
+    $mosquittoApps = @(Get-UninstallEntries '*Mosquitto*')
+    if ($mosquittoApps.Count -gt 0) {
+        foreach ($app in $mosquittoApps) { Invoke-SilentUninstall $app | Out-Null }
+        Write-Ok 'Ran the Mosquitto uninstaller'
+    } elseif (Test-Path (Split-Path $mosquittoExe -Parent)) {
+        Write-Warn "Mosquitto files are still in $(Split-Path $mosquittoExe -Parent). Remove that folder by hand if the uninstaller did not."
+    } else {
+        Write-Ok 'Mosquitto was not installed'
+    }
+
+    $esphomeApps = @(Get-UninstallEntries '*ESPHome Device Builder*')
+    if ($esphomeApps.Count -gt 0) {
+        foreach ($app in $esphomeApps) { Invoke-SilentUninstall $app | Out-Null }
+        Write-Ok 'Removed ESPHome Device Builder'
+    } else {
+        Write-Ok 'ESPHome Device Builder was not installed'
+    }
+
+    Write-Step 'Done'
+    Write-Host 'Uninstall finished.' -ForegroundColor Green
+    Write-Host "Left in place: board files in $env:USERPROFILE\esphome"
+    Write-Host "Full log: $Log"
+}
+
 $exitCode = 0
 try {
     Start-Transcript -Path $Log -Force | Out-Null
     Write-Step 'ESPHome for Model Railroading — Windows setup'
-    Write-Host 'This installs the ESPHome Device Builder app and the Mosquitto MQTT broker.'
-    Write-Host "A full copy of this output is saved to $Log"
+    Write-Host 'Choose install or uninstall. A full copy of this output is saved to:'
+    Write-Host "  $Log"
 
+    $action = Select-SetupAction
+    Write-Host "Selected: $action"
+    if ($action -eq 'quit') {
+        Write-Host 'Cancelled. Nothing was changed.'
+        return
+    }
+    if ($action -eq 'uninstall') {
+        Invoke-OurUninstall
+        return
+    }
+
+    Write-Host 'This installs the ESPHome Device Builder app and the Mosquitto MQTT broker.'
     Write-Step '1/7 Preflight'
     $os = Get-CimInstance Win32_OperatingSystem
     Write-Host "  Windows: $($os.Caption) ($($os.Version))"
@@ -363,6 +482,10 @@ try {
     $exitCode = 1
     Write-Fail $_.Exception.Message
     Write-Host "Full log: $Log" -ForegroundColor Yellow
+    Write-Host ''
+    Write-Host 'Setup failed. Copy the error above and that log, then raise a GitHub issue:' -ForegroundColor Yellow
+    Write-Host '  https://github.com/aaron9589/esphome-for-model-railroading/issues/new'
+    Write-Host "Paste the error text and the contents of $Log"
 } finally {
     try { Stop-Transcript | Out-Null } catch { }
     Write-Host ''

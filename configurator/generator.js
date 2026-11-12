@@ -87,9 +87,9 @@ function validateConfig(config) {
   if (!board.name || !/^[a-z0-9-]+$/.test(board.name)) {
     errors.push("Board name must be lowercase letters, numbers, and dashes only.");
   }
-  if (!board.wifiSsid) warnings.push("Wi-Fi SSID is empty — fill it in before flashing.");
-  if (!board.wifiPassword) warnings.push("Wi-Fi password is empty — fill it in before flashing.");
-  if (!board.mqttBroker) warnings.push("MQTT broker IP is empty — fill it in before flashing.");
+  if (!board.wifiSsid) warnings.push("Wi-Fi name is empty — fill it in on the Board page before you download.");
+  if (!board.wifiPassword) warnings.push("Wi-Fi password is empty — fill it in on the Board page before you download.");
+  if (!board.mqttBroker) warnings.push("MQTT address is empty — use this computer’s network address, not localhost.");
   if (!board.otaPassword) warnings.push("OTA password is empty — set one before flashing.");
 
   const pins = new Map();

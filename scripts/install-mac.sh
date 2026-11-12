@@ -3,8 +3,8 @@
 # Anonymous MQTT on port 1883 is for a trusted home network only.
 # Re-running this script is safe: it skips what is already in place.
 #
-# One line (Terminal):
-#   curl -fsSL https://raw.githubusercontent.com/aaron9589/esphome-for-model-railroading/doc-improvements/scripts/install-mac.sh | bash
+# One line (Terminal). Do not pipe this into bash — the menu needs your keyboard.
+#   curl -fsSL https://raw.githubusercontent.com/aaron9589/esphome-for-model-railroading/doc-improvements/scripts/install-mac.sh -o /tmp/esphome-mr-setup.sh && bash /tmp/esphome-mr-setup.sh
 
 set -euo pipefail
 
@@ -21,9 +21,19 @@ log() {
   printf '%s\n' "$line" | tee -a "$LOG" >&2
 }
 
+report_issue() {
+  trap - ERR
+  log ""
+  log "Setup failed. Copy the error above and this log, then raise a GitHub issue:"
+  log "  https://github.com/aaron9589/esphome-for-model-railroading/issues/new"
+  log "Paste the error text and the contents of:"
+  log "  $LOG"
+}
+
 die() {
   log "ERROR: $*"
   log "Full log: $LOG"
+  report_issue
   exit 1
 }
 
@@ -31,6 +41,7 @@ on_err() {
   local code=$?
   log "FAILED near line ${BASH_LINENO[0]} (exit ${code})."
   log "Full log: $LOG"
+  report_issue
   exit "$code"
 }
 trap on_err ERR
@@ -43,20 +54,104 @@ step() {
 ok() { log "  OK   $*"; }
 warn() { log "  WARN $*"; }
 
+load_brew() {
+  if [[ -x /opt/homebrew/bin/brew ]]; then
+    eval "$(/opt/homebrew/bin/brew shellenv)"
+  elif [[ -x /usr/local/bin/brew ]]; then
+    eval "$(/usr/local/bin/brew shellenv)"
+  fi
+}
+
+require_mac_user() {
+  if [[ "$(uname -s)" != "Darwin" ]]; then
+    die "This script is for macOS. On Windows, use scripts/install-windows.ps1."
+  fi
+  if [[ "${EUID}" -eq 0 ]]; then
+    die "Do not run this with sudo. Run it as your normal user. It will ask for a password only when it needs one."
+  fi
+}
+
+choose_action() {
+  printf '\nESPHome for Model Railroading\n\n' >&2
+  printf '  1) Install    ESPHome Device Builder and Mosquitto\n' >&2
+  printf '  2) Uninstall  those two (keeps Homebrew and your board files)\n' >&2
+  printf '  3) Quit\n\n' >&2
+  local choice
+  while true; do
+    printf 'Choose 1, 2, or 3: ' >&2
+    if ! read -r choice; then
+      die "Could not read a choice. Run the script in Terminal, not with 'curl | bash'."
+    fi
+    case "$choice" in
+      1|install) printf '%s\n' install; return ;;
+      2|uninstall) printf '%s\n' uninstall; return ;;
+      3|q|quit) printf '%s\n' quit; return ;;
+      *) printf 'Type 1, 2, or 3.\n' >&2 ;;
+    esac
+  done
+}
+
+cmd_uninstall() {
+  step "Uninstall"
+  log "This removes the ESPHome Device Builder app and the Mosquitto broker."
+  log "Homebrew stays. Board files in ${HOME}/esphome stay."
+  printf 'Type uninstall to continue: ' >&2
+  local confirm
+  if ! read -r confirm; then
+    die "Could not read a confirmation."
+  fi
+  if [[ "$confirm" != "uninstall" ]]; then
+    log "Cancelled. Nothing was removed."
+    exit 0
+  fi
+
+  osascript -e 'quit app "ESPHome Device Builder"' >/dev/null 2>&1 || true
+  if [[ -d "/Applications/ESPHome Device Builder.app" ]]; then
+    log "  Removing /Applications/ESPHome Device Builder.app (password prompt is normal)..."
+    sudo rm -rf "/Applications/ESPHome Device Builder.app"
+    ok "Removed ESPHome Device Builder"
+  else
+    ok "ESPHome Device Builder was not in /Applications"
+  fi
+
+  load_brew
+  local mosq_bin=""
+  if command -v brew >/dev/null 2>&1; then
+    local prefix
+    prefix="$(brew --prefix mosquitto 2>/dev/null || true)"
+    if [[ -n "$prefix" && -x "$prefix/sbin/mosquitto" ]]; then
+      mosq_bin="$prefix/sbin/mosquitto"
+    elif [[ -n "$prefix" && -x "$prefix/bin/mosquitto" ]]; then
+      mosq_bin="$prefix/bin/mosquitto"
+    fi
+    if brew list mosquitto >/dev/null 2>&1; then
+      brew services stop mosquitto >/dev/null 2>&1 || true
+      brew uninstall mosquitto
+      ok "Removed Mosquitto"
+    else
+      ok "Mosquitto was not installed with Homebrew"
+    fi
+    if [[ -n "$mosq_bin" ]]; then
+      sudo /usr/libexec/ApplicationFirewall/socketfilterfw --remove "$mosq_bin" >/dev/null 2>&1 || true
+    fi
+  else
+    warn "Homebrew is not installed, so this script did not remove Mosquitto."
+  fi
+
+  step "Done"
+  log "Uninstall finished."
+  log "Left in place: Homebrew, and any board YAML in ${HOME}/esphome"
+  log "Full log: $LOG"
+}
+
+cmd_install() {
 step "ESPHome for Model Railroading — Mac setup"
 log "This installs the ESPHome Device Builder app and the Mosquitto MQTT broker."
 log "You may be asked for your Mac login password (the one you use to unlock the Mac)."
 log "Log file: $LOG"
 
 step "1/7 Preflight"
-
-if [[ "$(uname -s)" != "Darwin" ]]; then
-  die "This script is for macOS. On Windows, use scripts/install-windows.ps1."
-fi
-
-if [[ "${EUID}" -eq 0 ]]; then
-  die "Do not run this with sudo. Run it as your normal user. It will ask for a password only when it needs one."
-fi
+load_brew
 
 ARCH="$(uname -m)"
 case "$ARCH" in
@@ -119,11 +214,7 @@ else
 fi
 
 step "2/7 Homebrew"
-if [[ -x /opt/homebrew/bin/brew ]]; then
-  eval "$(/opt/homebrew/bin/brew shellenv)"
-elif [[ -x /usr/local/bin/brew ]]; then
-  eval "$(/usr/local/bin/brew shellenv)"
-fi
+load_brew
 
 if ! command -v brew >/dev/null 2>&1; then
   log "  Homebrew is not installed. Installing it now."
@@ -341,3 +432,24 @@ step "7/7 Done"
 log "Setup finished."
 log "Next: https://aaron9589.github.io/esphome-for-model-railroading/  then first-board-setup-guide.md"
 log "Full log: $LOG"
+}
+
+require_mac_user
+if [[ ! -t 0 || ! -t 1 ]]; then
+  log "This setup asks whether to install or uninstall, so it has to run in Terminal."
+  log "Paste this instead of piping the script into bash:"
+  log "  curl -fsSL https://raw.githubusercontent.com/aaron9589/esphome-for-model-railroading/doc-improvements/scripts/install-mac.sh -o /tmp/esphome-mr-setup.sh && bash /tmp/esphome-mr-setup.sh"
+  exit 1
+fi
+
+ACTION="${1:-}"
+if [[ -z "$ACTION" ]]; then
+  ACTION="$(choose_action)"
+fi
+log "Selected: $ACTION"
+case "$ACTION" in
+  install) cmd_install ;;
+  uninstall) cmd_uninstall ;;
+  quit) log "Cancelled. Nothing was changed."; exit 0 ;;
+  *) die "Unknown action '$ACTION'. Use: bash install-mac.sh [install|uninstall]" ;;
+esac

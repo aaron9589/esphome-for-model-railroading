@@ -354,6 +354,13 @@ button:disabled {
   font-size: 0.85em;
 }
 
+.pager {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
 .empty {
   color: var(--muted);
   border: 1px dashed var(--line-strong);
