@@ -47,14 +47,51 @@ if (-not (Test-IsAdmin)) {
     exit 0
 }
 
-function Write-Step($Message) {
+function Write-Banner([string]$Subtitle = 'Windows setup') {
     Write-Host ''
-    Write-Host "======== $Message ========" -ForegroundColor Cyan
+    Write-Host '  ======================================================' -ForegroundColor DarkYellow
+    Write-Host -NoNewline '   ' 
+    Write-Host -NoNewline 'ESPHome' -ForegroundColor White
+    Write-Host ' for Model Railroading' -ForegroundColor Gray
+    Write-Host "   $Subtitle" -ForegroundColor DarkGray
+    Write-Host '  ======================================================' -ForegroundColor DarkYellow
+    Write-Host ''
 }
 
-function Write-Ok($Message) { Write-Host "  OK   $Message" -ForegroundColor Green }
-function Write-Warn($Message) { Write-Host "  WARN $Message" -ForegroundColor Yellow }
-function Write-Fail($Message) { Write-Host "  FAIL $Message" -ForegroundColor Red }
+function Write-Step($Message) {
+    Write-Host ''
+    Write-Host ("  -- $Message " + ('-' * 40)) -ForegroundColor Cyan
+}
+
+function Write-Ok($Message) {
+    Write-Host -NoNewline '  ' 
+    Write-Host -NoNewline '+' -ForegroundColor Green
+    Write-Host "  $Message" -ForegroundColor Gray
+}
+
+function Write-Warn($Message) {
+    Write-Host -NoNewline '  '
+    Write-Host -NoNewline '!' -ForegroundColor Yellow
+    Write-Host "  $Message" -ForegroundColor Yellow
+}
+
+function Write-Fail($Message) {
+    Write-Host -NoNewline '  '
+    Write-Host -NoNewline 'x' -ForegroundColor Red
+    Write-Host "  $Message" -ForegroundColor Red
+}
+
+function Write-Info($Message) {
+    Write-Host -NoNewline '  '
+    Write-Host -NoNewline '.' -ForegroundColor DarkGray
+    Write-Host "  $Message" -ForegroundColor DarkGray
+}
+
+function Write-Kv([string]$Label, [string]$Value) {
+    $pad = if ($Label.Length -lt 14) { ' ' * (14 - $Label.Length) } else { '' }
+    Write-Host -NoNewline "  $Label$pad" -ForegroundColor DarkGray
+    Write-Host " $Value" -ForegroundColor Gray
+}
 
 function Update-MosquittoConf {
     param([string]$Path)
@@ -62,7 +99,7 @@ function Update-MosquittoConf {
     if (-not (Test-Path $dir)) { New-Item -ItemType Directory -Path $dir -Force | Out-Null }
     if (-not (Test-Path $Path)) { New-Item -ItemType File -Path $Path -Force | Out-Null }
     Copy-Item -Path $Path -Destination "$Path.esphome-mr-backup" -Force
-    Write-Host "  Backed up config to $Path.esphome-mr-backup"
+    Write-Info "Backed up config to $Path.esphome-mr-backup"
 
     $raw = @(Get-Content -Path $Path -ErrorAction SilentlyContinue)
     $cleaned = New-Object System.Collections.Generic.List[string]
@@ -105,7 +142,7 @@ function Update-MosquittoConf {
 }
 
 function Get-LatestMosquittoUrl {
-    Write-Host '  Looking up the latest Mosquitto Windows installer...'
+    Write-Info 'Looking up the latest Mosquitto Windows installer...'
     $page = Invoke-WebRequest -Uri 'https://mosquitto.org/files/binary/win64/' -UseBasicParsing
     $found = [regex]::Matches($page.Content, 'mosquitto-(\d+\.\d+\.\d+)-install-windows-x64\.exe')
     $bestName = $null
@@ -118,7 +155,7 @@ function Get-LatestMosquittoUrl {
         }
     }
     if (-not $bestName) { throw 'Could not find a Mosquitto Windows installer on mosquitto.org.' }
-    Write-Host "  Latest stable installer: $bestName"
+    Write-Info "Latest stable installer: $bestName"
     return "https://mosquitto.org/files/binary/win64/$bestName"
 }
 
@@ -140,20 +177,27 @@ function Get-LanIPv4 {
 }
 
 function Select-SetupAction {
+    Write-Banner 'Windows setup'
+    Write-Host '  What would you like to do?' -ForegroundColor White
     Write-Host ''
-    Write-Host 'ESPHome for Model Railroading'
+    Write-Host -NoNewline '  [ 1 ]  ' -ForegroundColor Green
+    Write-Host -NoNewline 'Install    ' -ForegroundColor White
+    Write-Host 'ESPHome Device Builder and Mosquitto' -ForegroundColor Gray
+    Write-Host -NoNewline '  [ 2 ]  ' -ForegroundColor Yellow
+    Write-Host -NoNewline 'Uninstall  ' -ForegroundColor White
+    Write-Host 'those two (keeps your board files)' -ForegroundColor Gray
+    Write-Host -NoNewline '  [ 3 ]  ' -ForegroundColor DarkGray
+    Write-Host 'Quit' -ForegroundColor Gray
     Write-Host ''
-    Write-Host '  1) Install    ESPHome Device Builder and Mosquitto'
-    Write-Host '  2) Uninstall  those two (keeps your board files)'
-    Write-Host '  3) Quit'
+    Write-Info "A full copy of this run is saved to $Log"
     Write-Host ''
     while ($true) {
-        $choice = Read-Host 'Choose 1, 2, or 3'
+        $choice = Read-Host '  Choose [1/2/3]'
         switch ($choice) {
             { $_ -in '1', 'install' } { return 'install' }
             { $_ -in '2', 'uninstall' } { return 'uninstall' }
             { $_ -in '3', 'q', 'quit' } { return 'quit' }
-            default { Write-Host 'Type 1, 2, or 3.' }
+            default { Write-Warn 'Type 1, 2, or 3.' }
         }
     }
 }
@@ -189,12 +233,12 @@ function Invoke-SilentUninstall($Entry) {
 
 function Invoke-OurUninstall {
     Write-Step 'Uninstall'
-    Write-Host 'This removes the ESPHome Device Builder app and the Mosquitto broker.'
-    Write-Host "Your board files in $env:USERPROFILE\esphome stay."
+    Write-Host '  This removes the ESPHome Device Builder app and the Mosquitto broker.' -ForegroundColor Gray
+    Write-Info "Your board files in $env:USERPROFILE\esphome stay."
     Write-Host ''
-    $confirm = Read-Host 'Type uninstall to continue'
+    $confirm = Read-Host '  Type uninstall to continue'
     if ($confirm -ne 'uninstall') {
-        Write-Host 'Cancelled. Nothing was removed.'
+        Write-Warn 'Cancelled. Nothing was removed.'
         return
     }
 
@@ -241,22 +285,19 @@ function Invoke-OurUninstall {
     }
 
     Write-Step 'Done'
-    Write-Host 'Uninstall finished.' -ForegroundColor Green
-    Write-Host "Left in place: board files in $env:USERPROFILE\esphome"
-    Write-Host "Full log: $Log"
+    Write-Ok 'Uninstall finished.'
+    Write-Kv 'Kept:' "board files in $env:USERPROFILE\esphome"
+    Write-Kv 'Log:' $Log
 }
 
 $exitCode = 0
 try {
     Start-Transcript -Path $Log -Force | Out-Null
-    Write-Step 'ESPHome for Model Railroading — Windows setup'
-    Write-Host 'Choose install or uninstall. A full copy of this output is saved to:'
-    Write-Host "  $Log"
 
     $action = Select-SetupAction
-    Write-Host "Selected: $action"
+    Write-Info "Selected: $action"
     if ($action -eq 'quit') {
-        Write-Host 'Cancelled. Nothing was changed.'
+        Write-Warn 'Cancelled. Nothing was changed.'
         return
     }
     if ($action -eq 'uninstall') {
@@ -264,10 +305,10 @@ try {
         return
     }
 
-    Write-Host 'This installs the ESPHome Device Builder app and the Mosquitto MQTT broker.'
-    Write-Step '1/7 Preflight'
+    Write-Host '  This installs the ESPHome Device Builder app and the Mosquitto MQTT broker.' -ForegroundColor Gray
+    Write-Step '1/7  Preflight'
     $os = Get-CimInstance Win32_OperatingSystem
-    Write-Host "  Windows: $($os.Caption) ($($os.Version))"
+    Write-Info "Windows: $($os.Caption) ($($os.Version))"
     if ([Environment]::OSVersion.Version.Major -lt 10) {
         throw 'This script needs Windows 10 or Windows 11.'
     }
@@ -281,7 +322,7 @@ try {
     $driveName = $env:SystemDrive.TrimEnd(':')
     $drive = Get-PSDrive -Name $driveName
     $freeGb = [math]::Round($drive.Free / 1GB, 1)
-    Write-Host "  Free space on ${driveName}: ${freeGb} GB (ESPHome's first compile downloads a few GB of tools)"
+    Write-Info "Free space on ${driveName}: ${freeGb} GB (ESPHome's first compile downloads a few GB of tools)"
     if ($freeGb -lt $MinFreeGb) {
         throw "Need at least $MinFreeGb GB free on $env:SystemDrive. Free some space and run this again."
     }
@@ -313,7 +354,7 @@ try {
         Write-Ok 'Port 6052 is free'
     }
 
-    Write-Step '2/7 Mosquitto'
+    Write-Step '2/7  Mosquitto'
     New-Item -ItemType Directory -Path $DownloadDir -Force | Out-Null
     $mosquittoExe = Join-Path ${env:ProgramFiles} 'mosquitto\mosquitto.exe'
     if (Test-Path $mosquittoExe) {
@@ -321,13 +362,13 @@ try {
     } else {
         $mosquittoUrl = Get-LatestMosquittoUrl
         $installer = Join-Path $DownloadDir (Split-Path $mosquittoUrl -Leaf)
-        Write-Host "  Downloading $mosquittoUrl"
+        Write-Info "Downloading $mosquittoUrl"
         & curl.exe -fL --retry 3 --retry-delay 2 -o $installer $mosquittoUrl
         if ($LASTEXITCODE -ne 0 -or -not (Test-Path $installer)) {
             throw "Download failed. The installer URL was $mosquittoUrl"
         }
         Unblock-File -Path $installer
-        Write-Host '  Running the Mosquitto installer silently...'
+        Write-Info 'Running the Mosquitto installer silently...'
         $install = Start-Process -FilePath $installer -ArgumentList '/S' -Wait -PassThru
         if ($install.ExitCode -ne 0) {
             throw "Mosquitto installer exited with code $($install.ExitCode). You can run it by hand from $installer"
@@ -344,7 +385,7 @@ try {
 
     $service = Get-Service -Name mosquitto -ErrorAction SilentlyContinue
     if (-not $service) {
-        Write-Host '  Registering the Mosquitto Windows service...'
+        Write-Info 'Registering the Mosquitto Windows service...'
         & $mosquittoExe install
         if ($LASTEXITCODE -ne 0) { throw "mosquitto.exe install failed with exit code $LASTEXITCODE" }
     }
@@ -377,7 +418,7 @@ try {
 
     $lan = Get-LanIPv4
     if ($lan) {
-        Write-Host "  LAN address: $($lan.IP) on $($lan.Name) ($($lan.Category))"
+        Write-Info "LAN address: $($lan.IP) on $($lan.Name) ($($lan.Category))"
         $lanOk = $false
         $client = New-Object System.Net.Sockets.TcpClient
         try {
@@ -409,8 +450,8 @@ try {
         Write-Ok 'Firewall rule already exists'
     }
 
-    Write-Step '3/7 ESPHome Device Builder'
-    Write-Host '  Asking GitHub for the latest official desktop app...'
+    Write-Step '3/7  ESPHome Device Builder'
+    Write-Info 'Asking GitHub for the latest official desktop app...'
     $release = Invoke-RestMethod -Headers @{
         'User-Agent' = 'esphome-for-model-railroading-setup'
         'Accept' = 'application/vnd.github+json'
@@ -420,7 +461,7 @@ try {
         throw 'Could not find an ESPHome Windows installer in the latest GitHub release.'
     }
     $version = $release.tag_name.TrimStart('v')
-    Write-Host "  Latest ESPHome Device Builder: $version"
+    Write-Info "Latest ESPHome Device Builder: $version"
     $esphomeSetup = Join-Path $DownloadDir $asset.name
     $already = Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*', 'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*' -ErrorAction SilentlyContinue |
         Where-Object { $_.DisplayName -like '*ESPHome Device Builder*' } |
@@ -428,14 +469,14 @@ try {
     if ($already -and $already.DisplayVersion -eq $version) {
         Write-Ok "ESPHome Device Builder $version is already installed. Skipping download."
     } else {
-        if ($already) { Write-Host "  Installed version is $($already.DisplayVersion). Upgrading to $version." }
-        Write-Host "  Downloading $($asset.browser_download_url)"
+        if ($already) { Write-Info "Installed version is $($already.DisplayVersion). Upgrading to $version." }
+        Write-Info "Downloading $($asset.browser_download_url)"
         & curl.exe -fL --retry 3 --retry-delay 2 -o $esphomeSetup $asset.browser_download_url
         if ($LASTEXITCODE -ne 0 -or -not (Test-Path $esphomeSetup)) {
             throw "ESPHome download failed. URL was $($asset.browser_download_url)"
         }
         Unblock-File -Path $esphomeSetup
-        Write-Host '  Running the ESPHome installer silently...'
+        Write-Info 'Running the ESPHome installer silently...'
         $appInstall = Start-Process -FilePath $esphomeSetup -ArgumentList '/S' -Wait -PassThru
         if ($appInstall.ExitCode -ne 0) {
             throw "ESPHome installer exited with code $($appInstall.ExitCode). Double-click $esphomeSetup and finish it by hand. If Windows says it protected your PC, choose More info → Run anyway."
@@ -443,9 +484,9 @@ try {
         Write-Ok "Installed ESPHome Device Builder $version"
     }
 
-    Write-Step '4/7 Open the dashboard'
-    Write-Host '  Launching ESPHome. The first time, it downloads its own Python and can sit there for several minutes.'
-    Write-Host '  When it is ready it opens http://localhost:6052'
+    Write-Step '4/7  Open the dashboard'
+    Write-Info 'Launching ESPHome. The first time, it downloads its own Python and can sit there for several minutes.'
+    Write-Info 'When it is ready it opens http://localhost:6052'
     $launch = @(
         (Join-Path $env:LOCALAPPDATA 'ESPHome Device Builder\ESPHome Device Builder.exe'),
         (Join-Path $env:LOCALAPPDATA 'Programs\ESPHome Device Builder\ESPHome Device Builder.exe')
@@ -462,34 +503,39 @@ try {
         Write-Warn 'Could not find the ESPHome app to start it. Open "ESPHome Device Builder" from the Start menu.'
     }
 
-    Write-Step '5/7 What you should see'
-    Write-Host '  Notification area: an ESPHome icon. Use Open Dashboard and Open Config Folder.'
-    Write-Host "  Config files: $env:USERPROFILE\esphome"
-    Write-Host '  Dashboard:    http://localhost:6052'
+    Write-Step '5/7  What you should see'
+    Write-Host ''
+    Write-Host '  ------------------------------------------------------' -ForegroundColor DarkYellow
+    Write-Host '   Ready — use these in the Configurator / JMRI' -ForegroundColor White
+    Write-Host '  ------------------------------------------------------' -ForegroundColor DarkYellow
+    Write-Info 'Notification area: an ESPHome icon. Use Open Dashboard and Open Config Folder.'
+    Write-Kv 'Config files:' "$env:USERPROFILE\esphome"
+    Write-Kv 'Dashboard:' 'http://localhost:6052'
     if ($lan) {
-        Write-Host "  MQTT broker:  $($lan.IP)   port 1883   no username or password"
+        Write-Kv 'MQTT broker:' "$($lan.IP)   port 1883   (no username/password)"
     } else {
-        Write-Host '  MQTT broker:  (the IPv4 address from ipconfig)   port 1883'
+        Write-Kv 'MQTT broker:' '(the IPv4 address from ipconfig)   port 1883'
     }
-    Write-Host '  Put that LAN IP in the Configurator and in JMRI. Do not use localhost in the board YAML.'
-    Write-Host "  Installers kept at: $DownloadDir"
+    Write-Info 'Put that LAN IP in the Configurator and in JMRI. Do not use localhost in the board YAML.'
+    Write-Kv 'Installers:' $DownloadDir
 
-    Write-Step '6/7 Done'
-    Write-Host 'Setup finished.' -ForegroundColor Green
-    Write-Host 'Next: https://aaron9589.github.io/esphome-for-model-railroading/  then docs/first-board-setup-guide.md'
-    Write-Host "Full log: $Log"
+    Write-Step '6/7  Done'
+    Write-Ok 'Setup finished.'
+    Write-Kv 'Next:' 'https://aaron9589.github.io/esphome-for-model-railroading/'
+    Write-Kv 'Then:' 'docs/first-board-setup-guide.md'
+    Write-Kv 'Log:' $Log
 } catch {
     $exitCode = 1
     Write-Fail $_.Exception.Message
-    Write-Host "Full log: $Log" -ForegroundColor Yellow
+    Write-Info "Full log: $Log"
     Write-Host ''
-    Write-Host 'Setup failed. Copy the error above and that log, then raise a GitHub issue:' -ForegroundColor Yellow
-    Write-Host '  https://github.com/aaron9589/esphome-for-model-railroading/issues/new'
-    Write-Host "Paste the error text and the contents of $Log"
+    Write-Host '  Setup failed. Copy the error above and that log, then raise a GitHub issue:' -ForegroundColor Yellow
+    Write-Host '  https://github.com/aaron9589/esphome-for-model-railroading/issues/new' -ForegroundColor Cyan
+    Write-Host "  Paste the error text and the contents of $Log" -ForegroundColor DarkGray
 } finally {
     try { Stop-Transcript | Out-Null } catch { }
     Write-Host ''
-    Read-Host 'Press Enter to close this window'
+    Read-Host '  Press Enter to close this window'
 }
 
 exit $exitCode
