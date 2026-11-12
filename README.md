@@ -22,7 +22,7 @@ A block publishes `ACTIVE` or `INACTIVE`. Leaving the block publishes `INACTIVE`
 
 - ESP32 with a CP2102 USB chip: https://www.aliexpress.com/item/1005004337178335.html
 - PCA9685 16-channel PWM board (one per ESP, up to 16 servos)
-- 20cm female-female Dupont wires
+- Servo Leads (the ones used in model aircraft - get a few different lengths)
 - Two power supplies: one for the ESP (about 6.5V into the board’s regulator) and a separate 5V supply for the servos. Keep both off the DCC bus so a track short doesn’t move points or signals.
 
 **On the computer**
