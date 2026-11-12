@@ -41,7 +41,7 @@ test("My First Board preset matches sample topics and pins", () => {
   assert.equal(config.blocks[0].name, "Kiama/Up XOver");
   assert.equal(config.blocks[0].topic, "trains/track/sensor/Kiama/Up XOver");
   assert.equal(config.blocks[0].gpio, "GPIO14");
-  assert.equal(config.points[0].name, "up_loop");
+  assert.equal(config.points[0].name, "Kiama/Up Loop");
   assert.equal(config.points[0].topic, "trains/track/turnout/Kiama/Up Loop");
   assert.equal(config.points[0].channel, 0);
   assert.equal(config.i2c.sda, "GPIO21");
@@ -103,7 +103,7 @@ test("second point shares one pca9685 hub and unique ids", () => {
   config.board.mqttBroker = "1.2.3.4";
   config.board.otaPassword = "z";
   config.points.push({
-    name: "yard_exit",
+    name: "Yard Exit",
     topic: "trains/track/turnout/Yard/Exit",
     channel: 1,
     travelTime: "15s",
@@ -111,8 +111,10 @@ test("second point shares one pca9685 hub and unique ids", () => {
   const yaml = generateYaml(config);
   const pcaCount = (yaml.match(/^pca9685:/gm) || []).length;
   assert.equal(pcaCount, 1);
-  assert.match(yaml, /id: up_loop_servo/);
+  assert.match(yaml, /id: kiama_up_loop_servo/);
   assert.match(yaml, /id: yard_exit_servo/);
+  assert.match(yaml, /name: "Kiama\/Up Loop Normal Position"/);
+  assert.match(yaml, /Kiama\/Up Loop -> THROWN \(reverse\)/);
   assert.match(yaml, /channel: 1/);
   assert.match(yaml, /transition_length: 15s/);
 });

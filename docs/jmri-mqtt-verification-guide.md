@@ -148,7 +148,7 @@ Kiama/Up Loop
 3. In the ESPHome logs you should see:
 
    ```
-   [I][point_control:...] up_loop -> THROWN (reverse)
+   [I][point_control:...] Kiama/Up Loop -> THROWN (reverse)
    ```
 
 4. The servo should move to the reverse (diverging) position.

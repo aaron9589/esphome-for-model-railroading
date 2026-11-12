@@ -53,7 +53,7 @@ function myFirstBoardPreset() {
     ],
     points: [
       {
-        name: "up_loop",
+        name: "Kiama/Up Loop",
         topic: "trains/track/turnout/Kiama/Up Loop",
         channel: 0,
         travelTime: "10s",
@@ -351,7 +351,7 @@ function generateYaml(config) {
       ];
       for (const [label, suffix] of endpoints) {
         lines.push("  - platform: template");
-        lines.push(`    name: ${yamlQuote(`${point.id} ${label}`)}`);
+        lines.push(`    name: ${yamlQuote(`${point.name} ${label}`)}`);
         lines.push(`    id: ${point.id}_servo_endpoint_${suffix}`);
         lines.push("    min_value: -50");
         lines.push("    max_value: 50");
@@ -388,7 +388,7 @@ function generateYaml(config) {
     lines.push("text_sensor:");
     for (const point of points) {
       lines.push("  - platform: mqtt_subscribe");
-      lines.push(`    name: ${yamlQuote(`${point.id} last command`)}`);
+      lines.push(`    name: ${yamlQuote(`${point.name} last command`)}`);
       lines.push(`    id: ${point.id}`);
       lines.push(`    topic: ${yamlQuote(point.topic)}`);
       lines.push("    on_value:");
@@ -399,7 +399,7 @@ function generateYaml(config) {
       lines.push("              state: 'THROWN'");
       lines.push("          then:");
       lines.push("            - logger.log:");
-      lines.push(`                format: ${yamlQuote(`${point.id} -> THROWN (reverse)`)}`);
+      lines.push(`                format: ${yamlQuote(`${point.name} -> THROWN (reverse)`)}`);
       lines.push("                level: INFO");
       lines.push("                tag: point_control");
       lines.push("            - servo.write:");
@@ -423,7 +423,7 @@ function generateYaml(config) {
       lines.push("              state: 'CLOSED'");
       lines.push("          then:");
       lines.push("            - logger.log:");
-      lines.push(`                format: ${yamlQuote(`${point.id} -> CLOSED (normal)`)}`);
+      lines.push(`                format: ${yamlQuote(`${point.name} -> CLOSED (normal)`)}`);
       lines.push("                level: INFO");
       lines.push("                tag: point_control");
       lines.push("            - servo.write:");

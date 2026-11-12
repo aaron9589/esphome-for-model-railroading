@@ -1,51 +1,6 @@
-# ESPHome for Model Railroading
+# How the boards work
 
-ESP32 boards for a model railroad: block detection and point control, talking to JMRI/CATS over MQTT.
-
-## Start here
-
-**[Open the Board Configurator](https://aaron9589.github.io/esphome-for-model-railroading/)**
-
-That page builds your `board.yaml`. Click **My first board**, fill in Wi-Fi and this computer’s MQTT address, add the blocks and points you actually have, then download the file. Paste it into ESPHome. Don’t edit the YAML by hand — import the same file back into the configurator when you want to change something. The file contains your Wi-Fi password, so don’t commit it.
-
-1. **Install ESPHome and Mosquitto.** The script asks install or uninstall. Install opens the dashboard when it finishes.
-
-   Mac — Terminal:
-
-   ```bash
-   curl -fsSL https://raw.githubusercontent.com/aaron9589/esphome-for-model-railroading/main/scripts/install-mac.sh -o /tmp/esphome-mr-setup.sh && bash /tmp/esphome-mr-setup.sh
-   ```
-
-   Windows — PowerShell. You do not need to start it as administrator. The script asks for that itself.
-
-   ```powershell
-   irm https://raw.githubusercontent.com/aaron9589/esphome-for-model-railroading/main/scripts/install-windows.ps1 -OutFile "$env:TEMP\esphome-mr-setup.ps1"; Start-Process powershell -Verb RunAs -Wait -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$env:TEMP\esphome-mr-setup.ps1`""
-   ```
-
-   Type `1` to install. The click-by-click version is [installing-esphome-cheatsheet.md](installing-esphome-cheatsheet.md).
-
-2. **[Flash the downloaded file](first-board-setup-guide.md)** by USB the first time.
-3. **[Check it in JMRI](jmri-mqtt-verification-guide.md)** once a train and a turnout move.
-
-### What you’ll need
-
-**Hardware.** Everything except transformers I source from AliExpress.
-
-![Parts](../_img/Parts.jpg)
-
-- ESP32 with a CP2102 USB chip: https://www.aliexpress.com/item/1005004337178335.html
-- PCA9685 16-channel PWM board (one per ESP, up to 16 servos)
-- 20cm female-female Dupont wires
-- Two power supplies: one for the ESP (about 6.5V into the board’s regulator) and a separate 5V supply for the servos. Keep both off the DCC bus so a track short doesn’t move points or signals.
-
-**On the computer**
-
-- Windows 10/11, or a Mac
-- ESPHome Device Builder and Mosquitto, from the install script above
-- 2.4 GHz Wi-Fi with DHCP (these boards cannot use 5 GHz)
-- Chrome or Edge for the first USB flash
-
----
+Install, the configurator, and the first flash are on the [README](../README.md). This page is what the boards are doing, and how the detectors and points are wired.
 
 ## The layout
 

@@ -15,7 +15,7 @@ This repo is a beginner path for model-railroad ESP32 boards that talk to JMRI/C
 
 ## Install and MQTT
 
-- Supported install: `scripts/install-mac.sh` or `scripts/install-windows.ps1`. The one-liners are in `docs/README.md`. `docs/installing-esphome-cheatsheet.md` is the same steps by hand.
+- Supported install: `scripts/install-mac.sh` or `scripts/install-windows.ps1`. The one-liners are in `README.md`. `docs/installing-esphome-cheatsheet.md` is the same steps by hand.
 - ESPHome is the Device Builder desktop app at http://localhost:6052. Config files live in `~/esphome`.
 - MQTT is Mosquitto on port 1883, anonymous, on a trusted home LAN.
 - The broker address in board YAML and in JMRI is the computer's LAN IP. Never `localhost`.
@@ -32,10 +32,11 @@ This repo is a beginner path for model-railroad ESP32 boards that talk to JMRI/C
 
 ## Where to send people
 
-1. `docs/README.md` — configurator, then the install script.
-2. `docs/first-board-setup-guide.md` — paste the YAML, flash by USB, confirm MQTT with `mosquitto_sub`.
-3. `docs/jmri-mqtt-verification-guide.md` — sensor and turnout topics.
-4. `samples/` — block detection, points, and the advanced files. Signals are not in the configurator.
+1. `README.md` — what you need, the install script, the configurator, then the first flash.
+2. `docs/README.md` — detector wiring, point setup, and the layout.
+3. `docs/first-board-setup-guide.md` — paste the YAML, flash by USB, confirm MQTT with `mosquitto_sub`.
+4. `docs/jmri-mqtt-verification-guide.md` — sensor and turnout topics.
+5. `samples/` — block detection, points, and the advanced files. Signals are not in the configurator.
 
 ## Configurator
 

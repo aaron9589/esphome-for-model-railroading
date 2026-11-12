@@ -100,7 +100,7 @@ document.getElementById("btn-add-point").addEventListener("click", () => {
   let channel = 0;
   while (used.has(channel) && channel < 15) channel += 1;
   state.points.push({
-    name: `turnout_${String(state.points.length + 1).padStart(2, "0")}`,
+    name: `Point ${state.points.length + 1}`,
     topic: "trains/track/turnout/Location/Turnout",
     channel,
     travelTime: "10s",
@@ -472,8 +472,9 @@ function renderPoints() {
         persist();
         updatePreview();
       }, {
-        placeholder: "up_loop",
-        hint: "Short id for this servo. The calibration sliders on the board use this name. Letters, numbers, and underscores only.",
+        placeholder: "Kiama/Up Loop",
+        full: true,
+        hint: "Shown on the calibration page and in the logs, for example “Kiama/Up Loop -> THROWN”. It does not have to match the JMRI name.",
       }),
       field("MQTT topic", point.topic, (v) => {
         point.topic = v;

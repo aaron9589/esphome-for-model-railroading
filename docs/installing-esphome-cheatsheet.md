@@ -9,7 +9,7 @@ Goal:
 
 Creating and flashing your first board is covered in [first-board-setup-guide.md](first-board-setup-guide.md).
 
-The commands below are the same ones as in the [README](README.md). They are the normal way to install. The click-by-click steps under that are only if you would rather do it yourself.
+The commands below are the same ones as in the [README](../README.md). They are the normal way to install. The click-by-click steps under that are only if you would rather do it yourself.
 
 ---
 
