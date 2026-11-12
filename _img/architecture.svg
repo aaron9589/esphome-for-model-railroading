@@ -1,0 +1,85 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 520" role="img" aria-labelledby="archTitle archDesc">
+  <title id="archTitle">Layout architecture</title>
+  <desc id="archDesc">Track detectors and point servos on an ESP32, signals on a second ESPHome board wired to WLED, all talking MQTT to Mosquitto, JMRI, and CATS on the layout computer.</desc>
+  <rect width="880" height="520" fill="#f4f1ea"/>
+
+  <rect x="16" y="16" width="400" height="488" rx="16" fill="#fffdf8" stroke="#e7e2d8"/>
+  <rect x="476" y="16" width="388" height="488" rx="16" fill="#fffdf8" stroke="#e7e2d8"/>
+  <text x="36" y="44" fill="#78716c" font-family="ui-sans-serif, system-ui, sans-serif" font-size="13" font-weight="600">On the layout</text>
+  <text x="496" y="44" fill="#78716c" font-family="ui-sans-serif, system-ui, sans-serif" font-size="13" font-weight="600">Layout computer</text>
+
+  <rect x="108" y="64" width="216" height="58" rx="10" fill="#e7f6ef" stroke="#0f6e56"/>
+  <text x="216" y="88" text-anchor="middle" fill="#1c1917" font-family="ui-sans-serif, system-ui, sans-serif" font-size="16" font-weight="600">Track block</text>
+  <text x="216" y="108" text-anchor="middle" fill="#57534e" font-family="ui-sans-serif, system-ui, sans-serif" font-size="12">DCC feeder</text>
+
+  <line x1="216" y1="122" x2="216" y2="140" stroke="#44403c" stroke-width="1.5"/>
+  <polygon points="216,150 211.5,141 220.5,141" fill="#44403c"/>
+  <text x="228" y="140" fill="#57534e" font-family="ui-sans-serif, system-ui, sans-serif" font-size="12">through the coil</text>
+
+  <rect x="108" y="156" width="216" height="58" rx="10" fill="#e7f6ef" stroke="#0f6e56"/>
+  <text x="216" y="180" text-anchor="middle" fill="#1c1917" font-family="ui-sans-serif, system-ui, sans-serif" font-size="16" font-weight="600">Current detector</text>
+  <text x="216" y="200" text-anchor="middle" fill="#57534e" font-family="ui-sans-serif, system-ui, sans-serif" font-size="12">one GPIO</text>
+
+  <line x1="216" y1="214" x2="216" y2="232" stroke="#44403c" stroke-width="1.5"/>
+  <polygon points="216,242 211.5,233 220.5,233" fill="#44403c"/>
+  <text x="228" y="232" fill="#57534e" font-family="ui-sans-serif, system-ui, sans-serif" font-size="12">GPIO</text>
+
+  <rect x="96" y="248" width="240" height="76" rx="12" fill="#e8f1fb" stroke="#185fa5" stroke-width="1.75"/>
+  <text x="216" y="278" text-anchor="middle" fill="#1c1917" font-family="ui-sans-serif, system-ui, sans-serif" font-size="18" font-weight="600">ESP32</text>
+  <text x="216" y="300" text-anchor="middle" fill="#57534e" font-family="ui-sans-serif, system-ui, sans-serif" font-size="13">blocks and points</text>
+
+  <line x1="118" y1="324" x2="118" y2="348" stroke="#44403c" stroke-width="1.5"/>
+  <polygon points="118,358 113.5,349 122.5,349" fill="#44403c"/>
+  <text x="128" y="346" fill="#57534e" font-family="ui-sans-serif, system-ui, sans-serif" font-size="12">I2C</text>
+
+  <rect x="36" y="364" width="156" height="60" rx="10" fill="#eef3f8" stroke="#185fa5"/>
+  <text x="114" y="388" text-anchor="middle" fill="#1c1917" font-family="ui-sans-serif, system-ui, sans-serif" font-size="15" font-weight="600">PCA9685</text>
+  <text x="114" y="408" text-anchor="middle" fill="#57534e" font-family="ui-sans-serif, system-ui, sans-serif" font-size="12">up to 16 servos</text>
+
+  <line x1="192" y1="394" x2="228" y2="394" stroke="#44403c" stroke-width="1.5"/>
+  <polygon points="238,394 229,389.5 229,398.5" fill="#44403c"/>
+  <text x="215" y="386" text-anchor="middle" fill="#57534e" font-family="ui-sans-serif, system-ui, sans-serif" font-size="12">PWM</text>
+
+  <rect x="244" y="364" width="156" height="60" rx="10" fill="#f5f5f4" stroke="#78716c"/>
+  <text x="322" y="388" text-anchor="middle" fill="#1c1917" font-family="ui-sans-serif, system-ui, sans-serif" font-size="15" font-weight="600">Point servo</text>
+  <text x="322" y="408" text-anchor="middle" fill="#57534e" font-family="ui-sans-serif, system-ui, sans-serif" font-size="12">separate 5V supply</text>
+
+  <rect x="36" y="448" width="150" height="44" rx="10" fill="#f5f5f4" stroke="#78716c"/>
+  <text x="111" y="475" text-anchor="middle" fill="#1c1917" font-family="ui-sans-serif, system-ui, sans-serif" font-size="14" font-weight="600">WLED heads</text>
+
+  <line x1="186" y1="470" x2="214" y2="470" stroke="#44403c" stroke-width="1.5"/>
+  <polygon points="186,470 195,465.5 195,474.5" fill="#44403c"/>
+  <text x="208" y="462" text-anchor="middle" fill="#57534e" font-family="ui-sans-serif, system-ui, sans-serif" font-size="11">UART</text>
+
+  <rect x="230" y="448" width="166" height="44" rx="10" fill="#e8f1fb" stroke="#185fa5"/>
+  <text x="313" y="475" text-anchor="middle" fill="#1c1917" font-family="ui-sans-serif, system-ui, sans-serif" font-size="14" font-weight="600">Signal ESP</text>
+
+  <rect x="500" y="78" width="328" height="84" rx="12" fill="#faeeda" stroke="#854f0b" stroke-width="1.75"/>
+  <text x="664" y="112" text-anchor="middle" fill="#1c1917" font-family="ui-sans-serif, system-ui, sans-serif" font-size="18" font-weight="600">Mosquitto</text>
+  <text x="664" y="136" text-anchor="middle" fill="#57534e" font-family="ui-sans-serif, system-ui, sans-serif" font-size="13">port 1883, no username</text>
+
+  <line x1="664" y1="162" x2="664" y2="214" stroke="#44403c" stroke-width="1.5"/>
+  <text x="676" y="194" fill="#57534e" font-family="ui-sans-serif, system-ui, sans-serif" font-size="12">both ways</text>
+
+  <rect x="500" y="220" width="328" height="84" rx="12" fill="#f4f4f5" stroke="#44403c"/>
+  <text x="664" y="254" text-anchor="middle" fill="#1c1917" font-family="ui-sans-serif, system-ui, sans-serif" font-size="18" font-weight="600">JMRI</text>
+  <text x="664" y="278" text-anchor="middle" fill="#57534e" font-family="ui-sans-serif, system-ui, sans-serif" font-size="13">sensors, turnouts, signals</text>
+
+  <line x1="664" y1="304" x2="664" y2="348" stroke="#44403c" stroke-width="1.5"/>
+  <polygon points="664,304 659.5,313 668.5,313" fill="#44403c"/>
+  <text x="676" y="334" fill="#57534e" font-family="ui-sans-serif, system-ui, sans-serif" font-size="12">writes tables</text>
+
+  <rect x="500" y="364" width="328" height="84" rx="12" fill="#f4f4f5" stroke="#44403c"/>
+  <text x="664" y="398" text-anchor="middle" fill="#1c1917" font-family="ui-sans-serif, system-ui, sans-serif" font-size="18" font-weight="600">CATS</text>
+  <text x="664" y="422" text-anchor="middle" fill="#57534e" font-family="ui-sans-serif, system-ui, sans-serif" font-size="13">signalling logic</text>
+
+  <line x1="336" y1="286" x2="446" y2="286" stroke="#44403c" stroke-width="1.5"/>
+  <line x1="396" y1="470" x2="446" y2="470" stroke="#44403c" stroke-width="1.5"/>
+  <line x1="446" y1="470" x2="446" y2="228" stroke="#44403c" stroke-width="1.5"/>
+  <line x1="446" y1="180" x2="446" y2="120" stroke="#44403c" stroke-width="1.5"/>
+  <line x1="446" y1="120" x2="500" y2="120" stroke="#44403c" stroke-width="1.5"/>
+
+  <rect x="416" y="180" width="60" height="48" rx="10" fill="#fffdf8" stroke="#44403c"/>
+  <text x="446" y="200" text-anchor="middle" fill="#1c1917" font-family="ui-sans-serif, system-ui, sans-serif" font-size="12" font-weight="600">Wi-Fi</text>
+  <text x="446" y="216" text-anchor="middle" fill="#57534e" font-family="ui-sans-serif, system-ui, sans-serif" font-size="11">MQTT</text>
+</svg>

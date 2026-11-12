@@ -1,6 +1,6 @@
 # First Board Setup Guide (No Technical Background Needed)
 
-Use this after the install script from the [README](README.md) finishes (or after the manual steps in [installing-esphome-cheatsheet.md](installing-esphome-cheatsheet.md)). The script opens the ESPHome dashboard for you.
+Use this after the install script from the [README](../README.md) finishes (or after the manual steps in [installing-esphome-cheatsheet.md](installing-esphome-cheatsheet.md)). The script opens the ESPHome dashboard for you.
 
 Goal:
 - Create one ESP board in ESPHome
