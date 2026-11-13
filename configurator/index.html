@@ -14,8 +14,7 @@
           <h1>Board configurator</h1>
         </div>
         <div class="top-actions">
-          <span class="chip">ESPHome 2024.6.0+</span>
-          <button type="button" id="btn-preset">My first board</button>
+          <span class="chip">ESPHome 2025.8.0+</span>
           <label class="btn file-btn">
             Import
             <input type="file" id="import-file" accept=".yaml,.yml,text/yaml,text/plain" />
@@ -46,15 +45,12 @@
         </nav>
 
         <main>
+          <div id="messages" class="messages" aria-live="polite"></div>
           <section class="view is-active" data-panel="board">
-            <div id="messages" class="messages" aria-live="polite"></div>
             <header class="view-head">
               <div>
                 <h2>Board</h2>
-                <p>
-                  New here? Click <strong>My first board</strong>. It fills in one example block and one example point.
-                  Then put in your Wi-Fi and this computer’s address. Those stay in this browser and are written into the file you download.
-                </p>
+                <p>Set the name, Wi-Fi, and MQTT address for this board.</p>
               </div>
               <button type="button" id="btn-clear-creds" class="text">Clear saved Wi-Fi and MQTT</button>
             </header>
@@ -66,6 +62,16 @@
               <h3>Network</h3>
               <div class="fields" id="board-network"></div>
             </div>
+            <div class="card">
+              <h3>Fallback hotspot</h3>
+              <p class="card-copy">A setup hotspot if the board cannot join Wi-Fi.</p>
+              <div class="fields" id="hotspot-fields"></div>
+            </div>
+            <div class="card">
+              <h3>Dashboard on the network</h3>
+              <p class="card-copy">Lets ESPHome see this board and update it over the network.</p>
+              <div class="fields" id="api-fields"></div>
+            </div>
             <div class="pager">
               <button type="button" class="primary" data-goto="blocks">Next: blocks</button>
             </div>
@@ -75,7 +81,7 @@
             <header class="view-head">
               <div>
                 <h2>Block detectors</h2>
-                <p>One GPIO per occupancy detector. The topic must match the JMRI sensor hardware address path.</p>
+                <p>One detector per block.</p>
               </div>
               <div class="view-actions">
                 <button type="button" id="btn-clear">Remove all</button>
@@ -83,7 +89,7 @@
               </div>
             </header>
             <div id="blocks-list"></div>
-            <p id="blocks-empty" class="empty" hidden>No blocks yet. Add one, or load My first board.</p>
+            <p id="blocks-empty" class="empty" hidden>No blocks yet.</p>
             <div class="pager">
               <button type="button" data-goto="board">Back: board</button>
               <button type="button" class="primary" data-goto="points">Next: points</button>
@@ -94,18 +100,12 @@
             <header class="view-head">
               <div>
                 <h2>Points</h2>
-                <p>Servos on one PCA9685. Power the servo rail from a separate 5V supply.</p>
+                <p>Servos on one PCA9685, with optional fascia buttons.</p>
               </div>
               <button type="button" id="btn-add-point" class="primary">Add point</button>
             </header>
             <aside class="note">
-              <strong>You set the closed and thrown positions after the board is running, not here.</strong>
-              <p>
-                Flash the board, then open <code>http://&lt;board-name&gt;.local</code> in Chrome or Edge
-                (the name you set on the Board page). Each turnout has sliders for the straight and diverging ends.
-                Move them until the point closes without straining. The ESP saves those positions, so you can adjust
-                them later without downloading a new YAML. Travel time on this page is only how fast the throw moves.
-              </p>
+              <p>Closed and thrown positions are set on the running board, at <code>http://&lt;board-name&gt;.local</code>.</p>
             </aside>
             <div class="card" id="i2c-card">
               <h3>PCA9685 bus</h3>
@@ -124,9 +124,7 @@
               <div>
                 <h2>Download</h2>
                 <p>
-                  Check the Wi-Fi name and MQTT address on the Board page, then <strong>Download YAML</strong>.
-                  Paste that file into ESPHome and flash.
-                  To change a block or point later, <strong>Import</strong> the same file here — don’t edit the YAML by hand.
+                  Download the file and paste it into ESPHome.
                   <a href="https://github.com/aaron9589/esphome-for-model-railroading/blob/main/docs/first-board-setup-guide.md">How to flash</a>
                 </p>
               </div>

@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="440" height="450" viewBox="0 0 440 450" role="img" aria-label="30-pin ESP32 DevKit. EN and Boot are at the antenna end. Amber pins VP, VN, 34, and 35 have no internal pull-up.">
+<title>30-pin ESP32 DevKit. EN and Boot are at the antenna end. Amber pins VP, VN, 34, and 35 have no internal pull-up.</title>
+<rect x="96" y="28" width="248" height="394" rx="14" fill="#1f2937"/>
+<rect x="156" y="36" width="128" height="10" rx="2" fill="#374151"/>
+<rect x="132" y="48" width="40" height="18" rx="3" fill="#e5e7eb"/>
+<text x="152" y="61" text-anchor="middle" font-family="ui-sans-serif, sans-serif" font-size="9" font-weight="700" fill="#111827">EN</text>
+<rect x="268" y="48" width="52" height="18" rx="3" fill="#e5e7eb"/>
+<text x="294" y="61" text-anchor="middle" font-family="ui-sans-serif, sans-serif" font-size="9" font-weight="700" fill="#111827">BOOT</text>
+<rect x="156" y="167" width="128" height="116" rx="3" fill="#d1d5db" stroke="#9ca3af"/>
+<text x="220" y="219" text-anchor="middle" font-family="ui-sans-serif, sans-serif" font-size="11" font-weight="700" fill="#111827">ESP32</text>
+<text x="220" y="235" text-anchor="middle" font-family="ui-sans-serif, sans-serif" font-size="11" font-weight="700" fill="#111827">WROOM-32</text>
+<rect x="186" y="414" width="68" height="16" rx="2" fill="#9ca3af"/>
+<text x="220" y="426" text-anchor="middle" font-family="ui-sans-serif, sans-serif" font-size="8" fill="#1f2937">micro-USB</text>
+<circle cx="118" cy="78" r="4" fill="#e5e7eb"/>
+<text x="106" y="81" text-anchor="end" font-family="ui-sans-serif, sans-serif" font-size="11" font-weight="500" fill="#111827">3V3</text>
+<circle cx="118" cy="100" r="4" fill="#e5e7eb"/>
+<text x="106" y="103" text-anchor="end" font-family="ui-sans-serif, sans-serif" font-size="11" font-weight="500" fill="#111827">EN</text>
+<circle cx="118" cy="122" r="4" fill="#fbbf24"/>
+<text x="106" y="125" text-anchor="end" font-family="ui-sans-serif, sans-serif" font-size="11" font-weight="700" fill="#b45309">VP</text>
+<circle cx="118" cy="144" r="4" fill="#fbbf24"/>
+<text x="106" y="147" text-anchor="end" font-family="ui-sans-serif, sans-serif" font-size="11" font-weight="700" fill="#b45309">VN</text>
+<circle cx="118" cy="166" r="4" fill="#fbbf24"/>
+<text x="106" y="169" text-anchor="end" font-family="ui-sans-serif, sans-serif" font-size="11" font-weight="700" fill="#b45309">34</text>
+<circle cx="118" cy="188" r="4" fill="#fbbf24"/>
+<text x="106" y="191" text-anchor="end" font-family="ui-sans-serif, sans-serif" font-size="11" font-weight="700" fill="#b45309">35</text>
+<circle cx="118" cy="210" r="4" fill="#e5e7eb"/>
+<text x="106" y="213" text-anchor="end" font-family="ui-sans-serif, sans-serif" font-size="11" font-weight="500" fill="#111827">32</text>
+<circle cx="118" cy="232" r="4" fill="#e5e7eb"/>
+<text x="106" y="235" text-anchor="end" font-family="ui-sans-serif, sans-serif" font-size="11" font-weight="500" fill="#111827">33</text>
+<circle cx="118" cy="254" r="4" fill="#e5e7eb"/>
+<text x="106" y="257" text-anchor="end" font-family="ui-sans-serif, sans-serif" font-size="11" font-weight="500" fill="#111827">25</text>
+<circle cx="118" cy="276" r="4" fill="#e5e7eb"/>
+<text x="106" y="279" text-anchor="end" font-family="ui-sans-serif, sans-serif" font-size="11" font-weight="500" fill="#111827">26</text>
+<circle cx="118" cy="298" r="4" fill="#e5e7eb"/>
+<text x="106" y="301" text-anchor="end" font-family="ui-sans-serif, sans-serif" font-size="11" font-weight="500" fill="#111827">27</text>
+<circle cx="118" cy="320" r="4" fill="#e5e7eb"/>
+<text x="106" y="323" text-anchor="end" font-family="ui-sans-serif, sans-serif" font-size="11" font-weight="500" fill="#111827">14</text>
+<circle cx="118" cy="342" r="4" fill="#e5e7eb"/>
+<text x="106" y="345" text-anchor="end" font-family="ui-sans-serif, sans-serif" font-size="11" font-weight="500" fill="#111827">12</text>
+<circle cx="118" cy="364" r="4" fill="#e5e7eb"/>
+<text x="106" y="367" text-anchor="end" font-family="ui-sans-serif, sans-serif" font-size="11" font-weight="500" fill="#111827">GND</text>
+<circle cx="118" cy="386" r="4" fill="#e5e7eb"/>
+<text x="106" y="389" text-anchor="end" font-family="ui-sans-serif, sans-serif" font-size="11" font-weight="500" fill="#111827">13</text>
+<circle cx="322" cy="78" r="4" fill="#e5e7eb"/>
+<text x="334" y="81" text-anchor="start" font-family="ui-sans-serif, sans-serif" font-size="11" font-weight="500" fill="#111827">VIN</text>
+<circle cx="322" cy="100" r="4" fill="#e5e7eb"/>
+<text x="334" y="103" text-anchor="start" font-family="ui-sans-serif, sans-serif" font-size="11" font-weight="500" fill="#111827">GND</text>
+<circle cx="322" cy="122" r="4" fill="#e5e7eb"/>
+<text x="334" y="125" text-anchor="start" font-family="ui-sans-serif, sans-serif" font-size="11" font-weight="500" fill="#111827">23</text>
+<circle cx="322" cy="144" r="4" fill="#e5e7eb"/>
+<text x="334" y="147" text-anchor="start" font-family="ui-sans-serif, sans-serif" font-size="11" font-weight="500" fill="#111827">22</text>
+<circle cx="322" cy="166" r="4" fill="#e5e7eb"/>
+<text x="334" y="169" text-anchor="start" font-family="ui-sans-serif, sans-serif" font-size="11" font-weight="500" fill="#111827">TX</text>
+<circle cx="322" cy="188" r="4" fill="#e5e7eb"/>
+<text x="334" y="191" text-anchor="start" font-family="ui-sans-serif, sans-serif" font-size="11" font-weight="500" fill="#111827">RX</text>
+<circle cx="322" cy="210" r="4" fill="#e5e7eb"/>
+<text x="334" y="213" text-anchor="start" font-family="ui-sans-serif, sans-serif" font-size="11" font-weight="500" fill="#111827">21</text>
+<circle cx="322" cy="232" r="4" fill="#e5e7eb"/>
+<text x="334" y="235" text-anchor="start" font-family="ui-sans-serif, sans-serif" font-size="11" font-weight="500" fill="#111827">GND</text>
+<circle cx="322" cy="254" r="4" fill="#e5e7eb"/>
+<text x="334" y="257" text-anchor="start" font-family="ui-sans-serif, sans-serif" font-size="11" font-weight="500" fill="#111827">19</text>
+<circle cx="322" cy="276" r="4" fill="#e5e7eb"/>
+<text x="334" y="279" text-anchor="start" font-family="ui-sans-serif, sans-serif" font-size="11" font-weight="500" fill="#111827">18</text>
+<circle cx="322" cy="298" r="4" fill="#e5e7eb"/>
+<text x="334" y="301" text-anchor="start" font-family="ui-sans-serif, sans-serif" font-size="11" font-weight="500" fill="#111827">5</text>
+<circle cx="322" cy="320" r="4" fill="#e5e7eb"/>
+<text x="334" y="323" text-anchor="start" font-family="ui-sans-serif, sans-serif" font-size="11" font-weight="500" fill="#111827">17</text>
+<circle cx="322" cy="342" r="4" fill="#e5e7eb"/>
+<text x="334" y="345" text-anchor="start" font-family="ui-sans-serif, sans-serif" font-size="11" font-weight="500" fill="#111827">16</text>
+<circle cx="322" cy="364" r="4" fill="#e5e7eb"/>
+<text x="334" y="367" text-anchor="start" font-family="ui-sans-serif, sans-serif" font-size="11" font-weight="500" fill="#111827">4</text>
+<circle cx="322" cy="386" r="4" fill="#e5e7eb"/>
+<text x="334" y="389" text-anchor="start" font-family="ui-sans-serif, sans-serif" font-size="11" font-weight="500" fill="#111827">0</text>
+</svg>

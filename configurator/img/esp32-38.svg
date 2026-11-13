@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="440" height="506" viewBox="0 0 440 506" role="img" aria-label="38-pin ESP32 dev board. Amber pins VP, VN, 34, and 35 have no internal pull-up.">
+<title>38-pin ESP32 dev board. Amber pins VP, VN, 34, and 35 have no internal pull-up.</title>
+<rect x="96" y="28" width="248" height="450" rx="14" fill="#1f2937"/>
+<rect x="156" y="36" width="128" height="10" rx="2" fill="#374151"/>
+<rect x="156" y="195" width="128" height="116" rx="3" fill="#d1d5db" stroke="#9ca3af"/>
+<text x="220" y="247" text-anchor="middle" font-family="ui-sans-serif, sans-serif" font-size="11" font-weight="700" fill="#111827">ESP32</text>
+<text x="220" y="263" text-anchor="middle" font-family="ui-sans-serif, sans-serif" font-size="11" font-weight="700" fill="#111827">WROOM-32</text>
+<rect x="186" y="470" width="68" height="16" rx="2" fill="#9ca3af"/>
+<text x="220" y="482" text-anchor="middle" font-family="ui-sans-serif, sans-serif" font-size="8" fill="#1f2937">USB</text>
+<circle cx="118" cy="46" r="4" fill="#e5e7eb"/>
+<text x="106" y="49" text-anchor="end" font-family="ui-sans-serif, sans-serif" font-size="11" font-weight="500" fill="#111827">3V3</text>
+<circle cx="118" cy="68" r="4" fill="#e5e7eb"/>
+<text x="106" y="71" text-anchor="end" font-family="ui-sans-serif, sans-serif" font-size="11" font-weight="500" fill="#111827">EN</text>
+<circle cx="118" cy="90" r="4" fill="#fbbf24"/>
+<text x="106" y="93" text-anchor="end" font-family="ui-sans-serif, sans-serif" font-size="11" font-weight="700" fill="#b45309">VP</text>
+<circle cx="118" cy="112" r="4" fill="#fbbf24"/>
+<text x="106" y="115" text-anchor="end" font-family="ui-sans-serif, sans-serif" font-size="11" font-weight="700" fill="#b45309">VN</text>
+<circle cx="118" cy="134" r="4" fill="#fbbf24"/>
+<text x="106" y="137" text-anchor="end" font-family="ui-sans-serif, sans-serif" font-size="11" font-weight="700" fill="#b45309">34</text>
+<circle cx="118" cy="156" r="4" fill="#fbbf24"/>
+<text x="106" y="159" text-anchor="end" font-family="ui-sans-serif, sans-serif" font-size="11" font-weight="700" fill="#b45309">35</text>
+<circle cx="118" cy="178" r="4" fill="#e5e7eb"/>
+<text x="106" y="181" text-anchor="end" font-family="ui-sans-serif, sans-serif" font-size="11" font-weight="500" fill="#111827">32</text>
+<circle cx="118" cy="200" r="4" fill="#e5e7eb"/>
+<text x="106" y="203" text-anchor="end" font-family="ui-sans-serif, sans-serif" font-size="11" font-weight="500" fill="#111827">33</text>
+<circle cx="118" cy="222" r="4" fill="#e5e7eb"/>
+<text x="106" y="225" text-anchor="end" font-family="ui-sans-serif, sans-serif" font-size="11" font-weight="500" fill="#111827">25</text>
+<circle cx="118" cy="244" r="4" fill="#e5e7eb"/>
+<text x="106" y="247" text-anchor="end" font-family="ui-sans-serif, sans-serif" font-size="11" font-weight="500" fill="#111827">26</text>
+<circle cx="118" cy="266" r="4" fill="#e5e7eb"/>
+<text x="106" y="269" text-anchor="end" font-family="ui-sans-serif, sans-serif" font-size="11" font-weight="500" fill="#111827">27</text>
+<circle cx="118" cy="288" r="4" fill="#e5e7eb"/>
+<text x="106" y="291" text-anchor="end" font-family="ui-sans-serif, sans-serif" font-size="11" font-weight="500" fill="#111827">14</text>
+<circle cx="118" cy="310" r="4" fill="#e5e7eb"/>
+<text x="106" y="313" text-anchor="end" font-family="ui-sans-serif, sans-serif" font-size="11" font-weight="500" fill="#111827">12</text>
+<circle cx="118" cy="332" r="4" fill="#e5e7eb"/>
+<text x="106" y="335" text-anchor="end" font-family="ui-sans-serif, sans-serif" font-size="11" font-weight="500" fill="#111827">GND</text>
+<circle cx="118" cy="354" r="4" fill="#e5e7eb"/>
+<text x="106" y="357" text-anchor="end" font-family="ui-sans-serif, sans-serif" font-size="11" font-weight="500" fill="#111827">13</text>
+<circle cx="118" cy="376" r="4" fill="#e5e7eb"/>
+<text x="106" y="379" text-anchor="end" font-family="ui-sans-serif, sans-serif" font-size="11" font-weight="500" fill="#111827">9</text>
+<circle cx="118" cy="398" r="4" fill="#e5e7eb"/>
+<text x="106" y="401" text-anchor="end" font-family="ui-sans-serif, sans-serif" font-size="11" font-weight="500" fill="#111827">10</text>
+<circle cx="118" cy="420" r="4" fill="#e5e7eb"/>
+<text x="106" y="423" text-anchor="end" font-family="ui-sans-serif, sans-serif" font-size="11" font-weight="500" fill="#111827">11</text>
+<circle cx="118" cy="442" r="4" fill="#e5e7eb"/>
+<text x="106" y="445" text-anchor="end" font-family="ui-sans-serif, sans-serif" font-size="11" font-weight="500" fill="#111827">5V</text>
+<circle cx="322" cy="46" r="4" fill="#e5e7eb"/>
+<text x="334" y="49" text-anchor="start" font-family="ui-sans-serif, sans-serif" font-size="11" font-weight="500" fill="#111827">VIN</text>
+<circle cx="322" cy="68" r="4" fill="#e5e7eb"/>
+<text x="334" y="71" text-anchor="start" font-family="ui-sans-serif, sans-serif" font-size="11" font-weight="500" fill="#111827">GND</text>
+<circle cx="322" cy="90" r="4" fill="#e5e7eb"/>
+<text x="334" y="93" text-anchor="start" font-family="ui-sans-serif, sans-serif" font-size="11" font-weight="500" fill="#111827">23</text>
+<circle cx="322" cy="112" r="4" fill="#e5e7eb"/>
+<text x="334" y="115" text-anchor="start" font-family="ui-sans-serif, sans-serif" font-size="11" font-weight="500" fill="#111827">22</text>
+<circle cx="322" cy="134" r="4" fill="#e5e7eb"/>
+<text x="334" y="137" text-anchor="start" font-family="ui-sans-serif, sans-serif" font-size="11" font-weight="500" fill="#111827">TX</text>
+<circle cx="322" cy="156" r="4" fill="#e5e7eb"/>
+<text x="334" y="159" text-anchor="start" font-family="ui-sans-serif, sans-serif" font-size="11" font-weight="500" fill="#111827">RX</text>
+<circle cx="322" cy="178" r="4" fill="#e5e7eb"/>
+<text x="334" y="181" text-anchor="start" font-family="ui-sans-serif, sans-serif" font-size="11" font-weight="500" fill="#111827">21</text>
+<circle cx="322" cy="200" r="4" fill="#e5e7eb"/>
+<text x="334" y="203" text-anchor="start" font-family="ui-sans-serif, sans-serif" font-size="11" font-weight="500" fill="#111827">GND</text>
+<circle cx="322" cy="222" r="4" fill="#e5e7eb"/>
+<text x="334" y="225" text-anchor="start" font-family="ui-sans-serif, sans-serif" font-size="11" font-weight="500" fill="#111827">19</text>
+<circle cx="322" cy="244" r="4" fill="#e5e7eb"/>
+<text x="334" y="247" text-anchor="start" font-family="ui-sans-serif, sans-serif" font-size="11" font-weight="500" fill="#111827">18</text>
+<circle cx="322" cy="266" r="4" fill="#e5e7eb"/>
+<text x="334" y="269" text-anchor="start" font-family="ui-sans-serif, sans-serif" font-size="11" font-weight="500" fill="#111827">5</text>
+<circle cx="322" cy="288" r="4" fill="#e5e7eb"/>
+<text x="334" y="291" text-anchor="start" font-family="ui-sans-serif, sans-serif" font-size="11" font-weight="500" fill="#111827">17</text>
+<circle cx="322" cy="310" r="4" fill="#e5e7eb"/>
+<text x="334" y="313" text-anchor="start" font-family="ui-sans-serif, sans-serif" font-size="11" font-weight="500" fill="#111827">16</text>
+<circle cx="322" cy="332" r="4" fill="#e5e7eb"/>
+<text x="334" y="335" text-anchor="start" font-family="ui-sans-serif, sans-serif" font-size="11" font-weight="500" fill="#111827">4</text>
+<circle cx="322" cy="354" r="4" fill="#e5e7eb"/>
+<text x="334" y="357" text-anchor="start" font-family="ui-sans-serif, sans-serif" font-size="11" font-weight="500" fill="#111827">0</text>
+<circle cx="322" cy="376" r="4" fill="#e5e7eb"/>
+<text x="334" y="379" text-anchor="start" font-family="ui-sans-serif, sans-serif" font-size="11" font-weight="500" fill="#111827">2</text>
+<circle cx="322" cy="398" r="4" fill="#e5e7eb"/>
+<text x="334" y="401" text-anchor="start" font-family="ui-sans-serif, sans-serif" font-size="11" font-weight="500" fill="#111827">15</text>
+<circle cx="322" cy="420" r="4" fill="#e5e7eb"/>
+<text x="334" y="423" text-anchor="start" font-family="ui-sans-serif, sans-serif" font-size="11" font-weight="500" fill="#111827">8</text>
+<circle cx="322" cy="442" r="4" fill="#e5e7eb"/>
+<text x="334" y="445" text-anchor="start" font-family="ui-sans-serif, sans-serif" font-size="11" font-weight="500" fill="#111827">7</text>
+</svg>

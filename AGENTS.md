@@ -36,14 +36,14 @@ This repo is a beginner path for model-railroad ESP32 boards that talk to JMRI/C
 - MQTTX is the GUI topic browser (not MQTT Explorer — Mac Gatekeeper breaks those builds). Connect to `127.0.0.1:1883` with no username to watch the local broker.
 - After install, the script offers to open the Board Configurator in the browser (Enter to open, `n` to skip).
 - The broker address in board YAML and in JMRI is the computer's **LAN IP**. Never `localhost` / `127.0.0.1` in board YAML or JMRI.
-- Generated YAML needs ESPHome **2024.6.0** or newer (`ota` platform `esphome`, `min_version`).
+- Generated YAML needs ESPHome **2025.8.0** or newer (`esp32: variant`, `ota` platform `esphome`, `min_version`).
 
 ## Board Configurator
 
 - Live at https://aaron9589.github.io/esphome-for-model-railroading/
 - Source: `configurator/` (static site). Deployed by `.github/workflows/pages.yml` on pushes to `main` that touch `configurator/**`.
 - Writes one `board.yaml` with an `esphome-mr-config:1` comment so the same file can be imported again. Do not invent a second file format.
-- **v1 scope:** board settings, block detectors, and PCA9685 points only.
+- **v1 scope:** board settings (fallback hotspot and the ESPHome API included), block detectors, PCA9685 points, and optional panel buttons on those points.
 - Default MQTT topics: `trains/track/sensor/<name>` and `trains/track/turnout/<name>`; state feedback is `<turnout-topic>/State`.
 - Detectors publish with `retain: false` on purpose (avoid stale OCCUPIED in JMRI). Servo endpoint sliders use `restore_value: true` on the ESP. Turnout `/State` is not retained in generated YAML; JMRI can still remember panel state.
 - When changing generator behaviour, update `configurator/test/generator.test.js` and run the configurator tests (`configurator/package.json`).

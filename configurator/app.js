@@ -1,8 +1,12 @@
 const {
-  MIN_ESPHOME_VERSION,
-  emptyConfig,
+  PULLUP_PINS,
+  STRAPPING_PINS,
+  ensureSecrets,
+  generateApiKey,
+  generatePassword,
   generateYaml,
   myFirstBoardPreset,
+  normalizeConfig,
   parseConfigFromYaml,
   stateTopic,
   topicFor,
@@ -12,18 +16,37 @@ const {
 const STORAGE_KEY = "esphome-mr-configurator-v1";
 const CREDENTIALS_KEY = "esphome-mr-credentials-v1";
 
-const boardTypeOptions = [
-  "nodemcu-32s",
-  "esp32dev",
-  "esp32-s3-devkitc-1",
+const MODULES = [
+  {
+    id: "nodemcu-32s",
+    title: "38-pin dev board",
+    detail: "Two rows of 19. The wide board.",
+    src: "img/esp32-38.svg",
+    alt: "38-pin ESP32 board. Amber labels VP, VN, 34, and 35 have no pull-up.",
+  },
+  {
+    id: "esp32dev",
+    title: "30-pin DevKit",
+    detail: "EN and Boot at the antenna end. Two rows of 15.",
+    src: "img/esp32-30.svg",
+    alt: "30-pin ESP32 DevKit with EN and Boot at the antenna end. Amber labels VP, VN, 34, and 35 have no pull-up.",
+  },
 ];
 
-const CRED_FIELDS = ["wifiSsid", "wifiPassword", "mqttBroker", "otaPassword"];
+const ACTIONS = [
+  { value: "toggle", label: "Toggle" },
+  { value: "closed", label: "Set closed" },
+  { value: "thrown", label: "Set thrown" },
+];
+
+const CRED_FIELDS = ["wifiSsid", "wifiPassword", "mqttBroker", "otaPassword", "apPassword", "apiKey"];
 
 let state = loadState() || myFirstBoardPreset();
+normalizeConfig(state);
 normalizeTopics(state);
 applyCredentials(state, loadCredentials());
 ensureOtaPassword();
+ensureSecrets(state);
 persist();
 
 const el = {
@@ -31,6 +54,8 @@ const el = {
   toasts: document.getElementById("toasts"),
   boardIdentity: document.getElementById("board-identity"),
   boardNetwork: document.getElementById("board-network"),
+  hotspotFields: document.getElementById("hotspot-fields"),
+  apiFields: document.getElementById("api-fields"),
   i2cFields: document.getElementById("i2c-fields"),
   blocksList: document.getElementById("blocks-list"),
   pointsList: document.getElementById("points-list"),
@@ -59,14 +84,6 @@ function showView(name) {
   });
   window.scrollTo(0, 0);
 }
-
-document.getElementById("btn-preset").addEventListener("click", () => {
-  state = myFirstBoardPreset();
-  applyCredentials(state, loadCredentials());
-  persist();
-  render();
-  flash("ok", "Loaded My First Board preset (saved credentials kept).");
-});
 
 document.getElementById("btn-clear").addEventListener("click", () => {
   state.blocks = [];
@@ -111,6 +128,7 @@ document.getElementById("btn-add-point").addEventListener("click", () => {
     topicCustom: false,
     channel,
     travelTime: "10s",
+    controls: [],
   });
   persist();
   render();
@@ -152,16 +170,14 @@ el.importFile.addEventListener("change", async (event) => {
     if (!state.i2c) state.i2c = { sda: "GPIO21", scl: "GPIO22" };
     normalizeTopics(state);
     // Prefer credentials from the imported file when present; otherwise keep browser-saved ones.
+    normalizeConfig(state);
     const fromFile = extractCredentials(state.board);
     const saved = loadCredentials();
-    const merged = {
-      wifiSsid: fromFile.wifiSsid || saved.wifiSsid || "",
-      wifiPassword: fromFile.wifiPassword || saved.wifiPassword || "",
-      mqttBroker: fromFile.mqttBroker || saved.mqttBroker || "",
-      otaPassword: fromFile.otaPassword || saved.otaPassword || "",
-    };
+    const merged = {};
+    for (const key of CRED_FIELDS) merged[key] = fromFile[key] || saved[key] || "";
     applyCredentials(state, merged);
     ensureOtaPassword();
+    ensureSecrets(state);
     saveCredentials(extractCredentials(state.board));
     persist();
     render();
@@ -172,10 +188,7 @@ el.importFile.addEventListener("change", async (event) => {
 });
 
 function generateOtaPassword() {
-  const alphabet = "abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-  const bytes = new Uint8Array(20);
-  crypto.getRandomValues(bytes);
-  return Array.from(bytes, (byte) => alphabet[byte % alphabet.length]).join("");
+  return generatePassword();
 }
 
 function ensureOtaPassword() {
@@ -220,7 +233,7 @@ function extractCredentials(board = {}) {
 function applyCredentials(target, creds) {
   const c = creds || {};
   for (const key of CRED_FIELDS) {
-    target.board[key] = c[key] || "";
+    target.board[key] = c[key] || target.board[key] || "";
   }
   return target;
 }
@@ -258,6 +271,8 @@ function loadState() {
 }
 
 function persist() {
+  normalizeConfig(state);
+  ensureSecrets(state);
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   saveCredentials(state.board);
 }
@@ -302,10 +317,12 @@ function field(labelText, value, onInput, opts = {}) {
   if (opts.select) {
     input = document.createElement("select");
     for (const option of opts.select) {
+      const optionValue = typeof option === "string" ? option : option.value;
+      const optionLabel = typeof option === "string" ? option : option.label;
       const o = document.createElement("option");
-      o.value = option;
-      o.textContent = option;
-      if (option === value) o.selected = true;
+      o.value = optionValue;
+      o.textContent = optionLabel;
+      if (optionValue === value) o.selected = true;
       input.appendChild(o);
     }
   } else if (opts.checkbox) {
@@ -326,6 +343,8 @@ function field(labelText, value, onInput, opts = {}) {
     input.value = value ?? "";
     if (opts.placeholder) input.placeholder = opts.placeholder;
   }
+  if (opts.spellcheck === false) input.spellcheck = false;
+  if (opts.autocomplete) input.autocomplete = opts.autocomplete;
   input.addEventListener("input", () => onInput(input.value));
   label.append(title, input);
   if (opts.hint) label.append(hintEl(opts.hint));
@@ -339,6 +358,145 @@ function hintEl(text) {
   return hint;
 }
 
+function pinChoices() {
+  return PULLUP_PINS.map((pin) => ({
+    value: pin,
+    label: STRAPPING_PINS.has(pin) ? `${pin} (strapping)` : pin,
+  }));
+}
+
+function usedPins() {
+  const used = new Set();
+  for (const block of state.blocks || []) {
+    if (block.gpio) used.add(String(block.gpio).toUpperCase());
+  }
+  if ((state.points || []).length) {
+    if (state.i2c?.sda) used.add(String(state.i2c.sda).toUpperCase());
+    if (state.i2c?.scl) used.add(String(state.i2c.scl).toUpperCase());
+  }
+  for (const point of state.points || []) {
+    for (const control of point.controls || []) {
+      if (control.buttonPin) used.add(String(control.buttonPin).toUpperCase());
+      if (control.closedLight) used.add(String(control.closedLight).toUpperCase());
+      if (control.openLight) used.add(String(control.openLight).toUpperCase());
+    }
+  }
+  return used;
+}
+
+function nextButtonPin() {
+  const used = usedPins();
+  const preferred = PULLUP_PINS.filter((pin) => !STRAPPING_PINS.has(pin));
+  return preferred.find((pin) => !used.has(pin)) || PULLUP_PINS.find((pin) => !used.has(pin)) || "GPIO4";
+}
+
+function secretRow(inputField, label, onClick) {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "text";
+  button.textContent = label;
+  button.addEventListener("click", onClick);
+  const row = document.createElement("div");
+  row.className = "ota-row";
+  row.append(inputField, button);
+  return row;
+}
+
+function renderModules() {
+  const options = MODULES.slice();
+  if (state.board.module === "esp32-s3-devkitc-1") {
+    options.push({
+      id: "esp32-s3-devkitc-1",
+      title: "ESP32-S3 (older file)",
+      detail: "This file was made for an ESP32-S3. The YAML still uses variant esp32s3.",
+      src: "",
+      alt: "",
+    });
+  }
+
+  const wrap = document.createElement("div");
+  wrap.className = "module-field";
+  const label = document.createElement("label");
+  const title = document.createElement("span");
+  title.className = "field-label";
+  title.textContent = "Board";
+  const select = document.createElement("select");
+  select.setAttribute("aria-describedby", "module-tip");
+  for (const mod of options) {
+    const option = document.createElement("option");
+    option.value = mod.id;
+    option.textContent = mod.title;
+    if (mod.id === state.board.module) option.selected = true;
+    select.append(option);
+  }
+  const tip = document.createElement("div");
+  tip.id = "module-tip";
+  tip.className = "module-tip";
+  tip.hidden = true;
+  tip.setAttribute("role", "tooltip");
+
+  function selectedModule() {
+    return options.find((mod) => mod.id === select.value) || options[0];
+  }
+
+  function showTip() {
+    const mod = selectedModule();
+    tip.replaceChildren();
+    if (mod.src) {
+      const img = document.createElement("img");
+      img.src = mod.src;
+      img.alt = mod.alt;
+      tip.append(img);
+    }
+    const caption = document.createElement("p");
+    caption.textContent = mod.detail;
+    tip.append(caption);
+    if (mod.src) {
+      const pins = document.createElement("p");
+      pins.textContent = "Amber pins cannot be used for buttons.";
+      tip.append(pins);
+    }
+    tip.hidden = false;
+  }
+
+  let hideTimer;
+  const scheduleHide = () => {
+    clearTimeout(hideTimer);
+    hideTimer = setTimeout(() => {
+      tip.hidden = true;
+    }, 180);
+  };
+  const cancelHide = () => clearTimeout(hideTimer);
+
+  select.addEventListener("change", () => {
+    state.board.module = select.value;
+    persist();
+    updatePreview();
+    cancelHide();
+    showTip();
+  });
+  select.addEventListener("focus", () => {
+    cancelHide();
+    showTip();
+  });
+  select.addEventListener("blur", scheduleHide);
+  select.addEventListener("pointerenter", () => {
+    cancelHide();
+    showTip();
+  });
+  select.addEventListener("pointerleave", scheduleHide);
+  tip.addEventListener("pointerenter", cancelHide);
+  tip.addEventListener("pointerleave", scheduleHide);
+
+  label.append(
+    title,
+    select,
+    hintEl("Which header you have.")
+  );
+  wrap.append(label, tip);
+  el.boardIdentity.append(wrap);
+}
+
 function renderBoard() {
   const b = state.board;
   el.boardIdentity.replaceChildren(
@@ -348,34 +506,27 @@ function renderBoard() {
       updatePreview();
     }, {
       placeholder: "yard-board-01",
-      hint: "Name in ESPHome Dashboard and the address for wireless updates. Lowercase letters, numbers, and dashes only.",
-    }),
-    field("ESP32 board", b.boardType, (v) => {
-      b.boardType = v;
-      persist();
-      updatePreview();
-    }, {
-      select: boardTypeOptions,
-      hint: "Must match the module you bought. The 38-pin board in the README is nodemcu-32s.",
+      hint: "Name of this board on the network.",
     })
   );
+  renderModules();
   el.boardNetwork.replaceChildren(
     field("Wi-Fi name", b.wifiSsid, (v) => setCredential("wifiSsid", v), {
       placeholder: "2.4 GHz network",
-      hint: "The network the ESP joins. These boards cannot use 5 GHz.",
+      hint: "Network the board joins.",
     }),
     field("Wi-Fi password", b.wifiPassword, (v) => setCredential("wifiPassword", v), {
       type: "password",
-      hint: "Written into the downloaded YAML and remembered in this browser.",
+      hint: "Password for that network.",
     }),
     field("MQTT broker IP", b.mqttBroker, (v) => setCredential("mqttBroker", v), {
       placeholder: "192.168.1.10",
-      hint: "The address of this computer on your network — the machine running Mosquitto. Windows: ipconfig. Mac: System Settings → Network. Not localhost. JMRI uses the same address.",
+      hint: "Address of the computer running the MQTT broker (such as Mosquitto).",
     })
   );
   const otaField = field("OTA password", b.otaPassword, (v) => setCredential("otaPassword", v), {
     placeholder: "Generated automatically",
-    hint: "ESPHome asks for this on later wireless installs. Leave it alone unless you reflash by USB.",
+    hint: "Three easy words for later wireless updates.",
   });
   const regen = document.createElement("button");
   regen.type = "button";
@@ -391,6 +542,39 @@ function renderBoard() {
   otaRow.className = "ota-row";
   otaRow.append(otaField, regen);
   el.boardNetwork.append(otaRow);
+
+  const apField = field("Hotspot password", b.apPassword, (v) => {
+    b.apPassword = v;
+    persist();
+    if (state.board.apPassword !== v) render();
+    else updatePreview();
+  }, {
+    autocomplete: "off",
+    hint: "Three easy words, like AppleChairTable.",
+  });
+  el.hotspotFields.replaceChildren(secretRow(apField, "Generate new", () => {
+    state.board.apPassword = generatePassword();
+    persist();
+    render();
+    flash("ok", "New hotspot password saved. It takes effect on the next flash.");
+  }));
+
+  const keyField = field("Encryption key", b.apiKey, (v) => {
+    b.apiKey = v.trim();
+    persist();
+    if (state.board.apiKey !== v.trim()) render();
+    else updatePreview();
+  }, {
+    spellcheck: false,
+    autocomplete: "off",
+    hint: "Key ESPHome asks for to connect.",
+  });
+  el.apiFields.replaceChildren(secretRow(keyField, "Generate new", () => {
+    state.board.apiKey = generateApiKey();
+    persist();
+    render();
+    flash("ok", "New API key saved. Home Assistant will ask for this key.");
+  }));
 }
 
 function renderI2c() {
@@ -402,14 +586,14 @@ function renderI2c() {
       persist();
       updatePreview();
     }, {
-      hint: "Data wire from the ESP to the PCA9685. GPIO21 is the default. Do not also use this pin for a detector.",
+      hint: "Data pin for the servo board.",
     }),
     field("I2C SCL (PCA9685)", state.i2c.scl, (v) => {
       state.i2c.scl = v.trim() || "GPIO22";
       persist();
       updatePreview();
     }, {
-      hint: "Clock wire to the PCA9685. GPIO22 is the default on this board.",
+      hint: "Clock pin for the servo board.",
     })
   );
 }
@@ -445,7 +629,7 @@ function renderBlocks() {
       updatePreview();
     }, {
       full: true,
-      hint: "Filled in from the name: trains/track/sensor/ plus the name. Change it if JMRI listens on a different topic.",
+      hint: "Where this detector reports occupied or clear.",
     });
     topicField.querySelector("input").dataset.role = "topic";
     fields.append(
@@ -458,7 +642,7 @@ function renderBlocks() {
       }, {
         placeholder: "Kiama/Up XOver",
         full: true,
-        hint: "Shown in ESPHome logs, for example “Kiama/Up XOver | OCCUPIED”. It does not have to match the JMRI name. The MQTT topic below is filled in from this.",
+        hint: "Name in the logs. The topic is filled in from this.",
       }),
       topicField,
       field("GPIO", block.gpio, (v) => {
@@ -467,7 +651,7 @@ function renderBlocks() {
         updatePreview();
       }, {
         placeholder: "GPIO14",
-        hint: "ESP32 pin the detector output is wired to. Each block needs its own pin.",
+        hint: "Pin this detector uses.",
       }),
       field("Debounce", block.debounce, (v) => {
         block.debounce = v.trim() || "500ms";
@@ -475,7 +659,7 @@ function renderBlocks() {
         updatePreview();
       }, {
         placeholder: "500ms",
-        hint: "How long the signal must stay steady before it counts. Stops electrical noise flipping occupied and clear. 500ms suits most layouts.",
+        hint: "500ms is a fairly good value to keep blocks held for dirty track etc - you can adjust this as appropriate.",
       }),
       field("A train in the block makes this wire read 0 volts", block.inverted, (v) => {
         block.inverted = v;
@@ -483,7 +667,7 @@ function renderBlocks() {
         updatePreview();
       }, {
         checkbox: true,
-        hint: "Leave this ticked. The detector in the README connects the signal wire to ground (0V) when a train is there, and lets it float high (3.3V) when the block is empty. Untick only if your detector does the opposite: 3.3V when a train is present, 0V when empty. If you get it backwards, JMRI will show occupied when the track is clear.",
+        hint: "Occupied when the pin is low.",
       })
     );
     card.append(header, fields);
@@ -524,7 +708,7 @@ function renderPoints() {
       updatePreview();
     }, {
       full: true,
-      hint: "Filled in from the name: trains/track/turnout/ plus the name. JMRI sends CLOSED or THROWN here. Change it if your topic is different.",
+      hint: "Where JMRI sends closed or thrown.",
     });
     topicField.querySelector("input").dataset.role = "topic";
 
@@ -538,13 +722,13 @@ function renderPoints() {
       }, {
         placeholder: "Kiama/Up Loop",
         full: true,
-        hint: "Shown on the calibration page and in the logs, for example “Kiama/Up Loop -> THROWN”. It does not have to match the JMRI name.",
+        hint: "Name on the calibration page.",
       }),
       topicField,
       linkedField(
         "State topic",
         stateTopic(point.topic),
-        "The board publishes CLOSED or THROWN here after the point moves. It always follows the topic above, with /State on the end. Use it for state reporting if your control system reads a separate topic."
+        "Where the board reports closed or thrown."
       ),
       field("PCA9685 channel (0–15)", point.channel, (v) => {
         point.channel = Number(v);
@@ -552,7 +736,7 @@ function renderPoints() {
         updatePreview();
       }, {
         type: "number",
-        hint: "Which header the servo is plugged into. Channel 0 is the first set of pins on the PCA9685.",
+        hint: "Which servo output this point uses.",
       }),
       field("Travel time", point.travelTime, (v) => {
         point.travelTime = v.trim() || "10s";
@@ -560,12 +744,101 @@ function renderPoints() {
         updatePreview();
       }, {
         placeholder: "10s",
-        hint: "Sets how fast the turnout moves. A longer time is a slower throw. 10s is a gentle start. Increase it if stock derails while the point is moving.",
+        hint: "How long the throw takes. Longer is slower, for a prototypical speed.",
       })
     );
+    fields.append(renderPanel(point));
     card.append(header, fields);
     el.pointsList.append(card);
   });
+}
+
+function renderPanel(point) {
+  if (!Array.isArray(point.controls)) point.controls = [];
+  const panel = document.createElement("div");
+  panel.className = "panel";
+  const title = document.createElement("h4");
+  title.textContent = "Panel";
+  const intro = document.createElement("p");
+  intro.className = "hint";
+  intro.textContent = "Buttons and lights on the fascia.";
+  panel.append(title, intro);
+
+  point.controls.forEach((control, index) => {
+    const card = document.createElement("div");
+    card.className = "control-card";
+    const header = document.createElement("header");
+    const label = document.createElement("h3");
+    label.textContent = `Button ${index + 1}`;
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.className = "remove";
+    remove.textContent = "Remove";
+    remove.addEventListener("click", () => {
+      point.controls.splice(index, 1);
+      persist();
+      render();
+    });
+    header.append(label, remove);
+
+    const fields = document.createElement("div");
+    fields.className = "fields";
+    fields.append(
+      field("Action", control.action || "toggle", (v) => {
+        control.action = v;
+        persist();
+        updatePreview();
+      }, {
+        select: ACTIONS,
+        hint: "What this button does.",
+      }),
+      field("Button pin", control.buttonPin, (v) => {
+        control.buttonPin = v;
+        persist();
+        updatePreview();
+      }, {
+        select: pinChoices(),
+        hint: "Pin this button uses.",
+      })
+    );
+    const lightOptions = [{ value: "", label: "None" }, ...pinChoices()];
+    fields.append(
+      field("Closed light", control.closedLight || "", (v) => {
+        control.closedLight = v;
+        persist();
+        updatePreview();
+      }, {
+        select: lightOptions,
+        hint: "On when the point is closed.",
+      }),
+      field("Open light", control.openLight || "", (v) => {
+        control.openLight = v;
+        persist();
+        updatePreview();
+      }, {
+        select: lightOptions,
+        hint: "On when the point is thrown.",
+      })
+    );
+    card.append(header, fields);
+    panel.append(card);
+  });
+
+  const add = document.createElement("button");
+  add.type = "button";
+  add.textContent = "Add button";
+  add.addEventListener("click", () => {
+    point.controls.push({
+      action: "toggle",
+      buttonPin: nextButtonPin(),
+      closedLight: "",
+      openLight: "",
+    });
+    persist();
+    render();
+  });
+  panel.append(add);
+  return panel;
 }
 
 function renderMessages() {

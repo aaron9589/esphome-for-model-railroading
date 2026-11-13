@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const generatorPath = path.join(__dirname, "..", "generator.js");
-const context = { globalThis: {} };
+const context = { crypto: globalThis.crypto };
 context.globalThis = context;
 vm.runInNewContext(fs.readFileSync(generatorPath, "utf8"), context, {
   filename: "generator.js",
@@ -15,6 +15,7 @@ vm.runInNewContext(fs.readFileSync(generatorPath, "utf8"), context, {
 const {
   CONFIG_MARKER,
   MIN_ESPHOME_VERSION,
+  generatePassword,
   generateYaml,
   myFirstBoardPreset,
   parseConfigFromYaml,
@@ -23,6 +24,14 @@ const {
   uniqueIds,
   validateConfig,
 } = context.EsphomeMr;
+
+function withCreds(config) {
+  config.board.wifiSsid = "layout-wifi";
+  config.board.wifiPassword = "s3cret";
+  config.board.mqttBroker = "192.168.1.50";
+  config.board.otaPassword = "ota-pass";
+  return config;
+}
 
 function test(name, fn) {
   try {
@@ -37,7 +46,7 @@ function test(name, fn) {
 test("My First Board preset matches sample topics and pins", () => {
   const config = myFirstBoardPreset();
   assert.equal(config.board.name, "my-first-board");
-  assert.equal(config.board.boardType, "nodemcu-32s");
+  assert.equal(config.board.module, "nodemcu-32s");
   assert.equal(config.blocks.length, 1);
   assert.equal(config.points.length, 1);
   assert.equal(config.blocks[0].name, "Kiama/Up XOver");
@@ -51,19 +60,18 @@ test("My First Board preset matches sample topics and pins", () => {
 });
 
 test("generated YAML embeds credentials and min_version", () => {
-  const config = myFirstBoardPreset();
-  config.board.wifiSsid = "layout-wifi";
-  config.board.wifiPassword = "s3cret";
-  config.board.mqttBroker = "192.168.1.50";
-  config.board.otaPassword = "ota-pass";
+  const config = withCreds(myFirstBoardPreset());
 
   const yaml = generateYaml(config);
   assert.match(yaml, new RegExp(`# ${CONFIG_MARKER}`));
-  assert.match(yaml, /min_version: "2024\.6\.0"/);
+  assert.match(yaml, /min_version: "2025\.8\.0"/);
+  assert.match(yaml, /variant: esp32/);
+  assert.doesNotMatch(yaml, /^  board:/m);
   assert.match(yaml, /platform: esphome/);
   assert.match(yaml, /ssid: layout-wifi/);
   assert.match(yaml, /password: s3cret/);
   assert.match(yaml, /broker: 192\.168\.1\.50/);
+  assert.match(yaml, /password: ota-pass/);
   assert.doesNotMatch(yaml, /!secret/);
   assert.match(yaml, /Kiama\/Up XOver \| OCCUPIED/);
   assert.match(yaml, /tag: block_sensor/);
@@ -71,8 +79,8 @@ test("generated YAML embeds credentials and min_version", () => {
   assert.match(yaml, /frequency: 50Hz/);
   assert.match(yaml, /channel: 0/);
   assert.match(yaml, /tag: point_control/);
-  assert.match(yaml, /web_server:/);
-  assert.equal(MIN_ESPHOME_VERSION, "2024.6.0");
+  assert.match(yaml, /web_server:\n  local: true/);
+  assert.equal(MIN_ESPHOME_VERSION, "2025.8.0");
 });
 
 test("round-trip import restores UI state including secrets", () => {
@@ -81,6 +89,11 @@ test("round-trip import restores UI state including secrets", () => {
   config.board.wifiPassword = "B";
   config.board.mqttBroker = "10.0.0.2";
   config.board.otaPassword = "C";
+  config.board.apiKey = "abc";
+  config.board.apPassword = "hotspot123";
+  config.points[0].controls = [
+    { action: "toggle", buttonPin: "GPIO4", closedLight: "GPIO16", openLight: "GPIO13" },
+  ];
   config.blocks.push({
     name: "Bombo/Down Crossover",
     topic: "trains/track/sensor/Bombo/Down Crossover",
@@ -95,6 +108,9 @@ test("round-trip import restores UI state including secrets", () => {
   assert.equal(restored.blocks.length, 2);
   assert.equal(restored.points.length, 1);
   assert.equal(restored.blocks[1].gpio, "GPIO27");
+  assert.deepEqual(JSON.parse(JSON.stringify(restored.points[0].controls)), [
+    { action: "toggle", buttonPin: "GPIO4", closedLight: "GPIO16", openLight: "GPIO13" },
+  ]);
   assert.deepEqual(restored.i2c, config.i2c);
 });
 
@@ -165,6 +181,156 @@ test("uniqueIds sanitizes names", () => {
 
 test("parse rejects hand-edited files without marker", () => {
   assert.throws(() => parseConfigFromYaml("esphome:\n  name: x\n"), /not generated/);
+});
+
+test("both pictures write variant esp32 and an old file still imports", () => {
+  for (const moduleName of ["nodemcu-32s", "esp32dev"]) {
+    const config = withCreds(myFirstBoardPreset());
+    config.board.module = moduleName;
+    const yaml = generateYaml(config);
+    assert.match(yaml, /^esp32:\n  variant: esp32\n/m);
+    assert.doesNotMatch(yaml, /^  board:/m);
+  }
+
+  for (const boardType of ["nodemcu-32s", "esp32dev"]) {
+    const stored = {
+      board: {
+        name: "my-first-board",
+        boardType,
+        wifiSsid: "layout-wifi",
+        wifiPassword: "s3cret",
+        mqttBroker: "192.168.1.50",
+        otaPassword: "ota-pass",
+      },
+      blocks: [],
+      points: [],
+      i2c: { sda: "GPIO21", scl: "GPIO22" },
+    };
+    const parsed = parseConfigFromYaml(`# ${CONFIG_MARKER}\n# ${JSON.stringify(stored)}\n`);
+    const yaml = generateYaml(parsed);
+    assert.equal(parsed.board.module, boardType);
+    assert.equal(parsed.board.boardType, undefined);
+    assert.match(yaml, /variant: esp32\n/);
+    assert.doesNotMatch(yaml, /"boardType"/);
+  }
+
+  const s3 = {
+    board: {
+      name: "my-first-board",
+      boardType: "esp32-s3-devkitc-1",
+      wifiSsid: "layout-wifi",
+      wifiPassword: "s3cret",
+      mqttBroker: "192.168.1.50",
+      otaPassword: "ota-pass",
+    },
+    blocks: [],
+    points: [],
+  };
+  const parsed = parseConfigFromYaml(`# ${CONFIG_MARKER}\n# ${JSON.stringify(s3)}\n`);
+  const yaml = generateYaml(parsed);
+  assert.match(yaml, /variant: esp32s3/);
+  const { warnings } = validateConfig(parsed);
+  assert.ok(warnings.some((warning) => /ESP32-S3/.test(warning)));
+});
+
+test("panel buttons use pull-up pins, and GPIO34 is rejected", () => {
+  const config = withCreds(myFirstBoardPreset());
+  config.points[0].controls = [
+    { action: "toggle", buttonPin: "GPIO4", closedLight: "GPIO16", openLight: "GPIO13" },
+    { action: "closed", buttonPin: "GPIO5", closedLight: "", openLight: "" },
+  ];
+  const yaml = generateYaml(config);
+  assert.match(yaml, /number: GPIO4/);
+  assert.match(yaml, /number: GPIO5/);
+  assert.match(yaml, /pullup: true/);
+  assert.match(yaml, /inverted: true/);
+  assert.match(yaml, /delayed_on_off: 50ms/);
+  assert.match(yaml, /internal: true/);
+  assert.match(yaml, /pin: GPIO13/);
+  assert.match(yaml, /pin: GPIO16/);
+  const scripts = yaml.slice(yaml.indexOf("\nscript:\n"));
+  const closedScript = scripts.slice(scripts.indexOf("id: kiama_up_loop_throw_closed"), scripts.indexOf("id: kiama_up_loop_throw_thrown"));
+  const thrownScript = scripts.slice(scripts.indexOf("id: kiama_up_loop_throw_thrown"));
+  assert.match(closedScript, /switch.turn_on: kiama_up_loop_closed_light_1/);
+  assert.match(closedScript, /switch.turn_off: kiama_up_loop_open_light_1/);
+  assert.match(thrownScript, /switch.turn_off: kiama_up_loop_closed_light_1/);
+  assert.match(thrownScript, /switch.turn_on: kiama_up_loop_open_light_1/);
+  assert.match(yaml, /throw_closed/);
+  assert.match(yaml, /throw_thrown/);
+  assert.match(yaml, /announce: true/);
+  assert.doesNotMatch(yaml, /number: GPIO34/);
+
+  config.points[0].controls = [{ action: "toggle", buttonPin: "GPIO34", closedLight: "", openLight: "" }];
+  const rejected = validateConfig(config);
+  assert.ok(rejected.errors.some((error) => error.includes("GPIO34")));
+
+  config.points[0].controls = [{ action: "toggle", buttonPin: "GPIO4", closedLight: "", openLight: "GPIO4" }];
+  const shared = validateConfig(config);
+  assert.ok(shared.errors.some((error) => /both the button and a light/.test(error)));
+
+  config.points[0].controls = [{ action: "toggle", buttonPin: "GPIO4", lightPin: "GPIO13", lightOn: "closed" }];
+  const migrated = generateYaml(config);
+  const restored = JSON.parse(JSON.stringify(parseConfigFromYaml(migrated).points[0].controls[0]));
+  assert.equal(restored.closedLight, "GPIO13");
+  assert.equal(restored.openLight, "");
+  assert.equal(restored.lightPin, undefined);
+});
+
+test("hotspot is always on, and generated passwords are three words", () => {
+  const config = withCreds(myFirstBoardPreset());
+  config.board.fallbackHotspot = false;
+  config.board.apPassword = "hotspot123";
+  const yaml = generateYaml(config);
+  assert.match(yaml, /captive_portal:/);
+  assert.match(yaml, /ssid: "my-first-board setup"/);
+  assert.match(yaml, /password: hotspot123/);
+  assert.equal(config.board.fallbackHotspot, undefined);
+  assert.doesNotMatch(yaml, /reboot_timeout: 15min/);
+
+  for (let i = 0; i < 20; i += 1) {
+    const password = generatePassword();
+    assert.match(password, /^[A-Z][a-z]+[A-Z][a-z]+[A-Z][a-z]+$/);
+    assert.ok(password.length >= 8 && password.length <= 63, password);
+  }
+});
+
+test("boot does not publish a hardcoded CLOSED, and on_connect publishes the latest state", () => {
+  const config = withCreds(myFirstBoardPreset());
+  const yaml = generateYaml(config);
+  const boot = yaml.slice(yaml.indexOf("on_boot:"), yaml.indexOf("\nesp32:"));
+  assert.doesNotMatch(boot, /mqtt\.publish/);
+  assert.doesNotMatch(boot, /CLOSED/);
+  assert.match(boot, /announce: false/);
+  assert.doesNotMatch(yaml, /priority: -50/);
+  assert.match(yaml, /on_connect:/);
+  assert.match(yaml, /return id\(kiama_up_xover_sensor\)\.state \? "ACTIVE" : "INACTIVE";/);
+  assert.match(yaml, /return id\(kiama_up_loop_thrown\) \? "THROWN" : "CLOSED";/);
+  assert.match(yaml, /restore_value: true/);
+  assert.match(yaml, /id: kiama_up_loop_thrown/);
+  assert.doesNotMatch(yaml, /payload: 'CLOSED'/);
+
+  const blocksOnly = withCreds(myFirstBoardPreset());
+  blocksOnly.points = [];
+  const blocksYaml = generateYaml(blocksOnly);
+  assert.doesNotMatch(blocksYaml, /on_boot:/);
+  assert.match(blocksYaml, /on_connect:/);
+  assert.doesNotMatch(blocksYaml, /web_server:/);
+});
+
+test("MQTT and the API use reboot_timeout 0s, and the API is always on", () => {
+  const config = withCreds(myFirstBoardPreset());
+  delete config.board.apiKey;
+  const yaml = generateYaml(config);
+  assert.match(yaml, /^api:\n  encryption:\n    key: "[A-Za-z0-9+/]{43}="/m);
+  assert.equal((yaml.match(/reboot_timeout: 0s/g) || []).length, 2);
+  assert.match(yaml, /password: ota-pass/);
+
+  config.board.apiEnabled = false;
+  config.board.apiKey = "kept-key-even-if-an-old-file-turned-it-off";
+  const stillOn = generateYaml(config);
+  assert.match(stillOn, /^api:\n  encryption:\n    key: "kept-key-even-if-an-old-file-turned-it-off"/m);
+  assert.equal(config.board.apiEnabled, undefined);
+  assert.equal((stillOn.match(/reboot_timeout: 0s/g) || []).length, 2);
 });
 
 console.log("\nAll generator tests passed.");

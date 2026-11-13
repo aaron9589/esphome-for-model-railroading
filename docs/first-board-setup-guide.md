@@ -40,7 +40,7 @@ A new device tile appears. Now paste the YAML from the Configurator:
 4. Paste the full contents of the downloaded `board.yaml`.
 5. Click **Save**.
 
-The Configurator writes Wi-Fi, MQTT, and OTA values directly into the file (no `secrets.yaml` needed for this path). Requires **ESPHome ≥ 2024.6.0**.
+The Configurator writes Wi-Fi, MQTT, and OTA values directly into the file (no `secrets.yaml` needed for this path). Requires **ESPHome ≥ 2025.8.0**.
 
 Success looks like:
 - No red error banner after saving.
