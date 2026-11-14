@@ -8,7 +8,7 @@ A board watches the track and throws points. JMRI (with CATS doing the signallin
 
 ![On the layout, an ESP32 reads detectors and drives point servos. A signal ESP talks UART to WLED. Both use Wi-Fi MQTT to Mosquitto, JMRI, and CATS on the layout computer.](_img/architecture.svg)
 
-The layout computer runs Mosquitto and JMRI. CATS writes the signalling into JMRI’s tables, and those tables are the MQTT topics. Each ESP joins the 2.4 GHz Wi-Fi and uses the computer’s LAN address, never `localhost`. The point servos take a separate 5V supply. Signal masts are in the configurator too: each mast is its own WS2812B strip, or one GPIO per lamp, painted from the JMRI aspect string. An earlier WLED setup, on a second board, is still in the advanced samples.
+The layout computer runs Mosquitto and JMRI. CATS writes the signalling into JMRI’s tables, and those tables are the MQTT topics. Each ESP joins the 2.4 GHz Wi-Fi and uses the computer’s LAN address, never `localhost`. The point servos take a separate 5V supply. Signal masts are in the configurator: each mast is its own WS2812B strip, or one GPIO per lamp, painted from the JMRI aspect string. The earlier WLED setup in the advanced samples is obsolete.
 
 ![A block publishes ACTIVE to Mosquitto and JMRI. A turnout command comes back as THROWN, and the ESP confirms it on the State topic.](_img/mqtt-flow.svg)
 

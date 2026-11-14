@@ -62,13 +62,13 @@ The board web page at `http://<board-name>.local` has one set of sliders for eve
 
 CATS aspects need the signal template loaded in JMRI. The configurator offers a download, [cats-signal-template.zip](../configurator/cats-signal-template.zip). Unzip it into the JMRI profile folder so you get `resources/signals/cats-masts`, then restart JMRI. The same files are in [`.jmri/resources/signals/cats-masts`](../.jmri/resources/signals/cats-masts/).
 
-The earlier WLED pattern, a second ESP driving the heads, is still in [wled_signal.yaml](../advanced-samples/wled_signal.yaml). The build notes are at https://illawarraline.net/signals-for-the-illawarra-line/.
+The earlier WLED pattern in [wled_signal.yaml](../advanced-samples/wled_signal.yaml) is obsolete. New masts come from the configurator. The old build notes remain at https://illawarraline.net/signals-for-the-illawarra-line/.
 
 ---
 
 ## Advanced samples
 
-Hand-edited patterns that are **not** Configurator-compatible (end-of-block sensors, ground throws, bell codes, staff machine, WLED signals) live in [advanced-samples/](../advanced-samples/).
+Hand-edited patterns that are **not** Configurator-compatible (end-of-block sensors, ground throws, bell codes, staff machine) live in [advanced-samples/](../advanced-samples/). The old WLED signal file there is obsolete.
 
 ---
 

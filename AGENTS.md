@@ -51,9 +51,9 @@ This repo is a beginner path for model-railroad ESP32 boards that talk to JMRI/C
 ## Advanced samples
 
 - `advanced-samples/` is **not** Configurator-compatible. README there explains each file.
-- Kept for interest: end-of-block pulses, ground throws, bell codes, RFID staff machine, WLED signals. Include them as ESPHome `packages:` on their own device. There is no sample board shell.
+- Kept for interest: end-of-block pulses, ground throws, bell codes, RFID staff machine. Include them as ESPHome `packages:` on their own device. There is no sample board shell. `wled_signal.yaml` is obsolete; do not offer it as a way to build signals.
 - Block detectors and PCA9685 / GPIO servo patterns that the Configurator covers were removed from this folder — do not re-add them as a parallel beginner path.
-- The configurator drives signal masts on the board, either a WS2812B strip or one GPIO per lamp. The earlier WLED pattern remains in `advanced-samples/wled_signal.yaml`; see also https://illawarraline.net/signals-for-the-illawarra-line/
+- The configurator drives signal masts on the board, either a WS2812B strip or one GPIO per lamp. `advanced-samples/wled_signal.yaml` is an obsolete record of the earlier WLED UART layout; see also https://illawarraline.net/signals-for-the-illawarra-line/
 
 ## Docs tone
 

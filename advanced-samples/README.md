@@ -2,7 +2,7 @@
 
 These YAML files are **not** Board Configurator compatible. They are patterns from a working layout where ESPHome does more than block detectors and PCA9685 points.
 
-For a first board, use the [Board Configurator](https://aaron9589.github.io/esphome-for-model-railroading/). Ordinary blocks and points live there. Copy ideas from these files into your own ESPHome config. Import in the Configurator will not understand them.
+For a first board, use the [Board Configurator](https://aaron9589.github.io/esphome-for-model-railroading/). Ordinary blocks, points, and signal masts live there. Copy ideas from these files into your own ESPHome config. Import in the Configurator will not understand them.
 
 ![End-of-block sensors, ground throws, bell codes, a staff machine, and a signal ESP all talk MQTT to Mosquitto, JMRI, and CATS. Pull the ones you need in as ESPHome packages.](../_img/advanced-overview.svg)
 
@@ -14,7 +14,6 @@ packages:
   bells: !include bellcodes.yaml
   staff: !include staff_machine.yaml
   throws: !include ground_throws.yaml
-  signals: !include wled_signal.yaml
 ```
 
 The topics below are the ones written in the files (Illawarra names). Change the substitutions to match your panel.
@@ -25,7 +24,7 @@ The topics below are the ones written in the files (Illawarra names). Change the
 | [ground_throws.yaml](ground_throws.yaml) | Lever switches publish a retained turnout topic |
 | [bellcodes.yaml](bellcodes.yaml) | Bell-code topics play numbered MP3s |
 | [staff_machine.yaml](staff_machine.yaml) | RFID staff token, with a remote lockout |
-| [wled_signal.yaml](wled_signal.yaml) | Mast aspect strings become WLED JSON over UART |
+| [wled_signal.yaml](wled_signal.yaml) | Obsolete. Mast aspect strings became WLED JSON over UART. Use the configurator instead |
 
 ---
 
@@ -81,7 +80,9 @@ Remote lockout uses `trains/track/sensor/nowra-berry/lockOut`. `ACTIVE` is ignor
 
 ---
 
-## WLED signals
+## WLED signals (obsolete)
+
+Obsolete. New signal masts are built in the [Board Configurator](https://aaron9589.github.io/esphome-for-model-railroading/), on the same ESP as the blocks and points. This file is a record of the earlier layout.
 
 This ESP does not drive the LEDs itself. It subscribes to `trains/track/signalmast/KIA-45.26` and, for one matching string, queues a JSON frame onto a second board running [WLED](https://kno.wled.ge). UART is 115200 on TX pin 1 and RX pin 3, so USB logging is turned off (`logger` baud 0). A queued script waits if the bus is already busy, so two aspects cannot overlap on the wire.
 
