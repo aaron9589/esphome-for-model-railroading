@@ -27,10 +27,10 @@ A block publishes `ACTIVE` or `INACTIVE`. Leaving the block publishes `INACTIVE`
 
 **On the computer**
 
-- Windows 10/11, or a Mac
+- Windows 10/11, a Mac, or Linux (Raspberry Pi OS, Debian, Ubuntu, Fedora, openSUSE, or Arch)
 - ESPHome Device Builder, Mosquitto, and MQTTX, from the install script below
 - 2.4 GHz Wi-Fi with DHCP (these boards cannot use 5 GHz)
-- Chrome or Edge for the first USB flash
+- Chrome, Edge, or Chromium for the first USB flash (Raspberry Pi OS includes Chromium)
 
 ## Start here
 
@@ -48,6 +48,12 @@ Windows — PowerShell. You do not need to start it as administrator. The script
 
 ```powershell
 irm https://raw.githubusercontent.com/aaron9589/esphome-for-model-railroading/main/scripts/install-windows.ps1 -OutFile "$env:TEMP\esphome-mr-setup.ps1"; Start-Process powershell -Verb RunAs -Wait -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$env:TEMP\esphome-mr-setup.ps1`""
+```
+
+Linux — a terminal on Raspberry Pi OS, Debian, Ubuntu, Fedora, openSUSE, or Arch. On a Pi-SPROG, run it on the Pi. JMRI and the SPROG serial port stay as they are. 64-bit only. From the desktop it opens the apps; over SSH it prints the addresses.
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/aaron9589/esphome-for-model-railroading/main/scripts/install-linux.sh -o /tmp/esphome-mr-setup.sh && bash /tmp/esphome-mr-setup.sh
 ```
 
 Type `1` to install. If something fails later, see **If Something Fails** in [first-board-setup-guide.md](docs/first-board-setup-guide.md).
