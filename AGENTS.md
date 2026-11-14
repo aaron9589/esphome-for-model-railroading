@@ -31,19 +31,19 @@ This repo is a beginner path for model-railroad ESP32 boards that talk to JMRI/C
 ## Install and MQTT
 
 - Supported install: `scripts/install-mac.sh` or `scripts/install-windows.ps1` only. One-liners are in `README.md`. Do not maintain a parallel hand-install guide.
-- ESPHome is the Device Builder desktop app at http://localhost:6052. Config files live in `~/esphome` (Mac) or `%USERPROFILE%\esphome` (Windows).
+- ESPHome is the Device Builder desktop app at http://localhost:6052. The install script downloads the latest desktop app, then runs its updater so the builder inside it matches the current release. Config files live in `~/esphome` (Mac) or `%USERPROFILE%\esphome` (Windows).
 - MQTT is Mosquitto on port **1883**, anonymous, on a trusted home LAN. Setup writes `listener 1883`, `allow_anonymous true`, and `persistence true` (retained messages survive a broker restart), then checks the service is running with auto-start.
 - MQTTX is the GUI topic browser (not MQTT Explorer — Mac Gatekeeper breaks those builds). Connect to `127.0.0.1:1883` with no username to watch the local broker.
 - After install, the script offers to open the Board Configurator in the browser (Enter to open, `n` to skip).
 - The broker address in board YAML and in JMRI is the computer's **LAN IP**. Never `localhost` / `127.0.0.1` in board YAML or JMRI.
-- Generated YAML needs ESPHome **2024.6.0** or newer (`ota` platform `esphome`, `min_version`).
+- Generated YAML needs ESPHome **2026.9.0** or newer (`esp32: variant`, `ota` encryption, `min_version`).
 
 ## Board Configurator
 
 - Live at https://aaron9589.github.io/esphome-for-model-railroading/
 - Source: `configurator/` (static site). Deployed by `.github/workflows/pages.yml` on pushes to `main` that touch `configurator/**`.
 - Writes one `board.yaml` with an `esphome-mr-config:1` comment so the same file can be imported again. Do not invent a second file format.
-- **v1 scope:** board settings, block detectors, and PCA9685 points only.
+- **v1 scope:** board settings (fallback hotspot and the ESPHome API included), block detectors, PCA9685 points or a few servos on ESP pins (those take power from the board, so 3-4 is the usual limit), and optional panel buttons on those points. MQTT stays on unless Disable MQTT is ticked; that drops the broker and every JMRI topic, and the board will not talk to JMRI.
 - Default MQTT topics: `trains/track/sensor/<name>` and `trains/track/turnout/<name>`; state feedback is `<turnout-topic>/State`.
 - Detectors publish with `retain: false` on purpose (avoid stale OCCUPIED in JMRI). Servo endpoint sliders use `restore_value: true` on the ESP. Turnout `/State` is not retained in generated YAML; JMRI can still remember panel state.
 - When changing generator behaviour, update `configurator/test/generator.test.js` and run the configurator tests (`configurator/package.json`).

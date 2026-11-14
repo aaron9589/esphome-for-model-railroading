@@ -198,6 +198,41 @@ choose_action() {
   done
 }
 
+update_device_builder() {
+  local app="/Applications/ESPHome Device Builder.app"
+  local bin="$app/Contents/MacOS/esphome-desktop"
+  if [[ ! -x "$bin" ]]; then
+    bin="$(find "$app/Contents/MacOS" -type f -maxdepth 1 -print -quit 2>/dev/null || true)"
+  fi
+  if [[ -z "$bin" || ! -x "$bin" ]]; then
+    warn "Could not find the ESPHome command inside the app. Open the app and choose Check for Updates."
+    return 0
+  fi
+  info "Desktop app ${ESPHOME_VERSION:-installed} is the tray app. Updating the builder inside it."
+  "$bin" open >/dev/null 2>&1 || open -a "ESPHome Device Builder" || true
+  info "Waiting until the dashboard is ready. The first start can take several minutes."
+  local ready=0
+  local _
+  for _ in $(seq 1 120); do
+    if "$bin" status 2>/dev/null | grep -q "Backend:         running, healthy"; then
+      ready=1
+      break
+    fi
+    sleep 5
+  done
+  if [[ "$ready" -ne 1 ]]; then
+    warn "The dashboard did not become ready. When it does, use the menu bar icon and choose Check for Updates."
+    return 0
+  fi
+  info "Updating ESPHome and the device builder. This can take several minutes."
+  if ! "$bin" update; then
+    warn "The in-app update did not finish. Use the menu bar icon and choose Check for Updates."
+    return 0
+  fi
+  ok "Builder update finished."
+  "$bin" status 2>/dev/null | grep -E '^(ESPHome:|Device builder:)' || true
+}
+
 cmd_uninstall() {
   step "Uninstall"
   say "This removes ESPHome Device Builder, Mosquitto, and MQTTX."
@@ -562,7 +597,7 @@ PY
 )"
 ESPHOME_VERSION="$(printf '%s\n' "$PARSED" | sed -n '1p')"
 ESPHOME_URL="$(printf '%s\n' "$PARSED" | sed -n '2p')"
-info "Latest ESPHome Device Builder: $ESPHOME_VERSION"
+info "Latest desktop app: $ESPHOME_VERSION"
 info "Download: $ESPHOME_URL"
 
 APP="/Applications/ESPHome Device Builder.app"
@@ -595,6 +630,7 @@ else
   rm -rf "$WORK"
   ok "Installed ESPHome Device Builder $ESPHOME_VERSION"
 fi
+update_device_builder
 
 step "5/8  MQTTX"
 # MQTTX is the topic browser for Mosquitto. Prefer Homebrew — MQTT Explorer's Mac
@@ -614,8 +650,7 @@ else
 fi
 
 step "6/8  Open the apps"
-info "Launching ESPHome. The first time, it downloads its own Python and can sit there for several minutes."
-info "When it is ready it opens http://localhost:6052"
+info "Opening ESPHome and MQTTX."
 open -a "ESPHome Device Builder" || warn "Could not launch the app. Open ESPHome Device Builder from Applications."
 info "Launching MQTTX. Connect to host 127.0.0.1 port 1883 with no username or password."
 open -a "MQTTX" || warn "Could not launch MQTTX. Open it from Applications."

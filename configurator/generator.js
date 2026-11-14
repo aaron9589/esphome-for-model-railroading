@@ -1,12 +1,37 @@
 /**
  * ESPHome for Model Railroading — board.yaml generator
  * Config schema version: 1
- * Minimum ESPHome: 2024.6.0 (ota platform: esphome)
+ * Minimum ESPHome: 2026.9.0 (ota encryption reuses the API key)
+ * web_server.local is older than that, so the calibration page can load with no internet.
  */
 
 (function (global) {
 const CONFIG_MARKER = "esphome-mr-config:1";
-const MIN_ESPHOME_VERSION = "2024.6.0";
+const MIN_ESPHOME_VERSION = "2026.9.0";
+
+const PULLUP_PINS = Object.freeze([
+  "GPIO0", "GPIO2", "GPIO4", "GPIO5",
+  "GPIO12", "GPIO13", "GPIO14", "GPIO15",
+  "GPIO16", "GPIO17", "GPIO18", "GPIO19",
+  "GPIO21", "GPIO22", "GPIO23",
+  "GPIO25", "GPIO26", "GPIO27",
+  "GPIO32", "GPIO33",
+]);
+const PULLUP_PIN_SET = new Set(PULLUP_PINS);
+const STRAPPING_PINS = new Set(["GPIO0", "GPIO2", "GPIO12", "GPIO15"]);
+const NO_PULLUP_PINS = {
+  GPIO34: "34",
+  GPIO35: "35",
+  GPIO36: "VP",
+  GPIO39: "VN",
+};
+const SERIAL_PINS = { GPIO1: "TX", GPIO3: "RX" };
+const FLASH_PINS = new Set(["GPIO6", "GPIO7", "GPIO8", "GPIO9", "GPIO10", "GPIO11"]);
+const MODULE_VARIANTS = {
+  "nodemcu-32s": "esp32",
+  esp32dev: "esp32",
+  "esp32-s3-devkitc-1": "esp32s3",
+};
 
 function sanitizeId(name) {
   const base = String(name || "")
@@ -45,16 +70,26 @@ function stateTopic(topic) {
   return `${base}/State`;
 }
 
+function variantFor(moduleName) {
+  return MODULE_VARIANTS[moduleName] || "esp32";
+}
+
+function boardDefaults() {
+  return {
+    name: "my-first-board",
+    module: "nodemcu-32s",
+    wifiSsid: "",
+    wifiPassword: "",
+    mqttBroker: "",
+    mqttEnabled: true,
+    apPassword: "",
+    apiKey: "",
+  };
+}
+
 function myFirstBoardPreset() {
   return {
-    board: {
-      name: "my-first-board",
-      boardType: "nodemcu-32s",
-      wifiSsid: "",
-      wifiPassword: "",
-      mqttBroker: "",
-      otaPassword: "",
-    },
+    board: boardDefaults(),
     blocks: [
       {
         name: "Kiama/Up XOver",
@@ -70,6 +105,7 @@ function myFirstBoardPreset() {
         topic: "trains/track/turnout/Kiama/Up Loop",
         channel: 0,
         travelTime: "10s",
+        controls: [],
       },
     ],
     i2c: { sda: "GPIO21", scl: "GPIO22" },
@@ -78,18 +114,141 @@ function myFirstBoardPreset() {
 
 function emptyConfig() {
   return {
-    board: {
-      name: "my-first-board",
-      boardType: "nodemcu-32s",
-      wifiSsid: "",
-      wifiPassword: "",
-      mqttBroker: "",
-      otaPassword: "",
-    },
+    board: boardDefaults(),
     blocks: [],
     points: [],
     i2c: { sda: "GPIO21", scl: "GPIO22" },
   };
+}
+
+function normalizeConfig(config) {
+  if (!config.board) config.board = {};
+  const board = config.board;
+  if (!board.module && board.boardType) board.module = board.boardType;
+  if (!board.module) board.module = "nodemcu-32s";
+  delete board.boardType;
+  delete board.fallbackHotspot;
+  delete board.apiEnabled;
+  delete board.otaPassword;
+  if (typeof board.mqttEnabled !== "boolean") board.mqttEnabled = true;
+  if (typeof config.pca9685 !== "boolean") config.pca9685 = true;
+  if (!config.i2c) config.i2c = { sda: "GPIO21", scl: "GPIO22" };
+  for (const point of config.points || []) {
+    if (point.servoPin) point.servoPin = String(point.servoPin).toUpperCase();
+    if (!Array.isArray(point.controls)) point.controls = [];
+    for (const control of point.controls) {
+      if (control.action !== "closed" && control.action !== "thrown") control.action = "toggle";
+      if (!control.closedLight && !control.openLight && control.lightPin) {
+        const pin = String(control.lightPin).toUpperCase();
+        if (control.lightOn === "closed") control.closedLight = pin;
+        else control.openLight = pin;
+      }
+      delete control.lightPin;
+      delete control.lightOn;
+      if (control.buttonPin) control.buttonPin = String(control.buttonPin).toUpperCase();
+      if (control.closedLight) control.closedLight = String(control.closedLight).toUpperCase();
+      if (control.openLight) control.openLight = String(control.openLight).toUpperCase();
+    }
+  }
+  return config;
+}
+
+function randomBytes(length) {
+  const bytes = new Uint8Array(length);
+  const webcrypto = globalThis.crypto;
+  if (!webcrypto || !webcrypto.getRandomValues) {
+    throw new Error("crypto.getRandomValues is unavailable");
+  }
+  webcrypto.getRandomValues(bytes);
+  return bytes;
+}
+
+const PASSWORD_WORDS = Object.freeze([
+  "apple", "arrow", "badge", "baker", "beach", "berry", "birch", "blade",
+  "blanket", "bloom", "board", "boat", "boots", "bottle", "branch", "bread",
+  "brick", "bridge", "brook", "brush", "bucket", "butter", "cabin", "camel",
+  "candle", "canoe", "canyon", "carpet", "carrot", "cedar", "chair", "chalk",
+  "cherry", "chest", "cloud", "clover", "coast", "copper", "coral", "crane",
+  "creek", "cricket", "crown", "daisy", "dance", "desert", "donkey", "drawer",
+  "eagle", "elbow", "falcon", "feather", "fence", "field", "flame", "flower",
+  "forest", "fountain", "garden", "ginger", "glove", "goose", "grape", "grass",
+  "guitar", "hammer", "harbor", "honey", "horse", "island", "jacket", "kettle",
+  "ladder", "lantern", "lemon", "maple", "marble", "market", "meadow", "melon",
+  "mirror", "monkey", "moon", "mountain", "needle", "nest", "nickel", "ocean",
+  "olive", "orange", "otter", "paddle", "panda", "peach", "pearl", "pencil",
+  "pepper", "piano", "pillow", "planet", "pocket", "pond", "rabbit", "river",
+  "rocket", "sailor", "scarf", "shadow", "sheep", "shell", "shovel", "silver",
+  "singer", "spider", "spring", "stable", "stamp", "stone", "storm", "sugar",
+  "sunset", "table", "teapot", "tiger", "timber", "tomato", "towel", "tractor",
+]);
+
+function generatePassword() {
+  if (PASSWORD_WORDS.length !== 128) {
+    throw new Error("password word list must be 128 words");
+  }
+  const picks = [];
+  const used = new Set();
+  while (picks.length < 3) {
+    const word = PASSWORD_WORDS[randomBytes(1)[0] & 127];
+    if (used.has(word)) continue;
+    used.add(word);
+    picks.push(word.charAt(0).toUpperCase() + word.slice(1));
+  }
+  return picks.join("");
+}
+
+function bytesToBase64(bytes) {
+  const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+  let out = "";
+  for (let i = 0; i < bytes.length; i += 3) {
+    const b0 = bytes[i];
+    const b1 = i + 1 < bytes.length ? bytes[i + 1] : 0;
+    const b2 = i + 2 < bytes.length ? bytes[i + 2] : 0;
+    const triple = (b0 << 16) | (b1 << 8) | b2;
+    out += alphabet[(triple >> 18) & 63];
+    out += alphabet[(triple >> 12) & 63];
+    out += i + 1 < bytes.length ? alphabet[(triple >> 6) & 63] : "=";
+    out += i + 2 < bytes.length ? alphabet[triple & 63] : "=";
+  }
+  return out;
+}
+
+function generateApiKey() {
+  return bytesToBase64(randomBytes(32));
+}
+
+function ensureSecrets(config) {
+  normalizeConfig(config);
+  const board = config.board;
+  if (!board.apPassword) board.apPassword = generatePassword();
+  if (!board.apiKey) board.apiKey = generateApiKey();
+  return config;
+}
+
+function outputPinProblem(pin, role) {
+  const name = String(pin || "").toUpperCase();
+  if (!name) return `${role} pin is missing`;
+  if (NO_PULLUP_PINS[name]) {
+    return `${role} pin ${name} (${NO_PULLUP_PINS[name]}) is input only and cannot drive a servo`;
+  }
+  if (SERIAL_PINS[name]) return `${role} pin ${name} (${SERIAL_PINS[name]}) is the USB serial port`;
+  if (FLASH_PINS.has(name)) return `${role} pin ${name} is part of the flash chip`;
+  if (!PULLUP_PIN_SET.has(name)) return `${role} pin ${name} is not in the pin list`;
+  return "";
+}
+
+function pinProblem(pin, role) {
+  const name = String(pin || "").toUpperCase();
+  if (!name) return `${role} pin is missing`;
+  if (PULLUP_PIN_SET.has(name)) return "";
+  if (NO_PULLUP_PINS[name]) {
+    return `${role} pin ${name} (${NO_PULLUP_PINS[name]}) has no internal pull-up`;
+  }
+  if (SERIAL_PINS[name]) {
+    return `${role} pin ${name} (${SERIAL_PINS[name]}) is the USB serial port`;
+  }
+  if (FLASH_PINS.has(name)) return `${role} pin ${name} is part of the flash chip`;
+  return `${role} pin ${name} is not in the pin list`;
 }
 
 function validateConfig(config) {
@@ -100,43 +259,90 @@ function validateConfig(config) {
   if (!board.name || !/^[a-z0-9-]+$/.test(board.name)) {
     errors.push("Board name must be lowercase letters, numbers, and dashes only.");
   }
+  if (board.module === "esp32-s3-devkitc-1") {
+    warnings.push("This file is for an ESP32-S3, which the picker no longer offers. The YAML still uses variant esp32s3.");
+  } else if (board.module && !MODULE_VARIANTS[board.module]) {
+    warnings.push(`Unknown module "${board.module}". The YAML uses variant esp32.`);
+  }
   if (!board.wifiSsid) warnings.push("Wi-Fi name is empty — fill it in on the Board page before you download.");
   if (!board.wifiPassword) warnings.push("Wi-Fi password is empty — fill it in on the Board page before you download.");
-  if (!board.mqttBroker) warnings.push("MQTT address is empty — use this computer’s network address, not localhost.");
-  if (!board.otaPassword) warnings.push("OTA password is empty — set one before flashing.");
+  if (board.mqttEnabled !== false && !board.mqttBroker) warnings.push("MQTT address is empty — use this computer’s network address, not localhost.");
+  if (String(board.apPassword || "").length > 0 && String(board.apPassword).length < 8) {
+    errors.push("Hotspot password must be at least 8 characters.");
+  }
+  if (board.name && `${board.name} setup`.length > 32) {
+    warnings.push("Hotspot name is longer than 32 characters. Shorten the board name.");
+  }
 
   const pins = new Map();
+  function notePin(pin, owner) {
+    const key = String(pin || "").toUpperCase();
+    if (!key) return;
+    if (pins.has(key)) {
+      warnings.push(`GPIO clash: ${key} used by "${pins.get(key)}" and "${owner}".`);
+    } else {
+      pins.set(key, owner);
+    }
+  }
+
   for (const block of config.blocks || []) {
     const pin = String(block.gpio || "").toUpperCase();
     if (!pin) {
       errors.push(`Block "${block.name}" needs a GPIO pin.`);
       continue;
     }
-    if (pins.has(pin)) {
-      warnings.push(`GPIO clash: ${pin} used by "${pins.get(pin)}" and "${block.name}".`);
-    } else {
-      pins.set(pin, block.name);
-    }
+    notePin(pin, block.name);
   }
 
   if ((config.points || []).length) {
-    const i2cPins = [config.i2c?.sda, config.i2c?.scl].filter(Boolean).map((p) => String(p).toUpperCase());
-    for (const pin of i2cPins) {
-      if (pins.has(pin)) {
-        warnings.push(`GPIO clash: ${pin} used by block "${pins.get(pin)}" and PCA9685 I2C.`);
-      }
+    const usePca = config.pca9685 !== false;
+    if (usePca) {
+      const i2cPins = [config.i2c?.sda, config.i2c?.scl].filter(Boolean);
+      for (const pin of i2cPins) notePin(pin, "PCA9685 I2C");
+    } else if (config.points.length > 4) {
+      warnings.push("More than 4 servos take power from the ESP. A PCA9685 with an external 5V supply is how this scales up.");
     }
     const channels = new Map();
     for (const point of config.points) {
-      const ch = Number(point.channel);
-      if (Number.isNaN(ch) || ch < 0 || ch > 15) {
-        errors.push(`Point "${point.name}" channel must be 0–15.`);
-        continue;
-      }
-      if (channels.has(ch)) {
-        warnings.push(`PCA9685 channel clash: ${ch} used by "${channels.get(ch)}" and "${point.name}".`);
+      if (usePca) {
+        const ch = Number(point.channel);
+        if (Number.isNaN(ch) || ch < 0 || ch > 15) {
+          errors.push(`Point "${point.name}" channel must be 0–15.`);
+        } else if (channels.has(ch)) {
+          warnings.push(`PCA9685 channel clash: ${ch} used by "${channels.get(ch)}" and "${point.name}".`);
+        } else {
+          channels.set(ch, point.name);
+        }
       } else {
-        channels.set(ch, point.name);
+        const servoPin = String(point.servoPin || "").toUpperCase();
+        const servoIssue = outputPinProblem(servoPin, "servo");
+        if (servoIssue) errors.push(`Point "${point.name}" ${servoIssue}.`);
+        else notePin(servoPin, `${point.name} servo`);
+      }
+      for (const control of point.controls || []) {
+        const button = String(control.buttonPin || "").toUpperCase();
+        const closedLight = String(control.closedLight || "").toUpperCase();
+        const openLight = String(control.openLight || "").toUpperCase();
+        const buttonIssue = pinProblem(button, "button");
+        if (buttonIssue) errors.push(`Point "${point.name}" ${buttonIssue}.`);
+        for (const [role, light] of [["closed", closedLight], ["open", openLight]]) {
+          if (!light) continue;
+          const lightIssue = pinProblem(light, `${role} light`);
+          if (lightIssue) errors.push(`Point "${point.name}" ${lightIssue}.`);
+          if (button && light === button) {
+            errors.push(`Point "${point.name}" uses ${button} for both the button and a light.`);
+          }
+        }
+        if (closedLight && openLight && closedLight === openLight) {
+          errors.push(`Point "${point.name}" uses ${closedLight} for both the closed and open lights.`);
+        }
+        if (button && !buttonIssue) notePin(button, `${point.name} button`);
+        if (closedLight && closedLight !== button && !pinProblem(closedLight, "light")) {
+          notePin(closedLight, `${point.name} closed light`);
+        }
+        if (openLight && openLight !== button && openLight !== closedLight && !pinProblem(openLight, "light")) {
+          notePin(openLight, `${point.name} open light`);
+        }
       }
     }
   }
@@ -154,6 +360,11 @@ function validateConfig(config) {
   return { warnings, errors };
 }
 
+function entityName(name) {
+  // ESPHome uses "/" in entity names as a URL separator. It warns now and rejects it in 2027.7.0.
+  return String(name || "").replace(/\s*\/\s*/g, " - ").replace(/\s+/g, " ").trim();
+}
+
 function yamlQuote(value) {
   const s = String(value ?? "");
   if (s === "") return '""';
@@ -161,10 +372,6 @@ function yamlQuote(value) {
     return JSON.stringify(s);
   }
   return s;
-}
-
-function yamlSingleQuote(value) {
-  return `'${String(value ?? "").replace(/'/g, "''")}'`;
 }
 
 /**
@@ -191,7 +398,6 @@ function parseConfigFromYaml(text) {
       }
     }
     if (foundMarker && line.startsWith("#") && !line.startsWith("# {") && line.trim() !== "#") {
-      // still in header comments
       continue;
     }
     if (foundMarker) break;
@@ -201,13 +407,114 @@ function parseConfigFromYaml(text) {
   );
 }
 
+function controlForBlob(control) {
+  const action = control.action === "closed" || control.action === "thrown" ? control.action : "toggle";
+  return {
+    action,
+    buttonPin: String(control.buttonPin || "").toUpperCase(),
+    closedLight: String(control.closedLight || "").toUpperCase(),
+    openLight: String(control.openLight || "").toUpperCase(),
+  };
+}
+
+function emitLights(lines, indent, point, thrown) {
+  (point.controls || []).forEach((control, index) => {
+    const n = index + 1;
+    if (control.closedLight) {
+      lines.push(`${indent}- switch.${thrown ? "turn_off" : "turn_on"}: ${point.id}_closed_light_${n}`);
+    }
+    if (control.openLight) {
+      lines.push(`${indent}- switch.${thrown ? "turn_on" : "turn_off"}: ${point.id}_open_light_${n}`);
+    }
+  });
+}
+
+function emitThrowScript(lines, point, thrown, publish) {
+  const which = thrown ? "thrown" : "closed";
+  const position = thrown ? "reverse" : "normal";
+  const label = thrown ? "THROWN (reverse)" : "CLOSED (normal)";
+  const payload = thrown ? "THROWN" : "CLOSED";
+  lines.push(`  - id: ${point.id}_throw_${which}`);
+  lines.push("    mode: restart");
+  lines.push("    parameters:");
+  lines.push("      announce: bool");
+  lines.push("    then:");
+  lines.push(`      - lambda: 'id(${point.id}_thrown) = ${thrown ? "true" : "false"};'`);
+  lines.push("      - logger.log:");
+  lines.push(`          format: ${yamlQuote(`${point.name} -> ${label}`)}`);
+  lines.push("          level: INFO");
+  lines.push("          tag: point_control");
+  emitLights(lines, "      ", point, thrown);
+  lines.push("      - servo.write:");
+  lines.push(`          id: ${point.id}_servo`);
+  lines.push(`          level: !lambda 'return id(${point.id}_servo_endpoint_${position}).state / 100.0;'`);
+  lines.push("      - delay: 1s");
+  lines.push("      - servo.write:");
+  lines.push(`          id: ${point.id}_servo`);
+  lines.push(`          level: !lambda 'return id(${point.id}_servo_endpoint_${position}_backoff).state / 100.0;'`);
+  if (!publish) return;
+  lines.push("      - if:");
+  lines.push("          condition:");
+  lines.push("            lambda: 'return announce;'");
+  lines.push("          then:");
+  lines.push("            - mqtt.publish:");
+  lines.push(`                topic: ${yamlQuote(stateTopic(point.topic))}`);
+  lines.push(`                payload: "${payload}"`);
+}
+
+function emitButton(lines, point, control, index) {
+  if (!control.buttonPin) return;
+  lines.push("  - platform: gpio");
+  lines.push("    pin:");
+  lines.push(`      number: ${control.buttonPin}`);
+  lines.push("      inverted: true");
+  lines.push("      mode:");
+  lines.push("        input: true");
+  lines.push("        pullup: true");
+  lines.push(`    id: ${point.id}_button_${index + 1}`);
+  lines.push(`    name: ${yamlQuote(entityName(`${point.name} button ${index + 1}`))}`);
+  lines.push("    internal: true");
+  lines.push("    filters:");
+  lines.push("      - delayed_on_off: 50ms");
+  lines.push("    on_press:");
+  lines.push("      then:");
+  if (control.action === "closed" || control.action === "thrown") {
+    lines.push("        - script.execute:");
+    lines.push(`            id: ${point.id}_throw_${control.action}`);
+    lines.push("            announce: true");
+    return;
+  }
+  lines.push("        - if:");
+  lines.push("            condition:");
+  lines.push(`              lambda: 'return id(${point.id}_thrown);'`);
+  lines.push("            then:");
+  lines.push("              - script.execute:");
+  lines.push(`                  id: ${point.id}_throw_closed`);
+  lines.push("                  announce: true");
+  lines.push("            else:");
+  lines.push("              - script.execute:");
+  lines.push(`                  id: ${point.id}_throw_thrown`);
+  lines.push("                  announce: true");
+}
+
 function generateYaml(config) {
+  ensureSecrets(config);
   const board = config.board;
   const blocks = uniqueIds(config.blocks || []);
   const points = uniqueIds(config.points || []);
   const i2c = config.i2c || { sda: "GPIO21", scl: "GPIO22" };
+  const usePca = config.pca9685 !== false;
   const stateForBlob = {
-    board: { ...board },
+    board: {
+      name: board.name,
+      module: board.module,
+      wifiSsid: board.wifiSsid || "",
+      wifiPassword: board.wifiPassword || "",
+      mqttBroker: board.mqttBroker || "",
+      mqttEnabled: board.mqttEnabled !== false,
+      apPassword: board.apPassword || "",
+      apiKey: board.apiKey || "",
+    },
     blocks: (config.blocks || []).map(({ name, topic, topicCustom, gpio, inverted, debounce }) => ({
       name,
       topic,
@@ -216,14 +523,17 @@ function generateYaml(config) {
       inverted: !!inverted,
       debounce,
     })),
-    points: (config.points || []).map(({ name, topic, topicCustom, channel, travelTime }) => ({
+    points: (config.points || []).map(({ name, topic, topicCustom, channel, servoPin, travelTime, controls }) => ({
       name,
       topic,
       topicCustom: !!topicCustom,
       channel: Number(channel),
+      servoPin: servoPin || "",
       travelTime,
+      controls: (controls || []).map(controlForBlob),
     })),
     i2c,
+    pca9685: config.pca9685 !== false,
   };
 
   const lines = [];
@@ -233,69 +543,87 @@ function generateYaml(config) {
   lines.push("# Generated by ESPHome for Model Railroading Configurator");
   lines.push(`# Requires ESPHome >= ${MIN_ESPHOME_VERSION}`);
   lines.push("# Re-import this file into the configurator to edit — avoid hand-editing if you plan to re-import.");
-  lines.push("# This file contains Wi-Fi / MQTT / OTA credentials — do not commit it to a public repo.");
+  lines.push("# This file contains Wi-Fi, MQTT, and hotspot credentials — do not commit it to a public repo.");
   lines.push("");
 
   lines.push("esphome:");
   lines.push(`  name: ${yamlQuote(board.name)}`);
   lines.push(`  min_version: "${MIN_ESPHOME_VERSION}"`);
 
-  // Merge on_boot actions for blocks and points
-  const bootActions = [];
-  if (blocks.length) {
-    bootActions.push({ priority: "-50.0", kind: "blocks" });
-  }
   if (points.length) {
-    bootActions.push({ priority: "-200.0", kind: "points" });
-  }
-  if (bootActions.length) {
     lines.push("  on_boot:");
-    for (const action of bootActions) {
-      lines.push(`    - priority: ${action.priority}`);
-      lines.push("      then:");
-      if (action.kind === "blocks") {
-        for (const block of blocks) {
-          lines.push("        - mqtt.publish:");
-          lines.push(`            topic: ${yamlQuote(block.topic)}`);
-          lines.push("            payload: !lambda |-");
-          lines.push(
-            `              return id(${block.id}_sensor).state ? "ACTIVE" : "INACTIVE";`
-          );
-          lines.push("            retain: false");
-          lines.push("            qos: 2");
-        }
-      }
-      if (action.kind === "points") {
-        for (const point of points) {
-          lines.push("        - mqtt.publish:");
-          lines.push(`            topic: ${yamlQuote(point.topic)}`);
-          lines.push(`            payload: ${yamlSingleQuote("CLOSED")}`);
-        }
-      }
+    lines.push("    - priority: -200.0");
+    lines.push("      then:");
+    for (const point of points) {
+      lines.push("        - if:");
+      lines.push("            condition:");
+      lines.push(`              lambda: 'return id(${point.id}_thrown);'`);
+      lines.push("            then:");
+      lines.push("              - script.execute:");
+      lines.push(`                  id: ${point.id}_throw_thrown`);
+      lines.push("                  announce: false");
+      lines.push("            else:");
+      lines.push("              - script.execute:");
+      lines.push(`                  id: ${point.id}_throw_closed`);
+      lines.push("                  announce: false");
     }
   }
 
   lines.push("");
   lines.push("esp32:");
-  lines.push(`  board: ${board.boardType || "nodemcu-32s"}`);
+  lines.push(`  variant: ${variantFor(board.module)}`);
   lines.push("");
   lines.push("logger:");
   lines.push("  level: DEBUG");
   lines.push("");
-  lines.push("mqtt:");
-  lines.push(`  broker: ${yamlQuote(board.mqttBroker)}`);
-  lines.push("  id: mqtt_server");
-  lines.push("  discovery: false");
+
+  lines.push("api:");
+  lines.push("  encryption:");
+  lines.push(`    key: ${JSON.stringify(board.apiKey || "")}`);
+  lines.push("  reboot_timeout: 0s");
   lines.push("");
+
   lines.push("ota:");
   lines.push("  - platform: esphome");
-  lines.push(`    password: ${yamlQuote(board.otaPassword)}`);
+  lines.push("    encryption:");
   lines.push("");
   lines.push("wifi:");
   lines.push(`  ssid: ${yamlQuote(board.wifiSsid)}`);
   lines.push(`  password: ${yamlQuote(board.wifiPassword)}`);
   lines.push("  power_save_mode: none");
+  lines.push("  ap:");
+  lines.push(`    ssid: ${yamlQuote(`${board.name} setup`)}`);
+  lines.push(`    password: ${yamlQuote(board.apPassword)}`);
   lines.push("");
+  lines.push("captive_portal:");
+  lines.push("");
+
+  const mqtt = board.mqttEnabled !== false;
+  if (mqtt) {
+    lines.push("mqtt:");
+    lines.push(`  broker: ${yamlQuote(board.mqttBroker)}`);
+    lines.push("  id: mqtt_server");
+    lines.push("  discovery: false");
+    lines.push("  reboot_timeout: 0s");
+    if (blocks.length || points.length) {
+      lines.push("  on_connect:");
+      for (const block of blocks) {
+        lines.push("    - mqtt.publish:");
+        lines.push(`        topic: ${yamlQuote(block.topic)}`);
+        lines.push("        payload: !lambda |-");
+        lines.push(`          return id(${block.id}_sensor).state ? "ACTIVE" : "INACTIVE";`);
+        lines.push("        retain: false");
+        lines.push("        qos: 2");
+      }
+      for (const point of points) {
+        lines.push("    - mqtt.publish:");
+        lines.push(`        topic: ${yamlQuote(stateTopic(point.topic))}`);
+        lines.push("        payload: !lambda |-");
+        lines.push(`          return id(${point.id}_thrown) ? "THROWN" : "CLOSED";`);
+      }
+    }
+    lines.push("");
+  }
   lines.push("button:");
   lines.push("  - platform: restart");
   lines.push("    id: reboot_esp");
@@ -304,17 +632,29 @@ function generateYaml(config) {
   if (points.length) {
     lines.push("");
     lines.push("web_server:");
+    lines.push("  local: true");
+    if (usePca) {
+      lines.push("");
+      lines.push("i2c:");
+      lines.push(`  sda: ${i2c.sda}`);
+      lines.push(`  scl: ${i2c.scl}`);
+      lines.push("  scan: true");
+      lines.push("");
+      lines.push("pca9685:");
+      lines.push("  frequency: 50Hz");
+    }
     lines.push("");
-    lines.push("i2c:");
-    lines.push(`  sda: ${i2c.sda}`);
-    lines.push(`  scl: ${i2c.scl}`);
-    lines.push("  scan: true");
-    lines.push("");
-    lines.push("pca9685:");
-    lines.push("  frequency: 50Hz");
+    lines.push("globals:");
+    for (const point of points) {
+      lines.push(`  - id: ${point.id}_thrown`);
+      lines.push("    type: bool");
+      lines.push("    restore_value: true");
+      lines.push('    initial_value: "false"');
+    }
   }
 
-  if (blocks.length) {
+  const hasButtons = points.some((point) => (point.controls || []).some((control) => control.buttonPin));
+  if (blocks.length || hasButtons) {
     lines.push("");
     lines.push("binary_sensor:");
     for (const block of blocks) {
@@ -326,7 +666,7 @@ function generateYaml(config) {
       lines.push("      mode:");
       lines.push("        input: true");
       lines.push(`    id: ${block.id}_sensor`);
-      lines.push(`    name: ${yamlQuote(block.name)}`);
+      lines.push(`    name: ${yamlQuote(entityName(block.name))}`);
       lines.push("    filters:");
       lines.push(`      - delayed_on_off: ${debounce}`);
       lines.push("    on_press:");
@@ -335,22 +675,29 @@ function generateYaml(config) {
       lines.push(`            format: ${yamlQuote(`${block.name} | OCCUPIED`)}`);
       lines.push("            level: INFO");
       lines.push("            tag: block_sensor");
-      lines.push("        - mqtt.publish:");
-      lines.push(`            topic: ${yamlQuote(block.topic)}`);
-      lines.push("            payload: ACTIVE");
-      lines.push("            retain: false");
-      lines.push("            qos: 2");
+      if (mqtt) {
+        lines.push("        - mqtt.publish:");
+        lines.push(`            topic: ${yamlQuote(block.topic)}`);
+        lines.push("            payload: ACTIVE");
+        lines.push("            retain: false");
+        lines.push("            qos: 2");
+      }
       lines.push("    on_release:");
       lines.push("      then:");
       lines.push("        - logger.log:");
       lines.push(`            format: ${yamlQuote(`${block.name} | UNOCCUPIED`)}`);
       lines.push("            level: INFO");
       lines.push("            tag: block_sensor");
-      lines.push("        - mqtt.publish:");
-      lines.push(`            topic: ${yamlQuote(block.topic)}`);
-      lines.push("            payload: INACTIVE");
-      lines.push("            retain: false");
-      lines.push("            qos: 2");
+      if (mqtt) {
+        lines.push("        - mqtt.publish:");
+        lines.push(`            topic: ${yamlQuote(block.topic)}`);
+        lines.push("            payload: INACTIVE");
+        lines.push("            retain: false");
+        lines.push("            qos: 2");
+      }
+    }
+    for (const point of points) {
+      (point.controls || []).forEach((control, index) => emitButton(lines, point, control, index));
     }
   }
 
@@ -366,7 +713,7 @@ function generateYaml(config) {
       ];
       for (const [label, suffix] of endpoints) {
         lines.push("  - platform: template");
-        lines.push(`    name: ${yamlQuote(`${point.name} ${label}`)}`);
+        lines.push(`    name: ${yamlQuote(entityName(`${point.name} ${label}`))}`);
         lines.push(`    id: ${point.id}_servo_endpoint_${suffix}`);
         lines.push("    min_value: -50");
         lines.push("    max_value: 50");
@@ -385,9 +732,14 @@ function generateYaml(config) {
     lines.push("");
     lines.push("output:");
     for (const point of points) {
-      lines.push("  - platform: pca9685");
+      lines.push(`  - platform: ${usePca ? "pca9685" : "ledc"}`);
       lines.push(`    id: ${point.id}_output`);
-      lines.push(`    channel: ${Number(point.channel)}`);
+      if (usePca) {
+        lines.push(`    channel: ${Number(point.channel)}`);
+      } else {
+        lines.push(`    pin: ${point.servoPin}`);
+        lines.push("    frequency: 50Hz");
+      }
     }
 
     lines.push("");
@@ -399,62 +751,65 @@ function generateYaml(config) {
       lines.push(`    transition_length: ${point.travelTime || "10s"}`);
     }
 
-    lines.push("");
-    lines.push("text_sensor:");
+    const lights = [];
     for (const point of points) {
-      lines.push("  - platform: mqtt_subscribe");
-      lines.push(`    name: ${yamlQuote(`${point.name} last command`)}`);
-      lines.push(`    id: ${point.id}`);
-      lines.push(`    topic: ${yamlQuote(point.topic)}`);
-      lines.push("    on_value:");
-      lines.push("      - if:");
-      lines.push("          condition:");
-      lines.push("            text_sensor.state:");
-      lines.push(`              id: ${point.id}`);
-      lines.push("              state: 'THROWN'");
-      lines.push("          then:");
-      lines.push("            - logger.log:");
-      lines.push(`                format: ${yamlQuote(`${point.name} -> THROWN (reverse)`)}`);
-      lines.push("                level: INFO");
-      lines.push("                tag: point_control");
-      lines.push("            - servo.write:");
-      lines.push(`                id: ${point.id}_servo`);
-      lines.push(
-        `                level: !lambda 'return id(${point.id}_servo_endpoint_reverse).state / 100.0;'`
-      );
-      lines.push("            - delay: 1s");
-      lines.push("            - servo.write:");
-      lines.push(`                id: ${point.id}_servo`);
-      lines.push(
-        `                level: !lambda 'return id(${point.id}_servo_endpoint_reverse_backoff).state / 100.0;'`
-      );
-      lines.push("            - mqtt.publish:");
-      lines.push(`                topic: ${yamlQuote(`${point.topic}/State`)}`);
-      lines.push('                payload: "THROWN"');
-      lines.push("      - if:");
-      lines.push("          condition:");
-      lines.push("            text_sensor.state:");
-      lines.push(`              id: ${point.id}`);
-      lines.push("              state: 'CLOSED'");
-      lines.push("          then:");
-      lines.push("            - logger.log:");
-      lines.push(`                format: ${yamlQuote(`${point.name} -> CLOSED (normal)`)}`);
-      lines.push("                level: INFO");
-      lines.push("                tag: point_control");
-      lines.push("            - servo.write:");
-      lines.push(`                id: ${point.id}_servo`);
-      lines.push(
-        `                level: !lambda 'return id(${point.id}_servo_endpoint_normal).state / 100.0;'`
-      );
-      lines.push("            - delay: 1s");
-      lines.push("            - servo.write:");
-      lines.push(`                id: ${point.id}_servo`);
-      lines.push(
-        `                level: !lambda 'return id(${point.id}_servo_endpoint_normal_backoff).state / 100.0;'`
-      );
-      lines.push("            - mqtt.publish:");
-      lines.push(`                topic: ${yamlQuote(`${point.topic}/State`)}`);
-      lines.push('                payload: "CLOSED"');
+      (point.controls || []).forEach((control, index) => {
+        const n = index + 1;
+        if (control.closedLight) {
+          lights.push({ point, pin: control.closedLight, id: `${point.id}_closed_light_${n}`, name: entityName(`${point.name} closed light ${n}`) });
+        }
+        if (control.openLight) {
+          lights.push({ point, pin: control.openLight, id: `${point.id}_open_light_${n}`, name: entityName(`${point.name} open light ${n}`) });
+        }
+      });
+    }
+    if (lights.length) {
+      lines.push("");
+      lines.push("switch:");
+      for (const light of lights) {
+        lines.push("  - platform: gpio");
+        lines.push(`    pin: ${light.pin}`);
+        lines.push(`    id: ${light.id}`);
+        lines.push(`    name: ${yamlQuote(light.name)}`);
+        lines.push("    internal: true");
+      }
+    }
+
+    lines.push("");
+    lines.push("script:");
+    for (const point of points) {
+      emitThrowScript(lines, point, false, mqtt);
+      emitThrowScript(lines, point, true, mqtt);
+    }
+
+    if (mqtt) {
+      lines.push("");
+      lines.push("text_sensor:");
+      for (const point of points) {
+        lines.push("  - platform: mqtt_subscribe");
+        lines.push(`    name: ${yamlQuote(entityName(`${point.name} last command`))}`);
+        lines.push(`    id: ${point.id}`);
+        lines.push(`    topic: ${yamlQuote(point.topic)}`);
+        lines.push("    on_value:");
+        lines.push("      - if:");
+        lines.push("          condition:");
+        lines.push("            text_sensor.state:");
+        lines.push(`              id: ${point.id}`);
+        lines.push("              state: 'THROWN'");
+        lines.push("          then:");
+        lines.push("            - script.execute:");
+        lines.push(`                id: ${point.id}_throw_thrown`);
+        lines.push("                announce: true");
+        lines.push("      - if:");
+        lines.push("          condition:");
+        lines.push("            text_sensor.state:");
+        lines.push(`              id: ${point.id}`);
+        lines.push("              state: 'CLOSED'");
+        lines.push("          then:");
+        lines.push("            - script.execute:");
+        lines.push(`                id: ${point.id}_throw_closed`);
+        lines.push("                announce: true");
+      }
     }
   }
 
@@ -465,12 +820,18 @@ function generateYaml(config) {
   global.EsphomeMr = {
     CONFIG_MARKER,
     MIN_ESPHOME_VERSION,
+    PULLUP_PINS,
+    STRAPPING_PINS,
     sanitizeId,
     uniqueIds,
     myFirstBoardPreset,
     emptyConfig,
     topicFor,
     stateTopic,
+    variantFor,
+    normalizeConfig,
+    ensureSecrets,
+    generatePassword,
     validateConfig,
     parseConfigFromYaml,
     generateYaml,

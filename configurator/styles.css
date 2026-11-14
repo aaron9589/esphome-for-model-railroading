@@ -184,6 +184,76 @@ main {
   margin-bottom: 0.75rem;
 }
 
+.card-copy {
+  margin: 0 0 0.75rem;
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
+.card-copy code {
+  font-family: var(--mono);
+  font-size: 0.85em;
+}
+
+.board-support {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(2, 220px);
+  justify-content: start;
+  gap: 0.75rem 1rem;
+}
+
+.board-support figure {
+  margin: 0;
+}
+
+.board-support img {
+  display: block;
+  width: 220px;
+  height: auto;
+  background: #f9fafb;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.board-support figcaption {
+  margin-top: 0.35rem;
+  font-size: 0.82rem;
+  font-weight: 650;
+}
+
+.board-support .hint {
+  grid-column: 1 / -1;
+}
+
+.panel {
+  grid-column: 1 / -1;
+  margin-top: 0.2rem;
+}
+
+.panel h4 {
+  margin: 0 0 0.25rem;
+  font-size: 0.82rem;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.control-card {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0.75rem;
+  margin: 0.65rem 0;
+  background: var(--bg);
+}
+
+.control-card header {
+  margin: 0 0 0.65rem;
+  padding: 0;
+  border: 0;
+}
+
 .card h3,
 .row-card h3 {
   margin: 0 0 0.8rem;
@@ -210,6 +280,12 @@ main {
   letter-spacing: 0;
   font-size: 0.95rem;
   color: var(--ink);
+}
+
+.row-card .control-card header {
+  margin: 0 0 0.65rem;
+  padding: 0;
+  border: 0;
 }
 
 .fields {
@@ -297,8 +373,18 @@ button:focus-visible {
   white-space: nowrap;
 }
 
+.check {
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+
 .check input {
-  width: auto;
+  width: 1rem;
+  height: 1rem;
+  margin: 0.15rem 0 0;
+  padding: 0;
+  flex: 0 0 auto;
 }
 
 button,
@@ -364,6 +450,15 @@ button:disabled {
 .note p {
   margin: 0;
   color: #1e3a8a;
+}
+
+.note.caution {
+  background: var(--warn-bg);
+  border-color: #fcd34d;
+}
+
+.note.caution p {
+  color: var(--warn-ink);
 }
 
 .note code {
@@ -484,5 +579,9 @@ pre {
 
   .check {
     padding-top: 0;
+  }
+
+  .board-support {
+    grid-template-columns: 220px;
   }
 }
