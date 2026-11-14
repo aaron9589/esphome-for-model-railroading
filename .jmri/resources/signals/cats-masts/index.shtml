@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta name="generator" content="HTML Tidy for HTML5 for Apple macOS version 5.8.0">
+  <title>JMRI: Basic Signaling Definition</title>
+  <!--#include virtual="/Style.shtml" -->
+</head>
+<body>
+  <!--#include virtual="/Header.shtml" -->
+
+  <div id="mBody">
+    <div id="mainContent" class="no-sidebar">
+
+      <h1>JMRI: Basic Signaling Definition</h1>
+      This directory contains basic signaling definitions understood by many model railroaders.
+      They don't model any specific prototype, but are similar to transition era ARR signaling
+      techniques.
+      <p>See the <a href="aspects.xml">aspect page</a>.</p>
+
+      <p>Signal Mast definitions:</p>
+
+      <ul>
+        <li>
+          <a href="appearance-one-searchlight.xml">Single searchlight high signal</a>
+        </li>
+
+        <li>
+          <a href="appearance-two-searchlight.xml">Double searchlight high signal</a>
+        </li>
+
+        <li>
+          <a href="appearance-one-low.xml">Single searchlight low signal</a>
+        </li>
+
+        <li>
+          <a href="appearance-two-low.xml">Double searchlight low signal</a>
+        </li>
+      </ul>
+
+      <!--#include virtual="/Footer.shtml" -->
+    </div>
+    <!-- closes #mainContent-->
+  </div>
+  <!-- closes #mBody-->
+  <script src="/js/main.js"></script>
+</body>
+</html>

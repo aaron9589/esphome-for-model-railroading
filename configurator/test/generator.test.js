@@ -80,7 +80,7 @@ test("generated YAML embeds credentials and min_version", () => {
   assert.match(yaml, /frequency: 50Hz/);
   assert.match(yaml, /channel: 0/);
   assert.match(yaml, /tag: point_control/);
-  assert.match(yaml, /web_server:\n  local: true/);
+  assert.match(yaml, /web_server:\n  local: true\n  ota: false/);
   assert.equal(MIN_ESPHOME_VERSION, "2026.9.0");
 });
 
@@ -403,6 +403,253 @@ test("direct PWM servos skip the PCA9685", () => {
   const restored = parseConfigFromYaml(generateYaml(config));
   assert.equal(restored.pca9685, false);
   assert.equal(restored.points[0].servoPin, "GPIO18");
+});
+
+function signalMast(name, start, lamps, aspects) {
+  return {
+    name,
+    topic: `trains/track/signalmast/${name}`,
+    topicCustom: true,
+    start,
+    lamps,
+    aspects,
+  };
+}
+
+test("signal mast round-trips and drives the strip", () => {
+  const config = withCreds(myFirstBoardPreset());
+  config.points = [];
+  config.blocks = [];
+  config.signals = {
+    mode: "addressable",
+    pin: "GPIO16",
+    numLeds: 8,
+    masts: [
+      signalMast("KJN-42.26", 0, [
+        { name: "Marker", count: 1 },
+        { name: "Upper", count: 1 },
+        { name: "Middle", count: 1 },
+        { name: "Lower", count: 1 },
+        { name: "Route", count: 1 },
+      ], [
+        {
+          label: "Stop",
+          states: ["R292; Lit; Unheld"],
+          lamps: [
+            { color: "off", mode: "steady" },
+            { color: "red", mode: "steady" },
+            { color: "red", mode: "steady" },
+            { color: "off", mode: "steady" },
+            { color: "off", mode: "steady" },
+          ],
+        },
+        {
+          label: "Caution",
+          states: ["R288; Lit; Unheld"],
+          lamps: [
+            { color: "off", mode: "steady" },
+            { color: "off", mode: "steady" },
+            { color: "amber", mode: "steady" },
+            { color: "off", mode: "steady" },
+            { color: "off", mode: "steady" },
+          ],
+        },
+        {
+          label: "Medium",
+          states: ["R283; Lit; Unheld", "R283A; Lit; Unheld"],
+          lamps: [
+            { color: "amber", mode: "blink" },
+            { color: "off", mode: "steady" },
+            { color: "green", mode: "steady" },
+            { color: "white", mode: "steady" },
+            { color: "amber", mode: "pulse" },
+          ],
+        },
+      ]),
+    ],
+  };
+  config.signals.masts[0].aspects[0].startup = true;
+  config.signals.masts[0].aspects[2].startup = true;
+
+  const yaml = generateYaml(config);
+  const restored = parseConfigFromYaml(yaml);
+  assert.equal(JSON.stringify(restored.signals), JSON.stringify(config.signals));
+  assert.match(yaml, /platform: esp32_rmt_led_strip/);
+  assert.match(yaml, /chipset: WS2812/);
+  assert.match(yaml, /channel_colors: GRB/);
+  assert.match(yaml, /topic: trains\/track\/signalmast\/KJN-42\.26/);
+  assert.match(yaml, /color: 0xff0000/);
+  assert.match(yaml, /color: 0xffc800/);
+  assert.match(yaml, /color: 0x1fff87/);
+  assert.match(yaml, /color: 0xffffff/);
+  assert.match(yaml, /addressable_lambda:/);
+  assert.match(yaml, /id: signal_blink_bright/);
+  assert.match(yaml, /name: "Signal - Blink - Brightness"/);
+  assert.match(yaml, /initial_value: 44\.6/);
+  assert.equal((yaml.match(/initial_value: 44\.6/g) || []).length, 1);
+  assert.match(yaml, /id: signal_blink_bright\n {4}min_value: 0\.1\n {4}max_value: 100\n {4}initial_value: 66\.6/);
+  assert.match(yaml, /const float level = elapsed < on_ms \? id\(signal_blink_bright\)\.state \/ 100\.0f : 0\.0f;/);
+  assert.match(yaml, /id: signal_blink_lit/);
+  assert.match(yaml, /name: "Signal - Blink - On"/);
+  assert.match(yaml, /min_value: 0\.1\n {4}max_value: 5\n {4}initial_value: 0\.6/);
+  assert.match(yaml, /id: signal_blink_dark/);
+  assert.match(yaml, /name: "Signal - Blink - Off"/);
+  assert.match(yaml, /min_value: 0\.1\n {4}max_value: 5\n {4}initial_value: 0\.2/);
+  assert.match(yaml, /id: signal_pulse_span/);
+  assert.match(yaml, /name: "Signal - Pulse - Rate"/);
+  assert.match(yaml, /min_value: 0\.1\n {4}max_value: 10\n {4}initial_value: 0\.5/);
+  assert.match(yaml, /id: signal_pulse_wait/);
+  assert.match(yaml, /name: "Signal - Pulse - Gap"/);
+  assert.match(yaml, /min_value: 0\.1\n {4}max_value: 5\n {4}initial_value: 0\.3/);
+  assert.match(yaml, /else if \(t >= half \+ pause_s\)/);
+  assert.match(yaml, /it\[i\] = px;/);
+  assert.doesNotMatch(yaml, /id: signal_rate\b/);
+  assert.doesNotMatch(yaml, /cosf/);
+  assert.doesNotMatch(yaml, /0\.12f/);
+  assert.match(yaml, /id: signal_steady_bright/);
+  assert.match(yaml, /name: "Signal - Brightness"/);
+  assert.match(yaml, /id: signal_pulse_peak/);
+  assert.match(yaml, /name: "Signal - Pulse - Brightness"/);
+  assert.match(yaml, /id: signal_pulse_peak\n {4}min_value: 0\.1\n {4}max_value: 100\n {4}initial_value: 88\.5/);
+  assert.match(yaml, /const float level = \(id\(signal_pulse_peak\)\.state \/ 100\.0f\) \* wave;/);
+  assert.match(yaml, /color_brightness: !lambda 'return id\(signal_steady_bright\)\.state \/ 100\.0;'/);
+  assert.doesNotMatch(yaml, /color: 0x000000\n {16}color_brightness:/);
+  assert.doesNotMatch(yaml, /kjn_42_26_brightness/);
+  assert.match(yaml, /priority: -150\.0/);
+  assert.match(yaml, /id: kjn_42_26_aspect\n            value: '0'/);
+  assert.equal(restored.signals.masts[0].aspects.filter((aspect) => aspect.startup).length, 1);
+  assert.equal(restored.signals.masts[0].aspects[0].startup, true);
+  assert.match(yaml, /restart_effects: true/);
+  assert.match(yaml, /restart_effects: false/);
+  assert.match(yaml, /web_server:\n  local: true\n  ota: false/);
+  assert.equal(yaml.split("\n").filter((line) => line === "number:").length, 1);
+  assert.equal(yaml.split("\n").filter((line) => line === "script:").length, 1);
+  assert.equal(yaml.split("\n").filter((line) => line === "globals:").length, 1);
+  assert.match(yaml, /platform: partition/);
+  assert.doesNotMatch(yaml, /range_from: 0\n/);
+  assert.doesNotMatch(yaml, /range_from: 4\n/);
+  assert.match(yaml, /from: 0\n/);
+  assert.match(yaml, /from: 4\n/);
+  assert.match(yaml, /num_leds: 5/);
+
+  config.signals.masts[0].lamps[4].count = 3;
+  const wider = generateYaml(config);
+  assert.match(wider, /num_leds: 7/);
+  assert.equal(config.signals.masts[0].lamps[4].count, 3);
+});
+
+test("a file with no signals key still imports", () => {
+  const stored = {
+    board: {
+      name: "my-first-board",
+      module: "nodemcu-32s",
+      wifiSsid: "layout-wifi",
+      wifiPassword: "s3cret",
+      mqttBroker: "192.168.1.50",
+    },
+    blocks: [],
+    points: [],
+    i2c: { sda: "GPIO21", scl: "GPIO22" },
+  };
+  const parsed = parseConfigFromYaml(`# ${CONFIG_MARKER}\n# ${JSON.stringify(stored)}\n`);
+  assert.equal(parsed.signals, undefined);
+  context.EsphomeMr.normalizeConfig(parsed);
+  assert.equal(parsed.signals.masts.length, 0);
+  assert.doesNotMatch(generateYaml(parsed), /esp32_rmt_led_strip/);
+});
+
+test("a short strip and a shared data pin fail validation", () => {
+  const config = withCreds(myFirstBoardPreset());
+  config.points = [];
+  config.blocks = [{
+    name: "Kiama/Up XOver",
+    topic: "trains/track/sensor/Kiama/Up XOver",
+    gpio: "GPIO16",
+    inverted: true,
+    debounce: "500ms",
+  }];
+  config.signals = {
+    mode: "addressable",
+    pin: "GPIO16",
+    numLeds: 4,
+    masts: [
+      signalMast("A", 0, [{ name: "Lamp", count: 2 }], [{
+        label: "Stop",
+        states: ["R292; Lit; Unheld"],
+        lamps: [{ color: "red", mode: "steady" }],
+      }]),
+      signalMast("B", 0, [{ name: "Lamp", count: 5 }], [{
+        label: "Stop",
+        states: [" "],
+        lamps: [{ color: "red", mode: "steady" }],
+      }]),
+    ],
+  };
+  const { errors, warnings } = validateConfig(config);
+  assert.ok(errors.some((error) => error.includes("GPIO16")));
+  assert.ok(errors.some((error) => error.includes("needs a JMRI string")));
+
+  config.blocks = [];
+  config.signals.pin = "GPIO18";
+  config.signals.masts = [
+    signalMast("A", 0, [{ name: "Lamp", count: 1 }], [
+      { label: "Stop", states: ["R292; Lit; Unheld"], lamps: [{ color: "red", mode: "steady" }] },
+      { label: "Stop again", states: ["R292; Lit; Unheld"], lamps: [{ color: "red", mode: "steady" }] },
+    ]),
+  ];
+  const again = validateConfig(config);
+  assert.equal(again.errors.length, 0);
+  assert.ok(again.warnings.some((warning) => warning.includes("R292; Lit; Unheld")));
+  void warnings;
+});
+
+test("individual LEDs use one GPIO each", () => {
+  const config = withCreds(myFirstBoardPreset());
+  config.blocks = [];
+  config.signals = {
+    mode: "gpio",
+    pin: "GPIO16",
+    numLeds: 8,
+    masts: [
+      signalMast("Home", 9, [
+        { name: "Red", count: 4, pin: "gpio18" },
+        { name: "Green", count: 1, pin: "GPIO19" },
+      ], [{
+        label: "Stop",
+        states: ["R292; Lit; Unheld"],
+        lamps: [
+          { color: "red", mode: "blink" },
+          { color: "off", mode: "steady" },
+        ],
+      }]),
+    ],
+  };
+  const yaml = generateYaml(config);
+  const outputKeys = yaml.split("\n").filter((line) => line === "output:");
+  assert.equal(outputKeys.length, 1);
+  assert.match(yaml, /platform: ledc/);
+  assert.match(yaml, /pin: GPIO18/);
+  assert.match(yaml, /frequency: 1000Hz/);
+  assert.match(yaml, /platform: monochromatic/);
+  assert.match(yaml, /name: Blink/);
+  assert.match(yaml, /effect: Blink/);
+  assert.match(yaml, /id: signal_steady_bright/);
+  assert.match(yaml, /id: signal_blink_lit/);
+  assert.match(yaml, /id: signal_pulse_wait/);
+  assert.doesNotMatch(yaml, /home_brightness/);
+  assert.match(yaml, /- lambda:\n {10}name: Blink/);
+  assert.equal(yaml.split("\n").filter((line) => line === "number:").length, 1);
+  assert.equal(yaml.split("\n").filter((line) => line === "script:").length, 1);
+  assert.match(yaml, /light.turn_off: home_lamp_1/);
+  assert.doesNotMatch(yaml, /esp32_rmt_led_strip/);
+  assert.equal(config.signals.masts[0].lamps[0].count, 1);
+  assert.equal(config.signals.masts[0].mode, "gpio");
+  assert.equal(config.signals.mode, undefined);
+
+  config.points = [];
+  config.signals.masts[0].lamps[1].pin = "GPIO18";
+  const { errors } = validateConfig(config);
+  assert.ok(errors.some((error) => error.includes("GPIO18")));
 });
 
 console.log("\nAll generator tests passed.");

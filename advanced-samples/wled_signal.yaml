@@ -1,4 +1,11 @@
 ---
+# OBSOLETE. Do not start a new signal from this file.
+# Signal masts are now in the Board Configurator: one WS2812B strip or one
+# GPIO per lamp, on the same ESP as the rest of the board.
+# This file is kept as a record of the earlier layout, which drove a second
+# ESP running WLED over UART.
+# https://aaron9589.github.io/esphome-for-model-railroading/
+#
 # wled_signal.yaml
 # Drive WS2812B signals via WLED over UART serial.
 # WLED runs on a second ESP/microcontroller connected by a 3-wire serial link.

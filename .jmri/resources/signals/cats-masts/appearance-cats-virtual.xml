@@ -1,0 +1,110 @@
+<?xml version="1.0" encoding="utf-8"?>
+<?xml-stylesheet href="../../XSLT/appearancetable.xsl" type="text/xsl"?>
+<appearancetable xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://jmri.org/xml/schema/appearancetable.xsd">
+  <aspecttable>CATS Virtual Signals</aspecttable>
+  <name>Default</name>
+  <reference>(similar to basic signals described in various magazine articles)</reference>
+  <description>A simple signal for use as e.g. a block signal</description>
+  <appearances>
+    <appearance>
+      <aspectname>R288</aspectname>
+    </appearance>
+    <appearance>
+      <aspectname>RES_LIM</aspectname>
+    </appearance>
+    <appearance>
+      <aspectname>C424</aspectname>
+    </appearance>
+    <appearance>
+      <aspectname>ADV_SLO</aspectname>
+    </appearance>
+    <appearance>
+      <aspectname>C423</aspectname>
+    </appearance>
+    <appearance>
+      <aspectname>C422</aspectname>
+    </appearance>
+    <appearance>
+      <aspectname>R281D</aspectname>
+    </appearance>
+    <appearance>
+      <aspectname>R281C</aspectname>
+    </appearance>
+    <appearance>
+      <aspectname>R281B</aspectname>
+    </appearance>
+    <appearance>
+      <aspectname>RES_MED</aspectname>
+    </appearance>
+    <appearance>
+      <aspectname>ADV_NORM</aspectname>
+    </appearance>
+    <appearance>
+      <aspectname>R283B</aspectname>
+    </appearance>
+    <appearance>
+      <aspectname>R283A</aspectname>
+    </appearance>
+    <appearance>
+      <aspectname>R291</aspectname>
+    </appearance>
+    <appearance>
+      <aspectname>R292</aspectname>
+    </appearance>
+    <appearance>
+      <aspectname>ADV_LIM</aspectname>
+    </appearance>
+    <appearance>
+      <aspectname>ADV_MED</aspectname>
+    </appearance>
+    <appearance>
+      <aspectname>C417</aspectname>
+    </appearance>
+    <appearance>
+      <aspectname>C414</aspectname>
+    </appearance>
+    <appearance>
+      <aspectname>C413</aspectname>
+    </appearance>
+    <appearance>
+      <aspectname>RES_SLO</aspectname>
+    </appearance>
+    <appearance>
+      <aspectname>C412</aspectname>
+    </appearance>
+    <appearance>
+      <aspectname>RES_NORM</aspectname>
+    </appearance>
+    <appearance>
+      <aspectname>R286</aspectname>
+    </appearance>
+    <appearance>
+      <aspectname>R287</aspectname>
+    </appearance>
+    <appearance>
+      <aspectname>R284</aspectname>
+    </appearance>
+    <appearance>
+      <aspectname>R285</aspectname>
+    </appearance>
+    <appearance>
+      <aspectname>R282</aspectname>
+    </appearance>
+    <appearance>
+      <aspectname>R283</aspectname>
+    </appearance>
+    <appearance>
+      <aspectname>R281</aspectname>
+    </appearance>
+  </appearances>
+  <specificappearances>
+  </specificappearances>
+  <!-- End of Specific Appearances list -->
+  <aspectMappings>
+    <!-- Start of Aspect Mapping -->
+  </aspectMappings>
+  <!-- End of Aspect Mapping -->
+</appearancetable>
+
+
+  

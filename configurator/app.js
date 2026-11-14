@@ -10,6 +10,10 @@ const {
   stateTopic,
   topicFor,
   validateConfig,
+  SIGNAL_COLORS,
+  SIGNAL_COLOR_ORDER,
+  CATS_ASPECTS,
+  catsAspectState,
 } = globalThis.EsphomeMr;
 
 const STORAGE_KEY = "esphome-mr-configurator-v1";
@@ -36,6 +40,35 @@ const ACTIONS = [
   { value: "toggle", label: "Toggle" },
   { value: "closed", label: "Set closed" },
   { value: "thrown", label: "Set thrown" },
+];
+
+const COLOR_LABELS = {
+  off: "Off",
+  red: "Red",
+  amber: "Amber",
+  green: "Green",
+  white: "White",
+};
+
+const LAMP_STARTERS = [
+  { label: "3 lamps", lamps: [
+    { name: "Bottom", count: 1 },
+    { name: "Middle", count: 1 },
+    { name: "Top", count: 1 },
+  ] },
+  { label: "Head and marker", lamps: [
+    { name: "Marker", count: 1 },
+    { name: "Bottom", count: 1 },
+    { name: "Middle", count: 1 },
+    { name: "Top", count: 1 },
+  ] },
+  { label: "Head, marker and route", lamps: [
+    { name: "Route", count: 3 },
+    { name: "Marker", count: 1 },
+    { name: "Bottom", count: 1 },
+    { name: "Middle", count: 1 },
+    { name: "Top", count: 1 },
+  ] },
 ];
 
 const CRED_FIELDS = ["wifiSsid", "wifiPassword", "mqttBroker", "apPassword"];
@@ -65,6 +98,9 @@ const el = {
   countPoints: document.getElementById("count-points"),
   blocksEmpty: document.getElementById("blocks-empty"),
   pointsEmpty: document.getElementById("points-empty"),
+  signalsList: document.getElementById("signals-list"),
+  countSignals: document.getElementById("count-signals"),
+  signalsEmpty: document.getElementById("signals-empty"),
 };
 
 document.querySelectorAll(".nav-item").forEach((button) => {
@@ -134,6 +170,22 @@ document.getElementById("btn-add-point").addEventListener("click", () => {
   render();
 });
 
+document.getElementById("btn-add-mast").addEventListener("click", () => {
+  const name = `Mast ${state.signals.masts.length + 1}`;
+  state.signals.masts.push({
+    name,
+    topic: topicFor("signal", name),
+    topicCustom: false,
+    lamps: [],
+    aspects: [],
+    mode: "addressable",
+    pin: nextServoPin(),
+    numLeds: 1,
+  });
+  persist();
+  render();
+});
+
 document.getElementById("btn-download").addEventListener("click", () => {
   const { errors } = validateConfig(state);
   if (errors.length) {
@@ -195,6 +247,11 @@ function normalizeTopics(config) {
   for (const point of config.points || []) {
     if (typeof point.topicCustom !== "boolean") {
       point.topicCustom = point.topic !== topicFor("point", point.name);
+    }
+  }
+  for (const mast of config.signals?.masts || []) {
+    if (typeof mast.topicCustom !== "boolean") {
+      mast.topicCustom = mast.topic !== topicFor("signal", mast.name);
     }
   }
 }
@@ -367,6 +424,15 @@ function usedPins() {
       if (control.buttonPin) used.add(String(control.buttonPin).toUpperCase());
       if (control.closedLight) used.add(String(control.closedLight).toUpperCase());
       if (control.openLight) used.add(String(control.openLight).toUpperCase());
+    }
+  }
+  for (const mast of state.signals?.masts || []) {
+    if (mast.mode === "gpio") {
+      for (const lamp of mast.lamps || []) {
+        if (lamp.pin) used.add(String(lamp.pin).toUpperCase());
+      }
+    } else if (mast.pin) {
+      used.add(String(mast.pin).toUpperCase());
     }
   }
   return used;
@@ -778,6 +844,550 @@ function renderPanel(point) {
   return panel;
 }
 
+function syncAspectCells(mast) {
+  for (const aspect of mast.aspects) {
+    while (aspect.lamps.length < mast.lamps.length) {
+      aspect.lamps.push({ color: "off", mode: "steady" });
+    }
+    aspect.lamps.length = mast.lamps.length;
+  }
+}
+
+function moveLamp(mast, from, to) {
+  if (to < 0 || to >= mast.lamps.length || from === to) return;
+  const [lamp] = mast.lamps.splice(from, 1);
+  mast.lamps.splice(to, 0, lamp);
+  for (const aspect of mast.aspects) {
+    const [cell] = aspect.lamps.splice(from, 1);
+    aspect.lamps.splice(to, 0, cell);
+  }
+  persist();
+  render();
+}
+
+function swatchHex(color) {
+  if (color === "off") return "#1f2937";
+  return `#${SIGNAL_COLORS[color]}`;
+}
+
+function colHead(text) {
+  const span = document.createElement("div");
+  span.className = "col-head";
+  span.textContent = text;
+  return span;
+}
+
+function labeledControl(labelText, control) {
+  const label = document.createElement("label");
+  label.className = "stack-label";
+  const title = document.createElement("span");
+  title.className = "col-head";
+  title.textContent = labelText;
+  label.append(title, control);
+  return label;
+}
+
+function renderLampEditor(mast, lamp, lampIndex, gpio) {
+  const editor = document.createElement("div");
+  editor.className = "lamp-editor";
+  const bindDrop = (cell) => {
+    cell.addEventListener("dragover", (event) => {
+      event.preventDefault();
+      event.dataTransfer.dropEffect = "move";
+    });
+    cell.addEventListener("drop", (event) => {
+      event.preventDefault();
+      const from = Number(event.dataTransfer.getData("text/plain"));
+      if (Number.isNaN(from)) return;
+      moveLamp(mast, from, lampIndex);
+    });
+  };
+
+  const nameCell = document.createElement("div");
+  nameCell.className = "lamp-name";
+  const grip = document.createElement("span");
+  grip.className = "lamp-grip";
+  grip.draggable = true;
+  grip.title = "Drag to reorder";
+  grip.textContent = "⋮⋮";
+  grip.addEventListener("dragstart", (event) => {
+    event.dataTransfer.setData("text/plain", String(lampIndex));
+    event.dataTransfer.effectAllowed = "move";
+  });
+  const name = document.createElement("input");
+  name.type = "text";
+  name.value = lamp.name;
+  name.placeholder = "Bottom";
+  name.setAttribute("aria-label", "Lamp name");
+  name.addEventListener("input", () => {
+    lamp.name = name.value;
+    persist();
+    updatePreview();
+  });
+  nameCell.append(grip, name);
+
+  const detail = document.createElement("div");
+  detail.className = "lamp-detail";
+  if (gpio) {
+    const pin = document.createElement("select");
+    pin.setAttribute("aria-label", "Lamp pin");
+    for (const option of pinChoices()) {
+      const item = document.createElement("option");
+      item.value = option.value;
+      item.textContent = option.label;
+      if (option.value === lamp.pin) item.selected = true;
+      pin.append(item);
+    }
+    pin.addEventListener("input", () => {
+      lamp.pin = pin.value;
+      persist();
+      updatePreview();
+    });
+    detail.append(pin);
+  } else {
+    const pips = document.createElement("span");
+    pips.className = "led-pips";
+    const count = Math.max(1, Number(lamp.count) || 1);
+    for (let index = 0; index < count; index += 1) {
+      const pip = document.createElement("button");
+      pip.type = "button";
+      pip.className = "pip";
+      pip.title = count > 1 ? "Remove one LED from this lamp" : "One LED";
+      pip.setAttribute("aria-label", count > 1 ? "Remove one LED from this lamp" : "One LED");
+      pip.addEventListener("click", () => {
+        if (lamp.count <= 1) return;
+        lamp.count -= 1;
+        persist();
+        render();
+      });
+      pips.append(pip);
+    }
+    const addLed = document.createElement("button");
+    addLed.type = "button";
+    addLed.className = "mini";
+    addLed.textContent = "Add";
+    addLed.addEventListener("click", () => {
+      lamp.count = Math.min(32, (Number(lamp.count) || 1) + 1);
+      persist();
+      render();
+    });
+    detail.append(pips, addLed);
+  }
+
+  const order = document.createElement("div");
+  order.className = "lamp-order";
+  const up = document.createElement("button");
+  up.type = "button";
+  up.className = "mini";
+  up.textContent = "Up";
+  up.addEventListener("click", () => moveLamp(mast, lampIndex, lampIndex - 1));
+  const down = document.createElement("button");
+  down.type = "button";
+  down.className = "mini";
+  down.textContent = "Down";
+  down.addEventListener("click", () => moveLamp(mast, lampIndex, lampIndex + 1));
+  const drop = document.createElement("button");
+  drop.type = "button";
+  drop.className = "mini remove";
+  drop.textContent = "Remove";
+  drop.addEventListener("click", () => {
+    mast.lamps.splice(lampIndex, 1);
+    for (const aspect of mast.aspects) aspect.lamps.splice(lampIndex, 1);
+    persist();
+    render();
+  });
+  order.append(up, down, drop);
+  bindDrop(nameCell);
+  bindDrop(detail);
+  bindDrop(order);
+  editor.append(nameCell, detail, order);
+  return editor;
+}
+
+function renderSignalCell(cell, gpio) {
+  const wrap = document.createElement("div");
+  wrap.className = "signal-cell";
+  const swatches = document.createElement("div");
+  swatches.className = "swatches";
+  const colors = gpio ? ["off", "white"] : SIGNAL_COLOR_ORDER;
+  for (const color of colors) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "swatch";
+    const label = gpio && color === "white" ? "On" : COLOR_LABELS[color];
+    button.title = label;
+    button.setAttribute("aria-label", label);
+    button.style.background = swatchHex(color);
+    if (color === "white") button.classList.add("is-white");
+    const selected = gpio ? (color === "off" ? cell.color === "off" : cell.color !== "off") : cell.color === color;
+    if (selected) {
+      button.classList.add("is-selected");
+      if (cell.mode === "blink") button.classList.add("is-blink");
+      if (cell.mode === "pulse") button.classList.add("is-pulse");
+    }
+    button.addEventListener("click", () => {
+      cell.color = color;
+      if (color === "off") cell.mode = "steady";
+      persist();
+      render();
+    });
+    swatches.append(button);
+  }
+  wrap.append(swatches);
+  if (cell.color !== "off") {
+    const modes = document.createElement("div");
+    modes.className = "modes";
+    for (const mode of ["steady", "blink", "pulse"]) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "mode";
+      if (cell.mode === mode) button.classList.add("is-selected");
+      button.textContent = mode.charAt(0).toUpperCase() + mode.slice(1);
+      button.addEventListener("click", () => {
+        cell.mode = mode;
+        persist();
+        render();
+      });
+      modes.append(button);
+    }
+    wrap.append(modes);
+  }
+  return wrap;
+}
+
+function renderSignals() {
+  const signals = state.signals;
+  const anyStrip = signals.masts.some((mast) => mast.mode !== "gpio");
+  const showStripHelp = signals.masts.length === 0 || anyStrip;
+  document.getElementById("signal-sample").hidden = !showStripHelp;
+  const catsStates = new Set(CATS_ASPECTS.map((name) => catsAspectState(name)));
+  const usesCats = signals.masts.some((mast) =>
+    (mast.aspects || []).some((aspect) =>
+      (aspect.states || []).some((state) => catsStates.has(String(state).trim()))
+    )
+  );
+  document.getElementById("cats-template-note").hidden = !usesCats;
+
+  el.signalsList.replaceChildren();
+  signals.masts.forEach((mast, mastIndex) => {
+    const gpio = mast.mode === "gpio";
+    syncAspectCells(mast);
+    const card = document.createElement("div");
+    card.className = "row-card";
+    const header = document.createElement("header");
+    const title = document.createElement("h3");
+    title.textContent = mast.name || `Mast ${mastIndex + 1}`;
+    const actions = document.createElement("div");
+    actions.className = "row-actions";
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.className = "remove";
+    remove.textContent = "Remove";
+    remove.addEventListener("click", () => {
+      signals.masts.splice(mastIndex, 1);
+      persist();
+      render();
+    });
+    actions.append(remove);
+    header.append(title, actions);
+
+    const fields = document.createElement("div");
+    fields.className = "fields";
+    const topicField = field("MQTT topic", mast.topic, (v) => {
+      mast.topic = v;
+      mast.topicCustom = v !== topicFor("signal", mast.name);
+      persist();
+      updatePreview();
+    }, {
+      full: true,
+      hint: "JMRI signal mast topic.",
+    });
+    topicField.querySelector("input").dataset.role = "topic";
+    fields.append(
+      field("Name", mast.name, (v) => {
+        mast.name = v;
+        title.textContent = v || `Mast ${mastIndex + 1}`;
+        followName(mast, "signal", card);
+        persist();
+        updatePreview();
+      }, {
+        placeholder: "KJN-42.26",
+        full: true,
+        hint: "Name in the logs. The topic is filled in from this.",
+      }),
+      topicField,
+      field("Drive", gpio ? "gpio" : "addressable", (v) => {
+        mast.mode = v === "gpio" ? "gpio" : "addressable";
+        if (mast.mode === "gpio") {
+          for (const lamp of mast.lamps) {
+            if (!lamp.pin) lamp.pin = nextServoPin();
+          }
+        }
+        persist();
+        render();
+      }, {
+        select: [
+          { value: "addressable", label: "Addressable LEDs" },
+          { value: "gpio", label: "Individual LEDs" },
+        ],
+        hint: gpio
+          ? "Each lamp is one GPIO. The LED’s colour is whatever you wired."
+          : "This mast has its own WS2812B strip. The first lamp is LED 0.",
+      })
+    );
+    if (!gpio) {
+      fields.append(
+        field("Data pin", mast.pin, (v) => {
+          mast.pin = v;
+          persist();
+          updatePreview();
+        }, {
+          select: pinChoices(),
+          hint: "GPIO the data line uses. LEDs run from 0.",
+        })
+      );
+    }
+
+    const aspects = document.createElement("div");
+    aspects.className = "aspects";
+    const lampHint = document.createElement("p");
+    lampHint.className = "hint";
+    lampHint.textContent = gpio
+      ? "Each row is one lamp. Each column is an aspect."
+      : "Each row is one lamp, wired from the base. The first row is LED 0. Each column is an aspect.";
+    aspects.append(lampHint);
+    syncAspectCells(mast);
+
+    const board = document.createElement("div");
+    board.className = "mast-board";
+    const detailWidth = gpio ? "minmax(6.2rem, 8rem)" : "minmax(4.5rem, 6.5rem)";
+    const lampsPane = document.createElement("div");
+    lampsPane.className = "mast-lamps";
+    lampsPane.style.gridTemplateColumns = `minmax(7.5rem, 9rem) ${detailWidth} max-content`;
+    const scroll = document.createElement("div");
+    scroll.className = "mast-scroll";
+    if (mast.aspects.length) {
+      scroll.style.gridTemplateColumns = `repeat(${mast.aspects.length}, minmax(12rem, 14rem))`;
+    }
+    board.style.gridTemplateRows = `repeat(${mast.lamps.length + 1}, auto)`;
+    const heads = document.createElement("div");
+    heads.className = "lamp-editor lamp-head";
+    heads.append(
+      colHead("Lamp"),
+      colHead(gpio ? "Pin" : "LEDs"),
+      colHead("Order"),
+    );
+    lampsPane.append(heads);
+    mast.aspects.forEach((aspect, aspectIndex) => {
+      const head = document.createElement("div");
+      head.className = "aspect-head";
+      const label = document.createElement("input");
+      label.type = "text";
+      label.value = aspect.label;
+      label.placeholder = "Stop";
+      label.setAttribute("aria-label", "Aspect name");
+      label.addEventListener("input", () => {
+        aspect.label = label.value;
+        persist();
+        updatePreview();
+      });
+      const dropAspect = document.createElement("button");
+      dropAspect.type = "button";
+      dropAspect.className = "mini remove";
+      dropAspect.textContent = "Remove";
+      dropAspect.addEventListener("click", () => {
+        mast.aspects.splice(aspectIndex, 1);
+        persist();
+        render();
+      });
+      const nameRow = document.createElement("div");
+      nameRow.className = "match-row";
+      nameRow.append(label, dropAspect);
+      head.append(labeledControl("Aspect", nameRow));
+      const startup = document.createElement("label");
+      startup.className = "check";
+      const box = document.createElement("input");
+      box.type = "checkbox";
+      box.checked = aspect.startup === true;
+      box.addEventListener("change", () => {
+        const on = box.checked;
+        for (const other of mast.aspects) other.startup = false;
+        aspect.startup = on;
+        persist();
+        render();
+      });
+      const startupText = document.createElement("span");
+      startupText.className = "check-copy";
+      startupText.textContent = "Show at startup";
+      startup.append(box, startupText);
+      head.append(startup);
+      aspect.states.forEach((state, stateIndex) => {
+        const row = document.createElement("div");
+        row.className = "match-row";
+        const input = document.createElement("input");
+        input.type = "text";
+        input.value = state;
+        input.placeholder = "R292; Lit; Unheld";
+        input.setAttribute("aria-label", stateIndex === 0 ? "JMRI aspect" : "Also match");
+        input.addEventListener("input", () => {
+          aspect.states[stateIndex] = input.value;
+          persist();
+          updatePreview();
+        });
+        row.append(input);
+        if (stateIndex > 0) {
+          const removeMatch = document.createElement("button");
+          removeMatch.type = "button";
+          removeMatch.className = "mini remove";
+          removeMatch.textContent = "Remove";
+          removeMatch.addEventListener("click", () => {
+            aspect.states.splice(stateIndex, 1);
+            persist();
+            render();
+          });
+          row.append(removeMatch);
+        }
+        head.append(labeledControl(stateIndex === 0 ? "JMRI aspect" : "Also match", row));
+      });
+      const also = document.createElement("button");
+      also.type = "button";
+      also.className = "mini text";
+      also.textContent = "Also match";
+      also.addEventListener("click", () => {
+        aspect.states.push("");
+        persist();
+        render();
+      });
+      head.append(also, colHead("Colour"));
+      scroll.append(head);
+    });
+
+    if (!mast.lamps.length) {
+      const starters = document.createElement("div");
+      starters.className = "starters";
+      starters.style.gridColumn = "1 / -1";
+      for (const starter of LAMP_STARTERS) {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.textContent = starter.label;
+        button.addEventListener("click", () => {
+          mast.lamps = [];
+          for (const lamp of starter.lamps) {
+            mast.lamps.push({
+              name: lamp.name,
+              count: gpio ? 1 : lamp.count,
+              pin: gpio ? nextServoPin() : "",
+            });
+          }
+          syncAspectCells(mast);
+          persist();
+          render();
+        });
+        starters.append(button);
+      }
+      board.append(starters);
+    }
+
+    mast.lamps.forEach((lamp, lampIndex) => {
+      lampsPane.append(renderLampEditor(mast, lamp, lampIndex, gpio));
+      mast.aspects.forEach((aspect) => {
+        scroll.append(renderSignalCell(aspect.lamps[lampIndex], gpio));
+      });
+    });
+    if (mast.lamps.length || mast.aspects.length) board.append(lampsPane, scroll);
+    aspects.append(board);
+
+    const usedStates = new Set();
+    for (const aspect of mast.aspects) {
+      for (const item of aspect.states) usedStates.add(String(item).trim());
+    }
+    const picker = document.createElement("div");
+    picker.className = "aspect-add";
+    const cats = document.createElement("select");
+    cats.setAttribute("aria-label", "CATS aspect");
+    const remaining = CATS_ASPECTS.filter((name) => !usedStates.has(catsAspectState(name)));
+    if (!remaining.length) {
+      const empty = document.createElement("option");
+      empty.textContent = "All CATS aspects added";
+      cats.append(empty);
+      cats.disabled = true;
+    } else {
+      for (const name of remaining) {
+        const option = document.createElement("option");
+        option.value = name;
+        option.textContent = name;
+        cats.append(option);
+      }
+    }
+    const addCats = document.createElement("button");
+    addCats.type = "button";
+    addCats.textContent = "Add CATS aspect";
+    addCats.disabled = !remaining.length;
+    addCats.addEventListener("click", () => {
+      const name = cats.value;
+      if (!name || usedStates.has(catsAspectState(name))) return;
+      mast.aspects.push({
+        label: name,
+        states: [catsAspectState(name)],
+        lamps: mast.lamps.map(() => ({ color: "off", mode: "steady" })),
+      });
+      persist();
+      render();
+    });
+    const addAll = document.createElement("button");
+    addAll.type = "button";
+    addAll.textContent = "Add all CATS aspects";
+    addAll.disabled = !remaining.length;
+    addAll.addEventListener("click", () => {
+      for (const name of CATS_ASPECTS) {
+        const state = catsAspectState(name);
+        if (usedStates.has(state)) continue;
+        usedStates.add(state);
+        mast.aspects.push({
+          label: name,
+          states: [state],
+          lamps: mast.lamps.map(() => ({ color: "off", mode: "steady" })),
+        });
+      }
+      persist();
+      render();
+    });
+    const addAspect = document.createElement("button");
+    addAspect.type = "button";
+    addAspect.textContent = "Custom aspect";
+    addAspect.addEventListener("click", () => {
+      mast.aspects.push({
+        label: `Aspect ${mast.aspects.length + 1}`,
+        states: [""],
+        lamps: mast.lamps.map(() => ({ color: "off", mode: "steady" })),
+      });
+      persist();
+      render();
+    });
+    const addLamp = document.createElement("button");
+    addLamp.type = "button";
+    addLamp.textContent = "Add lamp";
+    addLamp.addEventListener("click", () => {
+      const used = new Set(mast.lamps.map((lamp) => lamp.name));
+      let number = mast.lamps.length + 1;
+      while (used.has(`Lamp ${number}`)) number += 1;
+      mast.lamps.push({
+        name: `Lamp ${number}`,
+        count: 1,
+        pin: gpio ? nextServoPin() : "",
+      });
+      syncAspectCells(mast);
+      persist();
+      render();
+    });
+    picker.append(addLamp, cats, addCats, addAll, addAspect);
+    aspects.append(picker);
+
+    card.append(header, fields, aspects);
+    el.signalsList.append(card);
+  });
+}
+
 function renderMessages() {
   const structural = el.messages.querySelectorAll(".msg:not(.toast)");
   structural.forEach((n) => n.remove());
@@ -801,8 +1411,10 @@ function updatePreview() {
   el.preview.textContent = generateYaml(state);
   el.countBlocks.textContent = String(state.blocks.length);
   el.countPoints.textContent = String(state.points.length);
+  el.countSignals.textContent = String(state.signals.masts.length);
   el.blocksEmpty.hidden = state.blocks.length > 0;
   el.pointsEmpty.hidden = state.points.length > 0;
+  el.signalsEmpty.hidden = state.signals.masts.length > 0;
   document.getElementById("i2c-card").hidden = state.points.length === 0;
   el.directPwmNote.hidden = state.points.length === 0 || usesPca();
   renderMessages();
@@ -813,6 +1425,7 @@ function render() {
   renderI2c();
   renderBlocks();
   renderPoints();
+  renderSignals();
   updatePreview();
 }
 
