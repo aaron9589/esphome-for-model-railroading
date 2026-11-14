@@ -579,13 +579,13 @@ function renderBlocks() {
         placeholder: "500ms",
         hint: "500ms is a fairly good value to keep blocks held for dirty track etc - you can adjust this as appropriate.",
       }),
-      field("A train in the block makes this wire read 0 volts", block.inverted, (v) => {
+      field("Invert the input", block.inverted, (v) => {
         block.inverted = v;
         persist();
         updatePreview();
       }, {
         checkbox: true,
-        hint: "Occupied when the pin is low.",
+        hint: "If you test the block and it shows unoccupied with a train in the section, and occupied when it's empty, switch this box.",
       })
     );
     card.append(header, fields);
