@@ -1,13 +1,13 @@
 /**
  * ESPHome for Model Railroading — board.yaml generator
  * Config schema version: 1
- * Minimum ESPHome: 2025.8.0 (esp32 variant without a board id, ota platform esphome)
+ * Minimum ESPHome: 2026.9.0 (ota encryption reuses the API key)
  * web_server.local is older than that, so the calibration page can load with no internet.
  */
 
 (function (global) {
 const CONFIG_MARKER = "esphome-mr-config:1";
-const MIN_ESPHOME_VERSION = "2025.8.0";
+const MIN_ESPHOME_VERSION = "2026.9.0";
 
 const PULLUP_PINS = Object.freeze([
   "GPIO0", "GPIO2", "GPIO4", "GPIO5",
@@ -81,7 +81,7 @@ function boardDefaults() {
     wifiSsid: "",
     wifiPassword: "",
     mqttBroker: "",
-    otaPassword: "",
+    mqttEnabled: true,
     apPassword: "",
     apiKey: "",
   };
@@ -129,8 +129,12 @@ function normalizeConfig(config) {
   delete board.boardType;
   delete board.fallbackHotspot;
   delete board.apiEnabled;
+  delete board.otaPassword;
+  if (typeof board.mqttEnabled !== "boolean") board.mqttEnabled = true;
+  if (typeof config.pca9685 !== "boolean") config.pca9685 = true;
   if (!config.i2c) config.i2c = { sda: "GPIO21", scl: "GPIO22" };
   for (const point of config.points || []) {
+    if (point.servoPin) point.servoPin = String(point.servoPin).toUpperCase();
     if (!Array.isArray(point.controls)) point.controls = [];
     for (const control of point.controls) {
       if (control.action !== "closed" && control.action !== "thrown") control.action = "toggle";
@@ -221,6 +225,18 @@ function ensureSecrets(config) {
   return config;
 }
 
+function outputPinProblem(pin, role) {
+  const name = String(pin || "").toUpperCase();
+  if (!name) return `${role} pin is missing`;
+  if (NO_PULLUP_PINS[name]) {
+    return `${role} pin ${name} (${NO_PULLUP_PINS[name]}) is input only and cannot drive a servo`;
+  }
+  if (SERIAL_PINS[name]) return `${role} pin ${name} (${SERIAL_PINS[name]}) is the USB serial port`;
+  if (FLASH_PINS.has(name)) return `${role} pin ${name} is part of the flash chip`;
+  if (!PULLUP_PIN_SET.has(name)) return `${role} pin ${name} is not in the pin list`;
+  return "";
+}
+
 function pinProblem(pin, role) {
   const name = String(pin || "").toUpperCase();
   if (!name) return `${role} pin is missing`;
@@ -250,8 +266,7 @@ function validateConfig(config) {
   }
   if (!board.wifiSsid) warnings.push("Wi-Fi name is empty — fill it in on the Board page before you download.");
   if (!board.wifiPassword) warnings.push("Wi-Fi password is empty — fill it in on the Board page before you download.");
-  if (!board.mqttBroker) warnings.push("MQTT address is empty — use this computer’s network address, not localhost.");
-  if (!board.otaPassword) warnings.push("OTA password is empty — set one before flashing.");
+  if (board.mqttEnabled !== false && !board.mqttBroker) warnings.push("MQTT address is empty — use this computer’s network address, not localhost.");
   if (String(board.apPassword || "").length > 0 && String(board.apPassword).length < 8) {
     errors.push("Hotspot password must be at least 8 characters.");
   }
@@ -280,17 +295,29 @@ function validateConfig(config) {
   }
 
   if ((config.points || []).length) {
-    const i2cPins = [config.i2c?.sda, config.i2c?.scl].filter(Boolean);
-    for (const pin of i2cPins) notePin(pin, "PCA9685 I2C");
+    const usePca = config.pca9685 !== false;
+    if (usePca) {
+      const i2cPins = [config.i2c?.sda, config.i2c?.scl].filter(Boolean);
+      for (const pin of i2cPins) notePin(pin, "PCA9685 I2C");
+    } else if (config.points.length > 4) {
+      warnings.push("More than 4 servos take power from the ESP. A PCA9685 with an external 5V supply is how this scales up.");
+    }
     const channels = new Map();
     for (const point of config.points) {
-      const ch = Number(point.channel);
-      if (Number.isNaN(ch) || ch < 0 || ch > 15) {
-        errors.push(`Point "${point.name}" channel must be 0–15.`);
-      } else if (channels.has(ch)) {
-        warnings.push(`PCA9685 channel clash: ${ch} used by "${channels.get(ch)}" and "${point.name}".`);
+      if (usePca) {
+        const ch = Number(point.channel);
+        if (Number.isNaN(ch) || ch < 0 || ch > 15) {
+          errors.push(`Point "${point.name}" channel must be 0–15.`);
+        } else if (channels.has(ch)) {
+          warnings.push(`PCA9685 channel clash: ${ch} used by "${channels.get(ch)}" and "${point.name}".`);
+        } else {
+          channels.set(ch, point.name);
+        }
       } else {
-        channels.set(ch, point.name);
+        const servoPin = String(point.servoPin || "").toUpperCase();
+        const servoIssue = outputPinProblem(servoPin, "servo");
+        if (servoIssue) errors.push(`Point "${point.name}" ${servoIssue}.`);
+        else notePin(servoPin, `${point.name} servo`);
       }
       for (const control of point.controls || []) {
         const button = String(control.buttonPin || "").toUpperCase();
@@ -331,6 +358,11 @@ function validateConfig(config) {
   }
 
   return { warnings, errors };
+}
+
+function entityName(name) {
+  // ESPHome uses "/" in entity names as a URL separator. It warns now and rejects it in 2027.7.0.
+  return String(name || "").replace(/\s*\/\s*/g, " - ").replace(/\s+/g, " ").trim();
 }
 
 function yamlQuote(value) {
@@ -397,7 +429,7 @@ function emitLights(lines, indent, point, thrown) {
   });
 }
 
-function emitThrowScript(lines, point, thrown) {
+function emitThrowScript(lines, point, thrown, publish) {
   const which = thrown ? "thrown" : "closed";
   const position = thrown ? "reverse" : "normal";
   const label = thrown ? "THROWN (reverse)" : "CLOSED (normal)";
@@ -420,6 +452,7 @@ function emitThrowScript(lines, point, thrown) {
   lines.push("      - servo.write:");
   lines.push(`          id: ${point.id}_servo`);
   lines.push(`          level: !lambda 'return id(${point.id}_servo_endpoint_${position}_backoff).state / 100.0;'`);
+  if (!publish) return;
   lines.push("      - if:");
   lines.push("          condition:");
   lines.push("            lambda: 'return announce;'");
@@ -439,7 +472,7 @@ function emitButton(lines, point, control, index) {
   lines.push("        input: true");
   lines.push("        pullup: true");
   lines.push(`    id: ${point.id}_button_${index + 1}`);
-  lines.push(`    name: ${yamlQuote(`${point.name} button ${index + 1}`)}`);
+  lines.push(`    name: ${yamlQuote(entityName(`${point.name} button ${index + 1}`))}`);
   lines.push("    internal: true");
   lines.push("    filters:");
   lines.push("      - delayed_on_off: 50ms");
@@ -470,6 +503,7 @@ function generateYaml(config) {
   const blocks = uniqueIds(config.blocks || []);
   const points = uniqueIds(config.points || []);
   const i2c = config.i2c || { sda: "GPIO21", scl: "GPIO22" };
+  const usePca = config.pca9685 !== false;
   const stateForBlob = {
     board: {
       name: board.name,
@@ -477,7 +511,7 @@ function generateYaml(config) {
       wifiSsid: board.wifiSsid || "",
       wifiPassword: board.wifiPassword || "",
       mqttBroker: board.mqttBroker || "",
-      otaPassword: board.otaPassword || "",
+      mqttEnabled: board.mqttEnabled !== false,
       apPassword: board.apPassword || "",
       apiKey: board.apiKey || "",
     },
@@ -489,15 +523,17 @@ function generateYaml(config) {
       inverted: !!inverted,
       debounce,
     })),
-    points: (config.points || []).map(({ name, topic, topicCustom, channel, travelTime, controls }) => ({
+    points: (config.points || []).map(({ name, topic, topicCustom, channel, servoPin, travelTime, controls }) => ({
       name,
       topic,
       topicCustom: !!topicCustom,
       channel: Number(channel),
+      servoPin: servoPin || "",
       travelTime,
       controls: (controls || []).map(controlForBlob),
     })),
     i2c,
+    pca9685: config.pca9685 !== false,
   };
 
   const lines = [];
@@ -507,7 +543,7 @@ function generateYaml(config) {
   lines.push("# Generated by ESPHome for Model Railroading Configurator");
   lines.push(`# Requires ESPHome >= ${MIN_ESPHOME_VERSION}`);
   lines.push("# Re-import this file into the configurator to edit — avoid hand-editing if you plan to re-import.");
-  lines.push("# This file contains Wi-Fi / MQTT / OTA credentials — do not commit it to a public repo.");
+  lines.push("# This file contains Wi-Fi, MQTT, and hotspot credentials — do not commit it to a public repo.");
   lines.push("");
 
   lines.push("esphome:");
@@ -549,7 +585,7 @@ function generateYaml(config) {
 
   lines.push("ota:");
   lines.push("  - platform: esphome");
-  lines.push(`    password: ${yamlQuote(board.otaPassword)}`);
+  lines.push("    encryption:");
   lines.push("");
   lines.push("wifi:");
   lines.push(`  ssid: ${yamlQuote(board.wifiSsid)}`);
@@ -562,29 +598,32 @@ function generateYaml(config) {
   lines.push("captive_portal:");
   lines.push("");
 
-  lines.push("mqtt:");
-  lines.push(`  broker: ${yamlQuote(board.mqttBroker)}`);
-  lines.push("  id: mqtt_server");
-  lines.push("  discovery: false");
-  lines.push("  reboot_timeout: 0s");
-  if (blocks.length || points.length) {
-    lines.push("  on_connect:");
-    for (const block of blocks) {
-      lines.push("    - mqtt.publish:");
-      lines.push(`        topic: ${yamlQuote(block.topic)}`);
-      lines.push("        payload: !lambda |-");
-      lines.push(`          return id(${block.id}_sensor).state ? "ACTIVE" : "INACTIVE";`);
-      lines.push("        retain: false");
-      lines.push("        qos: 2");
+  const mqtt = board.mqttEnabled !== false;
+  if (mqtt) {
+    lines.push("mqtt:");
+    lines.push(`  broker: ${yamlQuote(board.mqttBroker)}`);
+    lines.push("  id: mqtt_server");
+    lines.push("  discovery: false");
+    lines.push("  reboot_timeout: 0s");
+    if (blocks.length || points.length) {
+      lines.push("  on_connect:");
+      for (const block of blocks) {
+        lines.push("    - mqtt.publish:");
+        lines.push(`        topic: ${yamlQuote(block.topic)}`);
+        lines.push("        payload: !lambda |-");
+        lines.push(`          return id(${block.id}_sensor).state ? "ACTIVE" : "INACTIVE";`);
+        lines.push("        retain: false");
+        lines.push("        qos: 2");
+      }
+      for (const point of points) {
+        lines.push("    - mqtt.publish:");
+        lines.push(`        topic: ${yamlQuote(stateTopic(point.topic))}`);
+        lines.push("        payload: !lambda |-");
+        lines.push(`          return id(${point.id}_thrown) ? "THROWN" : "CLOSED";`);
+      }
     }
-    for (const point of points) {
-      lines.push("    - mqtt.publish:");
-      lines.push(`        topic: ${yamlQuote(stateTopic(point.topic))}`);
-      lines.push("        payload: !lambda |-");
-      lines.push(`          return id(${point.id}_thrown) ? "THROWN" : "CLOSED";`);
-    }
+    lines.push("");
   }
-  lines.push("");
   lines.push("button:");
   lines.push("  - platform: restart");
   lines.push("    id: reboot_esp");
@@ -594,14 +633,16 @@ function generateYaml(config) {
     lines.push("");
     lines.push("web_server:");
     lines.push("  local: true");
-    lines.push("");
-    lines.push("i2c:");
-    lines.push(`  sda: ${i2c.sda}`);
-    lines.push(`  scl: ${i2c.scl}`);
-    lines.push("  scan: true");
-    lines.push("");
-    lines.push("pca9685:");
-    lines.push("  frequency: 50Hz");
+    if (usePca) {
+      lines.push("");
+      lines.push("i2c:");
+      lines.push(`  sda: ${i2c.sda}`);
+      lines.push(`  scl: ${i2c.scl}`);
+      lines.push("  scan: true");
+      lines.push("");
+      lines.push("pca9685:");
+      lines.push("  frequency: 50Hz");
+    }
     lines.push("");
     lines.push("globals:");
     for (const point of points) {
@@ -625,7 +666,7 @@ function generateYaml(config) {
       lines.push("      mode:");
       lines.push("        input: true");
       lines.push(`    id: ${block.id}_sensor`);
-      lines.push(`    name: ${yamlQuote(block.name)}`);
+      lines.push(`    name: ${yamlQuote(entityName(block.name))}`);
       lines.push("    filters:");
       lines.push(`      - delayed_on_off: ${debounce}`);
       lines.push("    on_press:");
@@ -634,22 +675,26 @@ function generateYaml(config) {
       lines.push(`            format: ${yamlQuote(`${block.name} | OCCUPIED`)}`);
       lines.push("            level: INFO");
       lines.push("            tag: block_sensor");
-      lines.push("        - mqtt.publish:");
-      lines.push(`            topic: ${yamlQuote(block.topic)}`);
-      lines.push("            payload: ACTIVE");
-      lines.push("            retain: false");
-      lines.push("            qos: 2");
+      if (mqtt) {
+        lines.push("        - mqtt.publish:");
+        lines.push(`            topic: ${yamlQuote(block.topic)}`);
+        lines.push("            payload: ACTIVE");
+        lines.push("            retain: false");
+        lines.push("            qos: 2");
+      }
       lines.push("    on_release:");
       lines.push("      then:");
       lines.push("        - logger.log:");
       lines.push(`            format: ${yamlQuote(`${block.name} | UNOCCUPIED`)}`);
       lines.push("            level: INFO");
       lines.push("            tag: block_sensor");
-      lines.push("        - mqtt.publish:");
-      lines.push(`            topic: ${yamlQuote(block.topic)}`);
-      lines.push("            payload: INACTIVE");
-      lines.push("            retain: false");
-      lines.push("            qos: 2");
+      if (mqtt) {
+        lines.push("        - mqtt.publish:");
+        lines.push(`            topic: ${yamlQuote(block.topic)}`);
+        lines.push("            payload: INACTIVE");
+        lines.push("            retain: false");
+        lines.push("            qos: 2");
+      }
     }
     for (const point of points) {
       (point.controls || []).forEach((control, index) => emitButton(lines, point, control, index));
@@ -668,7 +713,7 @@ function generateYaml(config) {
       ];
       for (const [label, suffix] of endpoints) {
         lines.push("  - platform: template");
-        lines.push(`    name: ${yamlQuote(`${point.name} ${label}`)}`);
+        lines.push(`    name: ${yamlQuote(entityName(`${point.name} ${label}`))}`);
         lines.push(`    id: ${point.id}_servo_endpoint_${suffix}`);
         lines.push("    min_value: -50");
         lines.push("    max_value: 50");
@@ -687,9 +732,14 @@ function generateYaml(config) {
     lines.push("");
     lines.push("output:");
     for (const point of points) {
-      lines.push("  - platform: pca9685");
+      lines.push(`  - platform: ${usePca ? "pca9685" : "ledc"}`);
       lines.push(`    id: ${point.id}_output`);
-      lines.push(`    channel: ${Number(point.channel)}`);
+      if (usePca) {
+        lines.push(`    channel: ${Number(point.channel)}`);
+      } else {
+        lines.push(`    pin: ${point.servoPin}`);
+        lines.push("    frequency: 50Hz");
+      }
     }
 
     lines.push("");
@@ -706,10 +756,10 @@ function generateYaml(config) {
       (point.controls || []).forEach((control, index) => {
         const n = index + 1;
         if (control.closedLight) {
-          lights.push({ point, pin: control.closedLight, id: `${point.id}_closed_light_${n}`, name: `${point.name} closed light ${n}` });
+          lights.push({ point, pin: control.closedLight, id: `${point.id}_closed_light_${n}`, name: entityName(`${point.name} closed light ${n}`) });
         }
         if (control.openLight) {
-          lights.push({ point, pin: control.openLight, id: `${point.id}_open_light_${n}`, name: `${point.name} open light ${n}` });
+          lights.push({ point, pin: control.openLight, id: `${point.id}_open_light_${n}`, name: entityName(`${point.name} open light ${n}`) });
         }
       });
     }
@@ -728,36 +778,38 @@ function generateYaml(config) {
     lines.push("");
     lines.push("script:");
     for (const point of points) {
-      emitThrowScript(lines, point, false);
-      emitThrowScript(lines, point, true);
+      emitThrowScript(lines, point, false, mqtt);
+      emitThrowScript(lines, point, true, mqtt);
     }
 
-    lines.push("");
-    lines.push("text_sensor:");
-    for (const point of points) {
-      lines.push("  - platform: mqtt_subscribe");
-      lines.push(`    name: ${yamlQuote(`${point.name} last command`)}`);
-      lines.push(`    id: ${point.id}`);
-      lines.push(`    topic: ${yamlQuote(point.topic)}`);
-      lines.push("    on_value:");
-      lines.push("      - if:");
-      lines.push("          condition:");
-      lines.push("            text_sensor.state:");
-      lines.push(`              id: ${point.id}`);
-      lines.push("              state: 'THROWN'");
-      lines.push("          then:");
-      lines.push("            - script.execute:");
-      lines.push(`                id: ${point.id}_throw_thrown`);
-      lines.push("                announce: true");
-      lines.push("      - if:");
-      lines.push("          condition:");
-      lines.push("            text_sensor.state:");
-      lines.push(`              id: ${point.id}`);
-      lines.push("              state: 'CLOSED'");
-      lines.push("          then:");
-      lines.push("            - script.execute:");
-      lines.push(`                id: ${point.id}_throw_closed`);
-      lines.push("                announce: true");
+    if (mqtt) {
+      lines.push("");
+      lines.push("text_sensor:");
+      for (const point of points) {
+        lines.push("  - platform: mqtt_subscribe");
+        lines.push(`    name: ${yamlQuote(entityName(`${point.name} last command`))}`);
+        lines.push(`    id: ${point.id}`);
+        lines.push(`    topic: ${yamlQuote(point.topic)}`);
+        lines.push("    on_value:");
+        lines.push("      - if:");
+        lines.push("          condition:");
+        lines.push("            text_sensor.state:");
+        lines.push(`              id: ${point.id}`);
+        lines.push("              state: 'THROWN'");
+        lines.push("          then:");
+        lines.push("            - script.execute:");
+        lines.push(`                id: ${point.id}_throw_thrown`);
+        lines.push("                announce: true");
+        lines.push("      - if:");
+        lines.push("          condition:");
+        lines.push("            text_sensor.state:");
+        lines.push(`              id: ${point.id}`);
+        lines.push("              state: 'CLOSED'");
+        lines.push("          then:");
+        lines.push("            - script.execute:");
+        lines.push(`                id: ${point.id}_throw_closed`);
+        lines.push("                announce: true");
+      }
     }
   }
 
@@ -780,7 +832,6 @@ function generateYaml(config) {
     normalizeConfig,
     ensureSecrets,
     generatePassword,
-    generateApiKey,
     validateConfig,
     parseConfigFromYaml,
     generateYaml,

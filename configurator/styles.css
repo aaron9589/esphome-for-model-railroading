@@ -195,38 +195,35 @@ main {
   font-size: 0.85em;
 }
 
-.module-field {
-  position: relative;
+.board-support {
   grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(2, 220px);
+  justify-content: start;
+  gap: 0.75rem 1rem;
 }
 
-.module-tip {
-  position: absolute;
-  z-index: 4;
-  left: 0;
-  top: calc(100% + 0.35rem);
-  width: min(220px, 100%);
-  padding: 0.45rem;
-  background: var(--surface);
-  border: 1px solid var(--line-strong);
-  border-radius: 10px;
-  box-shadow: 0 8px 24px rgba(17, 24, 39, 0.12);
+.board-support figure {
+  margin: 0;
 }
 
-.module-tip img {
+.board-support img {
   display: block;
-  width: 100%;
-  max-height: 240px;
-  object-fit: contain;
+  width: 220px;
+  height: auto;
   background: #f9fafb;
+  border: 1px solid var(--line);
   border-radius: 8px;
 }
 
-.module-tip p {
-  margin: 0.4rem 0 0;
-  color: var(--muted);
-  font-size: 0.78rem;
-  line-height: 1.35;
+.board-support figcaption {
+  margin-top: 0.35rem;
+  font-size: 0.82rem;
+  font-weight: 650;
+}
+
+.board-support .hint {
+  grid-column: 1 / -1;
 }
 
 .panel {
@@ -376,8 +373,18 @@ button:focus-visible {
   white-space: nowrap;
 }
 
+.check {
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+
 .check input {
-  width: auto;
+  width: 1rem;
+  height: 1rem;
+  margin: 0.15rem 0 0;
+  padding: 0;
+  flex: 0 0 auto;
 }
 
 button,
@@ -443,6 +450,15 @@ button:disabled {
 .note p {
   margin: 0;
   color: #1e3a8a;
+}
+
+.note.caution {
+  background: var(--warn-bg);
+  border-color: #fcd34d;
+}
+
+.note.caution p {
+  color: var(--warn-ink);
 }
 
 .note code {
@@ -563,5 +579,9 @@ pre {
 
   .check {
     padding-top: 0;
+  }
+
+  .board-support {
+    grid-template-columns: 220px;
   }
 }

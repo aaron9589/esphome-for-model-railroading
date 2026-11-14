@@ -14,7 +14,7 @@
           <h1>Board configurator</h1>
         </div>
         <div class="top-actions">
-          <span class="chip">ESPHome 2025.8.0+</span>
+          <span class="chip">ESPHome 2026.9.0+</span>
           <label class="btn file-btn">
             Import
             <input type="file" id="import-file" accept=".yaml,.yml,text/yaml,text/plain" />
@@ -67,11 +67,6 @@
               <p class="card-copy">A setup hotspot if the board cannot join Wi-Fi.</p>
               <div class="fields" id="hotspot-fields"></div>
             </div>
-            <div class="card">
-              <h3>Dashboard on the network</h3>
-              <p class="card-copy">Lets ESPHome see this board and update it over the network.</p>
-              <div class="fields" id="api-fields"></div>
-            </div>
             <div class="pager">
               <button type="button" class="primary" data-goto="blocks">Next: blocks</button>
             </div>
@@ -100,7 +95,7 @@
             <header class="view-head">
               <div>
                 <h2>Points</h2>
-                <p>Servos on one PCA9685, with optional fascia buttons.</p>
+                <p>Servos for the points, with optional fascia buttons.</p>
               </div>
               <button type="button" id="btn-add-point" class="primary">Add point</button>
             </header>
@@ -108,9 +103,13 @@
               <p>Closed and thrown positions are set on the running board, at <code>http://&lt;board-name&gt;.local</code>.</p>
             </aside>
             <div class="card" id="i2c-card">
-              <h3>PCA9685 bus</h3>
+              <h3 id="driver-title">PCA9685 bus</h3>
+              <div class="fields" id="driver-fields"></div>
               <div class="fields" id="i2c-fields"></div>
             </div>
+            <aside class="note caution" id="direct-pwm-note" hidden>
+              <p>You can generally only run 3-4 servos this way. They take power from the ESP. More than that needs an external supply, which is why a PCA9685 is used to scale up.</p>
+            </aside>
             <div id="points-list"></div>
             <p id="points-empty" class="empty" hidden>No points yet. Skip this if the board only watches the track.</p>
             <div class="pager">

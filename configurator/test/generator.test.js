@@ -29,7 +29,6 @@ function withCreds(config) {
   config.board.wifiSsid = "layout-wifi";
   config.board.wifiPassword = "s3cret";
   config.board.mqttBroker = "192.168.1.50";
-  config.board.otaPassword = "ota-pass";
   return config;
 }
 
@@ -64,14 +63,16 @@ test("generated YAML embeds credentials and min_version", () => {
 
   const yaml = generateYaml(config);
   assert.match(yaml, new RegExp(`# ${CONFIG_MARKER}`));
-  assert.match(yaml, /min_version: "2025\.8\.0"/);
+  assert.match(yaml, /min_version: "2026\.9\.0"/);
   assert.match(yaml, /variant: esp32/);
   assert.doesNotMatch(yaml, /^  board:/m);
   assert.match(yaml, /platform: esphome/);
   assert.match(yaml, /ssid: layout-wifi/);
   assert.match(yaml, /password: s3cret/);
   assert.match(yaml, /broker: 192\.168\.1\.50/);
-  assert.match(yaml, /password: ota-pass/);
+  assert.match(yaml, /^api:\n  encryption:\n    key: "[A-Za-z0-9+/]{43}="\n  reboot_timeout: 0s\n/m);
+  assert.match(yaml, /^ota:\n  - platform: esphome\n    encryption:\n/m);
+  assert.doesNotMatch(yaml, /ota-pass/);
   assert.doesNotMatch(yaml, /!secret/);
   assert.match(yaml, /Kiama\/Up XOver \| OCCUPIED/);
   assert.match(yaml, /tag: block_sensor/);
@@ -80,7 +81,7 @@ test("generated YAML embeds credentials and min_version", () => {
   assert.match(yaml, /channel: 0/);
   assert.match(yaml, /tag: point_control/);
   assert.match(yaml, /web_server:\n  local: true/);
-  assert.equal(MIN_ESPHOME_VERSION, "2025.8.0");
+  assert.equal(MIN_ESPHOME_VERSION, "2026.9.0");
 });
 
 test("round-trip import restores UI state including secrets", () => {
@@ -131,7 +132,7 @@ test("second point shares one pca9685 hub and unique ids", () => {
   assert.equal(pcaCount, 1);
   assert.match(yaml, /id: kiama_up_loop_servo/);
   assert.match(yaml, /id: yard_exit_servo/);
-  assert.match(yaml, /name: "Kiama\/Up Loop Normal Position"/);
+  assert.match(yaml, /name: "Kiama - Up Loop Normal Position"/);
   assert.match(yaml, /Kiama\/Up Loop -> THROWN \(reverse\)/);
   assert.match(yaml, /channel: 1/);
   assert.match(yaml, /transition_length: 15s/);
@@ -155,6 +156,24 @@ test("validation catches pin and channel clashes", () => {
   const { warnings } = validateConfig(config);
   assert.ok(warnings.some((w) => w.includes("GPIO clash")));
   assert.ok(warnings.some((w) => w.includes("PCA9685 channel clash")));
+});
+
+test("entity names replace slashes, and MQTT topics keep them", () => {
+  const config = withCreds(myFirstBoardPreset());
+  config.points[0].controls = [
+    { action: "toggle", buttonPin: "GPIO4", closedLight: "GPIO16", openLight: "GPIO13" },
+  ];
+  const yaml = generateYaml(config);
+  assert.match(yaml, /name: "Kiama - Up XOver"/);
+  assert.match(yaml, /name: "Kiama - Up Loop Normal Position"/);
+  assert.match(yaml, /name: "Kiama - Up Loop last command"/);
+  assert.match(yaml, /name: "Kiama - Up Loop button 1"/);
+  assert.match(yaml, /name: "Kiama - Up Loop closed light 1"/);
+  assert.match(yaml, /topic: "trains\/track\/sensor\/Kiama\/Up XOver"/);
+  assert.match(yaml, /topic: "trains\/track\/turnout\/Kiama\/Up Loop"/);
+  for (const match of yaml.matchAll(/^    name: (.*)$/gm)) {
+    assert.doesNotMatch(match[1], /\//);
+  }
 });
 
 test("topic follows the name and state topic is the command topic plus /State", () => {
@@ -317,20 +336,73 @@ test("boot does not publish a hardcoded CLOSED, and on_connect publishes the lat
   assert.doesNotMatch(blocksYaml, /web_server:/);
 });
 
-test("MQTT and the API use reboot_timeout 0s, and the API is always on", () => {
+test("the API key is written into the YAML and kept across a download", () => {
   const config = withCreds(myFirstBoardPreset());
   delete config.board.apiKey;
-  const yaml = generateYaml(config);
-  assert.match(yaml, /^api:\n  encryption:\n    key: "[A-Za-z0-9+/]{43}="/m);
-  assert.equal((yaml.match(/reboot_timeout: 0s/g) || []).length, 2);
-  assert.match(yaml, /password: ota-pass/);
-
   config.board.apiEnabled = false;
-  config.board.apiKey = "kept-key-even-if-an-old-file-turned-it-off";
-  const stillOn = generateYaml(config);
-  assert.match(stillOn, /^api:\n  encryption:\n    key: "kept-key-even-if-an-old-file-turned-it-off"/m);
+  config.board.otaPassword = "left-out";
+  const yaml = generateYaml(config);
+  assert.match(yaml, /^api:\n  encryption:\n    key: "[A-Za-z0-9+/]{43}="\n  reboot_timeout: 0s\n/m);
+  assert.match(yaml, /^ota:\n  - platform: esphome\n    encryption:\n/m);
+  assert.doesNotMatch(yaml, /left-out/);
   assert.equal(config.board.apiEnabled, undefined);
-  assert.equal((stillOn.match(/reboot_timeout: 0s/g) || []).length, 2);
+  assert.equal(config.board.otaPassword, undefined);
+  assert.match(config.board.apiKey, /^[A-Za-z0-9+/]{43}=$/);
+  assert.equal((yaml.match(/reboot_timeout: 0s/g) || []).length, 2);
+
+  const again = generateYaml(config);
+  assert.ok(again.includes(`key: ${JSON.stringify(config.board.apiKey)}`));
+});
+
+test("disabling MQTT drops the broker and every JMRI topic", () => {
+  const config = withCreds(myFirstBoardPreset());
+  config.board.mqttEnabled = false;
+  config.board.mqttBroker = "";
+  const yaml = generateYaml(config);
+  assert.equal(config.board.mqttEnabled, false);
+  assert.doesNotMatch(yaml, /^mqtt:/m);
+  assert.doesNotMatch(yaml, /mqtt\.publish/);
+  assert.doesNotMatch(yaml, /mqtt_subscribe/);
+  assert.match(yaml, /Kiama\/Up XOver \| OCCUPIED/);
+  assert.match(yaml, /^api:\n/m);
+  assert.equal((yaml.match(/reboot_timeout: 0s/g) || []).length, 1);
+  assert.equal(validateConfig(config).warnings.some((warning) => warning.includes("MQTT address")), false);
+
+  const restored = parseConfigFromYaml(yaml);
+  assert.equal(restored.board.mqttEnabled, false);
+});
+
+test("direct PWM servos skip the PCA9685", () => {
+  const config = withCreds(myFirstBoardPreset());
+  config.pca9685 = false;
+  config.points[0].servoPin = "GPIO18";
+  const yaml = generateYaml(config);
+  assert.match(yaml, /platform: ledc\n    id: kiama_up_loop_output\n    pin: GPIO18\n    frequency: 50Hz/);
+  assert.doesNotMatch(yaml, /^pca9685:/m);
+  assert.doesNotMatch(yaml, /^i2c:/m);
+  assert.equal(validateConfig(config).warnings.some((warning) => warning.includes("external 5V")), false);
+
+  config.points[0].servoPin = "GPIO34";
+  const blocked = validateConfig(config);
+  assert.ok(blocked.errors.some((error) => error.includes("input only")));
+
+  config.points[0].servoPin = "GPIO18";
+  for (const [name, pin] of [["Yard", "GPIO19"], ["Loop", "GPIO23"], ["Spur", "GPIO25"], ["Siding", "GPIO26"]]) {
+    config.points.push({
+      name,
+      topic: `trains/track/turnout/${name}`,
+      channel: 0,
+      servoPin: pin,
+      travelTime: "10s",
+      controls: [],
+    });
+  }
+  const { warnings } = validateConfig(config);
+  assert.ok(warnings.some((warning) => warning.includes("external 5V")));
+
+  const restored = parseConfigFromYaml(generateYaml(config));
+  assert.equal(restored.pca9685, false);
+  assert.equal(restored.points[0].servoPin, "GPIO18");
 });
 
 console.log("\nAll generator tests passed.");

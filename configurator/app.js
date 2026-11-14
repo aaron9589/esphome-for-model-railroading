@@ -2,7 +2,6 @@ const {
   PULLUP_PINS,
   STRAPPING_PINS,
   ensureSecrets,
-  generateApiKey,
   generatePassword,
   generateYaml,
   myFirstBoardPreset,
@@ -39,13 +38,12 @@ const ACTIONS = [
   { value: "thrown", label: "Set thrown" },
 ];
 
-const CRED_FIELDS = ["wifiSsid", "wifiPassword", "mqttBroker", "otaPassword", "apPassword", "apiKey"];
+const CRED_FIELDS = ["wifiSsid", "wifiPassword", "mqttBroker", "apPassword"];
 
 let state = loadState() || myFirstBoardPreset();
 normalizeConfig(state);
 normalizeTopics(state);
 applyCredentials(state, loadCredentials());
-ensureOtaPassword();
 ensureSecrets(state);
 persist();
 
@@ -55,8 +53,10 @@ const el = {
   boardIdentity: document.getElementById("board-identity"),
   boardNetwork: document.getElementById("board-network"),
   hotspotFields: document.getElementById("hotspot-fields"),
-  apiFields: document.getElementById("api-fields"),
   i2cFields: document.getElementById("i2c-fields"),
+  driverFields: document.getElementById("driver-fields"),
+  driverTitle: document.getElementById("driver-title"),
+  directPwmNote: document.getElementById("direct-pwm-note"),
   blocksList: document.getElementById("blocks-list"),
   pointsList: document.getElementById("points-list"),
   preview: document.getElementById("yaml-preview"),
@@ -97,10 +97,9 @@ document.getElementById("btn-clear-creds").addEventListener("click", () => {
   state.board.wifiSsid = "";
   state.board.wifiPassword = "";
   state.board.mqttBroker = "";
-  state.board.otaPassword = generateOtaPassword();
   persist();
   render();
-  flash("ok", "Cleared Wi-Fi and MQTT broker. Generated a new OTA password.");
+  flash("ok", "Cleared Wi-Fi and MQTT broker.");
 });
 
 document.getElementById("btn-add-block").addEventListener("click", () => {
@@ -127,6 +126,7 @@ document.getElementById("btn-add-point").addEventListener("click", () => {
     topic: topicFor("point", name),
     topicCustom: false,
     channel,
+    servoPin: usesPca() ? "" : nextServoPin(),
     travelTime: "10s",
     controls: [],
   });
@@ -176,7 +176,6 @@ el.importFile.addEventListener("change", async (event) => {
     const merged = {};
     for (const key of CRED_FIELDS) merged[key] = fromFile[key] || saved[key] || "";
     applyCredentials(state, merged);
-    ensureOtaPassword();
     ensureSecrets(state);
     saveCredentials(extractCredentials(state.board));
     persist();
@@ -186,17 +185,6 @@ el.importFile.addEventListener("change", async (event) => {
     flash("err", err.message || String(err));
   }
 });
-
-function generateOtaPassword() {
-  return generatePassword();
-}
-
-function ensureOtaPassword() {
-  if (!state.board.otaPassword) {
-    state.board.otaPassword = generateOtaPassword();
-    saveCredentials(state.board);
-  }
-}
 
 function normalizeTopics(config) {
   for (const block of config.blocks || []) {
@@ -226,7 +214,6 @@ function extractCredentials(board = {}) {
     wifiSsid: board.wifiSsid || "",
     wifiPassword: board.wifiPassword || "",
     mqttBroker: board.mqttBroker || "",
-    otaPassword: board.otaPassword || "",
   };
 }
 
@@ -370,11 +357,12 @@ function usedPins() {
   for (const block of state.blocks || []) {
     if (block.gpio) used.add(String(block.gpio).toUpperCase());
   }
-  if ((state.points || []).length) {
+  if ((state.points || []).length && usesPca()) {
     if (state.i2c?.sda) used.add(String(state.i2c.sda).toUpperCase());
     if (state.i2c?.scl) used.add(String(state.i2c.scl).toUpperCase());
   }
   for (const point of state.points || []) {
+    if (!usesPca() && point.servoPin) used.add(String(point.servoPin).toUpperCase());
     for (const control of point.controls || []) {
       if (control.buttonPin) used.add(String(control.buttonPin).toUpperCase());
       if (control.closedLight) used.add(String(control.closedLight).toUpperCase());
@@ -382,6 +370,16 @@ function usedPins() {
     }
   }
   return used;
+}
+
+function usesPca() {
+  return state.pca9685 !== false;
+}
+
+function nextServoPin() {
+  const used = usedPins();
+  const preferred = PULLUP_PINS.filter((pin) => !STRAPPING_PINS.has(pin));
+  return preferred.find((pin) => !used.has(pin)) || PULLUP_PINS.find((pin) => !used.has(pin)) || "GPIO18";
 }
 
 function nextButtonPin() {
@@ -403,97 +401,22 @@ function secretRow(inputField, label, onClick) {
 }
 
 function renderModules() {
-  const options = MODULES.slice();
-  if (state.board.module === "esp32-s3-devkitc-1") {
-    options.push({
-      id: "esp32-s3-devkitc-1",
-      title: "ESP32-S3 (older file)",
-      detail: "This file was made for an ESP32-S3. The YAML still uses variant esp32s3.",
-      src: "",
-      alt: "",
-    });
-  }
-
   const wrap = document.createElement("div");
-  wrap.className = "module-field";
-  const label = document.createElement("label");
-  const title = document.createElement("span");
-  title.className = "field-label";
-  title.textContent = "Board";
-  const select = document.createElement("select");
-  select.setAttribute("aria-describedby", "module-tip");
-  for (const mod of options) {
-    const option = document.createElement("option");
-    option.value = mod.id;
-    option.textContent = mod.title;
-    if (mod.id === state.board.module) option.selected = true;
-    select.append(option);
+  wrap.className = "board-support";
+  for (const mod of MODULES) {
+    const figure = document.createElement("figure");
+    const img = document.createElement("img");
+    img.src = mod.src;
+    img.alt = mod.alt;
+    const caption = document.createElement("figcaption");
+    caption.textContent = mod.title;
+    figure.append(img, caption);
+    wrap.append(figure);
   }
-  const tip = document.createElement("div");
-  tip.id = "module-tip";
-  tip.className = "module-tip";
-  tip.hidden = true;
-  tip.setAttribute("role", "tooltip");
-
-  function selectedModule() {
-    return options.find((mod) => mod.id === select.value) || options[0];
-  }
-
-  function showTip() {
-    const mod = selectedModule();
-    tip.replaceChildren();
-    if (mod.src) {
-      const img = document.createElement("img");
-      img.src = mod.src;
-      img.alt = mod.alt;
-      tip.append(img);
-    }
-    const caption = document.createElement("p");
-    caption.textContent = mod.detail;
-    tip.append(caption);
-    if (mod.src) {
-      const pins = document.createElement("p");
-      pins.textContent = "Amber pins cannot be used for buttons.";
-      tip.append(pins);
-    }
-    tip.hidden = false;
-  }
-
-  let hideTimer;
-  const scheduleHide = () => {
-    clearTimeout(hideTimer);
-    hideTimer = setTimeout(() => {
-      tip.hidden = true;
-    }, 180);
-  };
-  const cancelHide = () => clearTimeout(hideTimer);
-
-  select.addEventListener("change", () => {
-    state.board.module = select.value;
-    persist();
-    updatePreview();
-    cancelHide();
-    showTip();
-  });
-  select.addEventListener("focus", () => {
-    cancelHide();
-    showTip();
-  });
-  select.addEventListener("blur", scheduleHide);
-  select.addEventListener("pointerenter", () => {
-    cancelHide();
-    showTip();
-  });
-  select.addEventListener("pointerleave", scheduleHide);
-  tip.addEventListener("pointerenter", cancelHide);
-  tip.addEventListener("pointerleave", scheduleHide);
-
-  label.append(
-    title,
-    select,
-    hintEl("Which header you have.")
-  );
-  wrap.append(label, tip);
+  const note = document.createElement("p");
+  note.className = "hint";
+  note.textContent = "Amber pins cannot be used for buttons.";
+  wrap.append(note);
   el.boardIdentity.append(wrap);
 }
 
@@ -507,6 +430,7 @@ function renderBoard() {
     }, {
       placeholder: "yard-board-01",
       hint: "Name of this board on the network.",
+      full: true,
     })
   );
   renderModules();
@@ -519,29 +443,23 @@ function renderBoard() {
       type: "password",
       hint: "Password for that network.",
     }),
-    field("MQTT broker IP", b.mqttBroker, (v) => setCredential("mqttBroker", v), {
-      placeholder: "192.168.1.10",
-      hint: "Address of the computer running the MQTT broker (such as Mosquitto).",
+    field("Disable MQTT", b.mqttEnabled === false, (checked) => {
+      b.mqttEnabled = !checked;
+      persist();
+      render();
+    }, {
+      checkbox: true,
+      hint: "Tick this and the board will not talk to JMRI.",
     })
   );
-  const otaField = field("OTA password", b.otaPassword, (v) => setCredential("otaPassword", v), {
-    placeholder: "Generated automatically",
-    hint: "Three easy words for later wireless updates.",
-  });
-  const regen = document.createElement("button");
-  regen.type = "button";
-  regen.className = "text";
-  regen.textContent = "Generate new";
-  regen.addEventListener("click", () => {
-    state.board.otaPassword = generateOtaPassword();
-    persist();
-    render();
-    flash("ok", "New OTA password saved. Flash the board again before the next wireless update.");
-  });
-  const otaRow = document.createElement("div");
-  otaRow.className = "ota-row";
-  otaRow.append(otaField, regen);
-  el.boardNetwork.append(otaRow);
+  if (b.mqttEnabled !== false) {
+    el.boardNetwork.append(
+      field("MQTT broker IP", b.mqttBroker, (v) => setCredential("mqttBroker", v), {
+        placeholder: "192.168.1.10",
+        hint: "Address of the computer running the MQTT broker (such as Mosquitto).",
+      })
+    );
+  }
 
   const apField = field("Hotspot password", b.apPassword, (v) => {
     b.apPassword = v;
@@ -558,27 +476,27 @@ function renderBoard() {
     render();
     flash("ok", "New hotspot password saved. It takes effect on the next flash.");
   }));
-
-  const keyField = field("Encryption key", b.apiKey, (v) => {
-    b.apiKey = v.trim();
-    persist();
-    if (state.board.apiKey !== v.trim()) render();
-    else updatePreview();
-  }, {
-    spellcheck: false,
-    autocomplete: "off",
-    hint: "Key ESPHome asks for to connect.",
-  });
-  el.apiFields.replaceChildren(secretRow(keyField, "Generate new", () => {
-    state.board.apiKey = generateApiKey();
-    persist();
-    render();
-    flash("ok", "New API key saved. Home Assistant will ask for this key.");
-  }));
 }
 
 function renderI2c() {
+  el.driverTitle.textContent = usesPca() ? "PCA9685 bus" : "ESP pins";
+  el.driverFields.replaceChildren(
+    field("Use a PCA9685", usesPca(), (checked) => {
+      state.pca9685 = checked;
+      if (!checked) {
+        for (const point of state.points) {
+          if (!point.servoPin) point.servoPin = nextServoPin();
+        }
+      }
+      persist();
+      render();
+    }, {
+      checkbox: true,
+      hint: "Off, each servo connects to an ESP pin with PWM and takes power from the board.",
+    })
+  );
   el.i2cFields.replaceChildren();
+  if (!usesPca()) return;
   if (!state.i2c) state.i2c = { sda: "GPIO21", scl: "GPIO22" };
   el.i2cFields.append(
     field("I2C SDA (PCA9685)", state.i2c.sda, (v) => {
@@ -676,6 +594,16 @@ function renderBlocks() {
 }
 
 function renderPoints() {
+  if (!usesPca()) {
+    let assigned = false;
+    for (const point of state.points) {
+      if (!point.servoPin) {
+        point.servoPin = nextServoPin();
+        assigned = true;
+      }
+    }
+    if (assigned) persist();
+  }
   el.pointsList.replaceChildren();
   state.points.forEach((point, index) => {
     const card = document.createElement("div");
@@ -730,14 +658,23 @@ function renderPoints() {
         stateTopic(point.topic),
         "Where the board reports closed or thrown."
       ),
-      field("PCA9685 channel (0–15)", point.channel, (v) => {
-        point.channel = Number(v);
-        persist();
-        updatePreview();
-      }, {
-        type: "number",
-        hint: "Which servo output this point uses.",
-      }),
+      usesPca()
+        ? field("PCA9685 channel (0–15)", point.channel, (v) => {
+          point.channel = Number(v);
+          persist();
+          updatePreview();
+        }, {
+          type: "number",
+          hint: "Which servo output this point uses.",
+        })
+        : field("Servo pin", point.servoPin, (v) => {
+          point.servoPin = v;
+          persist();
+          updatePreview();
+        }, {
+          select: pinChoices(),
+          hint: "ESP pin that sends PWM to this servo.",
+        }),
       field("Travel time", point.travelTime, (v) => {
         point.travelTime = v.trim() || "10s";
         persist();
@@ -867,6 +804,7 @@ function updatePreview() {
   el.blocksEmpty.hidden = state.blocks.length > 0;
   el.pointsEmpty.hidden = state.points.length > 0;
   document.getElementById("i2c-card").hidden = state.points.length === 0;
+  el.directPwmNote.hidden = state.points.length === 0 || usesPca();
   renderMessages();
 }
 

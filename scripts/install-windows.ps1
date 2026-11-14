@@ -269,6 +269,44 @@ function Invoke-SilentUninstall($Entry) {
     return $true
 }
 
+function Update-DeviceBuilder {
+    $candidates = @(
+        (Join-Path $env:LOCALAPPDATA 'ESPHome Device Builder\esphome-desktop.exe'),
+        (Join-Path $env:LOCALAPPDATA 'ESPHome Device Builder\ESPHome Device Builder.exe'),
+        (Join-Path $env:LOCALAPPDATA 'Programs\ESPHome Device Builder\esphome-desktop.exe'),
+        (Join-Path $env:LOCALAPPDATA 'Programs\ESPHome Device Builder\ESPHome Device Builder.exe')
+    )
+    $launch = $candidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+    if (-not $launch) {
+        Write-Warn 'Could not find the ESPHome command. Open the app and choose Check for Updates.'
+        return
+    }
+    Write-Info 'The desktop app is the tray app. Updating the builder inside it.'
+    & $launch open | Out-Null
+    Write-Info 'Waiting until the dashboard is ready. The first start can take several minutes.'
+    $ready = $false
+    for ($i = 0; $i -lt 120; $i++) {
+        $status = & $launch status 2>$null
+        if ($status -match 'Backend:\s+running, healthy') {
+            $ready = $true
+            break
+        }
+        Start-Sleep -Seconds 5
+    }
+    if (-not $ready) {
+        Write-Warn 'The dashboard did not become ready. When it does, use the tray icon and choose Check for Updates.'
+        return
+    }
+    Write-Info 'Updating ESPHome and the device builder. This can take several minutes.'
+    & $launch update
+    if ($LASTEXITCODE -ne 0) {
+        Write-Warn 'The in-app update did not finish. Use the tray icon and choose Check for Updates.'
+        return
+    }
+    Write-Ok 'Builder update finished.'
+    & $launch status | Select-String '^(ESPHome:|Device builder:)'
+}
+
 function Get-LatestMqttxUrl {
     Write-Info 'Asking GitHub for MQTTX (topic browser for Mosquitto)...'
     $release = Invoke-RestMethod -Headers @{
@@ -563,7 +601,7 @@ try {
         throw 'Could not find an ESPHome Windows installer in the latest GitHub release.'
     }
     $version = $release.tag_name.TrimStart('v')
-    Write-Info "Latest ESPHome Device Builder: $version"
+    Write-Info "Latest desktop app: $version"
     $esphomeSetup = Join-Path $DownloadDir $asset.name
     $already = Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*', 'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*' -ErrorAction SilentlyContinue |
         Where-Object { $_.DisplayName -like '*ESPHome Device Builder*' } |
@@ -585,6 +623,7 @@ try {
         }
         Write-Ok "Installed ESPHome Device Builder $version"
     }
+    Update-DeviceBuilder
 
     Write-Step '4/7  MQTTX'
     $legacyMqtt = @(Get-UninstallEntries '*MQTT Explorer*')
@@ -615,8 +654,7 @@ try {
     }
 
     Write-Step '5/7  Open the apps'
-    Write-Info 'Launching ESPHome. The first time, it downloads its own Python and can sit there for several minutes.'
-    Write-Info 'When it is ready it opens http://localhost:6052'
+    Write-Info 'Opening ESPHome and MQTTX.'
     $launch = @(
         (Join-Path $env:LOCALAPPDATA 'ESPHome Device Builder\ESPHome Device Builder.exe'),
         (Join-Path $env:LOCALAPPDATA 'Programs\ESPHome Device Builder\ESPHome Device Builder.exe')

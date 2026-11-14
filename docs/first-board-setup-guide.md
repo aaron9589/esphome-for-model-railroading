@@ -34,13 +34,13 @@ Success looks like:
 
 A new device tile appears. Now paste the YAML from the Configurator:
 
-1. Open the **[Board Configurator](https://aaron9589.github.io/esphome-for-model-railroading/)**, load **My First Board** (or import a previous download), fill in Wi-Fi / MQTT broker IP / OTA password, then **Download board.yaml**.
+1. Open the **[Board Configurator](https://aaron9589.github.io/esphome-for-model-railroading/)**, load **My First Board** (or import a previous download), fill in Wi-Fi and the MQTT broker IP, then **Download board.yaml**.
 2. Click **Edit** on the device tile in ESPHome Dashboard.
 3. Select all the text in the editor and delete it.
 4. Paste the full contents of the downloaded `board.yaml`.
 5. Click **Save**.
 
-The Configurator writes Wi-Fi, MQTT, and OTA values directly into the file (no `secrets.yaml` needed for this path). Requires **ESPHome ≥ 2025.8.0**.
+The Configurator writes Wi-Fi, MQTT, and the hotspot password directly into the file (no `secrets.yaml` needed for this path). Requires **ESPHome ≥ 2026.9.0**.
 
 Success looks like:
 - No red error banner after saving.
