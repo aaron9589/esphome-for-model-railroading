@@ -56,16 +56,18 @@ To change blocks or points later, re-import that same file in the Configurator, 
 The first time you program a board, you must do it by USB. All future updates can be done wirelessly.
 
 1. Plug the board into your PC using a **data USB cable** (not a charge-only cable — they look the same but charge-only cables carry no data).
-2. Open **Chrome or Edge**. This step does not work in Firefox.
+2. Open **Chrome, Edge, or Chromium**. Raspberry Pi OS already includes Chromium. This step does not work in Firefox.
 3. In the device tile, click **Install**.
 4. Select **Plug into this computer**.
 5. A list of serial ports will appear. Select the one that appeared when you plugged in your board (usually named `CP210x` or `CH340`).
 
 > **Screenshot placeholder:** Chrome/Edge browser showing the **Select a serial port** dialog with a `CP210x` or `CH340` port listed and highlighted ready to click Connect.
 
-If no port appears, install a USB driver for your chip:
+If no port appears on Windows or Mac, install a USB driver for your chip:
 - CP2102: [Silicon Labs CP210x driver](https://www.silabs.com/developers/usb-to-uart-bridge-vcp-drivers)
 - CH340: the manufacturer's driver for Windows or Mac
+
+On Linux, including Raspberry Pi OS, those chips use the kernel driver. The install script adds your user to the `dialout` group. If the port is missing, log out and back in (or reboot), then try again.
 
 Success looks like:
 - The install progress bar reaches 100% and the board reboots.
@@ -152,14 +154,22 @@ lsof -nP -iTCP:1883 -sTCP:LISTEN
 lsof -nP -iTCP:6052 -sTCP:LISTEN
 ```
 
+Linux:
+
+```bash
+ss -ltnp 'sport = :1883'
+ss -ltnp 'sport = :6052'
+```
+
 Quit the other program, or stop a leftover Docker container if you used to run EMQX or ESPHome that way.
 
 **`mosquitto_pub` / `mosquitto_sub` says connection refused:**
-Mosquitto is not running. Windows: `Set-Service mosquitto -StartupType Automatic; Start-Service mosquitto`. Mac: `brew services start mosquitto`.
+Mosquitto is not running. Windows: `Set-Service mosquitto -StartupType Automatic; Start-Service mosquitto`. Mac: `brew services start mosquitto`. Linux: `sudo systemctl enable --now mosquitto`.
 
 **Mosquitto does not come back after reboot:**
 - Windows: `Set-Service mosquitto -StartupType Automatic`
 - Mac: `brew services start mosquitto` (check with `brew services info mosquitto`)
+- Linux: `sudo systemctl enable --now mosquitto` (check with `systemctl is-enabled mosquitto`)
 
 **Board is Online in ESPHome but never talks to MQTT:**
 - Broker IP in the YAML is the PC's LAN IP, not `localhost`.
@@ -168,7 +178,7 @@ Mosquitto is not running. Windows: `Set-Service mosquitto -StartupType Automatic
 
 **ESP board not found on first flash:**
 - Use a data USB cable, not a charge-only cable.
-- Use Chrome or Edge. Firefox does not support WebSerial.
+- Use Chrome, Edge, or Chromium. Firefox does not support WebSerial. On Linux, log out and back in after install so the `dialout` group applies.
 - Close anything else that has the serial port open (Arduino IDE, a serial monitor).
 - CP2102 boards: [Silicon Labs CP210x driver](https://www.silabs.com/developers/usb-to-uart-bridge-vcp-drivers). CH340 boards: install the manufacturer's CH340 driver for your OS.
 

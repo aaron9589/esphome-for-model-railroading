@@ -5,7 +5,7 @@ This repo is a beginner path for model-railroad ESP32 boards that talk to JMRI/C
 ## How to help
 
 - Use plain language. One step at a time for setup and troubleshooting.
-- Give the exact command for the person's OS (macOS Terminal or Windows PowerShell), then say what success looks like.
+- Give the exact command for the person's OS (macOS Terminal, Windows PowerShell, or a Linux terminal), then say what success looks like.
 - If something fails, give only the next check. Do not dump a long list.
 - Do not suggest Docker unless the person already uses it and asks to keep it.
 - Beginner YAML comes from the Board Configurator, with Wi-Fi and MQTT values written into the file. Do not revive a modular `secrets.yaml` / `my-first-board` beginner path — that was removed.
@@ -21,6 +21,7 @@ This repo is a beginner path for model-railroad ESP32 boards that talk to JMRI/C
 | `README.md` | Start here: parts, install one-liners, configurator, first flash |
 | `scripts/install-mac.sh` | Mac setup: ESPHome Device Builder, Mosquitto, MQTTX, then Configurator prompt |
 | `scripts/install-windows.ps1` | Same for Windows 10/11 |
+| `scripts/install-linux.sh` | Same for Raspberry Pi OS (Pi-SPROG), Debian, Ubuntu, Fedora, openSUSE, and Arch. Leaves the Pi UART, boot files, and JMRI alone |
 | `docs/first-board-setup-guide.md` | Paste Configurator YAML, USB flash, MQTT smoke test, failure checks |
 | `docs/jmri-mqtt-verification-guide.md` | JMRI sensor/turnout topics and panel checks |
 | `docs/README.md` | Detector wiring, point calibration, layout notes |
@@ -30,8 +31,9 @@ This repo is a beginner path for model-railroad ESP32 boards that talk to JMRI/C
 
 ## Install and MQTT
 
-- Supported install: `scripts/install-mac.sh` or `scripts/install-windows.ps1` only. One-liners are in `README.md`. Do not maintain a parallel hand-install guide.
-- ESPHome is the Device Builder desktop app at http://localhost:6052. The install script downloads the latest desktop app, then runs its updater so the builder inside it matches the current release. Config files live in `~/esphome` (Mac) or `%USERPROFILE%\esphome` (Windows).
+- Supported install: `scripts/install-mac.sh`, `scripts/install-windows.ps1`, or `scripts/install-linux.sh` only. One-liners are in `README.md`. Do not maintain a parallel hand-install guide.
+- Linux install is 64-bit Raspberry Pi OS (the usual Pi-SPROG machine), Debian, Ubuntu and relatives, Fedora and RHEL relatives, openSUSE, and Arch. It does not edit Pi boot files or the SPROG serial port. A 32-bit Pi needs the 64-bit image.
+- ESPHome is the Device Builder desktop app at http://localhost:6052. The install script downloads the latest desktop app, then runs its updater so the builder inside it matches the current release. Config files live in `~/esphome` (Mac and Linux) or `%USERPROFILE%\esphome` (Windows).
 - MQTT is Mosquitto on port **1883**, anonymous, on a trusted home LAN. Setup writes `listener 1883`, `allow_anonymous true`, and `persistence true` (retained messages survive a broker restart), then checks the service is running with auto-start.
 - MQTTX is the GUI topic browser (not MQTT Explorer — Mac Gatekeeper breaks those builds). Connect to `127.0.0.1:1883` with no username to watch the local broker.
 - After install, the script offers to open the Board Configurator in the browser (Enter to open, `n` to skip).

@@ -168,7 +168,7 @@ load_brew() {
 
 require_mac_user() {
   if [[ "$(uname -s)" != "Darwin" ]]; then
-    die "This script is for macOS. On Windows, use scripts/install-windows.ps1."
+    die "This script is for macOS. On Windows, use scripts/install-windows.ps1. On Linux, use scripts/install-linux.sh."
   fi
   if [[ "${EUID}" -eq 0 ]]; then
     die "Do not run this with sudo. Run it as your normal user. It will ask for a password only when it needs one."
