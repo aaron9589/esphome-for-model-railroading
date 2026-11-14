@@ -50,7 +50,19 @@ In the [configurator](https://aaron9589.github.io/esphome-for-model-railroading/
 
 ### Signals
 
-Signals are not in the configurator. They use [WLED](https://kno.wled.ge) on a second ESP driving WS2812B heads. The sample is [wled_signal.yaml](../advanced-samples/wled_signal.yaml). The build notes are at https://illawarraline.net/signals-for-the-illawarra-line/.
+In the [configurator](https://aaron9589.github.io/esphome-for-model-railroading/), add a mast and stack its lamps. Each aspect can be a CATS name (`R292; Lit; Unheld`) or a string you type. A lit lamp can stay steady, blink, or pulse. Pulse fades to off, stays off, then fades back up.
+
+Addressable LEDs are one WS2812B strip per mast. The strip is wired from the base, so LED 0 is the lowest lamp. A lamp can be several LEDs that always light together, such as a route indicator of three. Paint each lamp with the layout colours. The strip wants 5 V and a common ground with the ESP. A level shifter is the reliable fix for the 3.3 V data pin.
+
+Individual LEDs use one GPIO per lamp. The lamp is on or off, and blink and pulse still work. The colour is whatever LED you wired.
+
+Tick **Show at startup** on the aspect that should appear before JMRI sends one. One aspect per mast.
+
+The board web page at `http://<board-name>.local` has one set of sliders for every mast. Their names start with `Signal -` so they sit together, and the ESP remembers them. Each slider can go down to 0.1. Steady lamps use Signal - Brightness. Blink and pulse each have their own brightness. Steady brightness starts at 44.6%. Blink brightness starts at 66.6%. Pulse brightness starts at 88.5%. Blink starts at 0.6 seconds on and 0.2 seconds off. Pulse rate, the fade down and back, starts at 0.5 seconds. Pulse gap, the time spent off, starts at 0.3 seconds.
+
+CATS users can copy [`.jmri/resources/signals/cats-masts`](../.jmri/resources/signals/cats-masts/) into the JMRI profile folder (the `.jmri` directory). That is the CATS virtual mast list. The configurator offers those aspect names.
+
+The earlier WLED pattern, a second ESP driving the heads, is still in [wled_signal.yaml](../advanced-samples/wled_signal.yaml). The build notes are at https://illawarraline.net/signals-for-the-illawarra-line/.
 
 ---
 

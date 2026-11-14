@@ -57,11 +57,55 @@ function uniqueIds(items, nameKey = "name") {
   });
 }
 
+const SIGNAL_COLORS = Object.freeze({
+  off: "000000",
+  red: "ff0000",
+  amber: "ffc800",
+  green: "1fff87",
+  white: "ffffff",
+});
+const SIGNAL_COLOR_ORDER = Object.freeze(["off", "red", "amber", "green", "white"]);
+const CATS_ASPECTS = Object.freeze([
+  "R288", "RES_LIM", "C424", "ADV_SLO", "C423", "C422",
+  "R281D", "R281C", "R281B", "RES_MED", "ADV_NORM", "R283B", "R283A",
+  "R291", "R292", "ADV_LIM", "ADV_MED", "C417", "C414", "C413",
+  "RES_SLO", "C412", "RES_NORM", "R286", "R287", "R284", "R285",
+  "R282", "R283", "R281",
+]);
+const SIGNAL_BRIGHTNESS = 44.6;
+const BLINK_BRIGHTNESS = 66.6;
+const PULSE_BRIGHTNESS = 88.5;
+const BLINK_ON_S = 0.6;
+const BLINK_OFF_S = 0.2;
+const PULSE_LENGTH_S = 0.5;
+const PULSE_PAUSE_S = 0.3;
+
 function topicFor(kind, name) {
-  const prefix = kind === "block" ? "trains/track/sensor/" : "trains/track/turnout/";
+  const prefix = kind === "block"
+    ? "trains/track/sensor/"
+    : kind === "signal"
+      ? "trains/track/signalmast/"
+      : "trains/track/turnout/";
   const trimmed = String(name || "").trim();
   if (!trimmed) return "";
   return prefix + trimmed;
+}
+
+function signalDefaults() {
+  return { masts: [] };
+}
+
+function mastMode(mast, signals) {
+  if (mast?.mode === "gpio" || mast?.mode === "addressable") return mast.mode;
+  return signals?.mode === "gpio" ? "gpio" : "addressable";
+}
+
+function catsAspectState(name) {
+  return `${name}; Lit; Unheld`;
+}
+
+function blankSignalCell() {
+  return { color: "off", mode: "steady" };
 }
 
 function stateTopic(topic) {
@@ -109,6 +153,7 @@ function myFirstBoardPreset() {
       },
     ],
     i2c: { sda: "GPIO21", scl: "GPIO22" },
+    signals: signalDefaults(),
   };
 }
 
@@ -118,6 +163,7 @@ function emptyConfig() {
     blocks: [],
     points: [],
     i2c: { sda: "GPIO21", scl: "GPIO22" },
+    signals: signalDefaults(),
   };
 }
 
@@ -148,6 +194,53 @@ function normalizeConfig(config) {
       if (control.buttonPin) control.buttonPin = String(control.buttonPin).toUpperCase();
       if (control.closedLight) control.closedLight = String(control.closedLight).toUpperCase();
       if (control.openLight) control.openLight = String(control.openLight).toUpperCase();
+    }
+  }
+  if (!config.signals || typeof config.signals !== "object") config.signals = signalDefaults();
+  const signals = config.signals;
+  const legacyMode = signals.mode === "gpio" ? "gpio" : "addressable";
+  const legacyPin = String(signals.pin || "GPIO16").toUpperCase();
+  delete signals.mode;
+  delete signals.pin;
+  delete signals.numLeds;
+  if (!Array.isArray(signals.masts)) signals.masts = [];
+  for (const mast of signals.masts) {
+    if (!mast.name) mast.name = "Mast";
+    delete mast.start;
+    mast.mode = mast.mode === "gpio" || mast.mode === "addressable" ? mast.mode : legacyMode;
+    mast.pin = String(mast.pin || legacyPin).toUpperCase();
+    if (typeof mast.topicCustom !== "boolean") mast.topicCustom = false;
+    if (!mast.topic) mast.topic = topicFor("signal", mast.name);
+    if (!Array.isArray(mast.lamps)) mast.lamps = [];
+    for (const lamp of mast.lamps) {
+      if (!lamp.name) lamp.name = "Lamp";
+      let count = Math.floor(Number(lamp.count) || 1);
+      if (count < 1) count = 1;
+      if (count > 32) count = 32;
+      lamp.count = mast.mode === "gpio" ? 1 : count;
+      lamp.pin = String(lamp.pin || "").toUpperCase();
+    }
+    const leds = mast.lamps.reduce((sum, lamp) => sum + lamp.count, 0);
+    mast.numLeds = Math.max(leds, 1);
+    if (!Array.isArray(mast.aspects)) mast.aspects = [];
+    for (const aspect of mast.aspects) {
+      if (!aspect.label) aspect.label = "Aspect";
+      if (!Array.isArray(aspect.states)) aspect.states = aspect.state ? [String(aspect.state)] : [""];
+      aspect.states = aspect.states.map((state) => String(state ?? ""));
+      if (!aspect.states.length) aspect.states = [""];
+      delete aspect.state;
+      if (!Array.isArray(aspect.lamps)) aspect.lamps = [];
+      while (aspect.lamps.length < mast.lamps.length) aspect.lamps.push(blankSignalCell());
+      aspect.lamps.length = mast.lamps.length;
+      for (const cell of aspect.lamps) {
+        if (!SIGNAL_COLORS[cell.color]) cell.color = "off";
+        if (cell.color === "off" || (cell.mode !== "blink" && cell.mode !== "pulse")) cell.mode = "steady";
+      }
+    }
+    let startupSeen = false;
+    for (const aspect of mast.aspects) {
+      aspect.startup = aspect.startup === true && !startupSeen;
+      if (aspect.startup) startupSeen = true;
     }
   }
   return config;
@@ -223,6 +316,18 @@ function ensureSecrets(config) {
   if (!board.apPassword) board.apPassword = generatePassword();
   if (!board.apiKey) board.apiKey = generateApiKey();
   return config;
+}
+
+function signalPinProblem(pin, role = "Signal data pin") {
+  const name = String(pin || "").toUpperCase();
+  if (!name) return `${role} is missing`;
+  if (NO_PULLUP_PINS[name]) {
+    return `${role} ${name} (${NO_PULLUP_PINS[name]}) is input only and cannot drive an LED`;
+  }
+  if (SERIAL_PINS[name]) return `${role} ${name} (${SERIAL_PINS[name]}) is the USB serial port`;
+  if (FLASH_PINS.has(name)) return `${role} ${name} is part of the flash chip`;
+  if (!PULLUP_PIN_SET.has(name)) return `${role} ${name} is not in the pin list`;
+  return "";
 }
 
 function outputPinProblem(pin, role) {
@@ -347,6 +452,55 @@ function validateConfig(config) {
     }
   }
 
+  const signals = config.signals || {};
+  const masts = signals.masts || [];
+  if (masts.length) {
+    if (board.mqttEnabled === false) {
+      errors.push("Signals need MQTT. Turn it back on under Board.");
+    }
+    for (const mast of masts) {
+      const seen = new Map();
+      for (const aspect of mast.aspects || []) {
+        const states = (aspect.states || []).map((state) => String(state).trim()).filter(Boolean);
+        if (!states.length) {
+          errors.push(`Mast "${mast.name}" aspect "${aspect.label || "Aspect"}" needs a JMRI string.`);
+        }
+        for (const state of states) {
+          if (seen.has(state)) {
+            warnings.push(`Mast "${mast.name}" uses "${state}" on more than one aspect.`);
+          } else {
+            seen.set(state, aspect.label);
+          }
+        }
+      }
+      if (mastMode(mast, signals) === "gpio") {
+        for (const lamp of mast.lamps || []) {
+          const pin = String(lamp.pin || "").toUpperCase();
+          const issue = signalPinProblem(pin, "Output pin");
+          if (issue) {
+            errors.push(`Mast "${mast.name}" lamp "${lamp.name || "Lamp"}": ${issue}.`);
+            continue;
+          }
+          if (pins.has(pin)) {
+            errors.push(`GPIO clash: ${pin} used by "${pins.get(pin)}" and "${mast.name} ${lamp.name}".`);
+          } else {
+            pins.set(pin, `${mast.name} ${lamp.name}`);
+          }
+        }
+        continue;
+      }
+      const dataPin = String(mast.pin || signals.pin || "GPIO16").toUpperCase();
+      const pinIssue = signalPinProblem(dataPin);
+      if (pinIssue) {
+        errors.push(`Mast "${mast.name}": ${pinIssue}.`);
+      } else if (pins.has(dataPin)) {
+        errors.push(`GPIO clash: ${dataPin} used by "${pins.get(dataPin)}" and "${mast.name} strip".`);
+      } else {
+        pins.set(dataPin, `${mast.name} strip`);
+      }
+    }
+  }
+
   const ids = new Set();
   for (const block of uniqueIds(config.blocks || [])) {
     if (ids.has(block.id)) warnings.push(`Duplicate id after sanitize: ${block.id}`);
@@ -355,6 +509,10 @@ function validateConfig(config) {
   for (const point of uniqueIds(config.points || [])) {
     if (ids.has(point.id)) warnings.push(`Duplicate id after sanitize: ${point.id}`);
     ids.add(point.id);
+  }
+  for (const mast of uniqueIds(masts)) {
+    if (ids.has(mast.id)) warnings.push(`Duplicate id after sanitize: ${mast.id}`);
+    ids.add(mast.id);
   }
 
   return { warnings, errors };
@@ -497,11 +655,479 @@ function emitButton(lines, point, control, index) {
   lines.push("                  announce: true");
 }
 
+function signalColorHex(color) {
+  return `0x${SIGNAL_COLORS[color] || SIGNAL_COLORS.off}`;
+}
+
+function effectName(mode, color) {
+  const label = color.charAt(0).toUpperCase() + color.slice(1);
+  return mode === "blink" ? `Blink ${label}` : `Pulse ${label}`;
+}
+
+function lampLayout(mast) {
+  let index = 0;
+  return (mast.lamps || []).map((lamp, lampIndex) => {
+    const count = Math.max(1, Math.floor(Number(lamp.count) || 1));
+    const from = index;
+    const to = index + count - 1;
+    index = to + 1;
+    const effect = (mast.aspects || []).some((aspect) => {
+      const cell = aspect.lamps?.[lampIndex];
+      return cell && cell.color !== "off" && (cell.mode === "blink" || cell.mode === "pulse");
+    });
+    return { lamp, lampIndex, from, to, effect };
+  });
+}
+
+function stripId(mast) {
+  return `${mast.id}_strip`;
+}
+
+function signalsForBlob(signals) {
+  return {
+    masts: (signals.masts || []).map((mast) => ({
+      name: mast.name,
+      topic: mast.topic,
+      topicCustom: !!mast.topicCustom,
+      lamps: (mast.lamps || []).map(({ name, count, pin }) => ({ name, count, pin: pin || "" })),
+      aspects: (mast.aspects || []).map((aspect) => ({
+        label: aspect.label,
+        states: aspect.states.map((state) => String(state ?? "")),
+        lamps: aspect.lamps.map(({ color, mode }) => ({ color, mode })),
+        startup: aspect.startup === true,
+      })),
+      mode: mast.mode,
+      pin: mast.pin,
+      numLeds: mast.numLeds,
+    })),
+  };
+}
+
+function steadyRuns(layout, cells) {
+  const runs = [];
+  let current = null;
+  layout.forEach((item, index) => {
+    if (item.effect) {
+      current = null;
+      return;
+    }
+    const color = cells[index]?.color || "off";
+    if (current && current.color === color && current.to + 1 === item.from) {
+      current.to = item.to;
+      return;
+    }
+    current = { from: item.from, to: item.to, color };
+    runs.push(current);
+  });
+  return runs;
+}
+
+function brightnessLambda() {
+  return "!lambda 'return id(signal_steady_bright).state / 100.0;'";
+}
+
+function startupAspectIndex(mast) {
+  const aspects = mast.aspects || [];
+  for (let index = 0; index < aspects.length; index += 1) {
+    if (aspects[index].startup !== true) continue;
+    const ready = (aspects[index].states || []).some((state) => String(state).trim());
+    if (ready) return index;
+  }
+  return -1;
+}
+
+function mastShows(mast) {
+  return (mast.aspects || []).some((aspect) => (aspect.states || []).some((state) => String(state).trim()));
+}
+
+function signalRgb(color) {
+  const hex = SIGNAL_COLORS[color] || SIGNAL_COLORS.off;
+  const n = parseInt(hex, 16);
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+}
+
+function emitLambda(lines, indent, rows) {
+  lines.push(`${indent}lambda: |-`);
+  for (const row of rows) lines.push(`${indent}  ${row}`);
+}
+
+function brightnessLevel() {
+  return "id(signal_steady_bright).state / 100.0f";
+}
+
+function blinkBrightnessLevel() {
+  return "id(signal_blink_bright).state / 100.0f";
+}
+
+function pulseBrightnessLevel() {
+  return "id(signal_pulse_peak).state / 100.0f";
+}
+
+function effectTiming(mode) {
+  if (mode === "blink") {
+    return [
+      "static uint32_t started = 0;",
+      "if (initial_run) started = millis();",
+      "float on_s = id(signal_blink_lit).state;",
+      "float off_s = id(signal_blink_dark).state;",
+      "if (on_s < 0.05f) on_s = 0.05f;",
+      "if (off_s < 0.05f) off_s = 0.05f;",
+      "const uint32_t on_ms = uint32_t(on_s * 1000.0f);",
+      "const uint32_t off_ms = uint32_t(off_s * 1000.0f);",
+      "const uint32_t elapsed = (millis() - started) % (on_ms + off_ms);",
+      `const float level = elapsed < on_ms ? ${blinkBrightnessLevel()} : 0.0f;`,
+    ];
+  }
+  return [
+    "static uint32_t last_ms = 0;",
+    "static float phase = 0.0f;",
+    "float pulse_s = id(signal_pulse_span).state;",
+    "float pause_s = id(signal_pulse_wait).state;",
+    "if (pulse_s < 0.05f) pulse_s = 0.05f;",
+    "if (pause_s < 0.0f) pause_s = 0.0f;",
+    "const float cycle_s = pulse_s + pause_s;",
+    "const uint32_t now = millis();",
+    "if (initial_run) {",
+    "  last_ms = now;",
+    "  phase = 0.0f;",
+    "}",
+    "const float dt = float(now - last_ms) / 1000.0f;",
+    "last_ms = now;",
+    "phase += dt / cycle_s;",
+    "phase -= floorf(phase);",
+    "const float t = phase * cycle_s;",
+    "const float half = pulse_s * 0.5f;",
+    "float wave = 0.0f;",
+    "if (t < half) wave = 1.0f - t / half;",
+    "else if (t >= half + pause_s) wave = (t - half - pause_s) / half;",
+    `const float level = (${pulseBrightnessLevel()}) * wave;`,
+  ];
+}
+
+function gpioEffectRows(mode) {
+  return [
+    ...effectTiming(mode),
+    "auto call = it.turn_on();",
+    "call.set_brightness(level);",
+    "call.set_state(true);",
+    "call.set_transition_length(0);",
+    "call.set_publish(false);",
+    "call.set_save(false);",
+    "call.perform();",
+  ];
+}
+
+function emitGpioEffect(lines, mode) {
+  lines.push("      - lambda:");
+  lines.push(`          name: ${mode === "blink" ? "Blink" : "Pulse"}`);
+  lines.push("          update_interval: 16ms");
+  emitLambda(lines, "          ", gpioEffectRows(mode));
+}
+
+function emitAddressableEffect(lines, cell) {
+  const [r, g, b] = signalRgb(cell.color);
+  const paint = [
+    "Color px(0, 0, 0);",
+    `if (level > 0.0f) px = Color(uint8_t(${r} * level), uint8_t(${g} * level), uint8_t(${b} * level));`,
+    "for (int32_t i = 0; i < it.size(); i++) it[i] = px;",
+  ];
+  const rows = [
+    ...effectTiming(cell.mode === "blink" ? "blink" : "pulse"),
+    ...paint,
+  ];
+  lines.push("      - addressable_lambda:");
+  lines.push(`          name: ${yamlQuote(effectName(cell.mode, cell.color))}`);
+  lines.push("          update_interval: 16ms");
+  emitLambda(lines, "          ", rows);
+}
+
+function emitWhenRestarting(lines, indent, emit) {
+  lines.push(`${indent}- if:`);
+  lines.push(`${indent}    condition:`);
+  lines.push(`${indent}      lambda: 'return restart_effects;'`);
+  lines.push(`${indent}    then:`);
+  emit(`${indent}      `);
+}
+
+function emitAddressable(lines, indent, id, from, to, color) {
+  lines.push(`${indent}- light.addressable_set:`);
+  lines.push(`${indent}    id: ${id}`);
+  lines.push(`${indent}    range_from: ${from}`);
+  lines.push(`${indent}    range_to: ${to}`);
+  lines.push(`${indent}    color: ${signalColorHex(color)}`);
+  if (color !== "off") lines.push(`${indent}    color_brightness: ${brightnessLambda()}`);
+}
+
+function emitStrip(lines, mast) {
+  lines.push("  - platform: esp32_rmt_led_strip");
+  lines.push(`    id: ${stripId(mast)}`);
+  lines.push("    internal: true");
+  lines.push(`    pin: ${mast.pin}`);
+  lines.push(`    num_leds: ${mast.numLeds}`);
+  lines.push("    chipset: WS2812");
+  lines.push("    channel_colors: GRB");
+  lines.push("    default_transition_length: 0s");
+  const layout = lampLayout(mast);
+  layout.forEach((item) => {
+    if (!item.effect) return;
+    const effects = [];
+    const seen = new Set();
+    for (const aspect of mast.aspects || []) {
+      const cell = aspect.lamps[item.lampIndex];
+      if (!cell || cell.color === "off" || (cell.mode !== "blink" && cell.mode !== "pulse")) continue;
+      const key = `${cell.mode}:${cell.color}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      effects.push(cell);
+    }
+    lines.push("  - platform: partition");
+    lines.push(`    id: ${mast.id}_lamp_${item.lampIndex}`);
+    lines.push(`    name: ${yamlQuote(entityName(`${mast.name} ${item.lamp.name}`))}`);
+    lines.push("    internal: true");
+    lines.push("    default_transition_length: 0s");
+    lines.push("    segments:");
+    lines.push(`      - id: ${stripId(mast)}`);
+    lines.push(`        from: ${item.from}`);
+    lines.push(`        to: ${item.to}`);
+    lines.push("    effects:");
+    for (const cell of effects) emitAddressableEffect(lines, cell);
+  });
+}
+
+function emitSignalLights(lines, masts) {
+  const strips = masts.filter((mast) => mast.mode !== "gpio");
+  const gpio = masts.filter((mast) => mast.mode === "gpio" && (mast.lamps || []).length);
+  if (!strips.length && !gpio.length) return;
+  lines.push("");
+  lines.push("light:");
+  for (const mast of strips) emitStrip(lines, mast);
+  emitGpioLights(lines, gpio);
+}
+
+function emitGpioOutputs(lines, masts) {
+  for (const mast of masts) {
+    (mast.lamps || []).forEach((lamp, index) => {
+      lines.push("  - platform: ledc");
+      lines.push(`    id: ${mast.id}_lamp_${index}_output`);
+      lines.push(`    pin: ${String(lamp.pin || "").toUpperCase()}`);
+      lines.push("    frequency: 1000Hz");
+    });
+  }
+}
+
+function emitGpioLights(lines, masts) {
+  for (const mast of masts) {
+    (mast.lamps || []).forEach((lamp, index) => {
+      const id = `${mast.id}_lamp_${index}`;
+      lines.push("  - platform: monochromatic");
+      lines.push(`    output: ${id}_output`);
+      lines.push(`    id: ${id}`);
+      lines.push(`    name: ${yamlQuote(entityName(`${mast.name} ${lamp.name}`))}`);
+      lines.push("    internal: true");
+      lines.push("    default_transition_length: 0s");
+      lines.push("    effects:");
+      emitGpioEffect(lines, "blink");
+      emitGpioEffect(lines, "pulse");
+    });
+  }
+}
+
+function emitLampCommand(lines, indent, id, cell, gpio) {
+  if (!cell || cell.color === "off") {
+    lines.push(`${indent}- light.turn_off: ${id}`);
+    return;
+  }
+  lines.push(`${indent}- light.turn_on:`);
+  lines.push(`${indent}    id: ${id}`);
+  if (!gpio) lines.push(`${indent}    color: ${signalColorHex(cell.color)}`);
+  lines.push(`${indent}    brightness: ${brightnessLambda()}`);
+  if (cell.mode === "blink" || cell.mode === "pulse") {
+    const name = gpio
+      ? (cell.mode === "blink" ? "Blink" : "Pulse")
+      : effectName(cell.mode, cell.color);
+    lines.push(`${indent}    effect: ${yamlQuote(name)}`);
+    return;
+  }
+  lines.push(`${indent}    effect: "None"`);
+}
+
+function emitAspectActions(lines, mast, aspect, gpio) {
+  const layout = lampLayout(mast);
+  const indent = "            ";
+  emitWhenRestarting(lines, indent, (inner) => {
+    lines.push(`${inner}- logger.log:`);
+    lines.push(`${inner}    format: ${yamlQuote(`${mast.name} | ${aspect.label}`)}`);
+    lines.push(`${inner}    level: INFO`);
+    lines.push(`${inner}    tag: signal_mast`);
+  });
+  const command = (index, inner, isGpio) => {
+    emitLampCommand(lines, inner, `${mast.id}_lamp_${layout[index].lampIndex}`, aspect.lamps[index], isGpio);
+  };
+  if (gpio) {
+    layout.forEach((item, index) => {
+      const cell = aspect.lamps[index];
+      const effect = cell && cell.color !== "off" && (cell.mode === "blink" || cell.mode === "pulse");
+      if (effect) emitWhenRestarting(lines, indent, (inner) => command(index, inner, true));
+      else command(index, indent, true);
+    });
+    return;
+  }
+  for (const run of steadyRuns(layout, aspect.lamps)) {
+    emitAddressable(lines, indent, stripId(mast), run.from, run.to, run.color);
+  }
+  layout.forEach((item, index) => {
+    if (!item.effect) return;
+    emitWhenRestarting(lines, indent, (inner) => command(index, inner, false));
+  });
+}
+
+function emitShowScript(lines, mast) {
+  const gpio = mast.mode === "gpio";
+  lines.push(`  - id: ${mast.id}_show`);
+  lines.push("    mode: restart");
+  lines.push("    parameters:");
+  lines.push("      restart_effects: bool");
+  lines.push("    then:");
+  (mast.aspects || []).forEach((aspect, index) => {
+    const states = (aspect.states || []).map((state) => String(state).trim()).filter(Boolean);
+    if (!states.length) return;
+    lines.push("      - if:");
+    lines.push("          condition:");
+    lines.push(`            lambda: 'return id(${mast.id}_aspect) == ${index};'`);
+    lines.push("          then:");
+    emitAspectActions(lines, mast, aspect, gpio);
+  });
+}
+
+function emitSignalControls(lines, masts) {
+  if (!masts.length) return;
+  const shows = masts.filter(mastShows);
+  lines.push("  - platform: template");
+  lines.push('    name: "Signal - Brightness"');
+  lines.push("    id: signal_steady_bright");
+  lines.push("    min_value: 0.1");
+  lines.push("    max_value: 100");
+  lines.push(`    initial_value: ${SIGNAL_BRIGHTNESS}`);
+  lines.push("    restore_value: true");
+  lines.push("    optimistic: true");
+  lines.push("    step: 0.1");
+  lines.push('    unit_of_measurement: "%"');
+  lines.push("    mode: slider");
+  if (shows.length) {
+    lines.push("    set_action:");
+    lines.push("      then:");
+    for (const mast of shows) {
+      lines.push("        - script.execute:");
+      lines.push(`            id: ${mast.id}_show`);
+      lines.push("            restart_effects: false");
+    }
+  }
+  emitPercentSlider(lines, "Signal - Blink - Brightness", "signal_blink_bright", BLINK_BRIGHTNESS);
+  emitPercentSlider(lines, "Signal - Pulse - Brightness", "signal_pulse_peak", PULSE_BRIGHTNESS);
+  emitSecondsSlider(lines, "Signal - Blink - On", "signal_blink_lit", 0.1, 5, BLINK_ON_S);
+  emitSecondsSlider(lines, "Signal - Blink - Off", "signal_blink_dark", 0.1, 5, BLINK_OFF_S);
+  emitSecondsSlider(lines, "Signal - Pulse - Rate", "signal_pulse_span", 0.1, 10, PULSE_LENGTH_S);
+  emitSecondsSlider(lines, "Signal - Pulse - Gap", "signal_pulse_wait", 0.1, 5, PULSE_PAUSE_S);
+}
+
+function emitPercentSlider(lines, name, id, initial) {
+  lines.push("  - platform: template");
+  lines.push(`    name: ${yamlQuote(name)}`);
+  lines.push(`    id: ${id}`);
+  lines.push("    min_value: 0.1");
+  lines.push("    max_value: 100");
+  lines.push(`    initial_value: ${initial}`);
+  lines.push("    restore_value: true");
+  lines.push("    optimistic: true");
+  lines.push("    step: 0.1");
+  lines.push('    unit_of_measurement: "%"');
+  lines.push("    mode: slider");
+}
+
+function emitSecondsSlider(lines, name, id, min, max, initial) {
+  lines.push("  - platform: template");
+  lines.push(`    name: ${yamlQuote(name)}`);
+  lines.push(`    id: ${id}`);
+  lines.push(`    min_value: ${min}`);
+  lines.push(`    max_value: ${max}`);
+  lines.push(`    initial_value: ${initial}`);
+  lines.push("    restore_value: true");
+  lines.push("    optimistic: true");
+  lines.push("    step: 0.1");
+  lines.push('    unit_of_measurement: "s"');
+  lines.push("    mode: slider");
+}
+
+function emitSignalTextSensors(lines, masts) {
+  for (const mast of masts) {
+    lines.push("  - platform: mqtt_subscribe");
+    lines.push(`    name: ${yamlQuote(entityName(mast.name))}`);
+    lines.push(`    id: ${mast.id}`);
+    lines.push("    internal: true");
+    lines.push(`    topic: ${yamlQuote(mast.topic)}`);
+    lines.push("    on_value:");
+    (mast.aspects || []).forEach((aspect, index) => {
+      const states = (aspect.states || []).map((state) => String(state).trim()).filter(Boolean);
+      if (!states.length) return;
+      lines.push("      - if:");
+      lines.push("          condition:");
+      if (states.length === 1) {
+        lines.push("            text_sensor.state:");
+        lines.push(`              id: ${mast.id}`);
+        lines.push(`              state: ${yamlQuote(states[0])}`);
+      } else {
+        lines.push("            or:");
+        for (const state of states) {
+          lines.push("              - text_sensor.state:");
+          lines.push(`                  id: ${mast.id}`);
+          lines.push(`                  state: ${yamlQuote(state)}`);
+        }
+      }
+      lines.push("          then:");
+      lines.push("            - globals.set:");
+      lines.push(`                id: ${mast.id}_aspect`);
+      lines.push(`                value: '${index}'`);
+      lines.push("            - script.execute:");
+      lines.push(`                id: ${mast.id}_show`);
+      lines.push("                restart_effects: true");
+    });
+  }
+}
+
+function emitPointTextSensors(lines, points) {
+  for (const point of points) {
+    lines.push("  - platform: mqtt_subscribe");
+    lines.push(`    name: ${yamlQuote(entityName(`${point.name} last command`))}`);
+    lines.push(`    id: ${point.id}`);
+    lines.push(`    topic: ${yamlQuote(point.topic)}`);
+    lines.push("    on_value:");
+    lines.push("      - if:");
+    lines.push("          condition:");
+    lines.push("            text_sensor.state:");
+    lines.push(`              id: ${point.id}`);
+    lines.push("              state: 'THROWN'");
+    lines.push("          then:");
+    lines.push("            - script.execute:");
+    lines.push(`                id: ${point.id}_throw_thrown`);
+    lines.push("                announce: true");
+    lines.push("      - if:");
+    lines.push("          condition:");
+    lines.push("            text_sensor.state:");
+    lines.push(`              id: ${point.id}`);
+    lines.push("              state: 'CLOSED'");
+    lines.push("          then:");
+    lines.push("            - script.execute:");
+    lines.push(`                id: ${point.id}_throw_closed`);
+        lines.push("                announce: true");
+  }
+}
+
 function generateYaml(config) {
   ensureSecrets(config);
   const board = config.board;
   const blocks = uniqueIds(config.blocks || []);
   const points = uniqueIds(config.points || []);
+  const masts = uniqueIds(config.signals?.masts || []);
   const i2c = config.i2c || { sda: "GPIO21", scl: "GPIO22" };
   const usePca = config.pca9685 !== false;
   const stateForBlob = {
@@ -534,6 +1160,7 @@ function generateYaml(config) {
     })),
     i2c,
     pca9685: config.pca9685 !== false,
+    signals: signalsForBlob(config.signals),
   };
 
   const lines = [];
@@ -550,22 +1177,53 @@ function generateYaml(config) {
   lines.push(`  name: ${yamlQuote(board.name)}`);
   lines.push(`  min_version: "${MIN_ESPHOME_VERSION}"`);
 
-  if (points.length) {
+  const stripMasts = masts.filter((mast) => mast.mode !== "gpio");
+  const gpioMasts = masts.filter((mast) => mast.mode === "gpio");
+  const startupMasts = masts
+    .map((mast) => ({ mast, index: startupAspectIndex(mast) }))
+    .filter((item) => item.index >= 0);
+  if (points.length || stripMasts.length || startupMasts.length) {
     lines.push("  on_boot:");
-    lines.push("    - priority: -200.0");
-    lines.push("      then:");
-    for (const point of points) {
-      lines.push("        - if:");
-      lines.push("            condition:");
-      lines.push(`              lambda: 'return id(${point.id}_thrown);'`);
-      lines.push("            then:");
-      lines.push("              - script.execute:");
-      lines.push(`                  id: ${point.id}_throw_thrown`);
-      lines.push("                  announce: false");
-      lines.push("            else:");
-      lines.push("              - script.execute:");
-      lines.push(`                  id: ${point.id}_throw_closed`);
-      lines.push("                  announce: false");
+    if (points.length) {
+      lines.push("    - priority: -200.0");
+      lines.push("      then:");
+      for (const point of points) {
+        lines.push("        - if:");
+        lines.push("            condition:");
+        lines.push(`              lambda: 'return id(${point.id}_thrown);'`);
+        lines.push("            then:");
+        lines.push("              - script.execute:");
+        lines.push(`                  id: ${point.id}_throw_thrown`);
+        lines.push("                  announce: false");
+        lines.push("            else:");
+        lines.push("              - script.execute:");
+        lines.push(`                  id: ${point.id}_throw_closed`);
+        lines.push("                  announce: false");
+      }
+    }
+    if (stripMasts.length) {
+      lines.push("    - priority: -100.0");
+      lines.push("      then:");
+      for (const mast of stripMasts) {
+        lines.push("        - light.turn_on:");
+        lines.push(`            id: ${stripId(mast)}`);
+        lines.push("            brightness: 100%");
+        lines.push("            red: 0%");
+        lines.push("            green: 0%");
+        lines.push("            blue: 0%");
+      }
+    }
+    if (startupMasts.length) {
+      lines.push("    - priority: -150.0");
+      lines.push("      then:");
+      for (const { mast, index } of startupMasts) {
+        lines.push("        - globals.set:");
+        lines.push(`            id: ${mast.id}_aspect`);
+        lines.push(`            value: '${index}'`);
+        lines.push("        - script.execute:");
+        lines.push(`            id: ${mast.id}_show`);
+        lines.push("            restart_effects: true");
+      }
     }
   }
 
@@ -629,10 +1287,13 @@ function generateYaml(config) {
   lines.push("    id: reboot_esp");
   lines.push('    name: "Restart Board"');
 
-  if (points.length) {
+  if (points.length || masts.length) {
     lines.push("");
     lines.push("web_server:");
     lines.push("  local: true");
+    lines.push("  ota: false");
+  }
+  if (points.length) {
     if (usePca) {
       lines.push("");
       lines.push("i2c:");
@@ -643,6 +1304,8 @@ function generateYaml(config) {
       lines.push("pca9685:");
       lines.push("  frequency: 50Hz");
     }
+  }
+  if (points.length || masts.some(mastShows)) {
     lines.push("");
     lines.push("globals:");
     for (const point of points) {
@@ -650,6 +1313,13 @@ function generateYaml(config) {
       lines.push("    type: bool");
       lines.push("    restore_value: true");
       lines.push('    initial_value: "false"');
+    }
+    for (const mast of masts) {
+      if (!mastShows(mast)) continue;
+      lines.push(`  - id: ${mast.id}_aspect`);
+      lines.push("    type: int");
+      lines.push("    restore_value: false");
+      lines.push("    initial_value: '-1'");
     }
   }
 
@@ -728,6 +1398,7 @@ function generateYaml(config) {
         lines.push("            level: !lambda 'return x / 100.0;'");
       }
     }
+    emitSignalControls(lines, masts);
 
     lines.push("");
     lines.push("output:");
@@ -741,6 +1412,7 @@ function generateYaml(config) {
         lines.push("    frequency: 50Hz");
       }
     }
+    if (gpioMasts.some((mast) => (mast.lamps || []).length)) emitGpioOutputs(lines, gpioMasts);
 
     lines.push("");
     lines.push("servo:");
@@ -781,36 +1453,35 @@ function generateYaml(config) {
       emitThrowScript(lines, point, false, mqtt);
       emitThrowScript(lines, point, true, mqtt);
     }
+    for (const mast of masts) {
+      if (mastShows(mast)) emitShowScript(lines, mast);
+    }
 
-    if (mqtt) {
+  } else if (masts.length) {
+    lines.push("");
+    lines.push("number:");
+    emitSignalControls(lines, masts);
+    if (masts.some(mastShows)) {
       lines.push("");
-      lines.push("text_sensor:");
-      for (const point of points) {
-        lines.push("  - platform: mqtt_subscribe");
-        lines.push(`    name: ${yamlQuote(entityName(`${point.name} last command`))}`);
-        lines.push(`    id: ${point.id}`);
-        lines.push(`    topic: ${yamlQuote(point.topic)}`);
-        lines.push("    on_value:");
-        lines.push("      - if:");
-        lines.push("          condition:");
-        lines.push("            text_sensor.state:");
-        lines.push(`              id: ${point.id}`);
-        lines.push("              state: 'THROWN'");
-        lines.push("          then:");
-        lines.push("            - script.execute:");
-        lines.push(`                id: ${point.id}_throw_thrown`);
-        lines.push("                announce: true");
-        lines.push("      - if:");
-        lines.push("          condition:");
-        lines.push("            text_sensor.state:");
-        lines.push(`              id: ${point.id}`);
-        lines.push("              state: 'CLOSED'");
-        lines.push("          then:");
-        lines.push("            - script.execute:");
-        lines.push(`                id: ${point.id}_throw_closed`);
-        lines.push("                announce: true");
+      lines.push("script:");
+      for (const mast of masts) {
+        if (mastShows(mast)) emitShowScript(lines, mast);
       }
     }
+  }
+
+  const gpioWithLamps = gpioMasts.filter((mast) => (mast.lamps || []).length);
+  if (gpioWithLamps.length && !points.length) {
+    lines.push("");
+    lines.push("output:");
+    emitGpioOutputs(lines, gpioWithLamps);
+  }
+  if (masts.length) emitSignalLights(lines, masts);
+  if (mqtt && (points.length || masts.length)) {
+    lines.push("");
+    lines.push("text_sensor:");
+    if (points.length) emitPointTextSensors(lines, points);
+    if (masts.length) emitSignalTextSensors(lines, masts);
   }
 
   lines.push("");
@@ -828,6 +1499,10 @@ function generateYaml(config) {
     emptyConfig,
     topicFor,
     stateTopic,
+    SIGNAL_COLORS,
+    SIGNAL_COLOR_ORDER,
+    CATS_ASPECTS,
+    catsAspectState,
     variantFor,
     normalizeConfig,
     ensureSecrets,

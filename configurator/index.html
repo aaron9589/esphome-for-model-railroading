@@ -38,8 +38,12 @@
             <span>3 · Points</span>
             <span class="nav-hint"><span id="count-points">0</span> servos</span>
           </button>
+          <button type="button" class="nav-item" data-view="signals">
+            <span>4 · Signals</span>
+            <span class="nav-hint"><span id="count-signals">0</span> masts</span>
+          </button>
           <button type="button" class="nav-item" data-view="yaml">
-            <span>4 · Download</span>
+            <span>5 · Download</span>
             <span class="nav-hint">Your board.yaml</span>
           </button>
         </nav>
@@ -114,6 +118,45 @@
             <p id="points-empty" class="empty" hidden>No points yet. Skip this if the board only watches the track.</p>
             <div class="pager">
               <button type="button" data-goto="blocks">Back: blocks</button>
+              <button type="button" class="primary" data-goto="signals">Next: signals</button>
+            </div>
+          </section>
+
+          <section class="view" data-panel="signals" hidden>
+            <header class="view-head">
+              <div>
+                <h2>Signals</h2>
+                <p>Each mast is its own strip, starting at LED 0, or its own set of individual LEDs. Tick Show at startup on the aspect that should appear before JMRI sends one.</p>
+              </div>
+              <button type="button" id="btn-add-mast" class="primary">Add mast</button>
+            </header>
+            <aside class="note note-settings" id="signal-web-note">
+              <p>After the board is online, open <code>http://&lt;board-name&gt;.local</code>. These sliders apply to every mast, and the ESP remembers them. Each one can go down to 0.1.</p>
+              <p><strong>Signal - Brightness</strong> How bright a steady lamp is. Starts at 44.6%.</p>
+              <p><strong>Signal - Blink - Brightness</strong> How bright a blinking lamp is while it is on. Starts at 66.6%.</p>
+              <p><strong>Signal - Blink - On</strong> How long a blinking lamp stays lit. Starts at 0.6 seconds.</p>
+              <p><strong>Signal - Blink - Off</strong> How long it stays dark. Starts at 0.2 seconds.</p>
+              <p><strong>Signal - Pulse - Brightness</strong> How bright a pulsing lamp gets at the top of the fade. Starts at 88.5%.</p>
+              <p><strong>Signal - Pulse - Rate</strong> How long the fade down and back up takes. Starts at 0.5 seconds.</p>
+              <p><strong>Signal - Pulse - Gap</strong> How long the lamp stays off between fades. Starts at 0.3 seconds.</p>
+            </aside>
+            <figure class="signal-sample" id="signal-sample">
+              <figcaption>Wired from the base, so LED 0 is the lowest lamp. A route indicator is three LEDs and one lamp.</figcaption>
+              <div class="sample-mast" aria-hidden="true">
+                <div class="sample-lamp"><span class="pip is-red"></span><span>Top</span></div>
+                <div class="sample-lamp"><span class="pip is-amber"></span><span>Middle</span></div>
+                <div class="sample-lamp"><span class="pip is-green"></span><span>Bottom</span></div>
+                <div class="sample-lamp"><span class="pip"></span><span>Marker</span></div>
+                <div class="sample-lamp is-group">
+                  <span class="led-pips"><i class="pip"></i><i class="pip"></i><i class="pip"></i></span>
+                  <span>Route indicator · LED 0</span>
+                </div>
+              </div>
+            </figure>
+            <div id="signals-list"></div>
+            <p id="signals-empty" class="empty" hidden>No masts yet. Skip this if the board has no signals.</p>
+            <div class="pager">
+              <button type="button" data-goto="points">Back: points</button>
               <button type="button" class="primary" data-goto="yaml">Next: download</button>
             </div>
           </section>
@@ -130,7 +173,7 @@
             </header>
             <pre id="yaml-preview"></pre>
             <div class="pager">
-              <button type="button" data-goto="points">Back: points</button>
+              <button type="button" data-goto="signals">Back: signals</button>
             </div>
           </section>
         </main>

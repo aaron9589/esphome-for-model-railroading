@@ -43,9 +43,9 @@ This repo is a beginner path for model-railroad ESP32 boards that talk to JMRI/C
 - Live at https://aaron9589.github.io/esphome-for-model-railroading/
 - Source: `configurator/` (static site). Deployed by `.github/workflows/pages.yml` on pushes to `main` that touch `configurator/**`.
 - Writes one `board.yaml` with an `esphome-mr-config:1` comment so the same file can be imported again. Do not invent a second file format.
-- **v1 scope:** board settings (fallback hotspot and the ESPHome API included), block detectors, PCA9685 points or a few servos on ESP pins (those take power from the board, so 3-4 is the usual limit), and optional panel buttons on those points. MQTT stays on unless Disable MQTT is ticked; that drops the broker and every JMRI topic, and the board will not talk to JMRI.
-- Default MQTT topics: `trains/track/sensor/<name>` and `trains/track/turnout/<name>`; state feedback is `<turnout-topic>/State`.
-- Detectors publish with `retain: false` on purpose (avoid stale OCCUPIED in JMRI). Servo endpoint sliders use `restore_value: true` on the ESP. Turnout `/State` is not retained in generated YAML; JMRI can still remember panel state.
+- **v1 scope:** board settings (fallback hotspot and the ESPHome API included), block detectors, PCA9685 points or a few servos on ESP pins (those take power from the board, so 3-4 is the usual limit), optional panel buttons on those points, and signal masts. A mast is an ordered stack of lamps. Addressable mode is one WS2812B strip per mast, wired from the base so LED 0 is the lowest lamp, with that mast’s data pin. The strip length is the LEDs across the lamps. One lamp can be several LEDs that always light together, such as a three-LED route indicator. Each lamp is one of the layout colours (off, red `ff0000`, amber `ffc800`, green `1fff87`, white `ffffff`). Individual-LED mode is one GPIO per lamp, on or off. Either way a lit lamp is steady, hard blink, or pulse. Aspect names can come from `.jmri/resources/signals/cats-masts/` (copy that folder into the JMRI profile). MQTT stays on unless Disable MQTT is ticked; that drops the broker and every JMRI topic, and the board will not talk to JMRI.
+- Default MQTT topics: `trains/track/sensor/<name>`, `trains/track/turnout/<name>`, and `trains/track/signalmast/<name>`; state feedback is `<turnout-topic>/State`.
+- Detectors publish with `retain: false` on purpose (avoid stale OCCUPIED in JMRI). Servo endpoint sliders, and the board-wide `Signal -` brightness, blink brightness/on/off, and pulse brightness, rate, and gap sliders, use `restore_value: true` on the ESP. Turnout `/State` is not retained in generated YAML; JMRI can still remember panel state. One aspect per mast can be marked to show at startup.
 - When changing generator behaviour, update `configurator/test/generator.test.js` and run the configurator tests (`configurator/package.json`).
 
 ## Advanced samples
@@ -53,7 +53,7 @@ This repo is a beginner path for model-railroad ESP32 boards that talk to JMRI/C
 - `advanced-samples/` is **not** Configurator-compatible. README there explains each file.
 - Kept for interest: end-of-block pulses, ground throws, bell codes, RFID staff machine, WLED signals. Include them as ESPHome `packages:` on their own device. There is no sample board shell.
 - Block detectors and PCA9685 / GPIO servo patterns that the Configurator covers were removed from this folder — do not re-add them as a parallel beginner path.
-- Signals use WLED on a second ESP (`wled_signal.yaml`); see also https://illawarraline.net/signals-for-the-illawarra-line/
+- The configurator drives signal masts on the board, either a WS2812B strip or one GPIO per lamp. The earlier WLED pattern remains in `advanced-samples/wled_signal.yaml`; see also https://illawarraline.net/signals-for-the-illawarra-line/
 
 ## Docs tone
 
