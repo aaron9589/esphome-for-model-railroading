@@ -60,7 +60,7 @@ Tick **Show at startup** on the aspect that should appear before JMRI sends one.
 
 The board web page at `http://<board-name>.local` has one set of sliders for every mast. Their names start with `Signal -` so they sit together, and the ESP remembers them. Each slider can go down to 0.1. Steady lamps use Signal - Brightness. Blink and pulse each have their own brightness. Steady brightness starts at 44.6%. Blink brightness starts at 66.6%. Pulse brightness starts at 88.5%. Blink starts at 0.6 seconds on and 0.2 seconds off. Pulse rate, the fade down and back, starts at 0.5 seconds. Pulse gap, the time spent off, starts at 0.3 seconds.
 
-CATS users can copy [`.jmri/resources/signals/cats-masts`](../.jmri/resources/signals/cats-masts/) into the JMRI profile folder (the `.jmri` directory). That is the CATS virtual mast list. The configurator offers those aspect names.
+CATS aspects need the signal template loaded in JMRI. The configurator offers a download, [cats-signal-template.zip](../configurator/cats-signal-template.zip). Unzip it into the JMRI profile folder so you get `resources/signals/cats-masts`, then restart JMRI. The same files are in [`.jmri/resources/signals/cats-masts`](../.jmri/resources/signals/cats-masts/).
 
 The earlier WLED pattern, a second ESP driving the heads, is still in [wled_signal.yaml](../advanced-samples/wled_signal.yaml). The build notes are at https://illawarraline.net/signals-for-the-illawarra-line/.
 

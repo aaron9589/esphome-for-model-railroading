@@ -454,6 +454,11 @@ button:disabled {
   color: #1e3a8a;
 }
 
+.note a {
+  color: var(--accent);
+  font-weight: 650;
+}
+
 .note-settings p + p {
   margin-top: 0.65rem;
 }

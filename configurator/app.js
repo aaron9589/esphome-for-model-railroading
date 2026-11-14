@@ -1060,6 +1060,13 @@ function renderSignals() {
   const anyStrip = signals.masts.some((mast) => mast.mode !== "gpio");
   const showStripHelp = signals.masts.length === 0 || anyStrip;
   document.getElementById("signal-sample").hidden = !showStripHelp;
+  const catsStates = new Set(CATS_ASPECTS.map((name) => catsAspectState(name)));
+  const usesCats = signals.masts.some((mast) =>
+    (mast.aspects || []).some((aspect) =>
+      (aspect.states || []).some((state) => catsStates.has(String(state).trim()))
+    )
+  );
+  document.getElementById("cats-template-note").hidden = !usesCats;
 
   el.signalsList.replaceChildren();
   signals.masts.forEach((mast, mastIndex) => {
