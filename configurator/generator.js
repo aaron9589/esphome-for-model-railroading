@@ -623,7 +623,7 @@ function emitThrowScript(lines, point, thrown, publish) {
   lines.push("      - servo.write:");
   lines.push(`          id: ${point.id}_servo`);
   lines.push(`          level: !lambda 'return id(${point.id}_servo_endpoint_${position}).state / 100.0;'`);
-  lines.push("      - delay: 1s");
+  lines.push("      - delay: 2s");
   lines.push("      - servo.write:");
   lines.push(`          id: ${point.id}_servo`);
   lines.push(`          level: !lambda 'return id(${point.id}_servo_endpoint_${position}_backoff).state / 100.0;'`);
