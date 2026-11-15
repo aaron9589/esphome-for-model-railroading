@@ -2,7 +2,7 @@
 
 ESP32 boards for a model railroad: block detection and point control, talking to JMRI/CATS over MQTT.
 
-A board watches the track and throws points. JMRI (with CATS doing the signalling logic) is the brain. The boards and JMRI meet on MQTT.
+A board watches the track and throws points. JMRI (with CATS doing the signalling logic) is the brain. The boards and JMRI meet on MQTT. A Modular Signal System layout can skip that: the boards decide Stop, Approach, and Clear themselves, and still meet on MQTT. See [MSS over MQTT](docs/mss-mqtt.md).
 
 ## How it fits together
 
@@ -81,8 +81,9 @@ Wiring, detector tuning, how points remember their positions, and the layout thi
 | The detector schematic and how to tune a block | [How the boards work](docs/README.md) |
 | Flash and MQTT smoke test | [first-board-setup-guide.md](docs/first-board-setup-guide.md) |
 | Advanced layout patterns (not Configurator YAML) | [advanced-samples/](advanced-samples/) |
+| Modular Signal System over MQTT | [MSS over MQTT](docs/mss-mqtt.md) |
 
-Signals, staff tokens, bell codes, end-of-block pulses, and hand throws are not in the configurator. The diagrams and the YAML are in [advanced-samples](advanced-samples/README.md).
+Staff tokens, bell codes, end-of-block pulses, and hand throws are not in the configurator. The diagrams and the YAML are in [advanced-samples](advanced-samples/README.md). Signals, and Modular Signal System boards that talk over MQTT, are in the configurator.
 
 ![End-of-block sensors, ground throws, bell codes, a staff machine, and a signal ESP all talk MQTT to Mosquitto, JMRI, and CATS.](_img/advanced-overview.svg)
 

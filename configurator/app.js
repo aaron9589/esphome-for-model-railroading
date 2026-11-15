@@ -43,6 +43,12 @@ const ACTIONS = [
   { value: "thrown", label: "Set thrown" },
 ];
 
+const MSS_KINDS = [
+  { value: "current", label: "Current" },
+  { value: "optical", label: "Optical" },
+  { value: "turnout", label: "Turnout against" },
+];
+
 const COLOR_LABELS = {
   off: "Off",
   red: "Red",
@@ -102,6 +108,14 @@ const el = {
   signalsList: document.getElementById("signals-list"),
   countSignals: document.getElementById("count-signals"),
   signalsEmpty: document.getElementById("signals-empty"),
+  mssLine: document.getElementById("mss-line"),
+  mssSources: document.getElementById("mss-sources"),
+  mssSignals: document.getElementById("mss-signals"),
+  mssJunctions: document.getElementById("mss-junctions"),
+  countMss: document.getElementById("count-mss"),
+  mssSourcesEmpty: document.getElementById("mss-sources-empty"),
+  mssSignalsEmpty: document.getElementById("mss-signals-empty"),
+  mssJunctionsEmpty: document.getElementById("mss-junctions-empty"),
 };
 
 document.querySelectorAll(".nav-item").forEach((button) => {
@@ -166,6 +180,60 @@ document.getElementById("btn-add-point").addEventListener("click", () => {
     servoPin: usesPca() ? "" : nextServoPin(),
     travelTime: "10s",
     controls: [],
+  });
+  persist();
+  render();
+});
+
+document.getElementById("btn-add-mss-source").addEventListener("click", () => {
+  const n = state.mss.sources.length + 1;
+  state.mss.sources.push({
+    name: `feed-${n}`,
+    kind: "current",
+    block: "",
+    alsoBlock: "",
+    pin: nextDetectorPin(),
+    inverted: true,
+    debounce: "500ms",
+    point: "",
+  });
+  persist();
+  render();
+});
+
+document.getElementById("btn-add-mss-signal").addEventListener("click", () => {
+  const mast = state.signals.masts[0];
+  state.mss.signals.push({
+    name: `signal-${state.mss.signals.length + 1}`,
+    mast: mast ? mast.name : "",
+    stop: "Stop",
+    approach: "Approach",
+    advance: "",
+    diverging: "",
+    clear: "Clear",
+    dark: "",
+    approachLighting: false,
+    stopBlock: "",
+    approachBlock: "",
+    advanceBlock: "",
+    behindBlock: "",
+    divergingFrom: "",
+    remotes: [],
+  });
+  persist();
+  render();
+});
+
+document.getElementById("btn-add-mss-junction").addEventListener("click", () => {
+  state.mss.junctions.push({
+    name: `junction-${state.mss.junctions.length + 1}`,
+    point: state.points[0]?.name || "",
+    pin: state.points[0] ? "" : nextButtonPin(),
+    inverted: true,
+    thrownIsDiverging: true,
+    mainBlock: "",
+    divergingBlock: "",
+    remotes: [],
   });
   persist();
   render();
@@ -451,7 +519,22 @@ function usedPins() {
       used.add(String(mast.pin).toUpperCase());
     }
   }
+  for (const source of state.mss?.sources || []) {
+    if (!source.point && source.pin) used.add(String(source.pin).toUpperCase());
+  }
+  for (const junction of state.mss?.junctions || []) {
+    if (!junction.point && junction.pin) used.add(String(junction.pin).toUpperCase());
+  }
   return used;
+}
+
+function nextDetectorPin() {
+  const used = usedPins();
+  const inputOnly = Object.keys(NO_PULLUP_PINS);
+  const preferred = PULLUP_PINS.filter((pin) => !STRAPPING_PINS.has(pin));
+  return inputOnly.find((pin) => !used.has(pin))
+    || preferred.find((pin) => !used.has(pin))
+    || "GPIO34";
 }
 
 function usesPca() {
@@ -1404,6 +1487,500 @@ function renderSignals() {
   });
 }
 
+function mssTopic(block, kind, name) {
+  const line = state.mss.line || "main";
+  const node = state.board.name || "board";
+  return `mss/${line}/${block || "block"}/${node}/${kind}/${name || "name"}`;
+}
+
+function mssOnlineTopic() {
+  const line = state.mss.line || "main";
+  const node = state.board.name || "board";
+  return `mss/${line}/node/${node}/online`;
+}
+
+function removeButton(onClick) {
+  const remove = document.createElement("button");
+  remove.type = "button";
+  remove.className = "remove";
+  remove.textContent = "Remove";
+  remove.addEventListener("click", onClick);
+  return remove;
+}
+
+function aspectChoices(mastName, optional) {
+  const mast = (state.signals.masts || []).find((item) => item.name === mastName);
+  const labels = (mast?.aspects || []).map((aspect) => aspect.label).filter(Boolean);
+  const options = labels.map((label) => ({ value: label, label }));
+  if (optional) options.unshift({ value: "", label: "Not used" });
+  return options;
+}
+
+function withSaved(options, value) {
+  if (value && !options.some((option) => option.value === value)) {
+    return [{ value, label: value }, ...options];
+  }
+  return options;
+}
+
+function renderMss() {
+  const mss = state.mss;
+  const lineCard = document.createElement("div");
+  lineCard.className = "fields";
+  lineCard.append(
+    field("Signaled track", mss.line, (value) => {
+      mss.line = value.trim().toLowerCase();
+      persist();
+      updatePreview();
+      const link = el.mssLine.querySelector("input[disabled]");
+      if (link) link.value = mssOnlineTopic();
+    }, {
+      placeholder: "main",
+      spellcheck: false,
+      hint: "One name for this signaled track. A second track gets its own name.",
+    }),
+    linkedField(
+      "Online topic",
+      mssOnlineTopic(),
+      "This board says OFFLINE here if it drops off MQTT. The others then hold its blocks occupied."
+    )
+  );
+  el.mssLine.replaceChildren(lineCard);
+
+  el.mssSources.replaceChildren();
+  mss.sources.forEach((source, index) => {
+    const card = document.createElement("div");
+    card.className = "row-card";
+    const header = document.createElement("header");
+    const title = document.createElement("h3");
+    title.textContent = source.name || `Detector ${index + 1}`;
+    header.append(title, removeButton(() => {
+      mss.sources.splice(index, 1);
+      persist();
+      render();
+    }));
+    const fields = document.createElement("div");
+    fields.className = "fields";
+    fields.append(
+      field("Name", source.name, (value) => {
+        source.name = value.trim().toLowerCase();
+        title.textContent = source.name || `Detector ${index + 1}`;
+        persist();
+        updatePreview();
+        const links = card.querySelectorAll("input[disabled]");
+        const id = `${state.board.name || "board"}/${source.kind}/${source.name || "name"}`;
+        if (links[0]) links[0].value = id;
+        if (links[1]) links[1].value = mssTopic(source.block, source.kind, source.name);
+        if (links[2] && source.alsoBlock) links[2].value = mssTopic(source.alsoBlock, source.kind, source.name);
+      }, {
+        placeholder: "feed",
+        spellcheck: false,
+        hint: "Short name for this detector. Other boards use it in the publisher id.",
+      }),
+      field("Kind", source.kind, (value) => {
+        source.kind = value;
+        if (value !== "optical") source.alsoBlock = "";
+        if (value !== "turnout") source.point = "";
+        persist();
+        render();
+      }, {
+        select: MSS_KINDS,
+        hint: "Current watches the feeder. Optical sits at a block boundary. Turnout against occupies the block.",
+      }),
+      field("Block", source.block, (value) => {
+        source.block = value.trim().toLowerCase();
+        persist();
+        updatePreview();
+        const links = card.querySelectorAll("input[disabled]");
+        if (links[1]) links[1].value = mssTopic(source.block, source.kind, source.name);
+      }, {
+        placeholder: "south",
+        spellcheck: false,
+        hint: "The signal block this detector occupies.",
+      })
+    );
+    if (source.kind === "optical") {
+      fields.append(field("Also occupies", source.alsoBlock, (value) => {
+        source.alsoBlock = value.trim().toLowerCase();
+        persist();
+        updatePreview();
+        const links = card.querySelectorAll("input[disabled]");
+        if (links[2]) links[2].value = mssTopic(source.alsoBlock, source.kind, source.name);
+      }, {
+        placeholder: "mid",
+        spellcheck: false,
+        hint: "The other block at this boundary. A train on the sensor holds both.",
+      }));
+    }
+    if (source.kind === "turnout") {
+      const pointOptions = [{ value: "", label: "A pin" }, ...state.points.map((point) => ({
+        value: point.name,
+        label: point.name,
+      }))];
+      fields.append(field("Point", source.point, (value) => {
+        source.point = value;
+        if (value) source.pin = "";
+        else if (!source.pin) source.pin = nextButtonPin();
+        persist();
+        render();
+      }, {
+        select: withSaved(pointOptions, source.point),
+        hint: "Thrown means the turnout is against the signaled route.",
+      }));
+    }
+    if (!source.point) {
+      fields.append(
+        field("GPIO", source.pin, (value) => {
+          source.pin = value;
+          persist();
+          updatePreview();
+        }, {
+          select: source.kind === "turnout" ? pinChoices() : blockPinChoices(source.pin),
+          hint: source.kind === "turnout"
+            ? "Contact to ground when the turnout is against the route."
+            : "Pin this detector uses. VP, VN, 34, and 35 have no pull-up.",
+        }),
+        field("Debounce", source.debounce, (value) => {
+          source.debounce = value.trim() || "500ms";
+          persist();
+          updatePreview();
+        }, {
+          placeholder: "500ms",
+          hint: "Holds the detector through dirty track or the gap between cars.",
+        }),
+        field("Invert the input", source.inverted, (value) => {
+          source.inverted = value;
+          persist();
+          updatePreview();
+        }, {
+          checkbox: true,
+          hint: "On for an active-low detector. If a train shows clear, switch this.",
+        })
+      );
+    }
+    fields.append(linkedField(
+      "Publisher id",
+      `${state.board.name || "board"}/${source.kind}/${source.name || "name"}`,
+      "The id other boards type when they watch this block."
+    ));
+    fields.append(linkedField("MQTT topic", mssTopic(source.block, source.kind, source.name), "Retained ACTIVE or INACTIVE."));
+    if (source.kind === "optical" && source.alsoBlock) {
+      fields.append(linkedField(
+        "Also publishes",
+        mssTopic(source.alsoBlock, source.kind, source.name),
+        "Same detector, the other block."
+      ));
+    }
+    card.append(header, fields);
+    el.mssSources.append(card);
+  });
+
+  el.mssSignals.replaceChildren();
+  mss.signals.forEach((signal, index) => {
+    const card = document.createElement("div");
+    card.className = "row-card";
+    const header = document.createElement("header");
+    const title = document.createElement("h3");
+    title.textContent = signal.name || `Signal ${index + 1}`;
+    header.append(title, removeButton(() => {
+      mss.signals.splice(index, 1);
+      persist();
+      render();
+    }));
+    const mastOptions = withSaved(
+      (state.signals.masts || []).map((mast) => ({ value: mast.name, label: mast.name })),
+      signal.mast
+    );
+    const fields = document.createElement("div");
+    fields.className = "fields";
+    const aspects = (key, label, hint, optional) => field(label, signal[key], (value) => {
+      signal[key] = value;
+      persist();
+      updatePreview();
+    }, {
+      select: withSaved(aspectChoices(signal.mast, optional), signal[key]),
+      hint,
+    });
+    fields.append(
+      field("Name", signal.name, (value) => {
+        signal.name = value;
+        title.textContent = value || `Signal ${index + 1}`;
+        persist();
+        updatePreview();
+      }, { placeholder: "Northbound" }),
+      field("Mast", signal.mast, (value) => {
+        signal.mast = value;
+        persist();
+        render();
+      }, {
+        select: mastOptions.length ? mastOptions : [{ value: "", label: "Add a mast first" }],
+        hint: "The mast on the Signals page. MSS drives it, so JMRI does not.",
+      }),
+      field("Protects", signal.stopBlock, (value) => {
+        signal.stopBlock = value.trim().toLowerCase();
+        persist();
+        updatePreview();
+      }, {
+        placeholder: "mid",
+        spellcheck: false,
+        hint: "Occupied here means Stop. This is the block ahead of the signal.",
+      }),
+      field("Next block", signal.approachBlock, (value) => {
+        signal.approachBlock = value.trim().toLowerCase();
+        persist();
+        updatePreview();
+      }, {
+        placeholder: "north",
+        spellcheck: false,
+        hint: "Occupied here means Approach, if the first block is clear.",
+      }),
+      field("Two ahead", signal.advanceBlock, (value) => {
+        signal.advanceBlock = value.trim().toLowerCase();
+        persist();
+        updatePreview();
+      }, {
+        placeholder: "far",
+        spellcheck: false,
+        hint: "Leave blank to skip Advance Approach.",
+      }),
+      aspects("stop", "Stop aspect", "The aspect on that mast for Stop.", false),
+      aspects("approach", "Approach aspect", "The aspect for Approach.", false),
+      aspects("advance", "Advance Approach aspect", "Optional. Flashing yellow on many railroads.", true),
+      aspects("clear", "Clear aspect", "Shown when the blocks ahead are clear.", false),
+      aspects("diverging", "Approach Diverging aspect", "Optional. Replaces Approach when the junction ahead is diverging and clear.", true),
+      field("Junction ahead", signal.divergingFrom, (value) => {
+        signal.divergingFrom = value.trim().toLowerCase();
+        persist();
+        updatePreview();
+      }, {
+        placeholder: "north/wye",
+        spellcheck: false,
+        hint: "Board and junction name, like north/wye. Blank if this signal has no Approach Diverging.",
+      }),
+      field("Approach lighting", signal.approachLighting, (value) => {
+        signal.approachLighting = value;
+        persist();
+        render();
+      }, {
+        checkbox: true,
+        hint: "Dark unless a train is in the block behind this signal.",
+      })
+    );
+    if (signal.approachLighting) {
+      fields.append(
+        field("Block behind", signal.behindBlock, (value) => {
+          signal.behindBlock = value.trim().toLowerCase();
+          persist();
+          updatePreview();
+        }, {
+          placeholder: "south",
+          spellcheck: false,
+          hint: "The block a train is in as it comes up to this signal.",
+        }),
+        aspects("dark", "Dark aspect", "Every lamp off.", false)
+      );
+    }
+    const remotes = document.createElement("div");
+    remotes.className = "panel";
+    const remoteTitle = document.createElement("h4");
+    remoteTitle.textContent = "Detectors on other boards";
+    const remoteIntro = document.createElement("p");
+    remoteIntro.className = "hint";
+    remoteIntro.textContent = "Publisher id from the other board, on the block it occupies. This board's own detectors are included already.";
+    remotes.append(remoteTitle, remoteIntro);
+    const watched = [...new Set([signal.stopBlock, signal.approachBlock, signal.advanceBlock, signal.behindBlock].filter(Boolean))];
+    signal.remotes.forEach((remote, remoteIndex) => {
+      const row = document.createElement("div");
+      row.className = "control-card";
+      const rowHeader = document.createElement("header");
+      const label = document.createElement("h3");
+      label.textContent = remote.source || `Publisher ${remoteIndex + 1}`;
+      rowHeader.append(label, removeButton(() => {
+        signal.remotes.splice(remoteIndex, 1);
+        persist();
+        render();
+      }));
+      const rowFields = document.createElement("div");
+      rowFields.className = "fields";
+      const blockOptions = withSaved(watched.map((block) => ({ value: block, label: block })), remote.block);
+      rowFields.append(
+        field("Block", remote.block, (value) => {
+          remote.block = value;
+          persist();
+          updatePreview();
+        }, {
+          select: blockOptions.length ? blockOptions : [{ value: "", label: "Set the blocks above first" }],
+          hint: "Which of this signal's blocks that publisher reports.",
+        }),
+        field("Publisher", remote.source, (value) => {
+          remote.source = value.trim().toLowerCase();
+          label.textContent = remote.source || `Publisher ${remoteIndex + 1}`;
+          persist();
+          updatePreview();
+        }, {
+          placeholder: "north/current/feed",
+          spellcheck: false,
+          hint: "board/kind/name, or board/route/junction for a junction ahead.",
+        })
+      );
+      row.append(rowHeader, rowFields);
+      remotes.append(row);
+    });
+    const addRemote = document.createElement("button");
+    addRemote.type = "button";
+    addRemote.textContent = "Add publisher";
+    addRemote.addEventListener("click", () => {
+      signal.remotes.push({ block: watched[0] || "", source: "" });
+      persist();
+      render();
+    });
+    remotes.append(addRemote);
+    card.append(header, fields, remotes);
+    el.mssSignals.append(card);
+  });
+
+  el.mssJunctions.replaceChildren();
+  mss.junctions.forEach((junction, index) => {
+    const card = document.createElement("div");
+    card.className = "row-card";
+    const header = document.createElement("header");
+    const title = document.createElement("h3");
+    title.textContent = junction.name || `Junction ${index + 1}`;
+    header.append(title, removeButton(() => {
+      mss.junctions.splice(index, 1);
+      persist();
+      render();
+    }));
+    const fields = document.createElement("div");
+    fields.className = "fields";
+    const pointOptions = [{ value: "", label: "A pin" }, ...state.points.map((point) => ({
+      value: point.name,
+      label: point.name,
+    }))];
+    fields.append(
+      field("Name", junction.name, (value) => {
+        junction.name = value.trim().toLowerCase();
+        title.textContent = junction.name || `Junction ${index + 1}`;
+        persist();
+        updatePreview();
+        const links = card.querySelectorAll("input[disabled]");
+        const node = state.board.name || "board";
+        if (links[0]) links[0].value = `mss/${mss.line || "main"}/diverging/${node}/${junction.name || "name"}`;
+        if (links[1]) links[1].value = `${node}/route/${junction.name || "name"}`;
+      }, {
+        placeholder: "wye",
+        spellcheck: false,
+        hint: "Other signals refer to this as board/name, like south/wye.",
+      }),
+      field("Lined by", junction.point, (value) => {
+        junction.point = value;
+        if (value) junction.pin = "";
+        else if (!junction.pin) junction.pin = nextButtonPin();
+        persist();
+        render();
+      }, {
+        select: withSaved(pointOptions, junction.point),
+        hint: "The turnout that picks main or diverging.",
+      }),
+      field("Main block", junction.mainBlock, (value) => {
+        junction.mainBlock = value.trim().toLowerCase();
+        persist();
+        updatePreview();
+      }, {
+        placeholder: "main",
+        spellcheck: false,
+        hint: "Occupied for signalling while the diverging route is lined.",
+      }),
+      field("Diverging block", junction.divergingBlock, (value) => {
+        junction.divergingBlock = value.trim().toLowerCase();
+        persist();
+        updatePreview();
+      }, {
+        placeholder: "branch",
+        spellcheck: false,
+        hint: "Occupied for signalling while the main route is lined.",
+      })
+    );
+    if (junction.point) {
+      fields.append(field("Thrown is diverging", junction.thrownIsDiverging !== false, (value) => {
+        junction.thrownIsDiverging = value;
+        persist();
+        updatePreview();
+      }, {
+        checkbox: true,
+        hint: "Off if thrown is the main route on this turnout.",
+      }));
+    } else {
+      fields.append(
+        field("GPIO", junction.pin, (value) => {
+          junction.pin = value;
+          persist();
+          updatePreview();
+        }, {
+          select: pinChoices(),
+          hint: "On when the diverging route is lined.",
+        }),
+        field("Invert the input", junction.inverted !== false, (value) => {
+          junction.inverted = value;
+          persist();
+          updatePreview();
+        }, {
+          checkbox: true,
+          hint: "On if the contact pulls the pin low for diverging.",
+        })
+      );
+    }
+    const node = state.board.name || "board";
+    fields.append(
+      linkedField("Approach Diverging", `mss/${mss.line || "main"}/diverging/${node}/${junction.name || "name"}`, "ACTIVE when diverging is lined and that block is clear."),
+      linkedField("Publisher id", `${node}/route/${junction.name || "name"}`, "Add this on the main block and the diverging block of signals that look at them.")
+    );
+    const remotes = document.createElement("div");
+    remotes.className = "panel";
+    const remoteTitle = document.createElement("h4");
+    remoteTitle.textContent = "Diverging block detectors on other boards";
+    remotes.append(remoteTitle);
+    junction.remotes.forEach((remote, remoteIndex) => {
+      const row = document.createElement("div");
+      row.className = "control-card";
+      const rowHeader = document.createElement("header");
+      const label = document.createElement("h3");
+      label.textContent = remote || `Publisher ${remoteIndex + 1}`;
+      rowHeader.append(label, removeButton(() => {
+        junction.remotes.splice(remoteIndex, 1);
+        persist();
+        render();
+      }));
+      const rowFields = document.createElement("div");
+      rowFields.className = "fields";
+      rowFields.append(field("Publisher", remote, (value) => {
+        junction.remotes[remoteIndex] = value.trim().toLowerCase();
+        label.textContent = junction.remotes[remoteIndex] || `Publisher ${remoteIndex + 1}`;
+        persist();
+        updatePreview();
+      }, {
+        placeholder: "north/current/feed",
+        spellcheck: false,
+        full: true,
+        hint: "A train detector for the diverging block. Approach Diverging stays off while that block is occupied.",
+      }));
+      row.append(rowHeader, rowFields);
+      remotes.append(row);
+    });
+    const addRemote = document.createElement("button");
+    addRemote.type = "button";
+    addRemote.textContent = "Add publisher";
+    addRemote.addEventListener("click", () => {
+      junction.remotes.push("");
+      persist();
+      render();
+    });
+    remotes.append(addRemote);
+    card.append(header, fields, remotes);
+    el.mssJunctions.append(card);
+  });
+}
+
 function renderMessages() {
   const structural = el.messages.querySelectorAll(".msg:not(.toast)");
   structural.forEach((n) => n.remove());
@@ -1428,9 +2005,14 @@ function updatePreview() {
   el.countBlocks.textContent = String(state.blocks.length);
   el.countPoints.textContent = String(state.points.length);
   el.countSignals.textContent = String(state.signals.masts.length);
+  const mssCount = state.mss.sources.length + state.mss.signals.length + state.mss.junctions.length;
+  el.countMss.textContent = String(mssCount);
   el.blocksEmpty.hidden = state.blocks.length > 0;
   el.pointsEmpty.hidden = state.points.length > 0;
   el.signalsEmpty.hidden = state.signals.masts.length > 0;
+  el.mssSourcesEmpty.hidden = state.mss.sources.length > 0;
+  el.mssSignalsEmpty.hidden = state.mss.signals.length > 0;
+  el.mssJunctionsEmpty.hidden = state.mss.junctions.length > 0;
   document.getElementById("i2c-card").hidden = state.points.length === 0;
   el.directPwmNote.hidden = state.points.length === 0 || usesPca();
   renderMessages();
@@ -1442,6 +2024,7 @@ function render() {
   renderBlocks();
   renderPoints();
   renderSignals();
+  renderMss();
   updatePreview();
 }
 

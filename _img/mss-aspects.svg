@@ -1,0 +1,60 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="880" height="460" viewBox="0 0 880 460" role="img" aria-labelledby="aspTitle aspDesc">
+  <title id="aspTitle">How a signal picks an aspect</title>
+  <desc id="aspDesc">The signal faces the blocks ahead. Stop if the block it protects is occupied, Approach Diverging or Approach from the next block, Advance Approach from the block after that, then Clear or Dark from the block behind.</desc>
+  <rect width="880" height="460" fill="#f4f1ea"/>
+  <g font-family="ui-sans-serif, system-ui, sans-serif">
+    <text x="32" y="40" fill="#1c1917" font-size="18" font-weight="600">The signal looks ahead. The first match wins.</text>
+    <text x="32" y="64" fill="#57534e" font-size="13">Stop, then Approach Diverging, then Approach, then Advance Approach, then Clear, then Dark.</text>
+
+    <rect x="24" y="84" width="832" height="292" rx="16" fill="#fffdf8" stroke="#e7e2d8"/>
+
+    <line x1="250" y1="112" x2="820" y2="112" stroke="#44403c" stroke-width="1.5"/>
+    <polygon points="828,112 818,107 818,117" fill="#44403c"/>
+    <text x="530" y="104" text-anchor="middle" fill="#57534e" font-size="12">the signal looks this way</text>
+
+    <rect x="44" y="128" width="168" height="220" rx="12" fill="#f5f5f4"/>
+    <rect x="268" y="128" width="184" height="220" rx="12" fill="#fde8e8" stroke="#b42318"/>
+    <rect x="468" y="128" width="184" height="220" rx="12" fill="#faeeda" stroke="#854f0b"/>
+    <rect x="668" y="128" width="164" height="220" rx="12" fill="#e8f1fb" stroke="#185fa5"/>
+
+    <g transform="translate(232 168)">
+      <line x1="0" y1="14" x2="0" y2="46" stroke="#44403c" stroke-width="2"/>
+      <circle cx="0" cy="0" r="12" fill="#292524"/>
+      <circle cx="0" cy="0" r="6" fill="#f4f1ea"/>
+      <polygon points="16,-5 26,0 16,5" fill="#44403c"/>
+    </g>
+
+    <text x="128" y="160" text-anchor="middle" fill="#44403c" font-size="15" font-weight="600">Behind</text>
+    <text x="128" y="188" text-anchor="middle" fill="#57534e" font-size="13">Train here, and</text>
+    <text x="128" y="208" text-anchor="middle" fill="#57534e" font-size="13">the road ahead</text>
+    <text x="128" y="228" text-anchor="middle" fill="#57534e" font-size="13">is clear</text>
+    <text x="128" y="256" text-anchor="middle" fill="#0f6e56" font-size="14" font-weight="600">Clear</text>
+    <text x="128" y="284" text-anchor="middle" fill="#57534e" font-size="13">Empty, ahead clear,</text>
+    <text x="128" y="304" text-anchor="middle" fill="#57534e" font-size="13">lighting on</text>
+    <text x="128" y="328" text-anchor="middle" fill="#44403c" font-size="14" font-weight="600">Dark</text>
+
+    <text x="360" y="160" text-anchor="middle" fill="#9f1239" font-size="15" font-weight="600">Protects</text>
+    <text x="360" y="188" text-anchor="middle" fill="#57534e" font-size="13">Occupied</text>
+    <text x="360" y="220" text-anchor="middle" fill="#9f1239" font-size="14" font-weight="600">Stop</text>
+    <text x="360" y="256" text-anchor="middle" fill="#57534e" font-size="13">This is the block</text>
+    <text x="360" y="276" text-anchor="middle" fill="#57534e" font-size="13">the signal</text>
+    <text x="360" y="296" text-anchor="middle" fill="#57534e" font-size="13">is guarding.</text>
+
+    <text x="560" y="160" text-anchor="middle" fill="#854f0b" font-size="15" font-weight="600">Next</text>
+    <text x="560" y="188" text-anchor="middle" fill="#57534e" font-size="13">Occupied</text>
+    <text x="560" y="212" text-anchor="middle" fill="#854f0b" font-size="14" font-weight="600">Approach</text>
+    <text x="560" y="244" text-anchor="middle" fill="#57534e" font-size="13">Diverging, and</text>
+    <text x="560" y="264" text-anchor="middle" fill="#57534e" font-size="13">that block clear</text>
+    <text x="560" y="292" text-anchor="middle" fill="#854f0b" font-size="14" font-weight="600">Approach</text>
+    <text x="560" y="312" text-anchor="middle" fill="#854f0b" font-size="14" font-weight="600">Diverging</text>
+
+    <text x="750" y="160" text-anchor="middle" fill="#185fa5" font-size="15" font-weight="600">Two ahead</text>
+    <text x="750" y="188" text-anchor="middle" fill="#57534e" font-size="13">Occupied, nearer</text>
+    <text x="750" y="208" text-anchor="middle" fill="#57534e" font-size="13">blocks clear</text>
+    <text x="750" y="240" text-anchor="middle" fill="#185fa5" font-size="14" font-weight="600">Advance</text>
+    <text x="750" y="260" text-anchor="middle" fill="#185fa5" font-size="14" font-weight="600">Approach</text>
+
+    <text x="32" y="412" fill="#57534e" font-size="13">Approach lighting off: an empty block behind shows Clear, not Dark. Advance Approach and Approach Diverging are optional.</text>
+    <text x="32" y="436" fill="#57534e" font-size="13">The signal starts at Stop until the other boards have reported in.</text>
+  </g>
+</svg>

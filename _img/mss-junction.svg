@@ -1,0 +1,80 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="880" height="560" viewBox="0 0 880 560" role="img" aria-labelledby="jntTitle jntDesc">
+  <title id="jntTitle">A junction holds the inactive route occupied</title>
+  <desc id="jntDesc">When the diverging route is lined, the main block is held occupied and the diverging indication is ACTIVE only if the diverging block is clear. When the main is lined, the diverging block is held occupied and the diverging indication is INACTIVE.</desc>
+  <rect width="880" height="560" fill="#f4f1ea"/>
+  <g font-family="ui-sans-serif, system-ui, sans-serif">
+    <rect x="16" y="16" width="848" height="260" rx="16" fill="#faeeda"/>
+    <text x="36" y="46" fill="#854f0b" font-size="15" font-weight="600">Diverging is lined, and that block is clear</text>
+
+    <g transform="translate(78 92)">
+      <line x1="0" y1="14" x2="0" y2="40" stroke="#44403c" stroke-width="2"/>
+      <circle cx="0" cy="0" r="11" fill="#292524"/>
+      <circle cx="0" cy="0" r="5" fill="#f4f1ea"/>
+      <polygon points="14,-4 24,0 14,4" fill="#44403c"/>
+    </g>
+    <text x="78" y="148" text-anchor="middle" fill="#57534e" font-size="11">signal</text>
+
+    <line x1="108" y1="90" x2="210" y2="90" stroke="#0f6e56" stroke-width="4" stroke-linecap="round"/>
+    <line x1="108" y1="102" x2="210" y2="102" stroke="#0f6e56" stroke-width="4" stroke-linecap="round"/>
+    <text x="160" y="78" text-anchor="middle" fill="#0f6e56" font-size="12" font-weight="600">protects · clear</text>
+
+    <line x1="228" y1="90" x2="430" y2="90" stroke="#854f0b" stroke-width="4" stroke-linecap="round"/>
+    <line x1="228" y1="102" x2="400" y2="102" stroke="#854f0b" stroke-width="4" stroke-linecap="round"/>
+    <path d="M400 102 L470 168" fill="none" stroke="#0f6e56" stroke-width="4" stroke-linecap="round"/>
+    <path d="M388 102 L458 168" fill="none" stroke="#0f6e56" stroke-width="4" stroke-linecap="round"/>
+    <text x="320" y="78" text-anchor="middle" fill="#854f0b" font-size="12" font-weight="600">main · held occupied</text>
+    <text x="468" y="192" text-anchor="middle" fill="#0f6e56" font-size="12" font-weight="600">diverging · clear</text>
+
+    <text x="520" y="86" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="12">…/&lt;main&gt;/route/&lt;name&gt;</text>
+    <rect x="760" y="70" width="80" height="22" rx="6" fill="#fde8e8"/>
+    <text x="800" y="86" text-anchor="middle" fill="#9f1239" font-size="12" font-weight="600">ACTIVE</text>
+
+    <text x="520" y="122" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="12">…/&lt;diverging&gt;/route/&lt;name&gt;</text>
+    <rect x="760" y="106" width="80" height="22" rx="6" fill="#e7f6ef"/>
+    <text x="800" y="122" text-anchor="middle" fill="#0f6e56" font-size="12" font-weight="600">INACTIVE</text>
+
+    <text x="520" y="158" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="12">…/diverging/&lt;board&gt;/&lt;name&gt;</text>
+    <rect x="760" y="142" width="80" height="22" rx="6" fill="#faeeda" stroke="#854f0b"/>
+    <text x="800" y="158" text-anchor="middle" fill="#854f0b" font-size="12" font-weight="600">ACTIVE</text>
+
+    <text x="36" y="230" fill="#44403c" font-size="13">The signal one block before shows Approach Diverging.</text>
+    <text x="36" y="252" fill="#44403c" font-size="13">A signal without that aspect still sees the main block occupied, so it shows Approach.</text>
+
+    <rect x="16" y="292" width="848" height="248" rx="16" fill="#e8f1fb"/>
+    <text x="36" y="322" fill="#185fa5" font-size="15" font-weight="600">Main is lined</text>
+
+    <g transform="translate(78 368)">
+      <line x1="0" y1="14" x2="0" y2="40" stroke="#44403c" stroke-width="2"/>
+      <circle cx="0" cy="0" r="11" fill="#292524"/>
+      <circle cx="0" cy="0" r="5" fill="#f4f1ea"/>
+      <polygon points="14,-4 24,0 14,4" fill="#44403c"/>
+    </g>
+    <text x="78" y="424" text-anchor="middle" fill="#57534e" font-size="11">signal</text>
+
+    <line x1="108" y1="366" x2="210" y2="366" stroke="#0f6e56" stroke-width="4" stroke-linecap="round"/>
+    <line x1="108" y1="378" x2="210" y2="378" stroke="#0f6e56" stroke-width="4" stroke-linecap="round"/>
+    <text x="160" y="354" text-anchor="middle" fill="#0f6e56" font-size="12" font-weight="600">protects · clear</text>
+
+    <line x1="228" y1="366" x2="430" y2="366" stroke="#0f6e56" stroke-width="4" stroke-linecap="round"/>
+    <line x1="228" y1="378" x2="400" y2="378" stroke="#0f6e56" stroke-width="4" stroke-linecap="round"/>
+    <path d="M400 378 L470 444" fill="none" stroke="#854f0b" stroke-width="4" stroke-linecap="round"/>
+    <path d="M388 378 L458 444" fill="none" stroke="#854f0b" stroke-width="4" stroke-linecap="round"/>
+    <text x="320" y="354" text-anchor="middle" fill="#0f6e56" font-size="12" font-weight="600">main · from its detectors</text>
+    <text x="400" y="468" text-anchor="middle" fill="#854f0b" font-size="12" font-weight="600">diverging · held occupied</text>
+
+    <text x="520" y="362" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="12">…/&lt;main&gt;/route/&lt;name&gt;</text>
+    <rect x="760" y="346" width="80" height="22" rx="6" fill="#e7f6ef"/>
+    <text x="800" y="362" text-anchor="middle" fill="#0f6e56" font-size="12" font-weight="600">INACTIVE</text>
+
+    <text x="520" y="398" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="12">…/&lt;diverging&gt;/route/&lt;name&gt;</text>
+    <rect x="760" y="382" width="80" height="22" rx="6" fill="#fde8e8"/>
+    <text x="800" y="398" text-anchor="middle" fill="#9f1239" font-size="12" font-weight="600">ACTIVE</text>
+
+    <text x="520" y="434" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="12">…/diverging/&lt;board&gt;/&lt;name&gt;</text>
+    <rect x="760" y="418" width="80" height="22" rx="6" fill="#e8f1fb" stroke="#185fa5"/>
+    <text x="800" y="434" text-anchor="middle" fill="#185fa5" font-size="12" font-weight="600">INACTIVE</text>
+
+    <text x="36" y="508" fill="#44403c" font-size="13">The signal follows the main block. Nothing can show Clear into the misaligned diverging route.</text>
+    <text x="36" y="530" fill="#44403c" font-size="13">Advance Approach stays on the one block you named. It does not swap when the junction is thrown.</text>
+  </g>
+</svg>

@@ -150,12 +150,27 @@ main {
   min-width: 0;
 }
 
-.view-head {
+.view-head,
+.subhead {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
   gap: 1rem;
   margin-bottom: 1rem;
+}
+
+.subhead {
+  margin-top: 1.25rem;
+}
+
+.subhead h3 {
+  margin: 0 0 0.2rem;
+}
+
+.subhead p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.92rem;
 }
 
 .view-head h2 {
@@ -862,7 +877,8 @@ button.mini {
 
   .fields,
   .topbar,
-  .view-head {
+  .view-head,
+  .subhead {
     display: flex;
     flex-direction: column;
   }

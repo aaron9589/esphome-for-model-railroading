@@ -64,6 +64,8 @@ CATS aspects need the signal template loaded in JMRI. The configurator offers a 
 
 The earlier WLED pattern in [wled_signal.yaml](../advanced-samples/wled_signal.yaml) is obsolete. New masts come from the configurator. The old build notes remain at https://illawarraline.net/signals-for-the-illawarra-line/.
 
+The same masts can run the Modular Signal System instead of waiting for JMRI. Each board publishes the blocks it can see, and each signal reads the blocks ahead. The rules and the MQTT topics are in [MSS over MQTT](mss-mqtt.md).
+
 ---
 
 ## Advanced samples

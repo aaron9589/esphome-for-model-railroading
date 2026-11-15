@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="880" height="500" viewBox="0 0 880 500" role="img" aria-labelledby="occTitle occDesc">
+  <title id="occTitle">What occupies a signal block</title>
+  <desc id="occDesc">A current detector occupies only its own block. An optical detector at a boundary occupies both blocks until the last car clears the gap. A turnout set against the signaled route occupies that block. Any one ACTIVE publisher is enough.</desc>
+  <rect width="880" height="500" fill="#f4f1ea"/>
+  <g font-family="ui-sans-serif, system-ui, sans-serif">
+    <text x="32" y="40" fill="#1c1917" font-size="18" font-weight="600">A block is occupied when any publisher is ACTIVE</text>
+    <text x="32" y="64" fill="#57534e" font-size="13">Current and a turnout set against the route cover this block. An optical at the gap covers both sides.</text>
+
+    <rect x="24" y="84" width="832" height="196" rx="16" fill="#fffdf8" stroke="#e7e2d8"/>
+    <rect x="336" y="108" width="208" height="148" rx="12" fill="#e7f6ef"/>
+
+    <line x1="52" y1="150" x2="828" y2="150" stroke="#44403c" stroke-width="4" stroke-linecap="round"/>
+    <line x1="52" y1="162" x2="828" y2="162" stroke="#44403c" stroke-width="4" stroke-linecap="round"/>
+    <rect x="292" y="142" width="44" height="28" fill="#fffdf8"/>
+    <rect x="544" y="142" width="44" height="28" fill="#fffdf8"/>
+
+    <circle cx="314" cy="156" r="8" fill="#185fa5" stroke="#fffdf8" stroke-width="2"/>
+    <circle cx="566" cy="156" r="8" fill="#185fa5" stroke="#fffdf8" stroke-width="2"/>
+
+    <text x="172" y="132" text-anchor="middle" fill="#44403c" font-size="14" font-weight="600">block behind</text>
+    <text x="440" y="132" text-anchor="middle" fill="#0f6e56" font-size="15" font-weight="600">this block</text>
+    <text x="708" y="132" text-anchor="middle" fill="#44403c" font-size="14" font-weight="600">block ahead</text>
+
+    <text x="314" y="196" text-anchor="middle" fill="#185fa5" font-size="12" font-weight="600">optical</text>
+    <text x="314" y="214" text-anchor="middle" fill="#57534e" font-size="12">behind + this</text>
+    <text x="440" y="196" text-anchor="middle" fill="#0f6e56" font-size="12" font-weight="600">current, turnout</text>
+    <text x="440" y="214" text-anchor="middle" fill="#0f6e56" font-size="12">this block only</text>
+    <text x="566" y="196" text-anchor="middle" fill="#185fa5" font-size="12" font-weight="600">optical</text>
+    <text x="566" y="214" text-anchor="middle" fill="#57534e" font-size="12">this + ahead</text>
+
+    <line x1="150" y1="240" x2="392" y2="240" stroke="#185fa5" stroke-width="1.25"/>
+    <line x1="150" y1="234" x2="150" y2="246" stroke="#185fa5" stroke-width="1.25"/>
+    <line x1="392" y1="234" x2="392" y2="246" stroke="#185fa5" stroke-width="1.25"/>
+    <line x1="488" y1="240" x2="730" y2="240" stroke="#185fa5" stroke-width="1.25"/>
+    <line x1="488" y1="234" x2="488" y2="246" stroke="#185fa5" stroke-width="1.25"/>
+    <line x1="730" y1="234" x2="730" y2="246" stroke="#185fa5" stroke-width="1.25"/>
+
+    <rect x="24" y="300" width="408" height="86" rx="12" fill="#e7f6ef" stroke="#0f6e56"/>
+    <text x="44" y="332" fill="#1c1917" font-size="15" font-weight="600">Current detector</text>
+    <text x="44" y="356" fill="#57534e" font-size="13">On this block's feeder. One topic, this block only.</text>
+
+    <rect x="448" y="300" width="408" height="86" rx="12" fill="#faeeda" stroke="#854f0b"/>
+    <text x="468" y="332" fill="#1c1917" font-size="15" font-weight="600">Turnout against the route</text>
+    <text x="468" y="356" fill="#57534e" font-size="13">ACTIVE when the signaled route is not lined.</text>
+
+    <rect x="24" y="404" width="832" height="72" rx="12" fill="#fffdf8" stroke="#e7e2d8"/>
+    <text x="44" y="432" fill="#57534e" font-size="13">One optical publishes both blocks. Same payload, two topics:</text>
+    <text x="44" y="456" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">mss/main/south/south/optical/gap</text>
+    <text x="420" y="456" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">mss/main/mid/south/optical/gap</text>
+  </g>
+</svg>

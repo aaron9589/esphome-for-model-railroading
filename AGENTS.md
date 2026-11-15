@@ -25,6 +25,7 @@ This repo is a beginner path for model-railroad ESP32 boards that talk to JMRI/C
 | `docs/first-board-setup-guide.md` | Paste Configurator YAML, USB flash, MQTT smoke test, failure checks |
 | `docs/jmri-mqtt-verification-guide.md` | JMRI sensor/turnout topics and panel checks |
 | `docs/README.md` | Detector wiring, point calibration, layout notes |
+| `docs/mss-mqtt.md` | Modular Signal System over MQTT: topics, aspects, junctions |
 | `configurator/` | Static GitHub Pages Board Configurator |
 | `advanced-samples/` | Non-Configurator patterns for interest only |
 | `_img/` | Architecture diagrams and photos used by the README |
@@ -49,6 +50,7 @@ This repo is a beginner path for model-railroad ESP32 boards that talk to JMRI/C
 - Default MQTT topics: `trains/track/sensor/<name>`, `trains/track/turnout/<name>`, and `trains/track/signalmast/<name>`; state feedback is `<turnout-topic>/State`.
 - Detectors publish with `retain: false` on purpose (avoid stale OCCUPIED in JMRI). Servo endpoint sliders, and the board-wide `Signal -` brightness, blink brightness/on/off, and pulse brightness, rate, and gap sliders, use `restore_value: true` on the ESP. Turnout `/State` is not retained in generated YAML; JMRI can still remember panel state. One aspect per mast can be marked to show at startup.
 - When changing generator behaviour, update `configurator/test/generator.test.js` and run the configurator tests (`configurator/package.json`).
+- **MSS over MQTT** (`docs/mss-mqtt.md`) is in the configurator. It keeps MSS 2.0.2 occupancy and aspect rules (current, optical at the boundary, turnout-against, Stop / Approach / Advance Approach / Approach Diverging / Clear, approach lighting) and replaces the CAT5 bus with retained MQTT topics. A missing or offline publisher counts as occupied. Do not reintroduce CAT5 wiring, a second file format, or a JMRI topic on a mast an MSS signal owns.
 
 ## Advanced samples
 
@@ -61,7 +63,7 @@ This repo is a beginner path for model-railroad ESP32 boards that talk to JMRI/C
 
 - Guides live under `docs/`. Prefer linking the existing guide over inventing new steps in chat.
 - Screenshot placeholders in the guides are intentional; do not invent fake screenshots.
-- Architecture pictures: `_img/architecture.svg`, `_img/mqtt-flow.svg`. Advanced-sample pictures: `_img/advanced-*.svg`, embedded from `README.md` and `advanced-samples/README.md`.
+- Architecture pictures: `_img/architecture.svg`, `_img/mqtt-flow.svg`. MSS pictures: `_img/mss-occupancy.svg`, `_img/mss-aspects.svg`, `_img/mss-failsafe.svg`, `_img/mss-stretch.svg`, `_img/mss-junction.svg`, embedded from `docs/mss-mqtt.md`. Advanced-sample pictures: `_img/advanced-*.svg`, embedded from `README.md` and `advanced-samples/README.md`.
 
 ## When something fails, check in this order
 
@@ -79,4 +81,5 @@ This repo is a beginner path for model-railroad ESP32 boards that talk to JMRI/C
 2. `docs/README.md` — detector wiring, point setup, and the layout.
 3. `docs/first-board-setup-guide.md` — paste the YAML, flash by USB, confirm MQTT.
 4. `docs/jmri-mqtt-verification-guide.md` — sensor and turnout topics.
-5. `advanced-samples/` — non-configurator patterns only.
+5. `docs/mss-mqtt.md` — Modular Signal System boards that decide their own aspects over MQTT.
+6. `advanced-samples/` — non-configurator patterns only.

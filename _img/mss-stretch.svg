@@ -1,0 +1,72 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="880" height="620" viewBox="0 0 880 620" role="img" aria-labelledby="stretchTitle stretchDesc">
+  <title id="stretchTitle">Three boards on one signaled track</title>
+  <desc id="stretchDesc">Track main has blocks south, mid, and north. The south board's signal faces north and protects mid, with north as the next block. The north board's signal faces south and also protects mid. Mid only publishes a current detector.</desc>
+  <rect width="880" height="620" fill="#f4f1ea"/>
+  <g font-family="ui-sans-serif, system-ui, sans-serif">
+    <text x="32" y="40" fill="#1c1917" font-size="18" font-weight="600">Three boards, one track named main</text>
+    <text x="32" y="64" fill="#57534e" font-size="13">Signals stand at the two boundaries. Both protect mid. Mid is the crossover: detection only.</text>
+
+    <rect x="24" y="84" width="832" height="168" rx="16" fill="#fffdf8" stroke="#e7e2d8"/>
+    <rect x="300" y="108" width="280" height="112" rx="12" fill="#e7f6ef"/>
+
+    <text x="162" y="132" text-anchor="middle" fill="#44403c" font-size="15" font-weight="600">south</text>
+    <text x="440" y="132" text-anchor="middle" fill="#0f6e56" font-size="15" font-weight="600">mid</text>
+    <text x="718" y="132" text-anchor="middle" fill="#44403c" font-size="15" font-weight="600">north</text>
+
+    <line x1="52" y1="168" x2="828" y2="168" stroke="#44403c" stroke-width="4" stroke-linecap="round"/>
+    <line x1="52" y1="180" x2="828" y2="180" stroke="#44403c" stroke-width="4" stroke-linecap="round"/>
+    <rect x="286" y="160" width="36" height="28" fill="#fffdf8"/>
+    <rect x="558" y="160" width="36" height="28" fill="#fffdf8"/>
+
+    <g transform="translate(304 174)">
+      <circle cx="0" cy="0" r="11" fill="#292524"/>
+      <circle cx="0" cy="0" r="5" fill="#f4f1ea"/>
+      <polygon points="14,-4 24,0 14,4" fill="#1c1917"/>
+    </g>
+    <g transform="translate(576 174) scale(-1 1)">
+      <circle cx="0" cy="0" r="11" fill="#292524"/>
+      <circle cx="0" cy="0" r="5" fill="#f4f1ea"/>
+      <polygon points="14,-4 24,0 14,4" fill="#1c1917"/>
+    </g>
+
+    <text x="250" y="214" text-anchor="middle" fill="#185fa5" font-size="12" font-weight="600">south optical · both sides</text>
+    <text x="630" y="214" text-anchor="middle" fill="#185fa5" font-size="12" font-weight="600">north optical · both sides</text>
+    <text x="440" y="208" text-anchor="middle" fill="#0f6e56" font-size="12">protected by both signals</text>
+
+    <rect x="24" y="268" width="270" height="236" rx="12" fill="#fffdf8" stroke="#e7e2d8"/>
+    <text x="44" y="298" fill="#1c1917" font-size="16" font-weight="600">south</text>
+    <text x="44" y="320" fill="#57534e" font-size="13">Cascade. Signal faces north.</text>
+    <text x="44" y="348" fill="#44403c" font-size="13" font-weight="600">Publishes</text>
+    <text x="44" y="370" fill="#57534e" font-size="13">current on south</text>
+    <text x="44" y="390" fill="#57534e" font-size="13">optical on south and mid</text>
+    <text x="44" y="418" fill="#44403c" font-size="13" font-weight="600">Signal</text>
+    <text x="44" y="440" fill="#57534e" font-size="13">protects mid, next is north</text>
+    <text x="44" y="460" fill="#57534e" font-size="13">behind is south</text>
+    <text x="44" y="482" fill="#57534e" font-size="13">reads mid and north currents</text>
+
+    <rect x="306" y="268" width="268" height="236" rx="12" fill="#e7f6ef" stroke="#0f6e56"/>
+    <text x="326" y="298" fill="#1c1917" font-size="16" font-weight="600">mid</text>
+    <text x="326" y="320" fill="#57534e" font-size="13">Crossover. No signal.</text>
+    <text x="326" y="348" fill="#44403c" font-size="13" font-weight="600">Publishes</text>
+    <text x="326" y="370" fill="#57534e" font-size="13">current on mid</text>
+    <text x="326" y="418" fill="#44403c" font-size="13" font-weight="600">Reads</text>
+    <text x="326" y="440" fill="#57534e" font-size="13">nothing — it has no mast</text>
+
+    <rect x="586" y="268" width="270" height="236" rx="12" fill="#fffdf8" stroke="#e7e2d8"/>
+    <text x="606" y="298" fill="#1c1917" font-size="16" font-weight="600">north</text>
+    <text x="606" y="320" fill="#57534e" font-size="13">Cascade. Signal faces south.</text>
+    <text x="606" y="348" fill="#44403c" font-size="13" font-weight="600">Publishes</text>
+    <text x="606" y="370" fill="#57534e" font-size="13">current on north</text>
+    <text x="606" y="390" fill="#57534e" font-size="13">optical on north and mid</text>
+    <text x="606" y="418" fill="#44403c" font-size="13" font-weight="600">Signal</text>
+    <text x="606" y="440" fill="#57534e" font-size="13">protects mid, next is south</text>
+    <text x="606" y="460" fill="#57534e" font-size="13">reads south current and</text>
+    <text x="606" y="480" fill="#57534e" font-size="13">south optical</text>
+
+    <rect x="24" y="520" width="832" height="76" rx="12" fill="#e8f1fb"/>
+    <text x="44" y="548" fill="#1c1917" font-size="14" font-weight="600">Train in south</text>
+    <text x="158" y="548" fill="#185fa5" font-size="14">South's signal keeps watching mid. North's signal shows Approach.</text>
+    <text x="44" y="572" fill="#1c1917" font-size="14" font-weight="600">Train reaches mid</text>
+    <text x="196" y="572" fill="#185fa5" font-size="14">Both signals show Stop. Each one protects mid.</text>
+  </g>
+</svg>

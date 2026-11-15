@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="880" height="292" viewBox="0 0 880 292" role="img" aria-labelledby="safeTitle safeDesc">
+  <title id="safeTitle">When a neighbour trusts a publisher</title>
+  <desc id="safeDesc">A publisher is clear only when its board is online and the payload is INACTIVE. An active detector occupies the block. An offline or unheard board occupies the block too, so a missing module shows Stop.</desc>
+  <rect width="880" height="292" fill="#f4f1ea"/>
+  <g font-family="ui-sans-serif, system-ui, sans-serif">
+    <text x="32" y="40" fill="#1c1917" font-size="18" font-weight="600">A missing board holds its blocks occupied</text>
+    <text x="32" y="64" fill="#57534e" font-size="13">A neighbour needs the board ONLINE and this publisher INACTIVE. Anything else is occupied.</text>
+
+    <rect x="24" y="88" width="266" height="128" rx="12" fill="#e7f6ef" stroke="#0f6e56"/>
+    <text x="157" y="124" text-anchor="middle" fill="#0f6e56" font-size="14" font-weight="600">Online and INACTIVE</text>
+    <text x="157" y="156" text-anchor="middle" fill="#1c1917" font-size="16" font-weight="600">Clear</text>
+    <text x="157" y="182" text-anchor="middle" fill="#57534e" font-size="13">from this publisher</text>
+
+    <rect x="307" y="88" width="266" height="128" rx="12" fill="#faeeda" stroke="#854f0b"/>
+    <text x="440" y="124" text-anchor="middle" fill="#854f0b" font-size="14" font-weight="600">Online and ACTIVE</text>
+    <text x="440" y="156" text-anchor="middle" fill="#1c1917" font-size="16" font-weight="600">Occupied</text>
+    <text x="440" y="182" text-anchor="middle" fill="#57534e" font-size="13">train, turnout, or route</text>
+
+    <rect x="590" y="88" width="266" height="128" rx="12" fill="#f5f5f4" stroke="#44403c"/>
+    <text x="723" y="124" text-anchor="middle" fill="#44403c" font-size="14" font-weight="600">Offline, or not heard</text>
+    <text x="723" y="156" text-anchor="middle" fill="#1c1917" font-size="16" font-weight="600">Occupied</text>
+    <text x="723" y="182" text-anchor="middle" fill="#57534e" font-size="13">the signal holds Stop</text>
+
+    <text x="32" y="252" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">mss/&lt;track&gt;/node/&lt;board&gt;/online</text>
+    <text x="360" y="252" fill="#57534e" font-size="13">Retained. Birth is ONLINE. The last will is OFFLINE.</text>
+  </g>
+</svg>

@@ -15,6 +15,7 @@ vm.runInNewContext(fs.readFileSync(generatorPath, "utf8"), context, {
 const {
   CONFIG_MARKER,
   MIN_ESPHOME_VERSION,
+  emptyConfig,
   generatePassword,
   generateYaml,
   myFirstBoardPreset,
@@ -688,6 +689,133 @@ test("individual LEDs use one GPIO each", () => {
   config.signals.masts[0].lamps[1].pin = "GPIO18";
   const { errors } = validateConfig(config);
   assert.ok(errors.some((error) => error.includes("GPIO18")));
+});
+
+function mssAspect(label, color) {
+  return {
+    label,
+    states: [label],
+    lamps: [
+      { color, mode: "steady" },
+      { color: "off", mode: "steady" },
+      { color: "off", mode: "steady" },
+    ],
+  };
+}
+
+test("a board with no MSS config does not publish the occupancy bus", () => {
+  const yaml = generateYaml(withCreds(myFirstBoardPreset()));
+  assert.doesNotMatch(yaml, /birth_message:/);
+  assert.doesNotMatch(yaml, /id: mss_apply/);
+  const stored = { board: { name: "yard" }, blocks: [], points: [] };
+  const parsed = parseConfigFromYaml(`# ${CONFIG_MARKER}\n# ${JSON.stringify(stored)}\n`);
+  normalizeConfig(parsed);
+  assert.equal(parsed.mss.sources.length, 0);
+  assert.doesNotMatch(generateYaml(withCreds(parsed)), /mss\/main\/node/);
+});
+
+test("MSS occupancy, aspects, and junctions round-trip", () => {
+  const config = withCreds(emptyConfig());
+  config.board.name = "south";
+  config.points = [{
+    name: "Wye",
+    topic: "trains/track/turnout/Wye",
+    channel: 0,
+    travelTime: "10s",
+    controls: [],
+  }];
+  const northbound = signalMast("Northbound", 0, [
+    { name: "Bottom", count: 1 },
+    { name: "Middle", count: 1 },
+    { name: "Top", count: 1 },
+  ], [
+    mssAspect("Stop", "red"),
+    mssAspect("Approach", "amber"),
+    mssAspect("Advance Approach", "amber"),
+    mssAspect("Approach Diverging", "amber"),
+    mssAspect("Clear", "green"),
+    mssAspect("Dark", "off"),
+  ]);
+  northbound.pin = "GPIO16";
+  const home = signalMast("Home", 0, [{ name: "Lamp", count: 1 }], [{
+    label: "Stop",
+    states: ["Stop"],
+    lamps: [{ color: "red", mode: "steady" }],
+  }]);
+  home.pin = "GPIO17";
+  config.signals.masts = [northbound, home];
+  config.mss = {
+    line: "main",
+    sources: [
+      { name: "feed", kind: "current", block: "south", pin: "GPIO34", inverted: true, debounce: "500ms" },
+      { name: "gap", kind: "optical", block: "south", alsoBlock: "mid", pin: "GPIO35", inverted: true, debounce: "200ms" },
+      { name: "main-feed", kind: "current", block: "main", pin: "GPIO32", inverted: true, debounce: "500ms" },
+      { name: "branch-feed", kind: "current", block: "branch", pin: "GPIO33", inverted: true, debounce: "500ms" },
+    ],
+    signals: [{
+      name: "Northbound",
+      mast: "Northbound",
+      stop: "Stop",
+      approach: "Approach",
+      advance: "Advance Approach",
+      diverging: "Approach Diverging",
+      clear: "Clear",
+      dark: "Dark",
+      approachLighting: true,
+      stopBlock: "mid",
+      approachBlock: "main",
+      advanceBlock: "far",
+      behindBlock: "south",
+      divergingFrom: "south/wye",
+      remotes: [
+        { block: "mid", source: "midboard/current/feed" },
+        { block: "far", source: "far/current/feed" },
+      ],
+    }],
+    junctions: [{
+      name: "wye",
+      point: "Wye",
+      thrownIsDiverging: true,
+      mainBlock: "main",
+      divergingBlock: "branch",
+      remotes: [],
+    }],
+  };
+  normalizeConfig(config);
+  const { errors } = validateConfig(config);
+  assert.equal(errors.length, 0, errors.join("\n"));
+  const yaml = generateYaml(config);
+  assert.match(yaml, /topic: mss\/main\/node\/south\/online\n    payload: OFFLINE\n    retain: true/);
+  assert.match(yaml, /topic: mss\/main\/south\/south\/current\/feed/);
+  assert.match(yaml, /topic: mss\/main\/mid\/south\/optical\/gap/);
+  assert.match(yaml, /topic: mss\/main\/south\/south\/optical\/gap/);
+  assert.match(yaml, /if \(!\(id\(mss_node_midboard\) == 1 && id\(mss_src_mid_midboard_current_feed\) == 2\)\) real_mid = true;/);
+  assert.match(yaml, /if \(force_main_wye\) occ_main = true;/);
+  assert.match(yaml, /const bool ad_northbound = jdiv_wye && !real_branch;/);
+  const decision = yaml.slice(yaml.indexOf("int next_northbound"));
+  const stopAt = decision.indexOf("if (occ_mid) next_northbound = 0;");
+  const divergingAt = decision.indexOf("else if (occ_main && ad_northbound) next_northbound = 3;");
+  const approachAt = decision.indexOf("else if (occ_main) next_northbound = 1;");
+  const advanceAt = decision.indexOf("else if (occ_far) next_northbound = 2;");
+  const darkAt = decision.indexOf("else if (!occ_south) next_northbound = 5;");
+  assert.ok(stopAt >= 0 && stopAt < divergingAt && divergingAt < approachAt && approachAt < advanceAt && advanceAt < darkAt);
+  assert.match(yaml, /id: mss_apply/);
+  assert.match(yaml, /script.execute: mss_apply/);
+  assert.doesNotMatch(yaml, /topic: trains\/track\/signalmast\/Northbound/);
+  assert.match(yaml, /topic: trains\/track\/signalmast\/Home/);
+  assert.match(yaml, /priority: -250.0/);
+  const restored = parseConfigFromYaml(yaml);
+  normalizeConfig(restored);
+  assert.equal(restored.mss.sources[1].alsoBlock, "mid");
+  assert.equal(restored.mss.signals[0].divergingFrom, "south/wye");
+  assert.equal(restored.mss.junctions[0].mainBlock, "main");
+  assert.equal(restored.mss.signals[0].remotes[0].source, "midboard/current/feed");
+
+  config.mss.signals[0].stopBlock = "";
+  const missing = validateConfig(config);
+  assert.ok(missing.errors.some((error) => error.includes("block it protects")));
+  config.board.mqttEnabled = false;
+  assert.ok(validateConfig(config).errors.some((error) => error.includes("Modular signals need MQTT")));
 });
 
 console.log("\nAll generator tests passed.");
