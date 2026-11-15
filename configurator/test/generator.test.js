@@ -18,9 +18,11 @@ const {
   generatePassword,
   generateYaml,
   myFirstBoardPreset,
+  normalizeConfig,
   parseConfigFromYaml,
   topicFor,
   stateTopic,
+  STRAPPING_PINS,
   uniqueIds,
   validateConfig,
 } = context.EsphomeMr;
@@ -70,6 +72,7 @@ test("generated YAML embeds credentials and min_version", () => {
   assert.match(yaml, /ssid: layout-wifi/);
   assert.match(yaml, /password: s3cret/);
   assert.match(yaml, /broker: 192\.168\.1\.50/);
+  assert.match(yaml, /topic_prefix: null/);
   assert.match(yaml, /^api:\n  encryption:\n    key: "[A-Za-z0-9+/]{43}="\n  reboot_timeout: 0s\n/m);
   assert.match(yaml, /^ota:\n  - platform: esphome\n    encryption:\n/m);
   assert.doesNotMatch(yaml, /ota-pass/);
@@ -377,6 +380,34 @@ test("disabling MQTT drops the broker and every JMRI topic", () => {
 
   const restored = parseConfigFromYaml(yaml);
   assert.equal(restored.board.mqttEnabled, false);
+});
+
+test("a block can use an input-only pin", () => {
+  const config = withCreds(myFirstBoardPreset());
+  config.blocks[0].gpio = "gpio34";
+  normalizeConfig(config);
+  assert.equal(config.blocks[0].gpio, "GPIO34");
+  const ok = validateConfig(config);
+  assert.equal(ok.errors.length, 0);
+  assert.equal(ok.warnings.some((warning) => warning.includes("strapping")), false);
+
+  config.blocks[0].gpio = "GPIO6";
+  const bad = validateConfig(config);
+  assert.ok(bad.errors.some((error) => error.includes("flash")));
+});
+
+test("strapping pins are flagged and still allowed", () => {
+  assert.deepEqual([...STRAPPING_PINS], ["GPIO0", "GPIO2", "GPIO5", "GPIO12", "GPIO15"]);
+
+  const config = withCreds(myFirstBoardPreset());
+  config.pca9685 = false;
+  config.points[0].servoPin = "GPIO5";
+  const flagged = validateConfig(config);
+  assert.equal(flagged.errors.length, 0);
+  assert.ok(flagged.warnings.some((warning) => warning.includes("GPIO5 is a strapping pin")));
+
+  config.points[0].servoPin = "GPIO18";
+  assert.equal(validateConfig(config).warnings.some((warning) => warning.includes("strapping")), false);
 });
 
 test("direct PWM servos skip the PCA9685", () => {

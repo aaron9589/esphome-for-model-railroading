@@ -1,6 +1,7 @@
 const {
   PULLUP_PINS,
   STRAPPING_PINS,
+  NO_PULLUP_PINS,
   ensureSecrets,
   generatePassword,
   generateYaml,
@@ -409,6 +410,21 @@ function pinChoices() {
   }));
 }
 
+function blockPinChoices(current) {
+  const choices = [
+    ...pinChoices(),
+    ...Object.entries(NO_PULLUP_PINS).map(([pin, silk]) => ({
+      value: pin,
+      label: silk === pin.slice(4) ? `${pin} (no pull-up)` : `${pin} (${silk}, no pull-up)`,
+    })),
+  ];
+  const name = String(current || "").toUpperCase();
+  if (name && !choices.some((choice) => choice.value === name)) {
+    choices.push({ value: name, label: name });
+  }
+  return choices;
+}
+
 function usedPins() {
   const used = new Set();
   for (const block of state.blocks || []) {
@@ -630,12 +646,12 @@ function renderBlocks() {
       }),
       topicField,
       field("GPIO", block.gpio, (v) => {
-        block.gpio = v.trim().toUpperCase();
+        block.gpio = v;
         persist();
         updatePreview();
       }, {
-        placeholder: "GPIO14",
-        hint: "Pin this detector uses.",
+        select: blockPinChoices(block.gpio),
+        hint: "Pin this detector uses. VP, VN, 34, and 35 have no pull-up.",
       }),
       field("Debounce", block.debounce, (v) => {
         block.debounce = v.trim() || "500ms";
