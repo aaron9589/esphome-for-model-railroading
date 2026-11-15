@@ -257,6 +257,22 @@ main {
   color: var(--muted);
 }
 
+.face {
+  grid-column: 1 / -1;
+  margin-top: 0.35rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--line);
+}
+
+.face h5 {
+  margin: 0 0 0.15rem;
+  font-size: 0.95rem;
+}
+
+.face > .hint {
+  margin: 0 0 0.7rem;
+}
+
 .control-card {
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -289,6 +305,74 @@ main {
   margin: -0.15rem 0 0.85rem;
   padding-bottom: 0.7rem;
   border-bottom: 1px solid var(--line);
+}
+
+.collapse-group {
+  display: flex;
+  align-items: center;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.collapse-group h3 {
+  cursor: pointer;
+  min-width: 0;
+}
+
+button.collapse {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.7rem;
+  height: 1.7rem;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  flex: 0 0 auto;
+}
+
+button.collapse:hover {
+  color: var(--ink);
+}
+
+.chevron {
+  width: 0.42rem;
+  height: 0.42rem;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: rotate(45deg);
+  margin-top: -0.2rem;
+}
+
+.is-collapsed .chevron {
+  transform: rotate(-45deg);
+  margin-top: 0;
+  margin-left: -0.12rem;
+}
+
+.row-card.is-collapsed > :not(header),
+.control-card.is-collapsed > :not(header) {
+  display: none;
+}
+
+.row-card.is-collapsed > header,
+.control-card.is-collapsed > header {
+  margin-bottom: 0;
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 .row-card h3 {

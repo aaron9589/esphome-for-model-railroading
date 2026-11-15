@@ -710,13 +710,58 @@ test("a board with no MSS config does not publish the occupancy bus", () => {
   const stored = { board: { name: "yard" }, blocks: [], points: [] };
   const parsed = parseConfigFromYaml(`# ${CONFIG_MARKER}\n# ${JSON.stringify(stored)}\n`);
   normalizeConfig(parsed);
-  assert.equal(parsed.mss.sources.length, 0);
+  assert.equal(parsed.mss.blocks.length, 0);
+  assert.equal(parsed.mss.opticals.length, 0);
   assert.doesNotMatch(generateYaml(withCreds(parsed)), /mss\/main\/node/);
 });
 
-test("MSS occupancy, aspects, and junctions round-trip", () => {
+function mssEnd(overrides) {
+  return {
+    optical: "",
+    link: "",
+    configurable: false,
+    mast: "",
+    stop: "Stop",
+    approach: "Approach",
+    advance: "",
+    diverging: "",
+    clear: "Clear",
+    dark: "",
+    approachLighting: false,
+    divergingFrom: "",
+    outMast: "",
+    outStop: "Stop",
+    outApproach: "Approach",
+    outAdvance: "",
+    outDiverging: "",
+    outClear: "Clear",
+    outDark: "",
+    outApproachLighting: false,
+    outDivergingFrom: "",
+    remotes: [],
+    ...overrides,
+  };
+}
+
+function detector(name, gpio) {
+  return {
+    name,
+    topic: `trains/track/sensor/${name}`,
+    gpio,
+    inverted: true,
+    debounce: "500ms",
+  };
+}
+
+test("MSS signal blocks, aspects, and junctions round-trip", () => {
   const config = withCreds(emptyConfig());
   config.board.name = "south";
+  config.blocks = [
+    detector("Feed", "GPIO34"),
+    detector("Main feed", "GPIO32"),
+    detector("Branch feed", "GPIO33"),
+    detector("Far feed", "GPIO25"),
+  ];
   config.points = [{
     name: "Wye",
     topic: "trains/track/turnout/Wye",
@@ -743,35 +788,65 @@ test("MSS occupancy, aspects, and junctions round-trip", () => {
     lamps: [{ color: "red", mode: "steady" }],
   }]);
   home.pin = "GPIO17";
-  config.signals.masts = [northbound, home];
+  const outbound = signalMast("Outbound", 0, [{ name: "Lamp", count: 1 }], [
+    mssAspect("Stop", "red"),
+    mssAspect("Approach", "amber"),
+    mssAspect("Advance Approach", "amber"),
+    mssAspect("Clear", "green"),
+  ]);
+  outbound.pin = "GPIO18";
+  config.signals.masts = [northbound, home, outbound];
   config.mss = {
     line: "main",
-    sources: [
-      { name: "feed", kind: "current", block: "south", pin: "GPIO34", inverted: true, debounce: "500ms" },
-      { name: "gap", kind: "optical", block: "south", alsoBlock: "mid", pin: "GPIO35", inverted: true, debounce: "200ms" },
-      { name: "main-feed", kind: "current", block: "main", pin: "GPIO32", inverted: true, debounce: "500ms" },
-      { name: "branch-feed", kind: "current", block: "branch", pin: "GPIO33", inverted: true, debounce: "500ms" },
+    opticals: [
+      { name: "gap", pin: "GPIO35", inverted: true, debounce: "200ms" },
     ],
-    signals: [{
-      name: "Northbound",
-      mast: "Northbound",
-      stop: "Stop",
-      approach: "Approach",
-      advance: "Advance Approach",
-      diverging: "Approach Diverging",
-      clear: "Clear",
-      dark: "Dark",
-      approachLighting: true,
-      stopBlock: "mid",
-      approachBlock: "main",
-      advanceBlock: "far",
-      behindBlock: "south",
-      divergingFrom: "south/wye",
-      remotes: [
-        { block: "mid", source: "midboard/current/feed" },
-        { block: "far", source: "far/current/feed" },
-      ],
-    }],
+    blocks: [
+      {
+        name: "south",
+        currents: [],
+        begin: mssEnd({
+          configurable: true,
+          remotes: ["midboard/current/feed"],
+          outMast: "Outbound",
+          outAdvance: "Advance Approach",
+        }),
+        end: mssEnd({ link: "mid" }),
+      },
+      {
+        name: "mid",
+        currents: ["Feed"],
+        begin: mssEnd({
+          optical: "gap",
+          link: "south",
+          mast: "Northbound",
+          advance: "Advance Approach",
+          diverging: "Approach Diverging",
+          dark: "Dark",
+          approachLighting: true,
+          divergingFrom: "south/wye",
+        }),
+        end: mssEnd({ link: "main" }),
+      },
+      {
+        name: "main",
+        currents: ["Main feed"],
+        begin: mssEnd({ link: "mid" }),
+        end: mssEnd({ link: "far" }),
+      },
+      {
+        name: "far",
+        currents: ["Far feed"],
+        begin: mssEnd({ link: "main" }),
+        end: mssEnd(),
+      },
+      {
+        name: "branch",
+        currents: ["Branch feed"],
+        begin: mssEnd({ link: "main" }),
+        end: mssEnd(),
+      },
+    ],
     junctions: [{
       name: "wye",
       point: "Wye",
@@ -786,34 +861,58 @@ test("MSS occupancy, aspects, and junctions round-trip", () => {
   assert.equal(errors.length, 0, errors.join("\n"));
   const yaml = generateYaml(config);
   assert.match(yaml, /topic: mss\/main\/node\/south\/online\n    payload: OFFLINE\n    retain: true/);
-  assert.match(yaml, /topic: mss\/main\/south\/south\/current\/feed/);
-  assert.match(yaml, /topic: mss\/main\/mid\/south\/optical\/gap/);
-  assert.match(yaml, /topic: mss\/main\/south\/south\/optical\/gap/);
-  assert.match(yaml, /if \(!\(id\(mss_node_midboard\) == 1 && id\(mss_src_mid_midboard_current_feed\) == 2\)\) real_mid = true;/);
+  assert.match(yaml, /id: mss_track/);
+  assert.match(yaml, /initial_value: "main"/);
+  assert.match(yaml, /name: "south - south - begin neighbor"/);
+  assert.match(yaml, /std::string\("OFFLINE"\), 1, true/);
+  assert.match(yaml, /std::string\("ONLINE"\), 1, true/);
+  assert.match(yaml, /std::string\(\(.*\) \? "ACTIVE" : "INACTIVE"\), 1, true/);
+  assert.match(yaml, /track \+ "\/south\/south\/begin\/local"/);
+  assert.match(yaml, /\+ "\/local"/);
+  assert.match(yaml, /\+ "\/approach"/);
+  assert.match(yaml, /\+ "\/advance"/);
+  assert.match(yaml, /\+ "\/diverging"/);
+  assert.doesNotMatch(yaml, /topic: mss\/main\/mid\/south\/current\/feed/);
+  assert.match(yaml, /id: main_feed_sensor/);
+  assert.match(yaml, /id: feed_sensor/);
+  assert.doesNotMatch(yaml, /id: mss_src_feed\b/);
+  assert.match(yaml, /number: GPIO35/);
   assert.match(yaml, /if \(force_main_wye\) occ_main = true;/);
-  assert.match(yaml, /const bool ad_northbound = jdiv_wye && !real_branch;/);
-  const decision = yaml.slice(yaml.indexOf("int next_northbound"));
-  const stopAt = decision.indexOf("if (occ_mid) next_northbound = 0;");
-  const divergingAt = decision.indexOf("else if (occ_main && ad_northbound) next_northbound = 3;");
-  const approachAt = decision.indexOf("else if (occ_main) next_northbound = 1;");
-  const advanceAt = decision.indexOf("else if (occ_far) next_northbound = 2;");
-  const darkAt = decision.indexOf("else if (!occ_south) next_northbound = 5;");
+  assert.match(yaml, /const bool ad_mid_begin = \(jdiv_wye && !real_branch\);/);
+  assert.match(yaml, /id: mss_link_south_begin/);
+  const decision = yaml.slice(yaml.indexOf("int next_mid_begin"));
+  const stopAt = decision.indexOf("if (occ_mid) next_mid_begin = 0;");
+  const divergingAt = decision.indexOf("else if ((occ_main) && ad_mid_begin) next_mid_begin = 3;");
+  const approachAt = decision.indexOf("else if (occ_main) next_mid_begin = 1;");
+  const advanceAt = decision.indexOf("else if (occ_far) next_mid_begin = 2;");
+  const darkAt = decision.indexOf("else if (!(occ_south)) next_mid_begin = 5;");
   assert.ok(stopAt >= 0 && stopAt < divergingAt && divergingAt < approachAt && approachAt < advanceAt && advanceAt < darkAt);
   assert.match(yaml, /id: mss_apply/);
   assert.match(yaml, /script.execute: mss_apply/);
   assert.doesNotMatch(yaml, /topic: trains\/track\/signalmast\/Northbound/);
+  assert.doesNotMatch(yaml, /topic: trains\/track\/signalmast\/Outbound/);
   assert.match(yaml, /topic: trains\/track\/signalmast\/Home/);
+  assert.match(yaml, /int next_south_begin_out = 3;/);
+  assert.match(yaml, /if \(!\(id\(mss_rx_south_begin_online\) == 1 && id\(mss_rx_south_begin_local\) == 2\)\) next_south_begin_out = 0;/);
+  assert.match(yaml, /else if \(!\(id\(mss_rx_south_begin_online\) == 1 && id\(mss_rx_south_begin_approach\) == 2\)\) next_south_begin_out = 1;/);
   assert.match(yaml, /priority: -250.0/);
   const restored = parseConfigFromYaml(yaml);
   normalizeConfig(restored);
-  assert.equal(restored.mss.sources[1].alsoBlock, "mid");
-  assert.equal(restored.mss.signals[0].divergingFrom, "south/wye");
-  assert.equal(restored.mss.junctions[0].mainBlock, "main");
-  assert.equal(restored.mss.signals[0].remotes[0].source, "midboard/current/feed");
+  const mid = restored.mss.blocks.find((block) => block.name === "mid");
+  assert.equal(mid.begin.optical, "gap");
+  assert.equal(mid.begin.link, "south");
+  assert.equal(mid.begin.divergingFrom, "south/wye");
+  assert.equal(mid.currents[0], "Feed");
+  const mainBlock = restored.mss.blocks.find((block) => block.name === "main");
+  assert.equal(mainBlock.junction.name, "wye");
+  assert.equal(mainBlock.junction.divergingBlock, "branch");
+  assert.equal(mainBlock.junction.point, "Wye");
+  assert.equal(restored.mss.blocks.find((block) => block.name === "south").begin.remotes[0], "midboard/current/feed");
+  assert.equal(restored.mss.blocks.find((block) => block.name === "south").begin.outMast, "Outbound");
 
-  config.mss.signals[0].stopBlock = "";
+  config.mss.blocks[1].begin.stop = "";
   const missing = validateConfig(config);
-  assert.ok(missing.errors.some((error) => error.includes("block it protects")));
+  assert.ok(missing.errors.some((error) => error.includes("needs the Stop aspect")));
   config.board.mqttEnabled = false;
   assert.ok(validateConfig(config).errors.some((error) => error.includes("Modular signals need MQTT")));
 });

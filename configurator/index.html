@@ -38,16 +38,20 @@
             <span>3 · Points</span>
             <span class="nav-hint"><span id="count-points">0</span> servos</span>
           </button>
-          <button type="button" class="nav-item" data-view="signals">
-            <span>4 · Signals</span>
-            <span class="nav-hint"><span id="count-signals">0</span> masts</span>
+          <button type="button" class="nav-item" data-view="opticals">
+            <span>4 · Optical detectors</span>
+            <span class="nav-hint"><span id="count-opticals">0</span> detectors</span>
           </button>
           <button type="button" class="nav-item" data-view="mss">
             <span>5 · Modular signals</span>
             <span class="nav-hint"><span id="count-mss">0</span> items</span>
           </button>
+          <button type="button" class="nav-item" data-view="signals">
+            <span>6 · Signals</span>
+            <span class="nav-hint"><span id="count-signals">0</span> masts</span>
+          </button>
           <button type="button" class="nav-item" data-view="yaml">
-            <span>6 · Download</span>
+            <span>7 · Download</span>
             <span class="nav-hint">Your board.yaml</span>
           </button>
         </nav>
@@ -122,7 +126,7 @@
             <p id="points-empty" class="empty" hidden>No points yet. Skip this if the board only watches the track.</p>
             <div class="pager">
               <button type="button" data-goto="blocks">Back: blocks</button>
-              <button type="button" class="primary" data-goto="signals">Next: signals</button>
+              <button type="button" class="primary" data-goto="opticals">Next: optical detectors</button>
             </div>
           </section>
 
@@ -163,6 +167,22 @@
             <div id="signals-list"></div>
             <p id="signals-empty" class="empty" hidden>No masts yet. Skip this if the board has no signals.</p>
             <div class="pager">
+              <button type="button" data-goto="mss">Back: modular signals</button>
+              <button type="button" class="primary" data-goto="yaml">Next: download</button>
+            </div>
+          </section>
+
+          <section class="view" data-panel="opticals" hidden>
+            <header class="view-head">
+              <div>
+                <h2>Optical detectors</h2>
+                <p>The sensors at the two ends of a signal block. Each one is a GPIO input for now.</p>
+              </div>
+              <button type="button" id="btn-add-mss-optical" class="primary">Add optical detector</button>
+            </header>
+            <div id="mss-opticals"></div>
+            <p id="mss-opticals-empty" class="empty" hidden>No optical detectors yet. Skip this if the board has no signal blocks.</p>
+            <div class="pager">
               <button type="button" data-goto="points">Back: points</button>
               <button type="button" class="primary" data-goto="mss">Next: modular signals</button>
             </div>
@@ -176,39 +196,21 @@
               </div>
             </header>
             <aside class="note">
-              <p>Skip this page if JMRI decides the aspects. A detector publishes one block. An optical detector at a block boundary publishes both blocks. A turnout set against the signaled route occupies its block. A signal lists the block it protects, the next block, and optionally the one after that. <a href="https://github.com/aaron9589/esphome-for-model-railroading/blob/main/docs/mss-mqtt.md">How the topics work</a>.</p>
+              <p>Skip this page if JMRI decides the aspects. Add each signal block, then choose the current sensors it uses and an optical detector from Optical detectors at each end. Each end is a block boundary, with a signal facing into the block and one facing out. Tick Junction on a block where the track splits: that block then has three signals, all facing in. When two blocks meet on this board, say which block that end joins. An end that meets another module is set on the board's web page at the layout. <a href="https://github.com/aaron9589/esphome-for-model-railroading/blob/cursor/mss-mqtt/docs/mss-mqtt.md">How the topics work</a>.</p>
             </aside>
             <div class="card" id="mss-line"></div>
             <header class="subhead">
               <div>
-                <h3>Detectors</h3>
-                <p>What this board can see.</p>
+                <h3>Signal blocks</h3>
+                <p>One stretch of signaled track. Each end has a signal facing into the block and one facing out. Tick Junction and the block grows a diverging leg: three signals, all facing in.</p>
               </div>
-              <button type="button" id="btn-add-mss-source" class="primary">Add detector</button>
+              <button type="button" id="btn-add-mss-block" class="primary">Add signal block</button>
             </header>
-            <div id="mss-sources"></div>
-            <p id="mss-sources-empty" class="empty" hidden>No detectors yet. A crossover module only needs these.</p>
-            <header class="subhead">
-              <div>
-                <h3>Signals</h3>
-                <p>Masts at a block boundary. Build the mast on the Signals page first.</p>
-              </div>
-              <button type="button" id="btn-add-mss-signal" class="primary">Add signal</button>
-            </header>
-            <div id="mss-signals"></div>
-            <p id="mss-signals-empty" class="empty" hidden>No signals yet.</p>
-            <header class="subhead">
-              <div>
-                <h3>Junctions</h3>
-                <p>Where a signaled track splits. The closed route is main. Thrown, or the pin on, is diverging.</p>
-              </div>
-              <button type="button" id="btn-add-mss-junction" class="primary">Add junction</button>
-            </header>
-            <div id="mss-junctions"></div>
-            <p id="mss-junctions-empty" class="empty" hidden>No junctions. Skip this on a plain stretch of track.</p>
+            <div id="mss-blocks"></div>
+            <p id="mss-blocks-empty" class="empty" hidden>No signal blocks yet.</p>
             <div class="pager">
-              <button type="button" data-goto="signals">Back: signals</button>
-              <button type="button" class="primary" data-goto="yaml">Next: download</button>
+              <button type="button" data-goto="opticals">Back: optical detectors</button>
+              <button type="button" class="primary" data-goto="signals">Next: signals</button>
             </div>
           </section>
 
@@ -224,7 +226,7 @@
             </header>
             <pre id="yaml-preview"></pre>
             <div class="pager">
-              <button type="button" data-goto="mss">Back: modular signals</button>
+              <button type="button" data-goto="signals">Back: signals</button>
             </div>
           </section>
         </main>

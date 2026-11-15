@@ -97,7 +97,54 @@ function signalDefaults() {
 }
 
 function mssDefaults() {
-  return { line: "main", sources: [], signals: [], junctions: [] };
+  return { line: "main", opticals: [], blocks: [], junctions: [] };
+}
+
+function mssEndDefaults() {
+  return {
+    optical: "",
+    link: "",
+    configurable: false,
+    mast: "",
+    stop: "Stop",
+    approach: "Approach",
+    advance: "",
+    diverging: "",
+    clear: "Clear",
+    dark: "",
+    approachLighting: false,
+    divergingFrom: "",
+    outMast: "",
+    outStop: "Stop",
+    outApproach: "Approach",
+    outAdvance: "",
+    outDiverging: "",
+    outClear: "Clear",
+    outDark: "",
+    outApproachLighting: false,
+    outDivergingFrom: "",
+    remotes: [],
+  };
+}
+
+function mssFacing(end, facing) {
+  const outward = facing === "out";
+  const value = end || {};
+  const pick = (outKey, inKey, fallback) => {
+    const raw = outward ? value[outKey] : value[inKey];
+    return raw === undefined || raw === null ? fallback : raw;
+  };
+  return {
+    mast: String(pick("outMast", "mast", "") || "").trim(),
+    stop: pick("outStop", "stop", "Stop"),
+    approach: pick("outApproach", "approach", "Approach"),
+    advance: pick("outAdvance", "advance", ""),
+    diverging: pick("outDiverging", "diverging", ""),
+    clear: pick("outClear", "clear", "Clear"),
+    dark: pick("outDark", "dark", ""),
+    approachLighting: pick("outApproachLighting", "approachLighting", false) === true,
+    divergingFrom: pick("outDivergingFrom", "divergingFrom", "") || "",
+  };
 }
 
 function mastMode(mast, signals) {
@@ -294,55 +341,159 @@ function parseMssDiverging(text) {
   return { node, name };
 }
 
+function normalizeMssEnd(end) {
+  // The page keeps this object. Replacing it makes the next edit write to the old one.
+  const source = end && typeof end === "object" ? end : {};
+  const optical = mssSlug(source.optical);
+  const configurable = source.configurable === true;
+  const link = configurable ? "" : mssSlug(source.link);
+  const mast = String(source.mast || "").trim();
+  const stop = String(source.stop || "Stop").trim();
+  const approach = String(source.approach || "Approach").trim();
+  const advance = String(source.advance || "").trim();
+  const diverging = String(source.diverging || "").trim();
+  const clear = String(source.clear || "Clear").trim();
+  const dark = String(source.dark || "").trim();
+  const approachLighting = source.approachLighting === true;
+  const divergingFrom = mssSlug(source.divergingFrom).replace(/\/+/g, "/");
+  const outMast = String(source.outMast || "").trim();
+  const outStop = String(source.outStop || "Stop").trim();
+  const outApproach = String(source.outApproach || "Approach").trim();
+  const outAdvance = String(source.outAdvance || "").trim();
+  const outDiverging = String(source.outDiverging || "").trim();
+  const outClear = String(source.outClear || "Clear").trim();
+  const outDark = String(source.outDark || "").trim();
+  const outApproachLighting = source.outApproachLighting === true;
+  const outDivergingFrom = mssSlug(source.outDivergingFrom).replace(/\/+/g, "/");
+  const remotes = Array.isArray(source.remotes)
+    ? source.remotes.map((item) => mssSlug(typeof item === "string" ? item : item?.source).replace(/\/+/g, "/")).filter(Boolean)
+    : [];
+  const out = source === end && end ? end : mssEndDefaults();
+  out.optical = optical;
+  out.configurable = configurable;
+  out.link = link;
+  out.mast = mast;
+  out.stop = stop;
+  out.approach = approach;
+  out.advance = advance;
+  out.diverging = diverging;
+  out.clear = clear;
+  out.dark = dark;
+  out.approachLighting = approachLighting;
+  out.divergingFrom = divergingFrom;
+  out.outMast = outMast;
+  out.outStop = outStop;
+  out.outApproach = outApproach;
+  out.outAdvance = outAdvance;
+  out.outDiverging = outDiverging;
+  out.outClear = outClear;
+  out.outDark = outDark;
+  out.outApproachLighting = outApproachLighting;
+  out.outDivergingFrom = outDivergingFrom;
+  out.remotes = remotes;
+  return out;
+}
+
 function normalizeMss(config) {
   if (!config.mss || typeof config.mss !== "object" || Array.isArray(config.mss)) config.mss = mssDefaults();
   const mss = config.mss;
   mss.line = mssSlug(mss.line || "main") || "main";
-  if (!Array.isArray(mss.sources)) mss.sources = [];
-  if (!Array.isArray(mss.signals)) mss.signals = [];
+  if (!Array.isArray(mss.opticals)) mss.opticals = [];
+  if (!Array.isArray(mss.blocks)) mss.blocks = [];
   if (!Array.isArray(mss.junctions)) mss.junctions = [];
-  for (const source of mss.sources) {
-    source.name = mssSlug(source.name);
-    source.kind = source.kind === "optical" || source.kind === "turnout" ? source.kind : "current";
-    source.block = mssSlug(source.block);
-    source.alsoBlock = source.kind === "optical" ? mssSlug(source.alsoBlock) : "";
-    if (source.alsoBlock === source.block) source.alsoBlock = "";
-    source.pin = String(source.pin || "").toUpperCase();
-    source.inverted = source.inverted !== false;
-    source.debounce = String(source.debounce || "").trim() || "500ms";
-    source.point = String(source.point || "").trim();
-    if (source.point) source.pin = "";
+  if (!mss.blocks.length && (Array.isArray(mss.sources) || Array.isArray(mss.signals))) {
+    const oldSources = Array.isArray(mss.sources) ? mss.sources : [];
+    const oldSignals = Array.isArray(mss.signals) ? mss.signals : [];
+    const seenOpt = new Set(mss.opticals.map((item) => mssSlug(item.name)));
+    for (const source of oldSources) {
+      if (source?.kind !== "optical" || !source.name || seenOpt.has(mssSlug(source.name))) continue;
+      seenOpt.add(mssSlug(source.name));
+      mss.opticals.push({
+        name: source.name,
+        pin: source.pin,
+        inverted: source.inverted,
+        debounce: source.debounce,
+      });
+    }
+    const names = new Set(mss.blocks.map((block) => block.name));
+    for (const source of oldSources) if (source?.block) names.add(mssSlug(source.block));
+    for (const signal of oldSignals) if (signal?.stopBlock) names.add(mssSlug(signal.stopBlock));
+    for (const name of names) {
+      if (!name || mss.blocks.some((block) => block.name === name)) continue;
+      mss.blocks.push({ name, currents: [], begin: {}, end: {} });
+    }
+    const byName = new Map(mss.blocks.map((block) => [block.name, block]));
+    for (const source of oldSources) {
+      if (source?.kind !== "optical") continue;
+      const block = byName.get(mssSlug(source.block));
+      if (!block) continue;
+      const side = block.begin?.optical ? "end" : "begin";
+      if (!block[side]) block[side] = {};
+      block[side].optical = source.name;
+      if (source.alsoBlock && !block[side].link) block[side].link = source.alsoBlock;
+    }
+    for (const signal of oldSignals) {
+      const block = byName.get(mssSlug(signal?.stopBlock));
+      if (!block) continue;
+      const side = block.begin?.mast ? "end" : "begin";
+      if (!block[side]) block[side] = {};
+      Object.assign(block[side], {
+        mast: signal.mast,
+        stop: signal.stop,
+        approach: signal.approach,
+        advance: signal.advance,
+        diverging: signal.diverging,
+        clear: signal.clear,
+        dark: signal.dark,
+        approachLighting: signal.approachLighting,
+        divergingFrom: signal.divergingFrom,
+      });
+    }
   }
-  for (const signal of mss.signals) {
-    signal.name = String(signal.name || "").trim() || "Signal";
-    signal.mast = String(signal.mast || "").trim();
-    for (const key of ["stop", "approach", "advance", "diverging", "clear", "dark"]) {
-      signal[key] = String(signal[key] || "").trim();
+  delete mss.sources;
+  delete mss.signals;
+  for (const optical of mss.opticals) {
+    optical.name = mssSlug(optical.name);
+    optical.pin = String(optical.pin || "").toUpperCase();
+    optical.inverted = optical.inverted !== false;
+    optical.debounce = String(optical.debounce || "").trim() || "200ms";
+  }
+  for (const block of mss.blocks) {
+    block.name = mssSlug(block.name);
+    block.currents = Array.isArray(block.currents)
+      ? block.currents.map((item) => String(item || "").trim()).filter(Boolean)
+      : [];
+    block.begin = normalizeMssEnd(block.begin);
+    block.end = normalizeMssEnd(block.end);
+    block.diverge = normalizeMssEnd(block.diverge);
+    if (block.junction && typeof block.junction === "object") {
+      const junction = block.junction;
+      block.junction = {
+        name: mssSlug(junction.name) || block.name,
+        point: String(junction.point || "").trim(),
+        pin: junction.point ? "" : String(junction.pin || "").toUpperCase(),
+        inverted: junction.inverted !== false,
+        thrownIsDiverging: junction.thrownIsDiverging !== false,
+        divergingBlock: mssSlug(junction.divergingBlock),
+      };
+    } else {
+      block.junction = null;
     }
-    signal.approachLighting = signal.approachLighting === true;
-    for (const key of ["stopBlock", "approachBlock", "advanceBlock", "behindBlock"]) {
-      signal[key] = mssSlug(signal[key]);
-    }
-    signal.divergingFrom = mssSlug(signal.divergingFrom).replace(/\/+/g, "/");
-    if (!Array.isArray(signal.remotes)) signal.remotes = [];
-    signal.remotes = signal.remotes.map((remote) => ({
-      block: mssSlug(remote?.block),
-      source: mssSlug(remote?.source).replace(/\/+/g, "/"),
-    }));
   }
   for (const junction of mss.junctions) {
-    junction.name = mssSlug(junction.name);
-    junction.point = String(junction.point || "").trim();
-    junction.pin = junction.point ? "" : String(junction.pin || "").toUpperCase();
-    junction.inverted = junction.inverted !== false;
-    junction.thrownIsDiverging = junction.thrownIsDiverging !== false;
-    junction.mainBlock = mssSlug(junction.mainBlock);
-    junction.divergingBlock = mssSlug(junction.divergingBlock);
-    if (!Array.isArray(junction.remotes)) junction.remotes = [];
-    junction.remotes = junction.remotes
-      .map((item) => mssSlug(typeof item === "string" ? item : item?.source).replace(/\/+/g, "/"))
-      .filter(Boolean);
+    const main = mssSlug(junction.mainBlock);
+    const block = mss.blocks.find((item) => item.name === main);
+    if (!block || block.junction) continue;
+    block.junction = {
+      name: mssSlug(junction.name) || block.name,
+      point: String(junction.point || "").trim(),
+      pin: junction.point ? "" : String(junction.pin || "").toUpperCase(),
+      inverted: junction.inverted !== false,
+      thrownIsDiverging: junction.thrownIsDiverging !== false,
+      divergingBlock: mssSlug(junction.divergingBlock),
+    };
   }
+  mss.junctions = [];
   return config;
 }
 
@@ -361,6 +512,38 @@ function emptyMssPlan() {
     lambda: [],
     pointIds: new Set(),
     ownedMastIds: new Set(),
+    links: [],
+    dynamics: [],
+    feeds: new Map(),
+    sensorNames: new Set(),
+  };
+}
+
+function mssEndForBlob(end) {
+  const value = end || mssEndDefaults();
+  return {
+    optical: value.optical || "",
+    link: value.link || "",
+    configurable: value.configurable === true,
+    mast: value.mast || "",
+    stop: value.stop || "Stop",
+    approach: value.approach || "Approach",
+    advance: value.advance || "",
+    diverging: value.diverging || "",
+    clear: value.clear || "Clear",
+    dark: value.dark || "",
+    approachLighting: value.approachLighting === true,
+    divergingFrom: value.divergingFrom || "",
+    outMast: value.outMast || "",
+    outStop: value.outStop || "Stop",
+    outApproach: value.outApproach || "Approach",
+    outAdvance: value.outAdvance || "",
+    outDiverging: value.outDiverging || "",
+    outClear: value.outClear || "Clear",
+    outDark: value.outDark || "",
+    outApproachLighting: value.outApproachLighting === true,
+    outDivergingFrom: value.outDivergingFrom || "",
+    remotes: [...(value.remotes || [])],
   };
 }
 
@@ -368,54 +551,178 @@ function mssForBlob(mss) {
   const source = mss || mssDefaults();
   return {
     line: source.line || "main",
-    sources: (source.sources || []).map((item) => ({
+    opticals: (source.opticals || []).map((item) => ({
       name: item.name,
-      kind: item.kind,
-      block: item.block,
-      alsoBlock: item.alsoBlock || "",
       pin: item.pin || "",
       inverted: item.inverted !== false,
-      debounce: item.debounce || "500ms",
-      point: item.point || "",
+      debounce: item.debounce || "200ms",
     })),
-    signals: (source.signals || []).map((item) => ({
+    blocks: (source.blocks || []).map((item) => ({
       name: item.name,
-      mast: item.mast || "",
-      stop: item.stop || "",
-      approach: item.approach || "",
-      advance: item.advance || "",
-      diverging: item.diverging || "",
-      clear: item.clear || "",
-      dark: item.dark || "",
-      approachLighting: item.approachLighting === true,
-      stopBlock: item.stopBlock || "",
-      approachBlock: item.approachBlock || "",
-      advanceBlock: item.advanceBlock || "",
-      behindBlock: item.behindBlock || "",
-      divergingFrom: item.divergingFrom || "",
-      remotes: (item.remotes || []).map((remote) => ({
-        block: remote.block || "",
-        source: remote.source || "",
-      })),
+      currents: [...(item.currents || [])],
+      begin: mssEndForBlob(item.begin),
+      end: mssEndForBlob(item.end),
+      diverge: mssEndForBlob(item.diverge),
+      junction: item.junction ? {
+        name: item.junction.name || item.name,
+        point: item.junction.point || "",
+        pin: item.junction.pin || "",
+        inverted: item.junction.inverted !== false,
+        thrownIsDiverging: item.junction.thrownIsDiverging !== false,
+        divergingBlock: item.junction.divergingBlock || "",
+      } : null,
     })),
-    junctions: (source.junctions || []).map((item) => ({
-      name: item.name,
-      point: item.point || "",
-      pin: item.pin || "",
-      inverted: item.inverted !== false,
-      thrownIsDiverging: item.thrownIsDiverging !== false,
-      mainBlock: item.mainBlock || "",
-      divergingBlock: item.divergingBlock || "",
-      remotes: [...(item.remotes || [])],
-    })),
+    junctions: [],
   };
+}
+
+function activeJunctions(mss) {
+  const list = [];
+  for (const block of mss?.blocks || []) {
+    const junction = block.junction;
+    if (!junction || typeof junction !== "object") continue;
+    list.push({
+      name: mssSlug(junction.name) || block.name,
+      point: String(junction.point || "").trim(),
+      pin: junction.point ? "" : String(junction.pin || "").toUpperCase(),
+      inverted: junction.inverted !== false,
+      thrownIsDiverging: junction.thrownIsDiverging !== false,
+      mainBlock: block.name,
+      divergingBlock: mssSlug(junction.divergingBlock),
+      remotes: [],
+    });
+  }
+  return list;
 }
 
 function mssInUse(mss) {
   const source = mss || {};
-  return (source.sources || []).length > 0
-    || (source.signals || []).length > 0
+  return (source.opticals || []).length > 0
+    || (source.blocks || []).length > 0
     || (source.junctions || []).length > 0;
+}
+
+function compileMss(config) {
+  const mss = config.mss || mssDefaults();
+  const node = mssSlug(config.board?.name);
+  const blocks = (mss.blocks || []).filter((block) => mssSlugOk(block.name));
+  const byName = new Map(blocks.map((block) => [block.name, block]));
+  const detectors = new Map((config.blocks || []).map((block) => [block.name, block]));
+  const opticalByName = new Map((mss.opticals || []).filter((item) => mssSlugOk(item.name)).map((item) => [item.name, item]));
+  const sources = [];
+  const ports = [];
+  const signals = [];
+  const detect = new Map(blocks.map((block) => [block.name, []]));
+
+  for (const block of blocks) {
+    for (const currentName of block.currents || []) {
+      const detector = detectors.get(currentName);
+      if (!detector) continue;
+      const sensorId = `${sanitizeId(detector.name)}_sensor`;
+      sources.push({
+        name: sanitizeId(detector.name).replace(/_/g, "-"),
+        kind: "current",
+        block: block.name,
+        blocks: [block.name],
+        reused: true,
+        detectorName: detector.name,
+        existingSensorId: sensorId,
+        pin: "",
+        point: "",
+        inverted: true,
+        debounce: detector.debounce || "500ms",
+      });
+      detect.get(block.name).push(`id(${sensorId}).state`);
+    }
+  }
+
+  function addOptical(blockName, opticalName) {
+    if (!blockName || !opticalByName.has(opticalName)) return;
+    const sensorId = `mss_src_${sanitizeId(opticalName)}`;
+    const expr = `id(${sensorId}).state`;
+    const list = detect.get(blockName);
+    if (list && !list.includes(expr)) list.push(expr);
+  }
+
+  for (const block of blocks) {
+    const sides = block.junction ? ["begin", "end", "diverge"] : ["begin", "end"];
+    for (const side of sides) {
+      const end = block[side] || {};
+      const link = end.link && byName.has(end.link) && end.link !== block.name ? end.link : "";
+      const role = end.mast || (!block.junction && end.outMast) || end.optical || link ? "cascade" : "pass";
+      const meet = end.configurable === true && !link;
+      const key = `${mssCppName(block.name)}_${side}`;
+      ports.push({
+        key,
+        block: block.name,
+        side,
+        role,
+        meet,
+        link,
+        optical: end.optical && opticalByName.has(end.optical) ? end.optical : "",
+        textId: meet ? `mss_link_${key}` : "",
+        address: `${node}/${block.name}/${side}`,
+      });
+      addOptical(block.name, end.optical);
+      if (link && end.optical) addOptical(link, end.optical);
+      const farSide = side === "begin" ? "end" : "begin";
+      for (const facing of (block.junction ? ["in"] : ["in", "out"])) {
+        const face = mssFacing(end, facing);
+        if (!(role === "cascade" && face.mast)) continue;
+        signals.push({
+          name: facing === "out" ? `${block.name} ${side} out` : `${block.name} ${side}`,
+          facing,
+          portKey: key,
+          farKey: `${mssCppName(block.name)}_${farSide}`,
+          block: block.name,
+          ...face,
+          stopBlock: block.name,
+        });
+      }
+    }
+  }
+
+  const seenOpt = new Set();
+  for (const port of ports) {
+    if (!port.optical || seenOpt.has(port.optical)) continue;
+    seenOpt.add(port.optical);
+    const optical = opticalByName.get(port.optical);
+    sources.push({
+      name: port.optical,
+      kind: "optical",
+      block: port.block,
+      blocks: [port.block],
+      pin: optical.pin,
+      inverted: optical.inverted !== false,
+      debounce: optical.debounce || "200ms",
+      point: "",
+      reused: false,
+    });
+  }
+
+  function otherEnd(blockName, comingFrom) {
+    return ports.find((port) => port.block === blockName && port.link !== comingFrom) || null;
+  }
+  for (const signal of signals) {
+    const near = ports.find((port) => port.key === signal.portKey);
+    const far = ports.find((port) => port.key === signal.farKey);
+    const ahead = signal.facing === "out" ? near : far;
+    signal.approachBlock = ahead?.link || "";
+    signal.approachOcc = ahead?.meet ? "wire" : "";
+    signal.behindBlock = signal.facing === "out" ? signal.block : (near?.link || "");
+    signal.behindOcc = signal.facing === "out" ? "" : (near?.meet ? "wire" : "");
+    signal.advanceBlock = "";
+    signal.advanceOcc = "";
+    if (ahead?.link) {
+      const beyond = otherEnd(ahead.link, ahead.block);
+      if (beyond?.link) signal.advanceBlock = beyond.link;
+      else if (beyond?.meet) signal.advanceOcc = "wire";
+    } else if (ahead?.meet) {
+      signal.advanceOcc = "wire";
+    }
+  }
+
+  return { sources, ports, signals, detect };
 }
 
 function validateMss(config, errors, warnings, notePin) {
@@ -427,47 +734,64 @@ function validateMss(config, errors, warnings, notePin) {
   if (!mssSlugOk(mss.line)) {
     errors.push("Signaled track name should be lowercase letters, numbers, and dashes, like main.");
   }
-  const node = mssSlug(config.board?.name);
-  const topics = new Map();
-  function claim(topic, owner) {
-    if (!topic) return;
-    if (topics.has(topic)) {
-      errors.push(`MSS topic ${topic} is used by both "${topics.get(topic)}" and "${owner}".`);
-    } else {
-      topics.set(topic, owner);
-    }
-  }
   const pointNames = new Set((config.points || []).map((point) => point.name));
-  for (const source of mss.sources || []) {
-    const who = `MSS detector "${source.name || "detector"}"`;
-    if (!mssSlugOk(source.name)) errors.push(`${who} needs a name like feed or gap.`);
-    if (!mssSlugOk(source.block)) errors.push(`${who} needs a block name like south or mid.`);
-    if (source.kind === "optical" && source.alsoBlock && !mssSlugOk(source.alsoBlock)) {
-      errors.push(`${who} second block should look like mid.`);
-    }
-    if (!mssDelayOk(source.debounce)) errors.push(`${who} debounce should look like 500ms.`);
-    if (source.point) {
-      if (!pointNames.has(source.point)) errors.push(`${who} follows point "${source.point}", which is not on this board.`);
-    } else if (source.kind === "turnout") {
-      const issue = pinProblem(source.pin, "turnout");
-      if (issue) errors.push(`${who} ${issue}.`);
-      else notePin(source.pin, who);
-    } else {
-      const issue = detectorPinProblem(source.pin);
-      if (issue) errors.push(`${who} ${issue}.`);
-      else notePin(source.pin, who);
-    }
-    if (mssSlugOk(mss.line) && mssSlugOk(node) && mssSlugOk(source.name) && mssSlugOk(source.block)) {
-      claim(`mss/${mss.line}/${source.block}/${node}/${source.kind}/${source.name}`, source.name);
-      if (source.kind === "optical" && mssSlugOk(source.alsoBlock)) {
-        claim(`mss/${mss.line}/${source.alsoBlock}/${node}/${source.kind}/${source.name}`, source.name);
+  const detectorNames = new Set((config.blocks || []).map((block) => block.name));
+  const opticalNames = new Set();
+  for (const optical of mss.opticals || []) {
+    const who = `Optical detector "${optical.name || "detector"}"`;
+    if (!mssSlugOk(optical.name)) errors.push(`${who} needs a name like gap.`);
+    else if (opticalNames.has(optical.name)) errors.push(`${who} is already used.`);
+    else opticalNames.add(optical.name);
+    if (!mssDelayOk(optical.debounce)) errors.push(`${who} debounce should look like 200ms.`);
+    const issue = detectorPinProblem(optical.pin);
+    if (issue) errors.push(`${who} ${issue}.`);
+    else notePin(optical.pin, who);
+  }
+  const blockNames = new Set();
+  for (const block of mss.blocks || []) {
+    const who = `Signal block "${block.name || "block"}"`;
+    if (!mssSlugOk(block.name)) errors.push(`${who} needs a name like mid.`);
+    else if (blockNames.has(block.name)) errors.push(`${who} is already used.`);
+    else blockNames.add(block.name);
+    for (const current of block.currents || []) {
+      if (!detectorNames.has(current)) {
+        errors.push(`${who} uses current sensor "${current}", which is not on the Blocks page.`);
       }
     }
   }
+  if ((mss.blocks || []).filter((block) => mssSlugOk(block.name)).length > 1) {
+    for (const block of mss.blocks || []) {
+      if (!mssSlugOk(block.name)) continue;
+      const sides = block.junction ? ["begin", "end", "diverge"] : ["begin", "end"];
+      const tied = sides.some((side) => {
+        const end = block[side] || {};
+        return end.configurable || (end.link && end.link !== block.name);
+      });
+      if (!tied) {
+        errors.push(`Signal block "${block.name}" needs an end connected to another block on this board, or set on the web page.`);
+      }
+    }
+  }
+  for (const block of mss.blocks || []) {
+    if (!mssSlugOk(block.name)) continue;
+    const sides = block.junction ? ["begin", "end", "diverge"] : ["begin", "end"];
+    for (const side of sides) {
+      const end = block[side] || {};
+      const where = `${block.name} ${side === "begin" ? "beginning" : side === "end" ? "end" : "diverging"}`;
+      if (end.optical && !opticalNames.has(end.optical)) {
+        errors.push(`Signal block ${where} uses optical detector "${end.optical}", which is not listed.`);
+      }
+      if (end.link && !blockNames.has(end.link)) {
+        errors.push(`Signal block ${where} connects to "${end.link}", which is not a signal block on this board.`);
+      }
+      if (end.link === block.name) errors.push(`Signal block ${where} cannot connect to itself.`);
+    }
+  }
+  const compiled = compileMss(config);
   const masts = config.signals?.masts || [];
   const mastByName = new Map(masts.map((mast) => [mast.name, mast]));
   const usedMasts = new Set();
-  for (const signal of mss.signals || []) {
+  for (const signal of compiled.signals) {
     const who = `Signal "${signal.name}"`;
     if (signal.mast && usedMasts.has(signal.mast)) {
       errors.push(`${who} uses mast "${signal.mast}", which another MSS signal already uses.`);
@@ -491,50 +815,29 @@ function validateMss(config, errors, warnings, notePin) {
     if (signal.diverging && !labels.has(signal.diverging)) {
       errors.push(`${who} Approach Diverging aspect "${signal.diverging}" is not on mast "${mast.name}".`);
     }
-    if ((signal.advance && !signal.advanceBlock) || (!signal.advance && signal.advanceBlock)) {
-      errors.push(`${who} needs both an Advance Approach aspect and the block two ahead, or neither.`);
+    if (signal.advance && !signal.advanceBlock && !signal.advanceOcc) {
+      errors.push(`${who} Advance Approach needs the block two ahead on this board, or a web-page connection that far.`);
+    }
+    if (!signal.advance && (signal.advanceBlock || signal.advanceOcc)) {
+      errors.push(`${who} has a block two ahead but no Advance Approach aspect.`);
     }
     if (signal.approachLighting) {
       if (!signal.dark || !labels.has(signal.dark)) {
         errors.push(`${who} approach lighting needs a Dark aspect with every lamp off.`);
       }
-      if (!mssSlugOk(signal.behindBlock)) errors.push(`${who} approach lighting needs the block behind the signal.`);
+      if (!signal.behindBlock && !signal.behindOcc) {
+        errors.push(`${who} approach lighting needs the block connected at that end.`);
+      }
     }
     if (!mssSlugOk(signal.stopBlock)) errors.push(`${who} needs the block it protects.`);
-    if (!mssSlugOk(signal.approachBlock)) errors.push(`${who} needs the next block.`);
     if (signal.diverging) {
       const from = parseMssDiverging(signal.divergingFrom);
       if (!from) errors.push(`${who} Approach Diverging needs the junction ahead, like north/wye.`);
     } else if (signal.divergingFrom) {
       errors.push(`${who} has a junction ahead but no Approach Diverging aspect.`);
     }
-    const watched = new Set([signal.stopBlock, signal.approachBlock, signal.advanceBlock, signal.behindBlock].filter(Boolean));
-    for (const remote of signal.remotes || []) {
-      if (!watched.has(remote.block)) {
-        errors.push(`${who} remote "${remote.source || "publisher"}" names block "${remote.block || ""}", which this signal does not watch.`);
-        continue;
-      }
-      const parsed = parseMssRemote(remote.source);
-      if (!parsed) {
-        errors.push(`${who} remote should look like north/current/feed.`);
-        continue;
-      }
-      if (parsed.node === node) {
-        const listed = (mss.sources || []).some((source) => (
-          source.kind === parsed.kind
-          && source.name === parsed.name
-          && (source.block === remote.block || source.alsoBlock === remote.block)
-        )) || (parsed.kind === "route" && (mss.junctions || []).some((junction) => (
-          junction.name === parsed.name
-          && (junction.mainBlock === remote.block || junction.divergingBlock === remote.block)
-        )));
-        if (!listed) {
-          errors.push(`${who} remote "${remote.source}" names this board, but that detector is not listed here.`);
-        }
-      }
-    }
   }
-  for (const junction of mss.junctions || []) {
+  for (const junction of activeJunctions(mss)) {
     const who = `Junction "${junction.name || "junction"}"`;
     if (!mssSlugOk(junction.name)) errors.push(`${who} needs a name like wye.`);
     if (!mssSlugOk(junction.mainBlock) || !mssSlugOk(junction.divergingBlock)) {
@@ -550,41 +853,13 @@ function validateMss(config, errors, warnings, notePin) {
       if (issue) errors.push(`${who} ${issue}.`);
       else notePin(junction.pin, who);
     }
-    for (const remote of junction.remotes || []) {
-      if (!parseMssRemote(remote)) errors.push(`${who} diverging detector should look like north/current/feed.`);
-    }
-    if (mssSlugOk(mss.line) && mssSlugOk(node) && mssSlugOk(junction.name)) {
-      if (mssSlugOk(junction.mainBlock)) {
-        claim(`mss/${mss.line}/${junction.mainBlock}/${node}/route/${junction.name}`, junction.name);
-      }
-      if (mssSlugOk(junction.divergingBlock)) {
-        claim(`mss/${mss.line}/${junction.divergingBlock}/${node}/route/${junction.name}`, junction.name);
-      }
-      claim(`mss/${mss.line}/diverging/${node}/${junction.name}`, junction.name);
-    }
   }
   function hasTrainDetector(block) {
     if (!mssSlugOk(block)) return true;
-    const local = (mss.sources || []).some((source) => source.block === block || source.alsoBlock === block);
-    if (local) return true;
-    for (const signal of mss.signals || []) {
-      for (const remote of signal.remotes || []) {
-        if (remote.block !== block) continue;
-        const parsed = parseMssRemote(remote.source);
-        if (parsed && parsed.kind !== "route") return true;
-      }
-    }
-    for (const junction of mss.junctions || []) {
-      if (junction.divergingBlock !== block) continue;
-      if ((junction.remotes || []).some((remote) => {
-        const parsed = parseMssRemote(remote);
-        return parsed && parsed.kind !== "route";
-      })) return true;
-    }
-    return false;
+    return compiled.sources.some((source) => (source.blocks || [source.block]).includes(block));
   }
   const watched = new Set();
-  for (const signal of mss.signals || []) {
+  for (const signal of compiled.signals) {
     for (const block of [signal.stopBlock, signal.approachBlock, signal.advanceBlock, signal.behindBlock]) {
       if (!mssSlugOk(block) || watched.has(`${signal.name}:${block}`)) continue;
       watched.add(`${signal.name}:${block}`);
@@ -593,7 +868,7 @@ function validateMss(config, errors, warnings, notePin) {
       }
     }
   }
-  for (const junction of mss.junctions || []) {
+  for (const junction of activeJunctions(mss)) {
     if (mssSlugOk(junction.divergingBlock) && !hasTrainDetector(junction.divergingBlock)) {
       warnings.push(`Junction "${junction.name}" has no detector for diverging block "${junction.divergingBlock}", so Approach Diverging stays off.`);
     }
@@ -607,70 +882,44 @@ function buildMssPlan(config, masts, points) {
   const line = mss.line || "main";
   if (!mssSlugOk(line) || !mssSlugOk(node) || !mssInUse(mss)) return emptyMssPlan();
 
+  const compiled = compileMss(config);
   const plan = emptyMssPlan();
   plan.line = line;
   plan.node = node;
   plan.onlineTopic = `mss/${line}/node/${node}/online`;
+  plan.links = [{ id: "mss_track", label: "Signaled track", initial: line }];
   const pointByName = new Map((points || []).map((point) => [point.name, point]));
   const mastByName = new Map((masts || []).map((mast) => [mast.name, mast]));
-  const claimed = new Set();
-  function claimTopics(topics) {
-    if (topics.some((topic) => claimed.has(topic))) return false;
-    for (const topic of topics) claimed.add(topic);
-    return true;
-  }
+  const portByKey = new Map(compiled.ports.map((port) => [port.key, port]));
 
-  for (const source of uniqueIds(mss.sources || [])) {
-    if (!mssSlugOk(source.name) || !mssSlugOk(source.block) || !mssDelayOk(source.debounce)) continue;
-    if (source.kind === "optical" && source.alsoBlock && !mssSlugOk(source.alsoBlock)) continue;
-    const point = source.point ? pointByName.get(source.point) : null;
-    if (source.point && !point) continue;
-    if (!source.point && !source.pin) continue;
-    const topics = [`mss/${line}/${source.block}/${node}/${source.kind}/${source.name}`];
-    if (source.kind === "optical" && source.alsoBlock) {
-      topics.push(`mss/${line}/${source.alsoBlock}/${node}/${source.kind}/${source.name}`);
-    }
-    if (!claimTopics(topics)) continue;
+  for (const source of uniqueIds(compiled.sources)) {
+    if (!mssSlugOk(source.name) || !mssSlugOk(source.block)) continue;
+    if (!source.reused && !mssDelayOk(source.debounce)) continue;
+    if (!source.reused && !source.pin) continue;
     const item = {
       ...source,
-      pointId: point ? point.id : "",
-      topics,
-      sensorId: `mss_src_${source.id}`,
-      pubId: `mss_pub_${source.id}`,
+      pointId: "",
+      topics: [],
+      sensorId: source.existingSensorId || `mss_src_${source.id}`,
     };
     plan.sources.push(item);
-    if (point) plan.pointIds.add(point.id);
+    if (source.detectorName) plan.sensorNames.add(source.detectorName);
   }
 
-  for (const junction of uniqueIds(mss.junctions || [])) {
+  for (const junction of uniqueIds(activeJunctions(mss))) {
     if (!mssSlugOk(junction.name) || !mssSlugOk(junction.mainBlock) || !mssSlugOk(junction.divergingBlock)) continue;
     if (junction.mainBlock === junction.divergingBlock) continue;
     const point = junction.point ? pointByName.get(junction.point) : null;
     if (junction.point && !point) continue;
     if (!junction.point && !junction.pin) continue;
-    const topics = [
-      `mss/${line}/${junction.mainBlock}/${node}/route/${junction.name}`,
-      `mss/${line}/${junction.divergingBlock}/${node}/route/${junction.name}`,
-      `mss/${line}/diverging/${node}/${junction.name}`,
-    ];
-    if (!claimTopics(topics)) continue;
     const item = {
       ...junction,
       cpp: mssCppName(junction.name),
       pointId: point ? point.id : "",
       sensorId: `mss_junc_${junction.id}`,
-      mainTopic: topics[0],
-      branchTopic: topics[1],
-      divergingTopic: topics[2],
-      pubMain: `mss_pub_${junction.id}_main`,
-      pubBranch: `mss_pub_${junction.id}_branch`,
-      pubDiverging: `mss_pub_${junction.id}_div`,
     };
     plan.junctions.push(item);
     if (point) plan.pointIds.add(point.id);
-    for (const id of [item.pubMain, item.pubBranch, item.pubDiverging]) {
-      plan.globals.push({ id, type: "int", initial: "0" });
-    }
   }
 
   function aspectIndex(mast, label) {
@@ -679,7 +928,16 @@ function buildMssPlan(config, masts, points) {
     return (mast.aspects || []).findIndex((aspect) => aspect.label === want);
   }
 
-  for (const signal of uniqueIds(mss.signals || [])) {
+  for (const port of compiled.ports) {
+    if (!port.meet) continue;
+    plan.links.push({ id: port.textId, label: `${port.address} neighbor`, initial: "" });
+    for (const kind of ["local", "approach", "advance", "diverging", "online"]) {
+      plan.globals.push({ id: `mss_rx_${port.key}_${kind}`, type: "int", initial: "0" });
+    }
+  }
+
+  const signals = [];
+  for (const signal of uniqueIds(compiled.signals)) {
     const mast = mastByName.get(signal.mast);
     if (!mast) continue;
     const indexes = {
@@ -699,200 +957,219 @@ function buildMssPlan(config, masts, points) {
       mastId: mast.id,
       indexes,
       dirtyId: `mss_dirty_${signal.id}`,
-      ad: null,
     };
+    signals.push(item);
     plan.signals.push(item);
     plan.ownedMastIds.add(mast.id);
     plan.globals.push({ id: item.dirtyId, type: "bool", initial: "false" });
   }
 
-  const nodeGlobals = new Map();
-  function ensureNode(name) {
-    if (nodeGlobals.has(name)) return nodeGlobals.get(name);
-    const id = `mss_node_${mssCppName(name)}`;
-    nodeGlobals.set(name, id);
-    plan.globals.push({ id, type: "int", initial: "0" });
-    plan.subscriptions.push({
-      topic: `mss/${line}/node/${name}/online`,
-      globalId: id,
-      mode: "online",
-    });
-    return id;
+  function rx(port, kind) {
+    return `mss_rx_${port.key}_${kind}`;
+  }
+  function rxOcc(port, kind) {
+    return `!(id(${rx(port, "online")}) == 1 && id(${rx(port, kind)}) == 2)`;
+  }
+  function otherEnd(blockName, comingFrom) {
+    const ends = compiled.ports.filter((port) => port.block === blockName);
+    return ends.find((port) => port.link !== comingFrom) || null;
+  }
+  function nextExpr(port) {
+    if (!port) return "false";
+    if (port.meet) return rxOcc(port, "approach");
+    if (port.link) return `occ_${mssCppName(port.link)}`;
+    return "false";
+  }
+  function advanceExpr(port) {
+    if (!port) return "false";
+    if (port.meet) return rxOcc(port, "advance");
+    if (port.link) return nextExpr(otherEnd(port.link, port.block));
+    return "false";
   }
 
-  const blocks = new Map();
-  function ensureBlock(slug) {
-    if (!slug || !mssSlugOk(slug)) return null;
-    if (!blocks.has(slug)) {
-      blocks.set(slug, { slug, cpp: mssCppName(slug), real: [], route: [], forces: [], needOcc: false, needReal: false });
+  for (const signal of signals) {
+    const near = portByKey.get(signal.portKey);
+    const far = portByKey.get(signal.farKey);
+    const ahead = signal.facing === "out" ? near : far;
+    signal.approachBlock = ahead?.link || "";
+    signal.approachOcc = ahead?.meet ? "wire" : "";
+    signal.advanceBlock = "";
+    signal.advanceOcc = "";
+    if (ahead?.link) {
+      const beyond = otherEnd(ahead.link, ahead.block);
+      if (beyond?.link) signal.advanceBlock = beyond.link;
+      else if (beyond?.meet) signal.advanceOcc = "wire";
+    } else if (ahead?.meet && signal.advance) {
+      signal.advanceOcc = "wire";
     }
-    return blocks.get(slug);
-  }
-  function addReal(block, contributor, key) {
-    if (!block.real.some((item) => item.key === key)) block.real.push({ ...contributor, key });
-  }
-
-  for (const source of plan.sources) {
-    const contributor = source.pointId
-      ? { type: "point", id: source.pointId }
-      : { type: "sensor", id: source.sensorId };
-    for (const slug of [source.block, source.alsoBlock]) {
-      const block = ensureBlock(slug);
-      if (block) addReal(block, contributor, source.sensorId + slug);
-    }
-  }
-  for (const junction of plan.junctions) {
-    const main = ensureBlock(junction.mainBlock);
-    const branch = ensureBlock(junction.divergingBlock);
-    if (main) main.forces.push({ role: "main", cpp: junction.cpp });
-    if (branch) {
-      branch.forces.push({ role: "branch", cpp: junction.cpp });
-      branch.needReal = true;
-    }
-  }
-
-  const seenRemote = new Set();
-  function addRemote(slug, parsed) {
-    const block = ensureBlock(slug);
-    if (!block || !parsed || parsed.node === node) return;
-    const topic = `mss/${line}/${slug}/${parsed.node}/${parsed.kind}/${parsed.name}`;
-    if (seenRemote.has(topic)) return;
-    seenRemote.add(topic);
-    const srcGlobal = `mss_src_${block.cpp}_${mssCppName(parsed.node)}_${parsed.kind}_${mssCppName(parsed.name)}`;
-    const nodeGlobal = ensureNode(parsed.node);
-    plan.globals.push({ id: srcGlobal, type: "int", initial: "0" });
-    plan.subscriptions.push({ topic, globalId: srcGlobal, mode: "state" });
-    const contributor = { type: "remote", nodeGlobal, srcGlobal, key: topic };
-    if (parsed.kind === "route") block.route.push(contributor);
-    else addReal(block, contributor, topic);
-  }
-
-  for (const signal of plan.signals) {
-    for (const slug of [signal.stopBlock, signal.approachBlock, signal.advanceBlock, signal.behindBlock]) {
-      const block = ensureBlock(slug);
-      if (!block) continue;
-      block.needOcc = true;
-      block.needReal = true;
-    }
-    for (const remote of signal.remotes || []) addRemote(remote.block, parseMssRemote(remote.source));
-    if (signal.indexes.diverging >= 0) {
-      const from = parseMssDiverging(signal.divergingFrom);
-      const local = from && plan.junctions.find((junction) => junction.name === from.name && from.node === node);
-      if (local) {
-        signal.ad = { local: local.cpp, block: mssCppName(local.divergingBlock) };
-        const branch = ensureBlock(local.divergingBlock);
-        if (branch) branch.needReal = true;
-      } else if (from && from.node !== node) {
-        const nodeGlobal = ensureNode(from.node);
-        const srcGlobal = `mss_div_${mssCppName(from.node)}_${mssCppName(from.name)}`;
-        if (!plan.globals.some((item) => item.id === srcGlobal)) {
-          plan.globals.push({ id: srcGlobal, type: "int", initial: "0" });
-          plan.subscriptions.push({
-            topic: `mss/${line}/diverging/${from.node}/${from.name}`,
-            globalId: srcGlobal,
-            mode: "state",
-          });
-        }
-        signal.ad = { nodeGlobal, srcGlobal };
-      }
-    }
-  }
-  for (const junction of plan.junctions) {
-    for (const remote of junction.remotes || []) addRemote(junction.divergingBlock, parseMssRemote(remote));
-  }
-
-  for (const source of plan.sources) {
-    if (!source.pointId) continue;
-    plan.globals.push({ id: source.pubId, type: "int", initial: "0" });
+    signal.behindBlock = signal.facing === "out" ? signal.block : (near?.link || "");
+    signal.behindOcc = signal.facing === "out" ? "" : (near?.meet ? "wire" : "");
   }
 
   const rows = [];
+  const nodeLit = cString(node);
+  rows.push("auto mss_split = [](const std::string &in, std::string &board, std::string &block, std::string &end) {");
+  rows.push("  const auto slash1 = in.find('/');");
+  rows.push("  if (slash1 == std::string::npos || slash1 == 0) return false;");
+  rows.push("  const auto slash2 = in.find('/', slash1 + 1);");
+  rows.push("  if (slash2 == std::string::npos || slash2 == slash1 + 1) return false;");
+  rows.push("  if (in.find('/', slash2 + 1) != std::string::npos || slash2 + 1 >= in.size()) return false;");
+  rows.push("  board = in.substr(0, slash1);");
+  rows.push("  block = in.substr(slash1 + 1, slash2 - slash1 - 1);");
+  rows.push("  end = in.substr(slash2 + 1);");
+  rows.push("  return true;");
+  rows.push("};");
+  rows.push("static std::string prev_mss_track;");
+  rows.push("const std::string track = id(mss_track).state;");
+  rows.push("const bool track_changed = track != prev_mss_track;");
+
+  for (const port of compiled.ports.filter((port) => port.meet)) {
+    const prev = `prev_${port.textId}`;
+    rows.push("{");
+    rows.push(`  static std::string ${prev};`);
+    rows.push(`  const std::string addr = id(${port.textId}).state;`);
+    rows.push(`  if (track_changed || addr != ${prev}) {`);
+    rows.push(`    if (!${prev}.empty() && !prev_mss_track.empty()) {`);
+    rows.push("      std::string board, block, end;");
+    rows.push(`      if (mss_split(${prev}, board, block, end)) {`);
+    for (const kind of ["local", "approach", "advance", "diverging"]) {
+      rows.push(`        id(mqtt_server).unsubscribe(std::string("mss/") + prev_mss_track + "/" + board + "/" + block + "/" + end + "/${kind}");`);
+    }
+    rows.push('        id(mqtt_server).unsubscribe(std::string("mss/") + prev_mss_track + "/node/" + board + "/online");');
+    rows.push("      }");
+    rows.push("    }");
+    for (const kind of ["local", "approach", "advance", "diverging", "online"]) {
+      rows.push(`    id(${rx(port, kind)}) = 0;`);
+    }
+    rows.push(`    ${prev} = addr;`);
+    rows.push("    std::string board, block, end;");
+    rows.push("    if (!track.empty() && mss_split(addr, board, block, end)) {");
+    for (const kind of ["local", "approach", "advance", "diverging"]) {
+      const flag = kind === "diverging" ? "payload == \"ACTIVE\"" : "payload == \"ACTIVE\"";
+      rows.push(`      id(mqtt_server).subscribe(std::string("mss/") + track + "/" + board + "/" + block + "/" + end + "/${kind}", [](const std::string &, const std::string &payload) {`);
+      rows.push(`        id(${rx(port, kind)}) = ${flag} ? 1 : 2;`);
+      rows.push("        id(mss_apply).execute();");
+      rows.push("      }, 1);");
+    }
+    rows.push('      id(mqtt_server).subscribe(std::string("mss/") + track + "/node/" + board + "/online", [](const std::string &, const std::string &payload) {');
+    rows.push(`        id(${rx(port, "online")}) = payload == "ONLINE" ? 1 : 2;`);
+    rows.push("        id(mss_apply).execute();");
+    rows.push("      }, 1);");
+    rows.push("    }");
+    rows.push("  }");
+    rows.push("}");
+  }
+  rows.push("if (track_changed && !prev_mss_track.empty()) {");
+  rows.push(`  id(mqtt_server).publish(std::string("mss/") + prev_mss_track + "/node/${nodeLit}/online", std::string("OFFLINE"), 1, true);`);
+  rows.push("}");
+  rows.push("prev_mss_track = track;");
+  rows.push(`if (!track.empty()) id(mqtt_server).publish(std::string("mss/") + track + "/node/${nodeLit}/online", std::string("ONLINE"), 1, true);`);
+
+  const blockNames = [...new Set(compiled.ports.map((port) => port.block))];
+  for (const name of blockNames) {
+    const cpp = mssCppName(name);
+    const parts = compiled.detect.get(name) || [];
+    rows.push(`bool real_${cpp} = ${parts.length ? parts.join(" || ") : "false"};`);
+    for (const port of compiled.ports.filter((port) => port.block === name && port.meet)) {
+      rows.push(`if (${rxOcc(port, "local")}) real_${cpp} = true;`);
+    }
+  }
+
   for (const junction of plan.junctions) {
-    const aligned = junction.pointId
-      ? `${junction.thrownIsDiverging ? "" : "!"}id(${junction.pointId}_thrown)`
+    const thrown = junction.pointId
+      ? `id(${junction.pointId}_thrown)`
       : `id(${junction.sensorId}).state`;
-    rows.push(`const bool jdiv_${junction.cpp} = ${aligned};`);
+    const sense = junction.thrownIsDiverging === false ? `!(${thrown})` : thrown;
+    rows.push(`const bool jdiv_${junction.cpp} = ${sense};`);
     rows.push(`const bool force_main_${junction.cpp} = jdiv_${junction.cpp};`);
     rows.push(`const bool force_div_${junction.cpp} = !jdiv_${junction.cpp};`);
   }
-  const emittedReal = new Set();
-  function emitReal(block) {
-    if (!block || emittedReal.has(block.slug)) return;
-    emittedReal.add(block.slug);
-    rows.push(`bool real_${block.cpp} = false;`);
-    rows.push(`bool real_${block.cpp}_any = false;`);
-    for (const contributor of block.real) {
-      rows.push(`real_${block.cpp}_any = true;`);
-      if (contributor.type === "sensor") rows.push(`if (id(${contributor.id}).state) real_${block.cpp} = true;`);
-      else if (contributor.type === "point") rows.push(`if (id(${contributor.id}_thrown)) real_${block.cpp} = true;`);
-      else rows.push(`if (!(id(${contributor.nodeGlobal}) == 1 && id(${contributor.srcGlobal}) == 2)) real_${block.cpp} = true;`);
-    }
-    rows.push(`if (!real_${block.cpp}_any) real_${block.cpp} = true;`);
-  }
-  for (const block of blocks.values()) {
-    if (block.needReal || block.needOcc) emitReal(block);
-  }
-  for (const block of blocks.values()) {
-    if (!block.needOcc) continue;
-    rows.push(`bool occ_${block.cpp} = real_${block.cpp};`);
-    for (const force of block.forces) {
-      const name = force.role === "main" ? `force_main_${force.cpp}` : `force_div_${force.cpp}`;
-      rows.push(`if (${name}) occ_${block.cpp} = true;`);
-    }
-    for (const contributor of block.route) {
-      rows.push(`if (!(id(${contributor.nodeGlobal}) == 1 && id(${contributor.srcGlobal}) == 2)) occ_${block.cpp} = true;`);
+  for (const name of blockNames) {
+    const cpp = mssCppName(name);
+    rows.push(`bool occ_${cpp} = real_${cpp};`);
+    for (const junction of plan.junctions) {
+      if (junction.mainBlock === name) rows.push(`if (force_main_${junction.cpp}) occ_${cpp} = true;`);
+      if (junction.divergingBlock === name) rows.push(`if (force_div_${junction.cpp}) occ_${cpp} = true;`);
     }
   }
-  for (const signal of plan.signals) {
-    if (!signal.ad) continue;
-    if (signal.ad.local) {
-      rows.push(`const bool ad_${signal.cpp} = jdiv_${signal.ad.local} && !real_${signal.ad.block};`);
+
+  function publishTopic(port, kind, expr) {
+    const suffix = cString(`/${port.address}/${kind}`);
+    rows.push(`if (!track.empty()) id(mqtt_server).publish(std::string("mss/") + track + "${suffix}", std::string((${expr}) ? "ACTIVE" : "INACTIVE"), 1, true);`);
+  }
+
+  for (const port of compiled.ports.filter((port) => port.meet)) {
+    const other = compiled.ports.find((item) => item.block === port.block && item.side !== port.side);
+    const occExcept = `occ_except_${port.key}`;
+    const parts = [...(compiled.detect.get(port.block) || [])];
+    for (const item of compiled.ports.filter((item) => item.block === port.block && item.meet && item.key !== port.key)) {
+      parts.push(rxOcc(item, "local"));
+    }
+    for (const junction of plan.junctions) {
+      if (junction.mainBlock === port.block) parts.push(`force_main_${junction.cpp}`);
+      if (junction.divergingBlock === port.block) parts.push(`force_div_${junction.cpp}`);
+    }
+    rows.push(`const bool ${occExcept} = ${parts.length ? parts.join(" || ") : "false"};`);
+    if (port.role === "pass") {
+      publishTopic(port, "local", occExcept);
+      publishTopic(port, "approach", other ? nextExpr(other) : "false");
+      publishTopic(port, "advance", other?.meet ? rxOcc(other, "advance") : "false");
+      const passed = other?.meet ? `(id(${rx(other, "online")}) == 1 && id(${rx(other, "diverging")}) == 1)` : "false";
+      publishTopic(port, "diverging", passed);
     } else {
-      rows.push(`const bool ad_${signal.cpp} = id(${signal.ad.nodeGlobal}) == 1 && id(${signal.ad.srcGlobal}) == 1;`);
+      const optical = port.optical ? `id(mss_src_${sanitizeId(port.optical)}).state` : "false";
+      publishTopic(port, "local", optical);
+      publishTopic(port, "approach", occExcept);
+      publishTopic(port, "advance", other ? nextExpr(other) : "false");
+      const trunks = plan.junctions.filter((junction) => junction.mainBlock === port.block);
+      const diverging = trunks.length
+        ? trunks.map((junction) => `(jdiv_${junction.cpp} && !real_${mssCppName(junction.divergingBlock)})`).join(" || ")
+        : "false";
+      publishTopic(port, "diverging", diverging);
     }
   }
-  function pushPublish(globalId, expr, topics) {
-    const list = Array.isArray(topics) ? topics : [topics];
-    rows.push(`const int ${globalId}_want = ${expr};`);
-    rows.push(`if (id(${globalId}) != ${globalId}_want) {`);
-    rows.push(`  id(${globalId}) = ${globalId}_want;`);
-    for (const topic of list) {
-      rows.push(`  id(mqtt_server).publish("${cString(topic)}", ${globalId}_want == 1 ? "ACTIVE" : "INACTIVE", 1, true);`);
-    }
-    rows.push("}");
-  }
-  for (const source of plan.sources) {
-    if (!source.pointId) continue;
-    pushPublish(source.pubId, `id(${source.pointId}_thrown) ? 1 : 2`, source.topics);
-  }
-  for (const junction of plan.junctions) {
-    pushPublish(junction.pubDiverging, `(jdiv_${junction.cpp} && !real_${mssCppName(junction.divergingBlock)}) ? 1 : 2`, junction.divergingTopic);
-    pushPublish(junction.pubMain, `force_main_${junction.cpp} ? 1 : 2`, junction.mainTopic);
-    pushPublish(junction.pubBranch, `force_div_${junction.cpp} ? 1 : 2`, junction.branchTopic);
-  }
-  for (const signal of plan.signals) {
+
+  for (const signal of signals) {
+    const near = portByKey.get(signal.portKey);
+    const far = portByKey.get(signal.farKey);
+    const from = parseMssDiverging(signal.divergingFrom);
+    const localJunction = from && plan.junctions.find((junction) => junction.name === from.name && from.node === node);
+    const outward = signal.facing === "out";
+    const ahead = outward ? near : far;
+    let ad = "false";
+    if (localJunction) ad = `(jdiv_${localJunction.cpp} && !real_${mssCppName(localJunction.divergingBlock)})`;
+    else if (ahead?.meet) ad = `(id(${rx(ahead, "online")}) == 1 && id(${rx(ahead, "diverging")}) == 1)`;
+    const stop = outward
+      ? (near?.meet ? rxOcc(near, "local") : near?.link ? `occ_${mssCppName(near.link)}` : "false")
+      : `occ_${mssCppName(signal.block)}`;
+    const approach = outward
+      ? (near?.meet ? rxOcc(near, "approach") : near?.link ? nextExpr(otherEnd(near.link, near.block)) : "false")
+      : nextExpr(far);
+    const advance = outward
+      ? (near?.meet ? rxOcc(near, "advance") : near?.link ? advanceExpr(otherEnd(near.link, near.block)) : "false")
+      : advanceExpr(far);
+    const behind = outward ? `occ_${mssCppName(signal.block)}` : nextExpr(near);
     const next = `next_${signal.cpp}`;
+    rows.push(`const bool ad_${signal.cpp} = ${ad};`);
     rows.push(`int ${next} = ${signal.indexes.clear};`);
-    rows.push(`if (occ_${mssCppName(signal.stopBlock)}) ${next} = ${signal.indexes.stop};`);
-    if (signal.indexes.diverging >= 0 && signal.ad) {
-      rows.push(`else if (occ_${mssCppName(signal.approachBlock)} && ad_${signal.cpp}) ${next} = ${signal.indexes.diverging};`);
+    rows.push(`if (${stop}) ${next} = ${signal.indexes.stop};`);
+    if (signal.indexes.diverging >= 0) {
+      rows.push(`else if ((${approach}) && ad_${signal.cpp}) ${next} = ${signal.indexes.diverging};`);
     }
-    rows.push(`else if (occ_${mssCppName(signal.approachBlock)}) ${next} = ${signal.indexes.approach};`);
-    if (signal.indexes.advance >= 0 && signal.advanceBlock) {
-      rows.push(`else if (occ_${mssCppName(signal.advanceBlock)}) ${next} = ${signal.indexes.advance};`);
+    rows.push(`else if (${approach}) ${next} = ${signal.indexes.approach};`);
+    if (signal.indexes.advance >= 0 && signal.advance) {
+      rows.push(`else if (${advance}) ${next} = ${signal.indexes.advance};`);
     }
-    if (signal.approachLighting && signal.indexes.dark >= 0 && signal.behindBlock) {
-      rows.push(`else if (!occ_${mssCppName(signal.behindBlock)}) ${next} = ${signal.indexes.dark};`);
+    if (signal.approachLighting && signal.indexes.dark >= 0) {
+      rows.push(`else if (!(${behind})) ${next} = ${signal.indexes.dark};`);
     }
     rows.push(`id(${signal.dirtyId}) = id(${signal.mastId}_aspect) != ${next};`);
     rows.push(`if (id(${signal.dirtyId})) id(${signal.mastId}_aspect) = ${next};`);
   }
 
   plan.lambda = rows;
-  plan.subscriptions.sort((a, b) => a.topic.localeCompare(b.topic));
-  plan.active = plan.sources.length > 0 || plan.junctions.length > 0 || plan.signals.length > 0;
-  plan.needsApply = plan.signals.length > 0 || plan.junctions.length > 0 || plan.sources.some((source) => source.pointId);
-  if (!plan.needsApply) plan.lambda = [];
+  plan.active = true;
+  plan.needsApply = true;
   return plan;
 }
 
@@ -948,7 +1225,8 @@ function emitMssSubscriptions(lines, plan) {
 
 function emitMssSensors(lines, plan) {
   for (const source of plan.sources) {
-    if (source.pointId) continue;
+    if (source.pointId || source.reused) continue;
+    // Optical detectors are a GPIO input until the sensing boilerplate replaces this body.
     lines.push("  - platform: gpio");
     lines.push("    pin:");
     lines.push(`      number: ${source.pin}`);
@@ -1243,7 +1521,14 @@ function validateConfig(config) {
     if (board.mqttEnabled === false) {
       errors.push("Signals need MQTT. Turn it back on under Board.");
     }
-    const mssMasts = new Set((config.mss?.signals || []).map((signal) => signal.mast).filter(Boolean));
+    const mssMasts = new Set();
+    for (const block of config.mss?.blocks || []) {
+      for (const key of ["mast", "outMast"]) {
+        for (const end of [block.begin, block.end, block.diverge]) {
+          if (end?.[key]) mssMasts.add(end[key]);
+        }
+      }
+    }
     for (const mast of masts) {
       const seen = new Map();
       const owned = mssMasts.has(mast.name);
@@ -2111,7 +2396,25 @@ function generateYaml(config) {
   lines.push("    id: reboot_esp");
   lines.push('    name: "Restart Board"');
 
-  if (points.length || masts.length) {
+  if (mssPlan.links.length) {
+    lines.push("");
+    lines.push("text:");
+    for (const link of mssPlan.links) {
+      lines.push("  - platform: template");
+      lines.push(`    name: ${yamlQuote(entityName(link.label || link.name))}`);
+      lines.push(`    id: ${link.id}`);
+      lines.push("    optimistic: true");
+      lines.push("    mode: text");
+      lines.push("    restore_value: true");
+      lines.push(`    initial_value: ${JSON.stringify(link.initial || "")}`);
+      if (mssPlan.needsApply) {
+        lines.push("    on_value:");
+        lines.push("      then:");
+        lines.push("        - script.execute: mss_apply");
+      }
+    }
+  }
+  if (points.length || masts.length || mssPlan.links.length) {
     lines.push("");
     lines.push("web_server:");
     lines.push("  local: true");
@@ -2149,7 +2452,7 @@ function generateYaml(config) {
   }
 
   const hasButtons = points.some((point) => (point.controls || []).some((control) => control.buttonPin));
-  const mssGpio = mssPlan.sources.some((source) => !source.pointId) || mssPlan.junctions.some((junction) => !junction.pointId);
+  const mssGpio = mssPlan.sources.some((source) => !source.pointId && !source.reused) || mssPlan.junctions.some((junction) => !junction.pointId);
   if (blocks.length || hasButtons || mssGpio) {
     lines.push("");
     lines.push("binary_sensor:");
@@ -2177,6 +2480,16 @@ function generateYaml(config) {
         lines.push("            payload: ACTIVE");
         lines.push("            retain: false");
         lines.push("            qos: 2");
+        for (const topic of mssPlan.feeds?.get(block.name) || []) {
+          lines.push("        - mqtt.publish:");
+          lines.push(`            topic: ${yamlQuote(topic)}`);
+          lines.push("            payload: ACTIVE");
+          lines.push("            retain: true");
+          lines.push("            qos: 1");
+        }
+        if (mssPlan.needsApply && ((mssPlan.feeds?.get(block.name) || []).length || mssPlan.sensorNames?.has(block.name))) {
+          lines.push("        - script.execute: mss_apply");
+        }
       }
       lines.push("    on_release:");
       lines.push("      then:");
@@ -2190,6 +2503,16 @@ function generateYaml(config) {
         lines.push("            payload: INACTIVE");
         lines.push("            retain: false");
         lines.push("            qos: 2");
+        for (const topic of mssPlan.feeds?.get(block.name) || []) {
+          lines.push("        - mqtt.publish:");
+          lines.push(`            topic: ${yamlQuote(topic)}`);
+          lines.push("            payload: INACTIVE");
+          lines.push("            retain: true");
+          lines.push("            qos: 1");
+        }
+        if (mssPlan.needsApply && ((mssPlan.feeds?.get(block.name) || []).length || mssPlan.sensorNames?.has(block.name))) {
+          lines.push("        - script.execute: mss_apply");
+        }
       }
     }
     if (mqtt && mssPlan.active) emitMssSensors(lines, mssPlan);

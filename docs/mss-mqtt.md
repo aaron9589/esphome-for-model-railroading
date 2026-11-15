@@ -85,14 +85,14 @@ Three boards, one signaled track named `main`. Block `south`, then `mid`, then `
 
 - Current detector on block `south`. That occupancy goes out as `approach`, so it is the next block for the signal facing into `mid` from the north.
 - Optical at the boundary. That goes out as `local`, so it occupies `mid` as well as `south`.
-- The signal facing south protects `south`. Stop is `south` plus whatever `mid` reports on `local`.
+- The signal facing south protects `south`. Stop is `south`: its current detector and the optical at this boundary. A train that is only in `mid` does not put this signal at Stop.
 - The signal facing north protects `mid`. Stop is `mid`'s `local`. Approach is whatever `mid` passes through from `north`.
 
 **mid** is the crossover. Both ends are web-page neighbors, `south-board/south/end` and `north-board/north/begin`. It has a current detector and no signal. Its `local` is that detector plus the opticals the two cascades send. It passes `approach` and `advance` from one neighbor to the other.
 
 **north** mirrors south. Its south end's neighbor is `mid-board/mid/end`.
 
-Watching MQTTX on `127.0.0.1:1883`, subscribe to `mss/main/#`. A train in `south` sets `mss/main/south-board/south/end/approach` to `ACTIVE`. The signal facing south at that joint shows Stop. The signal facing north into `mid` stays Clear, because its Stop is `mid`'s `local`. Mid passes that approach wire on, so the signal facing south into `mid` shows Approach, and the signal facing north stays Clear. When the train reaches `mid`, `mid` publishes `local` ACTIVE and every signal shows Stop.
+Watching MQTTX on `127.0.0.1:1883`, subscribe to `mss/main/#`. A train in `south` sets `mss/main/south-board/south/end/approach` to `ACTIVE`. The signal facing south at that joint shows Stop. The signal facing north into `mid` stays Clear, because its Stop is `mid`'s `local`. Mid passes that approach wire on, so the signal facing south into `mid` shows Approach, and the signal facing north stays Clear. On the optical, that sensor occupies `south` and `mid`, so the three signals protecting those blocks show Stop, and the signal facing north stays Clear. Fully in `mid`, the two signals facing `mid` show Stop. The signals facing `south` and `north` show Clear, because those blocks are empty.
 
 Approach lighting is off in these pictures, so a clear road shows Clear. `advance` and `diverging` stay INACTIVE, and every board stays online.
 
@@ -100,15 +100,15 @@ Approach lighting is off in these pictures, so a clear road shows Clear. `advanc
 
 ![A train in south. The signal facing south shows Stop. The signal facing north into mid stays Clear. The signal facing south into mid shows Approach, and the signal facing north stays Clear.](../_img/mss-run-south.svg)
 
-![The optical at the boundary publishes local ACTIVE. Mid publishes its own local ACTIVE from that, and all four signals show Stop.](../_img/mss-run-gap.svg)
+![The optical at the boundary occupies south and mid. The three signals that protect those blocks show Stop. The signal facing north stays Clear.](../_img/mss-run-gap.svg)
 
-![The train is in mid. The optical is clear. Mid's current detector holds local ACTIVE, so all four signals stay at Stop.](../_img/mss-run-mid.svg)
+![The train is in mid. The two signals facing mid show Stop. The signals facing south and north show Clear.](../_img/mss-run-mid.svg)
 
 ![The train is in north. The signal facing north shows Stop. The signal facing north into mid shows Approach. The two signals facing south show Clear.](../_img/mss-run-north.svg)
 
 ## A junction
 
-A junction has a main block and a diverging block, and a point or a pin that says which is lined. Thrown means diverging unless you untick that.
+Tick **Junction** on the signal block that holds the points. That block is a complex cascade: Beginning, Main, and Diverging, and each of those three signals faces into the block. The block you are editing is the main route. Pick the diverging block and the point, or a pin, that lines it. Thrown means diverging unless you untick that.
 
 ![When diverging is lined, the main block is held occupied and Approach Diverging is published only if the diverging block is clear. When the main is lined, the diverging block is held occupied.](../_img/mss-junction.svg)
 

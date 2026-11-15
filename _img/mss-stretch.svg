@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="960" height="700" viewBox="0 0 960 700" role="img" aria-labelledby="stretchTitle stretchDesc">
   <title id="stretchTitle">The overview named south, mid, and north</title>
-  <desc id="stretchDesc">Track main has blocks south, mid, and north. Each boundary has two signals, one facing each way. Mid is the crossover and only publishes its current detector. A train in south puts Stop on the signal facing south, and Approach on the signal facing south into mid. A train in mid puts Stop on all four signals.</desc>
+  <desc id="stretchDesc">Track main has blocks south, mid, and north. Each boundary has two signals, one facing each way. Mid is the crossover and only publishes its current detector. A train in south puts Stop on the signal facing south, and Approach on the signal facing south into mid. A train in mid puts Stop on the two signals facing mid. The signals facing out show Clear.</desc>
   <rect width="960" height="700" fill="#f4f1ea"/>
   <g font-family="ui-sans-serif, system-ui, sans-serif" fill="#1c1917">
     <text x="36" y="34" font-size="18" font-weight="600">Three boards, one track named main</text>
@@ -121,6 +121,6 @@
     <text x="52" y="638" font-size="14" font-weight="600">Train in south</text>
     <text x="168" y="638" fill="#185fa5" font-size="14">Facing south shows Stop. Facing south into mid shows Approach.</text>
     <text x="52" y="662" font-size="14" font-weight="600">Train in mid</text>
-    <text x="152" y="662" fill="#185fa5" font-size="14">All four signals show Stop.</text>
+    <text x="152" y="662" fill="#185fa5" font-size="14">Signals facing mid show Stop. Signals facing out show Clear.</text>
   </g>
 </svg>
