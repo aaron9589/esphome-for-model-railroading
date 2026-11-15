@@ -46,7 +46,7 @@ A few servos can connect straight to ESP pins with PWM. They take power from the
 
 A PCA9685 drives the servos over I2C, up to 16 turnouts on one ESP. The servo power rail (V+) comes from the separate 5V supply, not from the ESP.
 
-In the [configurator](https://aaron9589.github.io/esphome-for-model-railroading/), add a point and set its MQTT topic, PCA9685 channel or servo pin, and how fast it throws. A point can also have fascia buttons on pull-up pins, each wired to GND, with an optional light for closed and one for open (thrown). You do **not** set the closed and thrown positions there. After the board is online, open `http://<board-name>.local` in Chrome or Edge and use the sliders. The ESP remembers them, so you can adjust a turnout later without a new YAML file.
+In the [configurator](https://aaron9589.github.io/esphome-for-model-railroading/), add a point and set its MQTT topic, PCA9685 channel or servo pin, and how fast it throws. A point can also have fascia buttons on pull-up pins, each wired to GND, with an optional light for closed and one for open (thrown). You do **not** set the closed and thrown positions there. After the board is online, open `http://<board-name>.local` in Chrome or Edge and use the sliders. The ESP remembers them, so you can adjust a turnout later without a new YAML file. It also remembers whether the point was closed or thrown, and moves the servo back there on boot. Several servos each wait a fraction of a second, picked at random, so they do not all start together. A point with nothing stored starts at normal and publishes `CLOSED`.
 
 ### Signals
 

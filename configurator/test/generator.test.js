@@ -271,8 +271,10 @@ test("panel buttons use pull-up pins, and GPIO34 is rejected", () => {
   assert.match(yaml, /pin: GPIO13/);
   assert.match(yaml, /pin: GPIO16/);
   const scripts = yaml.slice(yaml.indexOf("\nscript:\n"));
-  const closedScript = scripts.slice(scripts.indexOf("id: kiama_up_loop_throw_closed"), scripts.indexOf("id: kiama_up_loop_throw_thrown"));
-  const thrownScript = scripts.slice(scripts.indexOf("id: kiama_up_loop_throw_thrown"));
+  const closedAt = scripts.indexOf("\n  - id: kiama_up_loop_throw_closed");
+  const thrownAt = scripts.indexOf("\n  - id: kiama_up_loop_throw_thrown");
+  const closedScript = scripts.slice(closedAt, thrownAt);
+  const thrownScript = scripts.slice(thrownAt);
   assert.match(closedScript, /switch.turn_on: kiama_up_loop_closed_light_1/);
   assert.match(closedScript, /switch.turn_off: kiama_up_loop_open_light_1/);
   assert.match(closedScript, /delay: 2s/);
@@ -320,33 +322,67 @@ test("hotspot is always on, and generated passwords are three words", () => {
   }
 });
 
-test("boot does not publish a hardcoded CLOSED, and on_connect publishes the latest state", () => {
+test("the saved turnout position is written immediately and applied on boot", () => {
   const config = withCreds(myFirstBoardPreset());
+  config.points.push({
+    name: "Yard",
+    topic: "trains/track/turnout/Yard",
+    channel: 1,
+    travelTime: "10s",
+    controls: [],
+  });
   const yaml = generateYaml(config);
   const boot = yaml.slice(yaml.indexOf("on_boot:"), yaml.indexOf("\nesp32:"));
   assert.match(boot, /priority: 600/);
   assert.match(boot, /esphome::random_uint32\(\) % 5000/);
   assert.match(boot, /App\.feed_wdt\(\)/);
-  assert.match(boot, /Delaying boot for %d milliseconds/);
-  assert.doesNotMatch(boot, /mqtt\.publish/);
-  assert.doesNotMatch(boot, /CLOSED/);
+  assert.match(boot, /priority: -200/);
+  assert.match(boot, /return id\(kiama_up_loop_thrown\);/);
+  assert.match(boot, /return id\(yard_thrown\);/);
+  assert.match(boot, /throw_thrown/);
+  assert.match(boot, /throw_closed/);
   assert.match(boot, /announce: false/);
+  assert.equal((boot.match(/return 200 \+ \(esphome::random_uint32\(\) % 800\);/g) || []).length, 2);
+  assert.doesNotMatch(boot, /mqtt\.publish/);
   assert.doesNotMatch(yaml, /priority: -50/);
-  assert.match(yaml, /on_connect:/);
-  assert.match(yaml, /return id\(kiama_up_xover_sensor\)\.state \? "ACTIVE" : "INACTIVE";/);
-  assert.match(yaml, /return id\(kiama_up_loop_thrown\) \? "THROWN" : "CLOSED";/);
-  assert.match(yaml, /restore_value: true/);
-  assert.match(yaml, /id: kiama_up_loop_thrown/);
-  assert.doesNotMatch(yaml, /payload: 'CLOSED'/);
+  assert.doesNotMatch(yaml, /on_message:/);
+  assert.doesNotMatch(yaml, /restore_turnouts/);
+
+  const mqtt = yaml.slice(yaml.indexOf("\nmqtt:\n"), yaml.indexOf("\nbutton:\n"));
+  assert.match(mqtt, /on_connect:/);
+  assert.match(mqtt, /return id\(kiama_up_xover_sensor\)\.state \? "ACTIVE" : "INACTIVE";/);
+  assert.match(mqtt, /retain: false/);
+  assert.match(mqtt, /return id\(kiama_up_loop_thrown\) \? "THROWN" : "CLOSED";/);
+  assert.match(mqtt, /return id\(yard_thrown\) \? "THROWN" : "CLOSED";/);
+  assert.match(mqtt, /topic: "trains\/track\/turnout\/Kiama\/Up Loop\/State"\n        payload: !lambda \|-\n          return id\(kiama_up_loop_thrown\) \? "THROWN" : "CLOSED";\n        retain: true/);
+
+  const thrown = yaml.slice(yaml.indexOf("id: kiama_up_loop_thrown"), yaml.indexOf("id: yard_thrown"));
+  assert.match(thrown, /type: bool/);
+  assert.match(thrown, /restore_value: true/);
+  assert.match(thrown, /initial_value: "false"/);
+
+  const scripts = yaml.slice(yaml.indexOf("\nscript:\n"));
+  const closed = scripts.slice(scripts.indexOf("\n  - id: kiama_up_loop_throw_closed"), scripts.indexOf("\n  - id: kiama_up_loop_throw_thrown"));
+  assert.match(closed, /id\(kiama_up_loop_thrown\) = false;/);
+  assert.match(closed, /kiama_up_loop_thrown->update\(\);/);
+  assert.match(closed, /global_preferences->sync\(\);/);
+  assert.match(closed, /payload: "CLOSED"/);
+  assert.match(closed, /retain: true/);
+  assert.match(closed, /qos: 2/);
+  const thrownScript = scripts.slice(scripts.indexOf("\n  - id: kiama_up_loop_throw_thrown"), scripts.indexOf("\n  - id: yard_throw_closed"));
+  assert.match(thrownScript, /id\(kiama_up_loop_thrown\) = true;/);
+  assert.match(thrownScript, /payload: "THROWN"/);
+  assert.match(thrownScript, /retain: true/);
 
   const blocksOnly = withCreds(myFirstBoardPreset());
   blocksOnly.points = [];
   const blocksYaml = generateYaml(blocksOnly);
   assert.match(blocksYaml, /priority: 600/);
-  assert.match(blocksYaml, /esphome::random_uint32\(\) % 5000/);
   assert.doesNotMatch(blocksYaml, /priority: -200/);
   assert.doesNotMatch(blocksYaml, /announce: false/);
+  assert.doesNotMatch(blocksYaml, /global_preferences->sync/);
   assert.match(blocksYaml, /on_connect:/);
+  assert.match(blocksYaml, /retain: false/);
   assert.doesNotMatch(blocksYaml, /web_server:/);
 });
 
@@ -377,6 +413,15 @@ test("disabling MQTT drops the broker and every JMRI topic", () => {
   assert.doesNotMatch(yaml, /^mqtt:/m);
   assert.doesNotMatch(yaml, /mqtt\.publish/);
   assert.doesNotMatch(yaml, /mqtt_subscribe/);
+  assert.doesNotMatch(yaml, /retain: true/);
+  assert.match(yaml, /kiama_up_loop_thrown->update\(\);/);
+  assert.match(yaml, /global_preferences->sync\(\);/);
+  const boot = yaml.slice(yaml.indexOf("on_boot:"), yaml.indexOf("\nesp32:"));
+  assert.match(boot, /throw_closed/);
+  assert.match(boot, /announce: false/);
+  assert.doesNotMatch(boot, /% 800/);
+  const stored = yaml.slice(yaml.indexOf("id: kiama_up_loop_thrown"), yaml.indexOf("id: kiama_up_loop_thrown") + 120);
+  assert.match(stored, /restore_value: true/);
   assert.match(yaml, /Kiama\/Up XOver \| OCCUPIED/);
   assert.match(yaml, /^api:\n/m);
   assert.equal((yaml.match(/reboot_timeout: 0s/g) || []).length, 1);

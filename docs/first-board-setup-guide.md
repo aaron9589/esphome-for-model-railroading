@@ -100,7 +100,7 @@ Mosquitto has no client list. Watch the broker with a subscriber on this PC.
    ```
 
 2. Restart the board from the ESPHome dashboard (**Restart Board**, or power-cycle it).
-3. You should see MQTT traffic from the board (sensor state and, if you have a point, a `CLOSED` message). On Windows, run `mosquitto_sub` from `C:\Program Files\mosquitto` if it is not on your PATH.
+3. You should see MQTT traffic from the board (sensor state and, if this point has no saved position yet, a `CLOSED` message). On Windows, run `mosquitto_sub` from `C:\Program Files\mosquitto` if it is not on your PATH.
 
 [MQTTX](https://mqttx.app/) shows the same traffic if you prefer a window over a terminal. Connect it to `127.0.0.1` port `1883` with no username.
 
