@@ -1177,13 +1177,29 @@ function generateYaml(config) {
   lines.push(`  name: ${yamlQuote(board.name)}`);
   lines.push(`  min_version: "${MIN_ESPHOME_VERSION}"`);
 
+  // Priority 600 runs before Wi-Fi. A 1-6s stagger keeps a layout power-up
+  // from joining every board to the broker at once. 100ms steps feed the watchdog.
+  lines.push("  # Wait 1-6 seconds so boards do not all join Wi-Fi and MQTT together.");
+  lines.push("  on_boot:");
+  lines.push("    - priority: 600");
+  lines.push("      then:");
+  lines.push("        - lambda: |-");
+  lines.push("            int random_delay = 1000 + (esphome::random_uint32() % 5000);");
+  lines.push('            ESP_LOGI("main", "Delaying boot for %d milliseconds", random_delay);');
+  lines.push("            int delay_step = 100;");
+  lines.push("            for (int i = 0; i < random_delay / delay_step; i++) {");
+  lines.push("              delay(delay_step);");
+  lines.push("              App.feed_wdt();");
+  lines.push("            }");
+  lines.push("            delay(random_delay % delay_step);");
+  lines.push('            ESP_LOGI("main", "Boot delay completed, continuing initialization");');
+
   const stripMasts = masts.filter((mast) => mast.mode !== "gpio");
   const gpioMasts = masts.filter((mast) => mast.mode === "gpio");
   const startupMasts = masts
     .map((mast) => ({ mast, index: startupAspectIndex(mast) }))
     .filter((item) => item.index >= 0);
   if (points.length || stripMasts.length || startupMasts.length) {
-    lines.push("  on_boot:");
     if (points.length) {
       lines.push("    - priority: -200.0");
       lines.push("      then:");
