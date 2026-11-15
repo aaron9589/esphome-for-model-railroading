@@ -1,0 +1,73 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="466" viewBox="0 0 960 466" role="img" aria-labelledby="tmss-run-clear.svg dmss-run-clear.svg">
+  <title id="tmss-run-clear.svg">1. The road is clear</title>
+  <desc id="dmss-run-clear.svg">No train. South and north show Clear. Mid's local wires and both approach wires are INACTIVE. The signals read those wires.</desc>
+  <rect width="960" height="466" fill="#f4f1ea"/>
+  <g font-family="ui-sans-serif, system-ui, sans-serif" fill="#1c1917">
+    <text x="32" y="36" font-size="18" font-weight="600">1. The road is clear</text>
+    <text x="32" y="58" fill="#57534e" font-size="13">Approach lighting is off. Advance and diverging stay inactive on this stretch.</text>
+    <g fill="#57534e" font-size="12" font-weight="600" text-anchor="middle">
+      <text x="164" y="90">south-board</text>
+      <text x="480" y="90">mid-board</text>
+      <text x="796" y="90">north-board</text>
+    </g>
+    <g stroke="#d32f2f" stroke-width="3" stroke-linecap="butt">
+      <line x1="48" y1="108" x2="280" y2="108"/>
+<line x1="48" y1="120" x2="280" y2="120"/>
+<line x1="312" y1="108" x2="648" y2="108"/>
+<line x1="312" y1="120" x2="648" y2="120"/>
+<line x1="680" y1="108" x2="912" y2="108"/>
+<line x1="680" y1="120" x2="912" y2="120"/>
+    </g>
+    <g stroke="#d32f2f" stroke-width="2">
+      <line x1="56" y1="108" x2="56" y2="120"/><line x1="74" y1="108" x2="74" y2="120"/><line x1="92" y1="108" x2="92" y2="120"/><line x1="110" y1="108" x2="110" y2="120"/><line x1="128" y1="108" x2="128" y2="120"/><line x1="146" y1="108" x2="146" y2="120"/><line x1="164" y1="108" x2="164" y2="120"/><line x1="182" y1="108" x2="182" y2="120"/><line x1="200" y1="108" x2="200" y2="120"/><line x1="218" y1="108" x2="218" y2="120"/><line x1="236" y1="108" x2="236" y2="120"/><line x1="254" y1="108" x2="254" y2="120"/><line x1="272" y1="108" x2="272" y2="120"/>
+      <line x1="320" y1="108" x2="320" y2="120"/><line x1="338" y1="108" x2="338" y2="120"/><line x1="356" y1="108" x2="356" y2="120"/><line x1="374" y1="108" x2="374" y2="120"/><line x1="392" y1="108" x2="392" y2="120"/><line x1="410" y1="108" x2="410" y2="120"/><line x1="428" y1="108" x2="428" y2="120"/><line x1="446" y1="108" x2="446" y2="120"/><line x1="464" y1="108" x2="464" y2="120"/><line x1="482" y1="108" x2="482" y2="120"/><line x1="500" y1="108" x2="500" y2="120"/><line x1="518" y1="108" x2="518" y2="120"/><line x1="536" y1="108" x2="536" y2="120"/><line x1="554" y1="108" x2="554" y2="120"/><line x1="572" y1="108" x2="572" y2="120"/><line x1="590" y1="108" x2="590" y2="120"/><line x1="608" y1="108" x2="608" y2="120"/><line x1="626" y1="108" x2="626" y2="120"/>
+      <line x1="688" y1="108" x2="688" y2="120"/><line x1="706" y1="108" x2="706" y2="120"/><line x1="724" y1="108" x2="724" y2="120"/><line x1="742" y1="108" x2="742" y2="120"/><line x1="760" y1="108" x2="760" y2="120"/><line x1="778" y1="108" x2="778" y2="120"/><line x1="796" y1="108" x2="796" y2="120"/><line x1="814" y1="108" x2="814" y2="120"/><line x1="832" y1="108" x2="832" y2="120"/><line x1="850" y1="108" x2="850" y2="120"/><line x1="868" y1="108" x2="868" y2="120"/><line x1="886" y1="108" x2="886" y2="120"/><line x1="904" y1="108" x2="904" y2="120"/>
+    </g>
+    
+    
+    <g transform="translate(296 152)">
+      <circle cx="0" cy="0" r="11" fill="#292524"/>
+      <circle cx="0" cy="0" r="5" fill="#f4f1ea"/>
+      <polygon points="14,-4 24,0 14,4" fill="#1c1917"/>
+    </g>
+    <rect x="324" y="140" width="72" height="24" rx="8" fill="#e7f6ef" stroke="#0f6e56"/>
+    <text x="360.0" y="156" text-anchor="middle" fill="#0f6e56" font-size="12" font-weight="600">Clear</text>
+    
+    
+    <g transform="translate(664 152) scale(-1 1)">
+      <circle cx="0" cy="0" r="11" fill="#292524"/>
+      <circle cx="0" cy="0" r="5" fill="#f4f1ea"/>
+      <polygon points="14,-4 24,0 14,4" fill="#1c1917"/>
+    </g>
+    <rect x="564" y="140" width="72" height="24" rx="8" fill="#e7f6ef" stroke="#0f6e56"/>
+    <text x="600.0" y="156" text-anchor="middle" fill="#0f6e56" font-size="12" font-weight="600">Clear</text>
+    
+    
+    <rect x="32" y="214" width="896" height="68" rx="12" fill="#fffdf8" stroke="#e7e2d8"/>
+    <rect x="48" y="232" width="104" height="32" rx="8" fill="#e7f6ef" stroke="#0f6e56"/>
+    <text x="100" y="253" text-anchor="middle" fill="#0f6e56" font-size="13" font-weight="600">Reads</text>
+    <text x="168" y="244" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">mss/main/mid-board/mid/begin/local</text>
+    <text x="168" y="266" fill="#57534e" font-size="13">South's signal uses this for Stop. It is the block ahead.</text>
+    <rect x="808" y="232" width="100" height="32" rx="8" fill="#e7f6ef" stroke="#0f6e56"/>
+    <text x="858" y="253" text-anchor="middle" fill="#0f6e56" font-size="13" font-weight="600">INACTIVE</text>
+    
+
+    <rect x="32" y="290" width="896" height="68" rx="12" fill="#fffdf8" stroke="#e7e2d8"/>
+    <rect x="48" y="308" width="104" height="32" rx="8" fill="#e7f6ef" stroke="#0f6e56"/>
+    <text x="100" y="329" text-anchor="middle" fill="#0f6e56" font-size="13" font-weight="600">Reads</text>
+    <text x="168" y="320" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">mss/main/mid-board/mid/end/local</text>
+    <text x="168" y="342" fill="#57534e" font-size="13">North's signal uses this for Stop. Same occupancy, other end.</text>
+    <rect x="808" y="308" width="100" height="32" rx="8" fill="#e7f6ef" stroke="#0f6e56"/>
+    <text x="858" y="329" text-anchor="middle" fill="#0f6e56" font-size="13" font-weight="600">INACTIVE</text>
+    
+
+    <rect x="32" y="366" width="896" height="68" rx="12" fill="#fffdf8" stroke="#e7e2d8"/>
+    <rect x="48" y="384" width="104" height="32" rx="8" fill="#e7f6ef" stroke="#0f6e56"/>
+    <text x="100" y="405" text-anchor="middle" fill="#0f6e56" font-size="13" font-weight="600">Reads</text>
+    <text x="168" y="396" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">mss/main/mid-board/mid/end/approach</text>
+    <text x="168" y="418" fill="#57534e" font-size="13">North reads south's block here. South reads the matching wire from mid's begin.</text>
+    <rect x="808" y="384" width="100" height="32" rx="8" fill="#e7f6ef" stroke="#0f6e56"/>
+    <text x="858" y="405" text-anchor="middle" fill="#0f6e56" font-size="13" font-weight="600">INACTIVE</text>
+    
+  </g>
+</svg>

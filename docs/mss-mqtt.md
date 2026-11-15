@@ -10,7 +10,9 @@ The standard, the fundamentals, and the planning notes are the three PDFs on the
 - [User guide part 1, fundamentals](http://www.modularsignalsystem.info/MSSUserGuide1.pdf)
 - [User guide part 2, planning](http://www.modularsignalsystem.info/MSSUserGuide2.pdf)
 
-Build the mast on the Signals page first, then open **Modular signals** in the [configurator](https://aaron9589.github.io/esphome-for-model-railroading/). Skip that page if JMRI is still choosing the aspects.
+Optical detectors and signal masts each have their own page in the [configurator](https://aaron9589.github.io/esphome-for-model-railroading/). **Modular signals** assigns one of each to the ends of a signal block. Skip that page if JMRI is still choosing the aspects.
+
+On Modular signals you add signal blocks. Each block uses current sensors you already created on the Blocks page. Each end of the block gets an optical detector, and the signal that protects that end. Optical detectors are their own page: a GPIO input for now, until the sensing circuit is filled in. When two signal blocks meet on this board, one end names the other block. An end that meets another module is filled in on the board's web page at the layout. The module already knows its own detectors. It only needs the neighbor's address.
 
 ## What stays the same
 
@@ -44,15 +46,22 @@ Sidings and spurs that are not signaled are not part of this. Both rails are sti
 
 ## What MQTT changes
 
-Modules do not need an odd number of crossover cables, and a module does not have to be reversible. You name the blocks. A signal lists the block it protects, the next one, and optionally the one after that. That list is the cascade.
+Modules do not need an odd number of crossover cables, and a module does not have to be reversible. You name the blocks when you build the module. At a meet you do not reflash, and you do not type a list of the other module's detectors.
 
-Each detector publishes its own topic. A block is occupied if any of its publishers says so. There is no single topic that several boards write, because the last write would wipe the others.
+Open `http://<board-name>.local`. Each end that was marked for the web page has a text box. The box name uses dashes, like `board - block - begin neighbor`, because ESPHome rejects `/` in a name. The address you type still uses slashes: `board/block/end`. Type the address of the other module. There is also a Signaled track field, already set to the name you flashed (usually `main`). Both modules must show the same track name. The broker address stays in the flashed file.
+
+Each end then publishes four wires, retained, QoS 1, `ACTIVE` or `INACTIVE`:
 
 ```
-mss/<track>/<block>/<board>/<kind>/<name>
+mss/<track>/<board>/<block>/<end>/local
+mss/<track>/<board>/<block>/<end>/approach
+mss/<track>/<board>/<block>/<end>/advance
+mss/<track>/<board>/<block>/<end>/diverging
 ```
 
-`kind` is `current`, `optical`, `turnout`, or `route`. The payload is `ACTIVE` or `INACTIVE`, retained, QoS 1. The publisher id you copy into the next board is the last three parts: `south/current/feed`.
+`local` is this block, including a crossover neighbor's detectors and the optical at the boundary. `approach` is the next block. `advance` is the one after that. `diverging` is ACTIVE only when a junction is lined for the diverging route and that block is clear. A crossover end passes the three wires from its other neighbor, so the cascades at the ends of a block do not need the names of the modules in between.
+
+The signal that protects a block reads Stop from `local`, Approach from `approach`, and Advance Approach from `advance`. Approach Diverging replaces Approach when `diverging` is ACTIVE.
 
 Each board also publishes:
 
@@ -60,13 +69,11 @@ Each board also publishes:
 mss/<track>/node/<board>/online
 ```
 
-`ONLINE` while it is connected, `OFFLINE` as its last will. Both are retained.
-
-A neighbour treats a publisher as occupied unless the board is `ONLINE` and that publisher is `INACTIVE`. A board that has not been heard yet, or one that has dropped off, holds its blocks occupied. On the wired bus a disconnected detector floats to clear. This is the one deliberate difference: a missing module shows Stop, not Clear.
+`ONLINE` while it is connected, `OFFLINE` as its last will. Both are retained. A neighbor is clear only when its board is `ONLINE` and the wire is `INACTIVE`. A blank address, a board that has not been heard, or a board that has dropped off holds that end occupied. On the wired bus a disconnected detector floats to clear. This is the one deliberate difference: a missing module shows Stop, not Clear.
 
 ![A publisher is clear only when its board is online and the payload is INACTIVE. Active, offline, and unheard publishers all count as occupied.](../_img/mss-failsafe.svg)
 
-The Blocks page is separate. Those topics are for JMRI (`trains/track/sensor/...`, not retained). An MSS detector is added on Modular signals, on its own pin.
+The Blocks page is separate. Those topics are for JMRI (`trains/track/sensor/...`, not retained). An MSS current sensor is one you already created there. The optical detectors are added on Optical detectors.
 
 ## A plain stretch
 
@@ -74,24 +81,29 @@ Three boards, one signaled track named `main`. Block `south`, then `mid`, then `
 
 ![South and north carry the signals and both protect mid. Mid only publishes its current detector. A train in south gives north's signal Approach. A train in mid gives both signals Stop.](../_img/mss-stretch.svg)
 
-**south** is the boundary between `south` and `mid`.
+**south** is the cascade at the south end of `mid`. On its web page the north end's neighbor is `mid-board/mid/begin`.
 
-- Current detector `feed` on block `south`.
-- Optical detector `gap` on `south` and `mid`.
-- Signal facing north. It protects `mid`, the next block is `north`, and the block behind it is `south` if you want approach lighting.
-- Publishers it does not own: `mid/current/feed` on `mid`, and `north/current/feed` on `north`.
+- Current detector on block `south`. That occupancy goes out as `approach`, so it is the next block for the signal at north.
+- Optical at the boundary. That goes out as `local`, so it occupies `mid` as well as `south`.
+- The signal protects `south`. Stop is `south` plus whatever `mid` reports on `local`. Approach is whatever `mid` passes through from `north`.
 
-**mid** is only a detector, the crossover module.
+**mid** is the crossover. Both ends are web-page neighbors, `south-board/south/end` and `north-board/north/begin`. It has a current detector and no signal. Its `local` is that detector plus the opticals the two cascades send. It passes `approach` and `advance` from one neighbor to the other.
 
-- Current detector `feed` on block `mid`. No signal.
+**north** mirrors south. Its south end's neighbor is `mid-board/mid/end`.
 
-**north** mirrors south.
+Watching MQTTX on `127.0.0.1:1883`, subscribe to `mss/main/#`. A train in `south` sets `mss/main/south-board/south/end/approach` to `ACTIVE`. The signal on `south` does not go to Stop for that, because Stop is `mid`'s `local` wire. The signal on `north` sees that approach wire through `mid`, so it goes to Approach. When the train reaches `mid`, `mid` publishes `local` ACTIVE and both signals go to Stop.
 
-- Current `feed` on `north`, optical `gap` on `north` and `mid`.
-- Signal facing south. It protects `mid`, the next block is `south`.
-- Publisher it does not own: `south/current/feed` and `south/optical/gap` on `south`, and `mid/optical/gap` if you want the south optical included twice. One of them is enough; either optical occupies `mid`.
+Approach lighting is off in these pictures, so a clear road shows Clear. `advance` and `diverging` stay INACTIVE, and every board stays online.
 
-Watching MQTTX on `127.0.0.1:1883`, subscribe to `mss/main/#`. A train in `south` sets `mss/main/south/south/current/feed` to `ACTIVE`. The north-facing signal on `south` is still looking at `mid`, so it does not go to Stop for that. The south-facing signal on `north` protects `mid` and uses `south` as its next block, so it goes to Approach. When the train reaches `mid`, both signals go to Stop, because each one protects `mid`.
+![The road is clear. Both signals show Clear. Mid's local wires and the approach wires are INACTIVE, and those are the wires the signals read.](../_img/mss-run-clear.svg)
+
+![A train in south publishes approach ACTIVE. Mid passes that wire to the north signal, which shows Approach. South stays Clear because mid's local is INACTIVE.](../_img/mss-run-south.svg)
+
+![The optical at the boundary publishes local ACTIVE. Mid publishes its own local ACTIVE from that, and both signals show Stop.](../_img/mss-run-gap.svg)
+
+![The train is in mid. The optical is clear. Mid's current detector holds local ACTIVE, so both signals stay at Stop.](../_img/mss-run-mid.svg)
+
+![The train is in north. Mid's local clears and the north signal shows Clear. North's approach wire is passed to the south signal, which shows Approach.](../_img/mss-run-north.svg)
 
 ## A junction
 
@@ -99,15 +111,9 @@ A junction has a main block and a diverging block, and a point or a pin that say
 
 ![When diverging is lined, the main block is held occupied and Approach Diverging is published only if the diverging block is clear. When the main is lined, the diverging block is held occupied.](../_img/mss-junction.svg)
 
-The board publishes three extra topics:
+The inactive route is held occupied on the `local` and `approach` wires, so a signal that has no Approach Diverging aspect still shows Approach. The `diverging` wire is ACTIVE only when the diverging route is lined and that block is clear. A crossover passes that wire through, so the signal one block back does not need the junction's name. On this board, the signal's "Junction ahead" field is still `board/junction`, such as `south/wye`.
 
-- `mss/<track>/<main-block>/<board>/route/<junction>` is `ACTIVE` while diverging is lined.
-- `mss/<track>/<diverging-block>/<board>/route/<junction>` is `ACTIVE` while main is lined.
-- `mss/<track>/diverging/<board>/<junction>` is `ACTIVE` only when diverging is lined and the diverging block is clear.
-
-The publisher id for the first two is `<board>/route/<junction>`. Add it on the signal that watches that block, on top of the real detectors. A signal one block before the junction lists the junction as `<board>/<junction>` if it has an Approach Diverging aspect.
-
-Advance Approach stays on the single block you named as two ahead. This version does not swap that block when the junction is thrown.
+Advance Approach is the `advance` wire coming from the far end. It stays on that path when the junction is thrown.
 
 ## On the mast
 
