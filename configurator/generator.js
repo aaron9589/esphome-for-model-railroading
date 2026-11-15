@@ -806,24 +806,24 @@ function validateMss(config, errors, warnings, notePin) {
     const labels = new Set((mast.aspects || []).map((aspect) => aspect.label));
     for (const [key, title] of [["stop", "Stop"], ["approach", "Approach"], ["clear", "Clear"]]) {
       if (!signal[key] || !labels.has(signal[key])) {
-        errors.push(`${who} needs the ${title} aspect on mast "${mast.name}".`);
+        errors.push(`${who} needs the ${title} colour on mast "${mast.name}".`);
       }
     }
     if (signal.advance && !labels.has(signal.advance)) {
-      errors.push(`${who} Advance Approach aspect "${signal.advance}" is not on mast "${mast.name}".`);
+      errors.push(`${who} Advance Approach colour "${signal.advance}" is not on mast "${mast.name}".`);
     }
     if (signal.diverging && !labels.has(signal.diverging)) {
-      errors.push(`${who} Approach Diverging aspect "${signal.diverging}" is not on mast "${mast.name}".`);
+      errors.push(`${who} Approach Diverging colour "${signal.diverging}" is not on mast "${mast.name}".`);
     }
     if (signal.advance && !signal.advanceBlock && !signal.advanceOcc) {
-      errors.push(`${who} Advance Approach needs the block two ahead on this board, or a web-page connection that far.`);
+      errors.push(`${who} Advance Approach needs a block two ahead. Join that block, or set Advance Approach back to Not used.`);
     }
     if (!signal.advance && (signal.advanceBlock || signal.advanceOcc)) {
-      errors.push(`${who} has a block two ahead but no Advance Approach aspect.`);
+      errors.push(`${who} can see two blocks ahead, so it needs an Advance Approach colour.`);
     }
     if (signal.approachLighting) {
       if (!signal.dark || !labels.has(signal.dark)) {
-        errors.push(`${who} approach lighting needs a Dark aspect with every lamp off.`);
+        errors.push(`${who} approach lighting needs a Dark colour with every lamp off.`);
       }
       if (!signal.behindBlock && !signal.behindOcc) {
         errors.push(`${who} approach lighting needs the block connected at that end.`);
@@ -832,19 +832,18 @@ function validateMss(config, errors, warnings, notePin) {
     if (!mssSlugOk(signal.stopBlock)) errors.push(`${who} needs the block it protects.`);
     if (signal.diverging) {
       const from = parseMssDiverging(signal.divergingFrom);
-      if (!from) errors.push(`${who} Approach Diverging needs the junction ahead, like north/wye.`);
+      if (!from) errors.push(`${who} Approach Diverging needs the points ahead, like south/wye.`);
     } else if (signal.divergingFrom) {
-      errors.push(`${who} has a junction ahead but no Approach Diverging aspect.`);
+      errors.push(`${who} has points ahead filled in, but no Approach Diverging colour.`);
     }
   }
   for (const junction of activeJunctions(mss)) {
     const who = `Junction "${junction.name || "junction"}"`;
     if (!mssSlugOk(junction.name)) errors.push(`${who} needs a name like wye.`);
-    if (!mssSlugOk(junction.mainBlock) || !mssSlugOk(junction.divergingBlock)) {
-      errors.push(`${who} needs a main block and a diverging block.`);
-    }
+    if (!mssSlugOk(junction.mainBlock)) errors.push(`${who} needs a signal block name.`);
+    if (!mssSlugOk(junction.divergingBlock)) errors.push(`${who} needs a branch.`);
     if (junction.mainBlock && junction.mainBlock === junction.divergingBlock) {
-      errors.push(`${who} main and diverging blocks have to be different.`);
+      errors.push(`${who} branch has to be a different signal block.`);
     }
     if (junction.point) {
       if (!pointNames.has(junction.point)) errors.push(`${who} follows point "${junction.point}", which is not on this board.`);
@@ -870,7 +869,7 @@ function validateMss(config, errors, warnings, notePin) {
   }
   for (const junction of activeJunctions(mss)) {
     if (mssSlugOk(junction.divergingBlock) && !hasTrainDetector(junction.divergingBlock)) {
-      warnings.push(`Junction "${junction.name}" has no detector for diverging block "${junction.divergingBlock}", so Approach Diverging stays off.`);
+      warnings.push(`Junction "${junction.name}" has no detector on branch "${junction.divergingBlock}", so Approach Diverging stays off.`);
     }
   }
 }

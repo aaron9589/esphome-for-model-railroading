@@ -108,11 +108,11 @@ Approach lighting is off in these pictures, so a clear road shows Clear. `advanc
 
 ## A junction
 
-Tick **Junction** on the signal block that holds the points. That block is a complex cascade: Beginning, Main, and Diverging, and each of those three signals faces into the block. The block you are editing is the main route. Pick the diverging block and the point, or a pin, that lines it. Thrown means diverging unless you untick that.
+Tick **The track splits here** on the signal block that holds the points. That block is a complex cascade: Beginning, Main, and Diverging, and each of those three signals faces into the block. The block you are editing is the straight route. Pick the branch and the point, or a pin, that lines it. Thrown lines the branch unless you untick that.
 
 ![When diverging is lined, the main block is held occupied and Approach Diverging is published only if the diverging block is clear. When the main is lined, the diverging block is held occupied.](../_img/mss-junction.svg)
 
-The inactive route is held occupied on the `local` and `approach` wires, so a signal that has no Approach Diverging aspect still shows Approach. The `diverging` wire is ACTIVE only when the diverging route is lined and that block is clear. A crossover passes that wire through, so the signal one block back does not need the junction's name. On this board, the signal's "Junction ahead" field is still `board/junction`, such as `south/wye`.
+The inactive route is held occupied on the `local` and `approach` wires, so a signal that has no Approach Diverging aspect still shows Approach. The `diverging` wire is ACTIVE only when the diverging route is lined and that block is clear. A crossover passes that wire through, so the signal one block back does not need the junction's name. On this board, the signal's Points ahead field is still `board/name`, such as `south/wye`.
 
 Advance Approach is the `advance` wire coming from the far end. It stays on that path when the junction is thrown.
 

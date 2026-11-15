@@ -248,6 +248,124 @@ main {
   margin-top: 0.2rem;
 }
 
+.row-card .panel {
+  margin-top: 1rem;
+  padding-top: 0.9rem;
+  border-top: 1px solid var(--line);
+}
+
+.mss-map {
+  margin: 1rem 0 0.25rem;
+  padding: 0.75rem 0.85rem 0.7rem;
+  background: var(--bg);
+  border-radius: 8px;
+}
+
+.mss-map-row {
+  display: flex;
+  align-items: stretch;
+  gap: 0.45rem;
+}
+
+.mss-map.is-split .mss-map-row {
+  justify-content: space-between;
+}
+
+.mss-map-end {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  min-width: 6.5rem;
+}
+
+.mss-map-name {
+  font-size: 0.72rem;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.mss-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+}
+
+.mss-chip {
+  border: 1px solid var(--line-strong);
+  background: #fff;
+  border-radius: 4px;
+  padding: 0.15rem 0.4rem;
+  font-size: 0.72rem;
+  color: var(--ink);
+  white-space: nowrap;
+}
+
+.mss-chip.is-in {
+  border-color: #93c5fd;
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.mss-map-track {
+  flex: 1;
+  display: flex;
+  align-items: flex-end;
+  min-width: 4.5rem;
+  margin-bottom: 0.45rem;
+}
+
+.mss-map-track span {
+  flex: 1;
+  text-align: center;
+  font-size: 0.75rem;
+  color: var(--muted);
+  border-top: 3px solid var(--ink);
+  padding-top: 0.35rem;
+}
+
+.mss-map figcaption {
+  margin: 0.6rem 0 0;
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.35;
+}
+
+.face-extra {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.85rem 1rem;
+}
+
+.face-extra h6 {
+  grid-column: 1 / -1;
+  margin: 0.15rem 0 0;
+  font-size: 0.78rem;
+  font-weight: 650;
+  color: var(--muted);
+}
+
+.hint.is-warn {
+  color: var(--warn-ink);
+}
+
+#mss-ready p {
+  margin: 0;
+}
+
+#mss-ready p + p {
+  margin-top: 0.55rem;
+}
+
+#mss-ready button.text,
+.panel button.text {
+  color: var(--accent);
+  font-weight: 650;
+  vertical-align: baseline;
+}
+
 .panel h4 {
   margin: 0 0 0.25rem;
   font-size: 0.82rem;
@@ -413,6 +531,10 @@ label {
   font-size: 0.78rem;
   font-weight: 400;
   line-height: 1.35;
+}
+
+.fields > .hint {
+  grid-column: 1 / -1;
 }
 
 .check-copy {
@@ -967,9 +1089,18 @@ button.mini {
     flex-direction: column;
   }
 
-  .fields {
+  .fields,
+  .face-extra {
     display: grid;
     grid-template-columns: 1fr;
+  }
+
+  .mss-map-row {
+    flex-direction: column;
+  }
+
+  .mss-map-track {
+    margin: 0.15rem 0 0.15rem 0.2rem;
   }
 
   .check {

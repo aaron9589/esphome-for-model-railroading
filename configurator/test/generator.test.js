@@ -912,7 +912,7 @@ test("MSS signal blocks, aspects, and junctions round-trip", () => {
 
   config.mss.blocks[1].begin.stop = "";
   const missing = validateConfig(config);
-  assert.ok(missing.errors.some((error) => error.includes("needs the Stop aspect")));
+  assert.ok(missing.errors.some((error) => error.includes("needs the Stop colour")));
   config.board.mqttEnabled = false;
   assert.ok(validateConfig(config).errors.some((error) => error.includes("Modular signals need MQTT")));
 });

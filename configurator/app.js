@@ -109,6 +109,7 @@ const el = {
   countMss: document.getElementById("count-mss"),
   mssOpticalsEmpty: document.getElementById("mss-opticals-empty"),
   mssBlocksEmpty: document.getElementById("mss-blocks-empty"),
+  mssReady: document.getElementById("mss-ready"),
 };
 
 document.querySelectorAll(".nav-item").forEach((button) => {
@@ -1527,7 +1528,57 @@ function withSaved(options, value) {
   return options;
 }
 
-function renderMssFace(end, mastOptions, face) {
+function jumpButton(view, label) {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "text";
+  button.textContent = label;
+  button.addEventListener("click", () => showView(view));
+  return button;
+}
+
+function mssMastTaken(name, end, key) {
+  if (!name) return false;
+  for (const block of state.mss.blocks || []) {
+    const sides = block.junction ? ["begin", "end", "diverge"] : ["begin", "end"];
+    for (const side of sides) {
+      const item = block[side] || {};
+      if (item.mast === name && !(item === end && key === "mast")) return true;
+      if (!block.junction && item.outMast === name && !(item === end && key === "outMast")) return true;
+    }
+  }
+  return false;
+}
+
+// Same rule as compileMss: Advance Approach is required once a second block ahead is connected.
+function mssAdvanceNeed(block, side, facing) {
+  const blocks = (state.mss.blocks || []).filter((item) => item.name);
+  const byName = new Map(blocks.map((item) => [item.name, item]));
+  const port = (item, which) => {
+    const end = item[which] || {};
+    const link = end.link && byName.has(end.link) && end.link !== item.name ? end.link : "";
+    return { link, meet: end.configurable === true && !link };
+  };
+  const otherEnd = (blockName, comingFrom) => {
+    const item = byName.get(blockName);
+    if (!item) return null;
+    const sides = item.junction ? ["begin", "end", "diverge"] : ["begin", "end"];
+    return sides.map((which) => port(item, which)).find((itemPort) => itemPort.link !== comingFrom) || null;
+  };
+  const ahead = facing === "out" ? port(block, side) : port(block, side === "begin" ? "end" : "begin");
+  if (ahead.link) {
+    const beyond = otherEnd(ahead.link, block.name);
+    return Boolean(beyond && (beyond.link || beyond.meet));
+  }
+  return ahead.meet;
+}
+
+function mssAspectLabels(mastName) {
+  const mast = (state.signals.masts || []).find((item) => item.name === mastName);
+  return (mast?.aspects || []).map((aspect) => aspect.label).filter(Boolean);
+}
+
+function renderMssFace(block, side, end, mastOptions, face) {
   const wrap = document.createElement("div");
   wrap.className = "face";
   const title = document.createElement("h5");
@@ -1538,62 +1589,203 @@ function renderMssFace(end, mastOptions, face) {
   wrap.append(title, hint);
   const fields = document.createElement("div");
   fields.className = "fields";
-  fields.append(field("Signal", end[face.mast], (value) => {
+  const chosen = end[face.mast];
+  const options = mastOptions.map((option) => {
+    if (!option.value || option.value === chosen) return option;
+    return mssMastTaken(option.value, end, face.mast)
+      ? { value: option.value, label: `${option.label} (already used)` }
+      : option;
+  });
+  const noMasts = !(state.signals.masts || []).length;
+  let signalHint = noMasts
+    ? "Add the heads on Signals, then pick one."
+    : "A head from the Signals page. Each head is used on one signal. No signal means nothing faces this way.";
+  if (chosen && mssMastTaken(chosen, end, face.mast)) {
+    signalHint = "This head is already used on another signal. Pick a different one.";
+  }
+  fields.append(field("Signal", chosen, (value) => {
     end[face.mast] = value;
     persist();
     render();
   }, {
-    select: withSaved(mastOptions, end[face.mast]),
-    hint: "Build the mast on the Signals page first. Leave this as No signal if this direction has no head.",
+    select: withSaved(options, chosen),
+    full: true,
+    hint: signalHint,
   }));
-  if (end[face.mast]) {
+  if (chosen) {
     const aspects = (key, labelText, aspectHint, optional) => field(labelText, end[key], (value) => {
       end[key] = value;
       persist();
-      updatePreview();
+      render();
     }, {
-      select: withSaved(aspectChoices(end[face.mast], optional), end[key]),
+      select: withSaved(aspectChoices(chosen, optional), end[key]),
+      full: true,
       hint: aspectHint,
     });
+    const labels = mssAspectLabels(chosen);
+    const missing = [["Stop", face.stop], ["Approach", face.approach], ["Clear", face.clear]]
+      .filter(([label, key]) => end[key] && !labels.includes(end[key]))
+      .map(([label]) => label);
     fields.append(
-      aspects(face.stop, "Stop aspect", face.stopHint, false),
-      aspects(face.approach, "Approach aspect", face.approachHint, false),
-      aspects(face.advance, "Advance Approach aspect", "Optional. The block two ahead.", true),
-      aspects(face.clear, "Clear aspect", "Shown when the blocks ahead are clear.", false),
-      aspects(face.diverging, "Approach Diverging aspect", "Optional. Replaces Approach when the junction ahead is diverging and clear.", true),
-      field("Junction ahead", end[face.divergingFrom], (value) => {
+      aspects(face.stop, "Stop", face.stopHint, false),
+      aspects(face.approach, "Approach", face.approachHint, false),
+      aspects(face.clear, "Clear", "The colour when the blocks ahead are clear. On Signals this is usually named Clear.", false)
+    );
+    if (missing.length) {
+      const warn = document.createElement("p");
+      warn.className = "hint is-warn";
+      const names = missing.length === 1
+        ? missing[0]
+        : `${missing.slice(0, -1).join(", ")} and ${missing[missing.length - 1]}`;
+      warn.textContent = missing.length === 1
+        ? `${names} is not a colour on this head. Pick a name from its list, or rename an aspect on Signals.`
+        : `${names} are not colours on this head. Pick names from its list, or rename the aspects on Signals.`;
+      fields.append(warn);
+    }
+    const extra = document.createElement("div");
+    extra.className = "face-extra";
+    const extraTitle = document.createElement("h6");
+    extraTitle.textContent = "Extra colours";
+    const seesTwo = mssAdvanceNeed(block, side, face.facing);
+    const advanceSet = Boolean(end[face.advance]);
+    const advanceHint = !labels.length
+      ? "This head has no colours yet. Add them on Signals."
+      : seesTwo
+        ? (advanceSet
+          ? "The colour for a train two blocks ahead. This signal can see that far."
+          : "Choose the colour for a train two blocks ahead. Not used fails the check, because this signal can see that far.")
+        : (advanceSet
+          ? "This signal cannot see two blocks ahead yet, so clear this or the check fails. Not used is the right choice until the block beyond the next one is joined."
+          : "Leave this as Not used. This signal cannot see two blocks ahead yet, and choosing a colour fails the check.");
+    extra.append(
+      extraTitle,
+      aspects(face.advance, "Advance Approach", advanceHint, true),
+      aspects(face.diverging, "Approach Diverging", "Optional. Replaces Approach when the points ahead are lined for the branch and that branch is clear. Not used if this head cannot show it.", true)
+    );
+    if (end[face.diverging] || end[face.divergingFrom]) {
+      const local = (state.mss.blocks || [])
+        .filter((item) => item.junction?.name)
+        .map((item) => `${state.board.name || "board"}/${item.junction.name}`);
+      const listed = local.length ? ` On this board: ${local.join(", ")}.` : "";
+      extra.append(field("Points ahead", end[face.divergingFrom], (value) => {
         end[face.divergingFrom] = value.trim().toLowerCase();
         persist();
         updatePreview();
       }, {
-        placeholder: "north/wye",
+        placeholder: "south/wye",
         spellcheck: false,
-        hint: "Board and junction name, like north/wye. Blank if this signal has no Approach Diverging.",
-      }),
-      field("Approach lighting", end[face.approachLighting] === true, (value) => {
-        end[face.approachLighting] = value;
-        persist();
-        render();
-      }, {
-        checkbox: true,
-        hint: face.lightingHint,
-      })
-    );
-    if (end[face.approachLighting]) {
-      fields.append(aspects(face.dark, "Dark aspect", "Every lamp off.", false));
+        full: true,
+        hint: `The points this signal watches, written as board/name. south/wye means the board south and the points wye.${listed}`,
+      }));
     }
+    extra.append(field("Approach lighting", end[face.approachLighting] === true, (value) => {
+      end[face.approachLighting] = value;
+      persist();
+      render();
+    }, {
+      checkbox: true,
+      hint: face.lightingHint,
+    }));
+    if (end[face.approachLighting]) {
+      extra.append(aspects(face.dark, "Dark", "The colour with every lamp off. Add it on Signals if it is not in the list.", false));
+    }
+    fields.append(extra);
   }
   wrap.append(fields);
   return wrap;
 }
 
-function renderMssEnd(mss, block, side, label, inwardOnly) {
+function mssEndCopy(side, junction) {
+  if (side === "diverge") {
+    return {
+      title: "Diverging",
+      lead: "Past the points, along the branch. In an address this end is diverge.",
+    };
+  }
+  if (side === "end" && junction) {
+    return {
+      title: "Main",
+      lead: "Past the points, along the straight. In an address this end is end.",
+    };
+  }
+  if (junction) {
+    return {
+      title: "Beginning",
+      lead: "Before the points, where the straight and the branch are one track. In an address this end is begin.",
+    };
+  }
+  if (side === "end") {
+    return {
+      title: "End",
+      lead: "The other end of this block. You choose which physical end this is. In an address it is end.",
+    };
+  }
+  return {
+    title: "Beginning",
+    lead: "One end of this block. You choose which physical end this is. In an address it is begin.",
+  };
+}
+
+function mssMapEnd(name, chips) {
+  const wrap = document.createElement("div");
+  wrap.className = "mss-map-end";
+  const title = document.createElement("span");
+  title.className = "mss-map-name";
+  title.textContent = name;
+  const row = document.createElement("div");
+  row.className = "mss-chips";
+  for (const chip of chips) {
+    const span = document.createElement("span");
+    span.className = chip === "faces in" ? "mss-chip is-in" : "mss-chip";
+    span.textContent = chip;
+    row.append(span);
+  }
+  wrap.append(title, row);
+  return wrap;
+}
+
+function mssMap(junction) {
+  const figure = document.createElement("figure");
+  figure.className = junction ? "mss-map is-split" : "mss-map";
+  const row = document.createElement("div");
+  row.className = "mss-map-row";
+  if (junction) {
+    row.append(
+      mssMapEnd("Beginning", ["faces in"]),
+      mssMapEnd("Main", ["faces in"]),
+      mssMapEnd("Diverging", ["faces in"])
+    );
+  } else {
+    const track = document.createElement("div");
+    track.className = "mss-map-track";
+    const label = document.createElement("span");
+    label.textContent = "this block";
+    track.append(label);
+    row.append(
+      mssMapEnd("Beginning", ["faces out", "faces in"]),
+      track,
+      mssMapEnd("End", ["faces in", "faces out"])
+    );
+  }
+  const caption = document.createElement("figcaption");
+  caption.textContent = junction
+    ? "The track splits, so each end has one head and it faces into this block."
+    : "Faces in is the head a train sees as it arrives. Faces out is the head a train sees as it leaves toward the next block.";
+  figure.append(row, caption);
+  return figure;
+}
+
+function renderMssEnd(block, side, junction) {
   const end = block[side];
+  const copy = mssEndCopy(side, junction);
   const panel = document.createElement("div");
   panel.className = "panel";
   const heading = document.createElement("h4");
-  heading.textContent = label;
-  panel.append(heading);
+  heading.textContent = copy.title;
+  const lead = document.createElement("p");
+  lead.className = "hint";
+  lead.textContent = copy.lead;
+  panel.append(heading, lead);
   const fields = document.createElement("div");
   fields.className = "fields";
   const opticalOptions = [{ value: "", label: "None" }, ...state.mss.opticals.map((optical) => ({
@@ -1607,6 +1799,20 @@ function renderMssEnd(mss, block, side, label, inwardOnly) {
     value: mast.name,
     label: mast.name,
   }))];
+  const mode = end.configurable ? "module" : end.link ? "board" : "none";
+  const neighborOptions = [{ value: "none", label: "Nothing yet" }];
+  if (otherBlocks.length || mode === "board") {
+    neighborOptions.push({ value: "board", label: "Another signal block on this board" });
+  }
+  neighborOptions.push({ value: "module", label: "Another module, typed in after flashing" });
+  const several = state.mss.blocks.filter((item) => item.name).length > 1;
+  const neighborHint = mode === "module"
+    ? "You will type the address after flashing. The note under this end shows the box name."
+    : mode === "board"
+      ? "Pick that signal block below. The joint is shared, so the optical sensor occupies both blocks."
+      : several
+        ? "Until this is joined, a signal looking here shows Stop. Each signal block needs at least one end joined."
+        : "Until this is joined, a signal looking here shows Stop.";
   fields.append(
     field("Optical detector", end.optical, (value) => {
       end.optical = value;
@@ -1614,48 +1820,66 @@ function renderMssEnd(mss, block, side, label, inwardOnly) {
       updatePreview();
     }, {
       select: withSaved(opticalOptions, end.optical),
-      hint: "The sensor at this end of the block. A train on it occupies this block and the one it joins.",
+      full: true,
+      hint: "From Optical detectors. A train on it occupies this block and the next one until the last car is clear. None if this joint has no sensor.",
     }),
-    field("Set the neighbor on the web page", end.configurable === true, (value) => {
-      end.configurable = value;
-      if (value) end.link = "";
+    field("What is past this end?", mode, (value) => {
+      if (value === "module") {
+        end.configurable = true;
+        end.link = "";
+      } else if (value === "board") {
+        end.configurable = false;
+      } else {
+        end.configurable = false;
+        end.link = "";
+      }
       persist();
       render();
     }, {
-      checkbox: true,
-      hint: "At a meet, type the other module's address on this board's web page. Leave it blank and this end stays occupied.",
+      select: neighborOptions,
+      full: true,
+      hint: neighborHint,
     })
   );
-  if (!end.configurable) {
-    fields.append(field("Connects to", end.link, (value) => {
+  if (mode === "board") {
+    fields.append(field("Joins", end.link, (value) => {
       end.link = value;
       persist();
-      updatePreview();
+      render();
     }, {
-      select: withSaved([{ value: "", label: "No other block" }, ...otherBlocks], end.link),
-      hint: "Another signal block on this board that shares this end.",
+      select: withSaved([{ value: "", label: "Choose a block" }, ...otherBlocks], end.link),
+      full: true,
+      hint: "The signal block on this board that shares this joint.",
     }));
   }
-  const faces = [
-    renderMssFace(end, mastOptions, {
-      title: "Facing into the block",
-      hint: "Trains arriving at this boundary see this signal. It protects this block.",
-      mast: "mast",
-      stop: "stop",
-      approach: "approach",
-      advance: "advance",
-      clear: "clear",
-      diverging: "diverging",
-      divergingFrom: "divergingFrom",
-      approachLighting: "approachLighting",
-      dark: "dark",
-      stopHint: "Shown when this block is occupied.",
-      approachHint: "Shown when the block past the other end is occupied.",
-      lightingHint: "Dark unless a train is in the block joined at this end.",
-    }),
-    renderMssFace(end, mastOptions, {
-      title: "Facing out of the block",
-      hint: "Trains in this block see this signal. It is the gate into the neighbor at this end.",
+  const joined = end.configurable || (end.link && end.link !== block.name);
+  const inwardLight = joined
+    ? "The head stays dark until a train is in the block past this end. It needs a Dark colour with every lamp off. Leave this off and a clear road shows Clear."
+    : "The head stays dark until a train is in the block past this end, so join that end first. It needs a Dark colour with every lamp off. Leave this off and a clear road shows Clear.";
+  fields.append(renderMssFace(block, side, end, mastOptions, {
+    title: "Facing in",
+    hint: junction
+      ? "The head a train sees as it is about to enter this block. At a split, this is the only head at this end."
+      : "The head a train sees as it is about to enter this block.",
+    facing: "in",
+    mast: "mast",
+    stop: "stop",
+    approach: "approach",
+    advance: "advance",
+    clear: "clear",
+    diverging: "diverging",
+    divergingFrom: "divergingFrom",
+    approachLighting: "approachLighting",
+    dark: "dark",
+    stopHint: "The colour when a train is in this block. On Signals this is usually named Stop.",
+    approachHint: "The colour when this block is clear and the next one is not. On Signals this is usually named Approach.",
+    lightingHint: inwardLight,
+  }));
+  if (!junction) {
+    fields.append(renderMssFace(block, side, end, mastOptions, {
+      title: "Facing out",
+      hint: "The head a train in this block sees as it is about to leave. No signal if nothing faces the next block.",
+      facing: "out",
       mast: "outMast",
       stop: "outStop",
       approach: "outApproach",
@@ -1665,25 +1889,55 @@ function renderMssEnd(mss, block, side, label, inwardOnly) {
       divergingFrom: "outDivergingFrom",
       approachLighting: "outApproachLighting",
       dark: "outDark",
-      stopHint: "Shown when the neighbor block is occupied.",
-      approachHint: "Shown when the block beyond that neighbor is occupied.",
-      lightingHint: "Dark unless a train is in this block.",
-    }),
-  ];
-  fields.append(...(inwardOnly ? faces.slice(0, 1) : faces));
+      stopHint: "The colour when the next block has a train in it. On Signals this is usually named Stop.",
+      approachHint: "The colour when the next block is clear and the one after that is not. On Signals this is usually named Approach.",
+      lightingHint: "The head stays dark until a train is in this block. It needs a Dark colour with every lamp off. Leave this off and a clear road shows Clear.",
+    }));
+  }
   panel.append(fields);
-  if (end.configurable) {
+  if (mode === "module") {
     const note = document.createElement("p");
     note.className = "hint";
     const board = state.board.name || "board";
-    note.textContent = `This end's address is ${board}/${block.name || "block"}/${side}. On the web page the box is named with dashes. Type the other module's address with slashes, like their-board/mid/end.`;
+    const name = block.name || "block";
+    note.textContent = `After you flash, open http://${board}.local. The box is named "${board} - ${name} - ${side} neighbor". Type the other module's address with slashes, such as their-board/their-block/end. Both boards use the same signaled track name. An empty box keeps this end occupied, so signals show Stop.`;
     panel.append(note);
   }
   return panel;
 }
 
+function renderMssReady() {
+  const ready = el.mssReady;
+  if (!ready) return;
+  ready.replaceChildren();
+  const lines = [];
+  if (!state.blocks.length) {
+    lines.push(["No current detectors yet. Add them on Blocks, then tick the ones in each block. ", "blocks", "Go to blocks"]);
+  }
+  if (!state.mss.opticals.length) {
+    lines.push(["No optical detectors yet. Add the sensor that sits in the rail gap at each end. ", "opticals", "Go to optical detectors"]);
+  }
+  if (!(state.signals.masts || []).length) {
+    lines.push(["No signal heads yet. On Signals, add each mast and name three colours Stop, Approach, and Clear. Come back here and choose them. ", "signals", "Go to signals"]);
+  }
+  if (!lines.length) {
+    ready.hidden = true;
+    return;
+  }
+  const intro = document.createElement("p");
+  intro.textContent = "You can add the signal blocks now and fill the ends once these are in place.";
+  ready.append(intro);
+  for (const [text, view, label] of lines) {
+    const line = document.createElement("p");
+    line.append(document.createTextNode(text), jumpButton(view, label));
+    ready.append(line);
+  }
+  ready.hidden = false;
+}
+
 function renderMss() {
   const mss = state.mss;
+  renderMssReady();
   const lineCard = document.createElement("div");
   lineCard.className = "fields";
   lineCard.append(
@@ -1696,12 +1950,12 @@ function renderMss() {
     }, {
       placeholder: "main",
       spellcheck: false,
-      hint: "One name for this signaled track. A second track gets its own name.",
+      hint: "The name of this line. Every board on the same line uses the same name. main is the usual one. A second line that you signal on its own gets a different name.",
     }),
     linkedField(
       "Online topic",
       mssOnlineTopic(),
-      "This board says OFFLINE here if it drops off MQTT. The others then hold its blocks occupied."
+      "Other boards read this. If this board drops offline, they hold its blocks occupied, so their signals stay at Stop."
     )
   );
   el.mssLine.replaceChildren(lineCard);
@@ -1783,9 +2037,10 @@ function renderMss() {
     }, {
       placeholder: "mid",
       spellcheck: false,
-      hint: "The signal block. Other ends on this board connect to this name.",
+      full: true,
+      hint: "A short name for this block, such as mid. Other ends on this board join it by this name.",
     }),
-    field("This block is a junction", !!block.junction, (value) => {
+    field("The track splits here", !!block.junction, (value) => {
       if (value) {
         block.junction = {
           name: block.name || "",
@@ -1803,25 +2058,34 @@ function renderMss() {
       render();
     }, {
       checkbox: true,
-      hint: "A complex cascade. Three signals face into this block, one from each leg.",
+      hint: "A set of points in this block. It grows a third end for the branch, and each of the three signals faces into the block.",
     }));
     if (block.junction) {
-      const pointOptions = [{ value: "", label: "A pin" }, ...state.points.map((point) => ({
+      const pointOptions = [{ value: "", label: "A switch contact on a pin" }, ...state.points.map((point) => ({
         value: point.name,
         label: point.name,
       }))];
       const blockOptions = mss.blocks
         .filter((item) => item !== block && item.name)
         .map((item) => ({ value: item.name, label: item.name }));
-      fields.append(
-        field("Junction name", block.junction.name, (value) => {
+      const points = document.createElement("div");
+      points.className = "panel";
+      const pointsTitle = document.createElement("h4");
+      pointsTitle.textContent = "The points";
+      const pointsLead = document.createElement("p");
+      pointsLead.className = "hint";
+      pointsLead.textContent = "This block is the straight route. Choose the branch, and how you know which way the points are lined.";
+      const pointFields = document.createElement("div");
+      pointFields.className = "fields";
+      pointFields.append(
+        field("Points name", block.junction.name, (value) => {
           block.junction.name = value.trim().toLowerCase();
           persist();
           updatePreview();
         }, {
           placeholder: block.name || "wye",
           spellcheck: false,
-          hint: "Other signals call this board/name, like south/wye.",
+          hint: "A short name, such as wye. A signal that shows Approach Diverging looks these points up as board/name. On a board named south, that is south/wye.",
         }),
         field("Lined by", block.junction.point, (value) => {
           block.junction.point = value;
@@ -1831,35 +2095,38 @@ function renderMss() {
           render();
         }, {
           select: withSaved(pointOptions, block.junction.point),
-          hint: "The turnout that picks main or diverging.",
+          hint: "A point from the Points page. A switch contact on a pin is for a turnout you are not driving from this board.",
         }),
-        field("Diverging block", block.junction.divergingBlock, (value) => {
+        field("Branch", block.junction.divergingBlock, (value) => {
           block.junction.divergingBlock = value;
           persist();
           updatePreview();
         }, {
           select: withSaved([{ value: "", label: "Choose a block" }, ...blockOptions], block.junction.divergingBlock),
-          hint: "Held occupied while the main route is lined.",
+          full: true,
+          hint: blockOptions.length
+            ? "The signal block a train enters on the branch. While the points are set for the straight, that block counts as occupied, so no signal can show a clear road into a switch that is not lined for it."
+            : "Add the branch as its own signal block, then choose it here. While the points are set for the straight, that block counts as occupied.",
         })
       );
       if (block.junction.point) {
-        fields.append(field("Thrown is diverging", block.junction.thrownIsDiverging !== false, (value) => {
+        pointFields.append(field("Thrown lines the branch", block.junction.thrownIsDiverging !== false, (value) => {
           block.junction.thrownIsDiverging = value;
           persist();
           updatePreview();
         }, {
           checkbox: true,
-          hint: "Off if thrown is the main route on this turnout.",
+          hint: "Leave this on when the thrown position takes the branch. Turn it off when thrown is the straight route.",
         }));
       } else {
-        fields.append(
+        pointFields.append(
           field("GPIO", block.junction.pin, (value) => {
             block.junction.pin = value;
             persist();
             updatePreview();
           }, {
             select: pinChoices(),
-            hint: "On when the diverging route is lined.",
+            hint: "On when the branch is lined.",
           }),
           field("Invert the input", block.junction.inverted !== false, (value) => {
             block.junction.inverted = value;
@@ -1867,21 +2134,28 @@ function renderMss() {
             updatePreview();
           }, {
             checkbox: true,
-            hint: "On if the contact pulls the pin low for diverging.",
+            hint: "On if the contact pulls the pin low when the branch is lined.",
           })
         );
       }
+      points.append(pointsTitle, pointsLead, pointFields);
+      fields.append(points);
     }
 
     const currents = document.createElement("div");
     currents.className = "panel";
     const currentTitle = document.createElement("h4");
-    currentTitle.textContent = "Current sensors";
+    currentTitle.textContent = "Trains in this block";
     const currentHint = document.createElement("p");
     currentHint.className = "hint";
-    currentHint.textContent = state.blocks.length
-      ? "Detectors from the Blocks page that occupy this signal block."
-      : "Add the current detectors on the Blocks page first.";
+    if (state.blocks.length) {
+      currentHint.textContent = "Tick every detector from Blocks that sees a train in this block. A train on any of them means the block is occupied.";
+    } else {
+      currentHint.append(
+        document.createTextNode("None yet. Add them on Blocks, then tick the ones in this block. "),
+        jumpButton("blocks", "Go to blocks")
+      );
+    }
     currents.append(currentTitle, currentHint);
     for (const detector of state.blocks) {
       const label = document.createElement("label");
@@ -1907,10 +2181,11 @@ function renderMss() {
       header,
       fields,
       currents,
-      renderMssEnd(mss, block, "begin", "Beginning", junction),
-      renderMssEnd(mss, block, "end", junction ? "Main" : "End", junction)
+      mssMap(junction),
+      renderMssEnd(block, "begin", junction),
+      renderMssEnd(block, "end", junction)
     );
-    if (junction) card.append(renderMssEnd(mss, block, "diverge", "Diverging", true));
+    if (junction) card.append(renderMssEnd(block, "diverge", true));
     bindCollapse(card, block);
     el.mssBlocks.append(card);
   });
