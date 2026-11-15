@@ -929,6 +929,12 @@ function buildMssPlan(config, masts, points) {
 
   for (const port of compiled.ports) {
     if (!port.meet) continue;
+    plan.links.push({
+      id: `mss_addr_${port.key}`,
+      label: `${port.address} address`,
+      initial: port.address,
+      locked: true,
+    });
     plan.links.push({ id: port.textId, label: `${port.address} neighbor`, initial: "" });
     for (const kind of ["local", "approach", "advance", "diverging", "online"]) {
       plan.globals.push({ id: `mss_rx_${port.key}_${kind}`, type: "int", initial: "0" });
@@ -2402,11 +2408,17 @@ function generateYaml(config) {
       lines.push("  - platform: template");
       lines.push(`    name: ${yamlQuote(entityName(link.label || link.name))}`);
       lines.push(`    id: ${link.id}`);
-      lines.push("    optimistic: true");
+      lines.push(`    optimistic: ${link.locked ? "false" : "true"}`);
       lines.push("    mode: text");
-      lines.push("    restore_value: true");
+      lines.push(`    restore_value: ${link.locked ? "false" : "true"}`);
       lines.push(`    initial_value: ${JSON.stringify(link.initial || "")}`);
-      if (mssPlan.needsApply) {
+      if (link.locked) {
+        lines.push("    update_interval: never");
+        lines.push("    set_action:");
+        lines.push("      - lambda: |-");
+        lines.push("          (void) x;");
+        lines.push(`          id(${link.id}).publish_state("${cString(link.initial)}");`);
+      } else if (mssPlan.needsApply) {
         lines.push("    on_value:");
         lines.push("      then:");
         lines.push("        - script.execute: mss_apply");

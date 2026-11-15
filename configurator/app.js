@@ -1586,7 +1586,9 @@ function renderMssFace(block, side, end, mastOptions, face) {
   const hint = document.createElement("p");
   hint.className = "hint";
   hint.textContent = face.hint;
-  wrap.append(title, hint);
+  wrap.append(title);
+  if (face.place) wrap.append(mssLocator(!!face.junction, face.place));
+  wrap.append(hint);
   const fields = document.createElement("div");
   fields.className = "fields";
   const chosen = end[face.mast];
@@ -1726,52 +1728,136 @@ function mssEndCopy(side, junction) {
   };
 }
 
-function mssMapEnd(name, chips) {
-  const wrap = document.createElement("div");
-  wrap.className = "mss-map-end";
-  const title = document.createElement("span");
-  title.className = "mss-map-name";
-  title.textContent = name;
-  const row = document.createElement("div");
-  row.className = "mss-chips";
-  for (const chip of chips) {
-    const span = document.createElement("span");
-    span.className = chip === "faces in" ? "mss-chip is-in" : "mss-chip";
-    span.textContent = chip;
-    row.append(span);
-  }
-  wrap.append(title, row);
-  return wrap;
+const MSS_SVG = "http://www.w3.org/2000/svg";
+
+function mssSvg(name, attrs, text) {
+  const el = document.createElementNS(MSS_SVG, name);
+  for (const [key, value] of Object.entries(attrs)) el.setAttribute(key, value);
+  if (text) el.textContent = text;
+  return el;
 }
 
-function mssMap(junction) {
+function mssLocatorOn(here, id, junction) {
+  if (here === "detectors") return id === "rail" || id === "det" || (junction && id === "main");
+  if (here === "points") return id === "frog" || id === "branch" || id === "rail" || id === "main";
+  if (here === "begin") return id === "begin" || id === "begin-in" || id === "begin-out" || id === "optic-begin";
+  if (here === "end") return id === "end" || id === "end-in" || id === "end-out" || id === "optic-end" || (junction && id === "main");
+  if (here === "diverge") return id === "diverge" || id === "diverge-in" || id === "branch" || id === "optic-diverge";
+  if (here === "begin-in") return id === "begin" || id === "begin-in";
+  if (here === "begin-out") return id === "begin" || id === "begin-out";
+  if (here === "end-in") return id === "end" || id === "end-in" || (junction && id === "main");
+  if (here === "end-out") return id === "end" || id === "end-out";
+  if (here === "diverge-in") return id === "diverge" || id === "diverge-in" || id === "branch";
+  return false;
+}
+
+function mssLocatorCaption(junction, here) {
+  const place = { begin: "Beginning", end: junction ? "Main" : "End", diverge: "Diverging" };
+  if (here === "detectors") {
+    return "Blue marks the detectors in this block. A head above the rail faces in, and one below faces out. Amber across the rail is the optical sensor.";
+  }
+  if (here === "points") {
+    return "Blue marks the points, where the straight and the branch split. Amber across the rail is the optical sensor.";
+  }
+  const [side, facing] = here.split("-");
+  const name = place[side] || side;
+  if (!facing) {
+    return name === "End"
+      ? "Blue marks the End of this block."
+      : `Blue marks the ${name} end of this block.`;
+  }
+  if (facing === "in") return `Blue marks the head at ${name} that faces into this block.`;
+  return `Blue marks the head at ${name} that faces out toward the next block.`;
+}
+
+function mssSignal(mark, x, y, dx, dy, id) {
+  const len = Math.hypot(dx, dy) || 1;
+  const ux = dx / len;
+  const uy = dy / len;
+  const on = mark(id);
+  const tipX = x + ux * 16;
+  const tipY = y + uy * 16;
+  const baseX = tipX - ux * 6.5;
+  const baseY = tipY - uy * 6.5;
+  const px = -uy * 3.4;
+  const py = ux * 3.4;
+  const n = (value) => Math.round(value * 10) / 10;
+  return [
+    mssSvg("line", {
+      class: `arrow ${on}`,
+      x1: n(x + ux * 6),
+      y1: n(y + uy * 6),
+      x2: n(baseX),
+      y2: n(baseY),
+    }),
+    mssSvg("path", {
+      class: `arrow-head ${on}`,
+      d: `M${n(tipX)},${n(tipY)} L${n(baseX + px)},${n(baseY + py)} L${n(baseX - px)},${n(baseY - py)} Z`,
+    }),
+    mssSvg("circle", { class: `head ${on}`, cx: x, cy: y, r: "5" }),
+  ];
+}
+
+function mssOptic(mark, x, y, px, py, id) {
+  const n = (value) => Math.round(value * 10) / 10;
+  return mssSvg("line", {
+    class: `optic ${mark(id)}`,
+    x1: n(x - px),
+    y1: n(y - py),
+    x2: n(x + px),
+    y2: n(y + py),
+  });
+}
+
+function mssLocator(junction, here) {
+  const mark = (id) => (mssLocatorOn(here, id, junction) ? "is-here" : "");
   const figure = document.createElement("figure");
-  figure.className = junction ? "mss-map is-split" : "mss-map";
-  const row = document.createElement("div");
-  row.className = "mss-map-row";
+  figure.className = "mss-loc";
+  const svg = document.createElementNS(MSS_SVG, "svg");
+  svg.setAttribute("viewBox", junction ? "0 0 360 128" : "0 0 360 86");
+  svg.setAttribute("aria-hidden", "true");
   if (junction) {
-    row.append(
-      mssMapEnd("Beginning", ["faces in"]),
-      mssMapEnd("Main", ["faces in"]),
-      mssMapEnd("Diverging", ["faces in"])
+    const branchX = 168 + 62;
+    const branchY = 48 + 54;
+    const along = Math.hypot(62, 54);
+    const ux = 62 / along;
+    const uy = 54 / along;
+    const opticAt = 0.62;
+    svg.append(
+      mssSvg("text", { class: `label ${mark("begin")}`, x: "4", y: "14" }, "Beginning"),
+      ...mssSignal(mark, 28, 28, 16, 0, "begin-in"),
+      mssOptic(mark, 52, 48, 0, 9, "optic-begin"),
+      mssSvg("line", { class: `rail ${mark("rail")}`, x1: "8", y1: "48", x2: "168", y2: "48" }),
+      mssSvg("text", { class: `label ${mark("det")}`, x: "100", y: "34", "text-anchor": "middle" }, "block"),
+      ...(here === "detectors" ? [mssSvg("rect", { class: `det ${mark("det")}`, x: "92", y: "42", width: "16", height: "12", rx: "2" })] : []),
+      mssSvg("line", { class: `rail ${mark("main")}`, x1: "168", y1: "48", x2: "248", y2: "48" }),
+      mssSvg("circle", { class: `frog ${mark("frog")}`, cx: "168", cy: "48", r: "5" }),
+      mssSvg("line", { class: `branch ${mark("branch")}`, x1: "168", y1: "48", x2: branchX, y2: branchY }),
+      mssOptic(mark, 168 + ux * along * opticAt, 48 + uy * along * opticAt, uy * 8, -ux * 8, "optic-diverge"),
+      mssOptic(mark, 232, 48, 0, 9, "optic-end"),
+      ...mssSignal(mark, 278, 28, -16, 0, "end-in"),
+      mssSvg("text", { class: `label ${mark("end")}`, x: "278", y: "14", "text-anchor": "middle" }, "Main"),
+      ...mssSignal(mark, branchX + uy * 18, branchY - ux * 18, -ux * 16, -uy * 16, "diverge-in"),
+      mssSvg("text", { class: `label ${mark("diverge")}`, x: branchX + 28, y: branchY - 4 }, "Diverging")
     );
   } else {
-    const track = document.createElement("div");
-    track.className = "mss-map-track";
-    const label = document.createElement("span");
-    label.textContent = "this block";
-    track.append(label);
-    row.append(
-      mssMapEnd("Beginning", ["faces out", "faces in"]),
-      track,
-      mssMapEnd("End", ["faces in", "faces out"])
+    svg.append(
+      mssSvg("text", { class: `label ${mark("begin")}`, x: "4", y: "14" }, "Beginning"),
+      mssSvg("text", { class: `label ${mark("end")}`, x: "356", y: "14", "text-anchor": "end" }, "End"),
+      ...mssSignal(mark, 28, 30, 16, 0, "begin-in"),
+      ...mssSignal(mark, 332, 30, -16, 0, "end-in"),
+      mssSvg("line", { class: `rail ${mark("rail")}`, x1: "8", y1: "48", x2: "352", y2: "48" }),
+      mssOptic(mark, 52, 48, 0, 9, "optic-begin"),
+      mssOptic(mark, 308, 48, 0, 9, "optic-end"),
+      mssSvg("text", { class: `label ${mark("det")}`, x: "180", y: "36", "text-anchor": "middle" }, "block"),
+      ...(here === "detectors" ? [mssSvg("rect", { class: `det ${mark("det")}`, x: "172", y: "42", width: "16", height: "12", rx: "2" })] : []),
+      ...mssSignal(mark, 28, 68, -16, 0, "begin-out"),
+      ...mssSignal(mark, 332, 68, 16, 0, "end-out")
     );
   }
   const caption = document.createElement("figcaption");
-  caption.textContent = junction
-    ? "The track splits, so each end has one head and it faces into this block."
-    : "Faces in is the head a train sees as it arrives. Faces out is the head a train sees as it leaves toward the next block.";
-  figure.append(row, caption);
+  caption.textContent = mssLocatorCaption(junction, here);
+  figure.append(svg, caption);
   return figure;
 }
 
@@ -1785,7 +1871,7 @@ function renderMssEnd(block, side, junction) {
   const lead = document.createElement("p");
   lead.className = "hint";
   lead.textContent = copy.lead;
-  panel.append(heading, lead);
+  panel.append(heading, mssLocator(junction, side), lead);
   const fields = document.createElement("div");
   fields.className = "fields";
   const opticalOptions = [{ value: "", label: "None" }, ...state.mss.opticals.map((optical) => ({
@@ -1874,6 +1960,8 @@ function renderMssEnd(block, side, junction) {
     stopHint: "The colour when a train is in this block. On Signals this is usually named Stop.",
     approachHint: "The colour when this block is clear and the next one is not. On Signals this is usually named Approach.",
     lightingHint: inwardLight,
+    junction,
+    place: `${side}-in`,
   }));
   if (!junction) {
     fields.append(renderMssFace(block, side, end, mastOptions, {
@@ -1892,6 +1980,8 @@ function renderMssEnd(block, side, junction) {
       stopHint: "The colour when the next block has a train in it. On Signals this is usually named Stop.",
       approachHint: "The colour when the next block is clear and the one after that is not. On Signals this is usually named Approach.",
       lightingHint: "The head stays dark until a train is in this block. It needs a Dark colour with every lamp off. Leave this off and a clear road shows Clear.",
+      junction,
+      place: `${side}-out`,
     }));
   }
   panel.append(fields);
@@ -1900,7 +1990,7 @@ function renderMssEnd(block, side, junction) {
     note.className = "hint";
     const board = state.board.name || "board";
     const name = block.name || "block";
-    note.textContent = `After you flash, open http://${board}.local. The box is named "${board} - ${name} - ${side} neighbor". Type the other module's address with slashes, such as their-board/their-block/end. Both boards use the same signaled track name. An empty box keeps this end occupied, so signals show Stop.`;
+    note.textContent = `After you flash, open http://${board}.local. This end's address is ${board}/${name}/${side}. It is filled in on the page, in the box named "${board} - ${name} - ${side} address". Copy that value, slashes included, into the other module. Paste their address into the box named "${board} - ${name} - ${side} neighbor", such as their-board/their-block/end. Both boards use the same signaled track name. An empty neighbor box keeps this end occupied, so signals show Stop.`;
     panel.append(note);
   }
   return panel;
@@ -2058,7 +2148,7 @@ function renderMss() {
       render();
     }, {
       checkbox: true,
-      hint: "A set of points in this block. It grows a third end for the branch, and each of the three signals faces into the block.",
+      hint: "An advanced cascade in MSS. The points sit in this block. It grows a third end for the branch, and each of the three signals faces into the block.",
     }));
     if (block.junction) {
       const pointOptions = [{ value: "", label: "A switch contact on a pin" }, ...state.points.map((point) => ({
@@ -2138,14 +2228,15 @@ function renderMss() {
           })
         );
       }
-      points.append(pointsTitle, pointsLead, pointFields);
+      points.append(pointsTitle, mssLocator(true, "points"), pointsLead, pointFields);
       fields.append(points);
     }
 
+    const junction = !!block.junction;
     const currents = document.createElement("div");
     currents.className = "panel";
     const currentTitle = document.createElement("h4");
-    currentTitle.textContent = "Trains in this block";
+    currentTitle.textContent = "Detectors in this block";
     const currentHint = document.createElement("p");
     currentHint.className = "hint";
     if (state.blocks.length) {
@@ -2156,7 +2247,7 @@ function renderMss() {
         jumpButton("blocks", "Go to blocks")
       );
     }
-    currents.append(currentTitle, currentHint);
+    currents.append(currentTitle, mssLocator(junction, "detectors"), currentHint);
     for (const detector of state.blocks) {
       const label = document.createElement("label");
       label.className = "check full";
@@ -2176,12 +2267,10 @@ function renderMss() {
       currents.append(label);
     }
 
-    const junction = !!block.junction;
     card.append(
       header,
       fields,
       currents,
-      mssMap(junction),
       renderMssEnd(block, "begin", junction),
       renderMssEnd(block, "end", junction)
     );

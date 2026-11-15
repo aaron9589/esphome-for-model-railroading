@@ -863,6 +863,9 @@ test("MSS signal blocks, aspects, and junctions round-trip", () => {
   assert.match(yaml, /topic: mss\/main\/node\/south\/online\n    payload: OFFLINE\n    retain: true/);
   assert.match(yaml, /id: mss_track/);
   assert.match(yaml, /initial_value: "main"/);
+  assert.match(yaml, /name: "south - south - begin address"/);
+  assert.match(yaml, /id: mss_addr_south_begin\n    optimistic: false\n    mode: text\n    restore_value: false\n    initial_value: "south\/south\/begin"\n    update_interval: never\n    set_action:\n      - lambda: \|-\n          \(void\) x;\n          id\(mss_addr_south_begin\)\.publish_state\("south\/south\/begin"\);/);
+  assert.doesNotMatch(yaml, /id: mss_addr_mid_begin/);
   assert.match(yaml, /name: "south - south - begin neighbor"/);
   assert.match(yaml, /std::string\("OFFLINE"\), 1, true/);
   assert.match(yaml, /std::string\("ONLINE"\), 1, true/);

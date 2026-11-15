@@ -48,7 +48,7 @@ Sidings and spurs that are not signaled are not part of this. Both rails are sti
 
 Modules do not need an odd number of crossover cables, and a module does not have to be reversible. You name the blocks when you build the module. At a meet you do not reflash, and you do not type a list of the other module's detectors.
 
-Open `http://<board-name>.local`. Each end that was marked for the web page has a text box. The box name uses dashes, like `board - block - begin neighbor`, because ESPHome rejects `/` in a name. The address you type still uses slashes: `board/block/end`. Type the address of the other module. There is also a Signaled track field, already set to the name you flashed (usually `main`). Both modules must show the same track name. The broker address stays in the flashed file.
+Open `http://<board-name>.local`. Each end that was marked for the web page has two text boxes. The address box is already filled in with this end, slashes included, such as `board/block/begin`. Copy that value into the other module. The box title uses dashes, like `board - block - begin address`, because ESPHome rejects `/` in a name. The neighbor box starts empty. Paste the other module's address there, still with slashes. Editing the address box does not stick; it returns to this end. There is also a Signaled track field, already set to the name you flashed (usually `main`). Both modules must show the same track name. The broker address stays in the flashed file.
 
 Each end then publishes four wires, retained, QoS 1, `ACTIVE` or `INACTIVE`:
 
@@ -108,7 +108,7 @@ Approach lighting is off in these pictures, so a clear road shows Clear. `advanc
 
 ## A junction
 
-Tick **The track splits here** on the signal block that holds the points. That block is a complex cascade: Beginning, Main, and Diverging, and each of those three signals faces into the block. The block you are editing is the straight route. Pick the branch and the point, or a pin, that lines it. Thrown lines the branch unless you untick that.
+Tick **The track splits here** on the signal block that holds the points. That is an advanced cascade in MSS: Beginning, Main, and Diverging, and each of those three signals faces into the block. The block you are editing is the straight route. Pick the branch and the point, or a pin, that lines it. Thrown lines the branch unless you untick that.
 
 ![When diverging is lined, the main block is held occupied and Approach Diverging is published only if the diverging block is clear. When the main is lined, the diverging block is held occupied.](../_img/mss-junction.svg)
 

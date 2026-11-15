@@ -254,79 +254,93 @@ main {
   border-top: 1px solid var(--line);
 }
 
-.mss-map {
-  margin: 1rem 0 0.25rem;
-  padding: 0.75rem 0.85rem 0.7rem;
+.mss-loc {
+  margin: 0.35rem 0 0.75rem;
+  padding: 0.45rem 0.65rem 0.55rem;
   background: var(--bg);
   border-radius: 8px;
 }
 
-.mss-map-row {
-  display: flex;
-  align-items: stretch;
-  gap: 0.45rem;
+.mss-loc svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-width: 28rem;
 }
 
-.mss-map.is-split .mss-map-row {
-  justify-content: space-between;
+.mss-loc .rail,
+.mss-loc .branch {
+  fill: none;
+  stroke: #d1d5db;
+  stroke-width: 3;
+  stroke-linecap: round;
 }
 
-.mss-map-end {
-  display: flex;
-  flex-direction: column;
-  gap: 0.3rem;
-  min-width: 6.5rem;
+.mss-loc .rail.is-here,
+.mss-loc .branch.is-here {
+  stroke: var(--accent);
 }
 
-.mss-map-name {
-  font-size: 0.72rem;
-  font-weight: 650;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--muted);
+.mss-loc .arrow {
+  fill: none;
+  stroke: #d1d5db;
+  stroke-width: 1.6;
+  stroke-linecap: round;
 }
 
-.mss-chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.25rem;
+.mss-loc .arrow.is-here {
+  stroke: var(--accent);
 }
 
-.mss-chip {
-  border: 1px solid var(--line-strong);
-  background: #fff;
-  border-radius: 4px;
-  padding: 0.15rem 0.4rem;
-  font-size: 0.72rem;
-  color: var(--ink);
-  white-space: nowrap;
+.mss-loc .arrow-head {
+  fill: #d1d5db;
+  stroke: none;
 }
 
-.mss-chip.is-in {
-  border-color: #93c5fd;
-  background: var(--accent-soft);
-  color: var(--accent);
+.mss-loc .arrow-head.is-here {
+  fill: var(--accent);
 }
 
-.mss-map-track {
-  flex: 1;
-  display: flex;
-  align-items: flex-end;
-  min-width: 4.5rem;
-  margin-bottom: 0.45rem;
+.mss-loc .optic {
+  fill: none;
+  stroke: #b45309;
+  stroke-width: 3;
+  stroke-linecap: round;
 }
 
-.mss-map-track span {
-  flex: 1;
-  text-align: center;
-  font-size: 0.75rem;
-  color: var(--muted);
-  border-top: 3px solid var(--ink);
-  padding-top: 0.35rem;
+.mss-loc .optic.is-here {
+  stroke: #b45309;
+  stroke-width: 5;
 }
 
-.mss-map figcaption {
-  margin: 0.6rem 0 0;
+.mss-loc .head,
+.mss-loc .frog,
+.mss-loc .det {
+  fill: #fff;
+  stroke: #d1d5db;
+  stroke-width: 2;
+}
+
+.mss-loc .head.is-here,
+.mss-loc .frog.is-here,
+.mss-loc .det.is-here {
+  fill: var(--accent);
+  stroke: var(--accent);
+}
+
+.mss-loc .label {
+  fill: #9ca3af;
+  font-size: 12px;
+  font-family: var(--sans);
+}
+
+.mss-loc .label.is-here {
+  fill: var(--accent);
+  font-weight: 700;
+}
+
+.mss-loc figcaption {
+  margin: 0.35rem 0 0;
   color: var(--muted);
   font-size: 0.78rem;
   line-height: 1.35;
@@ -1093,14 +1107,6 @@ button.mini {
   .face-extra {
     display: grid;
     grid-template-columns: 1fr;
-  }
-
-  .mss-map-row {
-    flex-direction: column;
-  }
-
-  .mss-map-track {
-    margin: 0.15rem 0 0.15rem 0.2rem;
   }
 
   .check {
