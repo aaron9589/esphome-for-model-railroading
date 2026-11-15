@@ -18,7 +18,8 @@ const PULLUP_PINS = Object.freeze([
   "GPIO32", "GPIO33",
 ]);
 const PULLUP_PIN_SET = new Set(PULLUP_PINS);
-const STRAPPING_PINS = new Set(["GPIO0", "GPIO2", "GPIO12", "GPIO15"]);
+// Original ESP32, from ESPHome 2026.9.0 gpio_esp32.py: {0, 2, 5, 12, 15}.
+const STRAPPING_PINS = new Set(["GPIO0", "GPIO2", "GPIO5", "GPIO12", "GPIO15"]);
 const NO_PULLUP_PINS = {
   GPIO34: "34",
   GPIO35: "35",
@@ -179,6 +180,9 @@ function normalizeConfig(config) {
   if (typeof board.mqttEnabled !== "boolean") board.mqttEnabled = true;
   if (typeof config.pca9685 !== "boolean") config.pca9685 = true;
   if (!config.i2c) config.i2c = { sda: "GPIO21", scl: "GPIO22" };
+  for (const block of config.blocks || []) {
+    if (block.gpio) block.gpio = String(block.gpio).toUpperCase();
+  }
   for (const point of config.points || []) {
     if (point.servoPin) point.servoPin = String(point.servoPin).toUpperCase();
     if (!Array.isArray(point.controls)) point.controls = [];
@@ -342,6 +346,15 @@ function outputPinProblem(pin, role) {
   return "";
 }
 
+function detectorPinProblem(pin) {
+  const name = String(pin || "").toUpperCase();
+  if (!name) return "GPIO pin is missing";
+  if (PULLUP_PIN_SET.has(name) || NO_PULLUP_PINS[name]) return "";
+  if (SERIAL_PINS[name]) return `GPIO pin ${name} (${SERIAL_PINS[name]}) is the USB serial port`;
+  if (FLASH_PINS.has(name)) return `GPIO pin ${name} is part of the flash chip`;
+  return `GPIO pin ${name} is not in the pin list`;
+}
+
 function pinProblem(pin, role) {
   const name = String(pin || "").toUpperCase();
   if (!name) return `${role} pin is missing`;
@@ -387,13 +400,17 @@ function validateConfig(config) {
       warnings.push(`GPIO clash: ${key} used by "${pins.get(key)}" and "${owner}".`);
     } else {
       pins.set(key, owner);
+      if (STRAPPING_PINS.has(key)) {
+        warnings.push(`${key} is a strapping pin, used by "${owner}". A pull resistor on it can change how the board boots.`);
+      }
     }
   }
 
   for (const block of config.blocks || []) {
     const pin = String(block.gpio || "").toUpperCase();
-    if (!pin) {
-      errors.push(`Block "${block.name}" needs a GPIO pin.`);
+    const issue = detectorPinProblem(pin);
+    if (issue) {
+      errors.push(`Block "${block.name}" ${issue}.`);
       continue;
     }
     notePin(pin, block.name);
@@ -1278,6 +1295,8 @@ function generateYaml(config) {
     lines.push(`  broker: ${yamlQuote(board.mqttBroker)}`);
     lines.push("  id: mqtt_server");
     lines.push("  discovery: false");
+    lines.push("  # Empty prefix: ESPHome will not publish or subscribe its own entity topics.");
+    lines.push("  topic_prefix: null");
     lines.push("  reboot_timeout: 0s");
     if (blocks.length || points.length) {
       lines.push("  on_connect:");
@@ -1509,6 +1528,7 @@ function generateYaml(config) {
     MIN_ESPHOME_VERSION,
     PULLUP_PINS,
     STRAPPING_PINS,
+    NO_PULLUP_PINS,
     sanitizeId,
     uniqueIds,
     myFirstBoardPreset,

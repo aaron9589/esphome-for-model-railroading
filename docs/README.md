@@ -4,7 +4,7 @@ Install, the configurator, and the first flash are on the [README](../README.md)
 
 ## Which board
 
-The boards in use are the original ESP32. The metal can says `ESP32-WROOM-32`. The configurator supports the wide 38-pin board and the 30-pin DevKit with EN and Boot at the antenna end. Both write `variant: esp32`. Pins marked VP, VN, 34, and 35 have no internal pull-up, so a panel button cannot use them. A block detector can, because the detector drives the wire itself.
+The boards in use are the original ESP32. The metal can says `ESP32-WROOM-32`. The configurator supports the wide 38-pin board and the 30-pin DevKit with EN and Boot at the antenna end. Both write `variant: esp32`. Pins marked VP, VN, 34, and 35 have no internal pull-up, so a panel button cannot use them. A block detector can, because the detector drives the wire itself. GPIO0, GPIO2, GPIO5, GPIO12, and GPIO15 are strapping pins. The pin list marks them, and the page warns if one is selected.
 
 ## The layout
 
