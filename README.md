@@ -12,7 +12,7 @@ The layout computer runs Mosquitto and JMRI. CATS writes the signalling into JMR
 
 ![A block publishes ACTIVE to Mosquitto and JMRI. A turnout command comes back as THROWN, and the ESP confirms it on the State topic.](_img/mqtt-flow.svg)
 
-A block publishes `ACTIVE` or `INACTIVE`. Leaving the block publishes `INACTIVE`. A point listens for `CLOSED` or `THROWN`, moves the servo, then publishes that same word on `<topic>/State` so the panel icon updates. The topics in the diagram are the My First Board examples. Yours are whatever you put in the configurator. Since JMRI 5.1.2 the `trains/` prefix is often blank, so check Preferences before copying one.
+A block publishes `ACTIVE` or `INACTIVE`. Leaving the block publishes `INACTIVE`. A point listens for `CLOSED` or `THROWN`, moves the servo, then publishes that same word on `<topic>/State` so the panel icon updates. The board stores that position itself. A reboot moves the servo back. Several servos on one board each wait a fraction of a second, picked at random, so they do not all start together. Mosquitto keeps the State message. Nothing stored yet means normal, and the board publishes `CLOSED`. The topics in the diagram are the My First Board examples. Yours are whatever you put in the configurator. Since JMRI 5.1.2 the `trains/` prefix is often blank, so check Preferences before copying one.
 
 ## What you’ll need
 

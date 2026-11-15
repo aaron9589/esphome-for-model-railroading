@@ -195,7 +195,7 @@ The `/State` reply is what JMRI reads back to confirm the move happened. This ke
 
 **State shows Unknown in JMRI after reboot:**
 - This is normal on first boot if no train is on the block. The board publishes its real state on startup — wait a few seconds and the state should update.
-- For turnouts, JMRI shows Unknown until it receives a `/State` reply. Toggle the turnout once to trigger a reply.
+- A turnout remembers `CLOSED` or `THROWN` on the ESP. After a reboot it moves the servo back and publishes `/State`. Mosquitto keeps that message. A turnout that has never moved starts at normal and publishes `CLOSED` a few seconds after the board connects.
 
 ---
 

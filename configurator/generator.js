@@ -614,7 +614,12 @@ function emitThrowScript(lines, point, thrown, publish) {
   lines.push("    parameters:");
   lines.push("      announce: bool");
   lines.push("    then:");
-  lines.push(`      - lambda: 'id(${point.id}_thrown) = ${thrown ? "true" : "false"};'`);
+  // Assignment only marks the global dirty. Flash is flushed about once a minute,
+  // so a layout power cut was forgetting the position. Save it before the servo moves.
+  lines.push("      - lambda: |-");
+  lines.push(`          id(${point.id}_thrown) = ${thrown ? "true" : "false"};`);
+  lines.push(`          ${point.id}_thrown->update();`);
+  lines.push("          global_preferences->sync();");
   lines.push("      - logger.log:");
   lines.push(`          format: ${yamlQuote(`${point.name} -> ${label}`)}`);
   lines.push("          level: INFO");
@@ -635,6 +640,8 @@ function emitThrowScript(lines, point, thrown, publish) {
   lines.push("            - mqtt.publish:");
   lines.push(`                topic: ${yamlQuote(stateTopic(point.topic))}`);
   lines.push(`                payload: "${payload}"`);
+  lines.push("                retain: true");
+  lines.push("                qos: 2");
 }
 
 function emitButton(lines, point, control, index) {
@@ -1147,6 +1154,7 @@ function generateYaml(config) {
   const masts = uniqueIds(config.signals?.masts || []);
   const i2c = config.i2c || { sda: "GPIO21", scl: "GPIO22" };
   const usePca = config.pca9685 !== false;
+  const mqtt = board.mqttEnabled !== false;
   const stateForBlob = {
     board: {
       name: board.name,
@@ -1220,7 +1228,13 @@ function generateYaml(config) {
     if (points.length) {
       lines.push("    - priority: -200.0");
       lines.push("      then:");
+      if (points.length > 1) {
+        lines.push("        # Each servo waits 0.2-1s so they do not all start together.");
+      }
       for (const point of points) {
+        if (points.length > 1) {
+          lines.push("        - delay: !lambda 'return 200 + (esphome::random_uint32() % 800);'");
+        }
         lines.push("        - if:");
         lines.push("            condition:");
         lines.push(`              lambda: 'return id(${point.id}_thrown);'`);
@@ -1289,7 +1303,6 @@ function generateYaml(config) {
   lines.push("captive_portal:");
   lines.push("");
 
-  const mqtt = board.mqttEnabled !== false;
   if (mqtt) {
     lines.push("mqtt:");
     lines.push(`  broker: ${yamlQuote(board.mqttBroker)}`);
@@ -1313,6 +1326,8 @@ function generateYaml(config) {
         lines.push(`        topic: ${yamlQuote(stateTopic(point.topic))}`);
         lines.push("        payload: !lambda |-");
         lines.push(`          return id(${point.id}_thrown) ? "THROWN" : "CLOSED";`);
+        lines.push("        retain: true");
+        lines.push("        qos: 2");
       }
     }
     lines.push("");
