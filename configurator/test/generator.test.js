@@ -275,8 +275,12 @@ test("panel buttons use pull-up pins, and GPIO34 is rejected", () => {
   const thrownScript = scripts.slice(scripts.indexOf("id: kiama_up_loop_throw_thrown"));
   assert.match(closedScript, /switch.turn_on: kiama_up_loop_closed_light_1/);
   assert.match(closedScript, /switch.turn_off: kiama_up_loop_open_light_1/);
+  assert.match(closedScript, /delay: 2s/);
+  assert.match(closedScript, /_servo_endpoint_normal_backoff/);
   assert.match(thrownScript, /switch.turn_off: kiama_up_loop_closed_light_1/);
   assert.match(thrownScript, /switch.turn_on: kiama_up_loop_open_light_1/);
+  assert.match(thrownScript, /delay: 2s/);
+  assert.match(thrownScript, /_servo_endpoint_reverse_backoff/);
   assert.match(yaml, /throw_closed/);
   assert.match(yaml, /throw_thrown/);
   assert.match(yaml, /announce: true/);
