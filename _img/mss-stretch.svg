@@ -1,7 +1,7 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="960" height="700" viewBox="0 0 960 700" role="img" aria-labelledby="stretchTitle stretchDesc">
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="748" viewBox="0 0 960 748" role="img" aria-labelledby="stretchTitle stretchDesc">
   <title id="stretchTitle">The overview named south, mid, and north</title>
   <desc id="stretchDesc">Track main has blocks south, mid, and north. Each boundary has two signals, one facing each way. Mid is the crossover and only publishes its current detector. A train in south puts Stop on the signal facing south, and Approach on the signal facing south into mid. A train in mid puts Stop on the two signals facing mid. The signals facing out show Clear.</desc>
-  <rect width="960" height="700" fill="#f4f1ea"/>
+  <rect width="960" height="748" fill="#f4f1ea"/>
   <g font-family="ui-sans-serif, system-ui, sans-serif" fill="#1c1917">
     <text x="36" y="34" font-size="18" font-weight="600">Three boards, one track named main</text>
     <text x="36" y="56" fill="#57534e" font-size="13">The overview, with one crossover. Each joint has a signal facing each way.</text>
@@ -18,109 +18,109 @@
     </g>
 
     <g stroke="#d32f2f" stroke-width="3" stroke-linecap="butt">
-      <line x1="48" y1="146" x2="320" y2="146"/><line x1="48" y1="158" x2="320" y2="158"/>
-      <line x1="352" y1="146" x2="608" y2="146"/><line x1="352" y1="158" x2="608" y2="158"/>
-      <line x1="640" y1="146" x2="912" y2="146"/><line x1="640" y1="158" x2="912" y2="158"/>
+      <line x1="48" y1="186" x2="320" y2="186"/><line x1="48" y1="198" x2="320" y2="198"/>
+      <line x1="352" y1="186" x2="608" y2="186"/><line x1="352" y1="198" x2="608" y2="198"/>
+      <line x1="640" y1="186" x2="912" y2="186"/><line x1="640" y1="198" x2="912" y2="198"/>
     </g>
     <g stroke="#d32f2f" stroke-width="2">
-      <line x1="60" y1="146" x2="60" y2="158"/><line x1="80" y1="146" x2="80" y2="158"/><line x1="100" y1="146" x2="100" y2="158"/><line x1="120" y1="146" x2="120" y2="158"/><line x1="140" y1="146" x2="140" y2="158"/><line x1="160" y1="146" x2="160" y2="158"/><line x1="180" y1="146" x2="180" y2="158"/><line x1="200" y1="146" x2="200" y2="158"/><line x1="220" y1="146" x2="220" y2="158"/><line x1="240" y1="146" x2="240" y2="158"/><line x1="260" y1="146" x2="260" y2="158"/><line x1="280" y1="146" x2="280" y2="158"/><line x1="300" y1="146" x2="300" y2="158"/>
-      <line x1="364" y1="146" x2="364" y2="158"/><line x1="384" y1="146" x2="384" y2="158"/><line x1="404" y1="146" x2="404" y2="158"/><line x1="424" y1="146" x2="424" y2="158"/><line x1="444" y1="146" x2="444" y2="158"/><line x1="464" y1="146" x2="464" y2="158"/><line x1="484" y1="146" x2="484" y2="158"/><line x1="504" y1="146" x2="504" y2="158"/><line x1="524" y1="146" x2="524" y2="158"/><line x1="544" y1="146" x2="544" y2="158"/><line x1="564" y1="146" x2="564" y2="158"/><line x1="584" y1="146" x2="584" y2="158"/>
-      <line x1="652" y1="146" x2="652" y2="158"/><line x1="672" y1="146" x2="672" y2="158"/><line x1="692" y1="146" x2="692" y2="158"/><line x1="712" y1="146" x2="712" y2="158"/><line x1="732" y1="146" x2="732" y2="158"/><line x1="752" y1="146" x2="752" y2="158"/><line x1="772" y1="146" x2="772" y2="158"/><line x1="792" y1="146" x2="792" y2="158"/><line x1="812" y1="146" x2="812" y2="158"/><line x1="832" y1="146" x2="832" y2="158"/><line x1="852" y1="146" x2="852" y2="158"/><line x1="872" y1="146" x2="872" y2="158"/><line x1="892" y1="146" x2="892" y2="158"/>
+      <line x1="60" y1="186" x2="60" y2="198"/><line x1="80" y1="186" x2="80" y2="198"/><line x1="100" y1="186" x2="100" y2="198"/><line x1="120" y1="186" x2="120" y2="198"/><line x1="140" y1="186" x2="140" y2="198"/><line x1="160" y1="186" x2="160" y2="198"/><line x1="180" y1="186" x2="180" y2="198"/><line x1="200" y1="186" x2="200" y2="198"/><line x1="220" y1="186" x2="220" y2="198"/><line x1="240" y1="186" x2="240" y2="198"/><line x1="260" y1="186" x2="260" y2="198"/><line x1="280" y1="186" x2="280" y2="198"/><line x1="300" y1="186" x2="300" y2="198"/>
+      <line x1="364" y1="186" x2="364" y2="198"/><line x1="384" y1="186" x2="384" y2="198"/><line x1="404" y1="186" x2="404" y2="198"/><line x1="424" y1="186" x2="424" y2="198"/><line x1="444" y1="186" x2="444" y2="198"/><line x1="464" y1="186" x2="464" y2="198"/><line x1="484" y1="186" x2="484" y2="198"/><line x1="504" y1="186" x2="504" y2="198"/><line x1="524" y1="186" x2="524" y2="198"/><line x1="544" y1="186" x2="544" y2="198"/><line x1="564" y1="186" x2="564" y2="198"/><line x1="584" y1="186" x2="584" y2="198"/>
+      <line x1="652" y1="186" x2="652" y2="198"/><line x1="672" y1="186" x2="672" y2="198"/><line x1="692" y1="186" x2="692" y2="198"/><line x1="712" y1="186" x2="712" y2="198"/><line x1="732" y1="186" x2="732" y2="198"/><line x1="752" y1="186" x2="752" y2="198"/><line x1="772" y1="186" x2="772" y2="198"/><line x1="792" y1="186" x2="792" y2="198"/><line x1="812" y1="186" x2="812" y2="198"/><line x1="832" y1="186" x2="832" y2="198"/><line x1="852" y1="186" x2="852" y2="198"/><line x1="872" y1="186" x2="872" y2="198"/><line x1="892" y1="186" x2="892" y2="198"/>
     </g>
 
-    <text x="168" y="196" fill="#44403c" font-size="12">protects south</text>
-    <text x="400" y="196" fill="#44403c" font-size="12">protects mid</text>
-    <text x="560" y="196" text-anchor="end" fill="#44403c" font-size="12">protects mid</text>
-    <text x="688" y="196" fill="#44403c" font-size="12">protects north</text>
+    <text x="270" y="164" text-anchor="end" fill="#44403c" font-size="12">protects mid</text>
+    <text x="252" y="226" text-anchor="end" fill="#44403c" font-size="12">protects south</text>
+    <text x="706" y="164" fill="#44403c" font-size="12">protects north</text>
+    <text x="690" y="226" fill="#44403c" font-size="12">protects mid</text>
 
-    <rect x="36" y="220" width="888" height="40" rx="10" fill="#faeeda" stroke="#854f0b"/>
-    <text x="480" y="245" text-anchor="middle" font-size="13" font-weight="600">Mosquitto</text>
-    <text x="560" y="245" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">mss/main/#</text>
+    <rect x="36" y="268" width="888" height="40" rx="10" fill="#faeeda" stroke="#854f0b"/>
+    <text x="480" y="293" text-anchor="middle" font-size="13" font-weight="600">Mosquitto</text>
+    <text x="560" y="293" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">mss/main/#</text>
 
     <g stroke="#185fa5" stroke-width="1.25" stroke-dasharray="3 3">
-      <line x1="300" y1="260" x2="300" y2="318"/>
-      <line x1="480" y1="260" x2="480" y2="318"/>
-      <line x1="670" y1="260" x2="670" y2="318"/>
+      <line x1="300" y1="308" x2="300" y2="366"/>
+      <line x1="480" y1="308" x2="480" y2="366"/>
+      <line x1="670" y1="308" x2="670" y2="366"/>
     </g>
-    <g transform="translate(300 176) scale(-1 1)">
+    <g transform="translate(286 160)">
       <circle cx="0" cy="0" r="11" fill="#292524"/>
       <circle cx="0" cy="0" r="5" fill="#f4f1ea"/>
       <polygon points="14,-4 24,0 14,4" fill="#1c1917"/>
     </g>
-    <g transform="translate(368 176)">
+    <g transform="translate(286 222) scale(-1 1)">
       <circle cx="0" cy="0" r="11" fill="#292524"/>
       <circle cx="0" cy="0" r="5" fill="#f4f1ea"/>
       <polygon points="14,-4 24,0 14,4" fill="#1c1917"/>
     </g>
-    <g transform="translate(592 176) scale(-1 1)">
+    <g transform="translate(674 160)">
       <circle cx="0" cy="0" r="11" fill="#292524"/>
       <circle cx="0" cy="0" r="5" fill="#f4f1ea"/>
       <polygon points="14,-4 24,0 14,4" fill="#1c1917"/>
     </g>
-    <g transform="translate(656 176)">
+    <g transform="translate(674 222) scale(-1 1)">
       <circle cx="0" cy="0" r="11" fill="#292524"/>
       <circle cx="0" cy="0" r="5" fill="#f4f1ea"/>
       <polygon points="14,-4 24,0 14,4" fill="#1c1917"/>
     </g>
 
-    <rect x="36" y="276" width="290" height="320" rx="12" fill="#ebe6dc" stroke="#cfc8bc"/>
-    <rect x="346" y="276" width="268" height="320" rx="12" fill="#e7f6ef" stroke="#0f6e56"/>
-    <rect x="634" y="276" width="290" height="320" rx="12" fill="#ebe6dc" stroke="#cfc8bc"/>
+    <rect x="36" y="324" width="290" height="320" rx="12" fill="#ebe6dc" stroke="#cfc8bc"/>
+    <rect x="346" y="324" width="268" height="320" rx="12" fill="#e7f6ef" stroke="#0f6e56"/>
+    <rect x="634" y="324" width="290" height="320" rx="12" fill="#ebe6dc" stroke="#cfc8bc"/>
 
-    <rect x="111" y="288" width="140" height="28" rx="8" fill="#e7f6ef" stroke="#0f6e56"/>
-    <text x="181" y="307" text-anchor="middle" fill="#0f6e56" font-size="12" font-weight="600">Signal drivers</text>
-    <rect x="709" y="288" width="140" height="28" rx="8" fill="#e7f6ef" stroke="#0f6e56"/>
-    <text x="779" y="307" text-anchor="middle" fill="#0f6e56" font-size="12" font-weight="600">Signal drivers</text>
+    <rect x="111" y="336" width="140" height="28" rx="8" fill="#e7f6ef" stroke="#0f6e56"/>
+    <text x="181" y="355" text-anchor="middle" fill="#0f6e56" font-size="12" font-weight="600">Signal drivers</text>
+    <rect x="709" y="336" width="140" height="28" rx="8" fill="#e7f6ef" stroke="#0f6e56"/>
+    <text x="779" y="355" text-anchor="middle" fill="#0f6e56" font-size="12" font-weight="600">Signal drivers</text>
 
-    <rect x="48" y="328" width="266" height="128" rx="8" fill="#e8f1fb" stroke="#185fa5"/>
-    <text x="181" y="352" text-anchor="middle" font-size="14" font-weight="600">south · cascade</text>
-    <text x="181" y="374" text-anchor="middle" fill="#57534e" font-size="12">current feed on south</text>
-    <text x="181" y="394" text-anchor="middle" fill="#57534e" font-size="12">optical gap on south and mid</text>
-    <text x="181" y="414" text-anchor="middle" fill="#57534e" font-size="12">northbound protects mid</text>
-    <text x="181" y="434" text-anchor="middle" fill="#57534e" font-size="12">southbound protects south</text>
+    <rect x="48" y="376" width="266" height="128" rx="8" fill="#e8f1fb" stroke="#185fa5"/>
+    <text x="181" y="400" text-anchor="middle" font-size="14" font-weight="600">south · cascade</text>
+    <text x="181" y="422" text-anchor="middle" fill="#57534e" font-size="12">current feed on south</text>
+    <text x="181" y="442" text-anchor="middle" fill="#57534e" font-size="12">optical gap on south and mid</text>
+    <text x="181" y="462" text-anchor="middle" fill="#57534e" font-size="12">northbound protects mid</text>
+    <text x="181" y="482" text-anchor="middle" fill="#57534e" font-size="12">southbound protects south</text>
 
-    <rect x="360" y="328" width="240" height="128" rx="8" fill="#e8f1fb" stroke="#185fa5"/>
-    <text x="480" y="368" text-anchor="middle" font-size="14" font-weight="600">mid · crossover</text>
-    <text x="480" y="392" text-anchor="middle" fill="#57534e" font-size="12">current feed on mid</text>
-    <text x="480" y="412" text-anchor="middle" fill="#57534e" font-size="12">no signal</text>
+    <rect x="360" y="376" width="240" height="128" rx="8" fill="#e8f1fb" stroke="#185fa5"/>
+    <text x="480" y="416" text-anchor="middle" font-size="14" font-weight="600">mid · crossover</text>
+    <text x="480" y="440" text-anchor="middle" fill="#57534e" font-size="12">current feed on mid</text>
+    <text x="480" y="460" text-anchor="middle" fill="#57534e" font-size="12">no signal</text>
 
-    <rect x="646" y="328" width="266" height="128" rx="8" fill="#e8f1fb" stroke="#185fa5"/>
-    <text x="779" y="352" text-anchor="middle" font-size="14" font-weight="600">north · cascade</text>
-    <text x="779" y="374" text-anchor="middle" fill="#57534e" font-size="12">current feed on north</text>
-    <text x="779" y="394" text-anchor="middle" fill="#57534e" font-size="12">optical gap on north and mid</text>
-    <text x="779" y="414" text-anchor="middle" fill="#57534e" font-size="12">southbound protects mid</text>
-    <text x="779" y="434" text-anchor="middle" fill="#57534e" font-size="12">northbound protects north</text>
+    <rect x="646" y="376" width="266" height="128" rx="8" fill="#e8f1fb" stroke="#185fa5"/>
+    <text x="779" y="400" text-anchor="middle" font-size="14" font-weight="600">north · cascade</text>
+    <text x="779" y="422" text-anchor="middle" fill="#57534e" font-size="12">current feed on north</text>
+    <text x="779" y="442" text-anchor="middle" fill="#57534e" font-size="12">optical gap on north and mid</text>
+    <text x="779" y="462" text-anchor="middle" fill="#57534e" font-size="12">southbound protects mid</text>
+    <text x="779" y="482" text-anchor="middle" fill="#57534e" font-size="12">northbound protects north</text>
 
     <g>
-      <rect x="52" y="472" width="124" height="68" rx="8" fill="#e7f6ef" stroke="#0f6e56"/>
-      <text x="114" y="498" text-anchor="middle" fill="#0f6e56" font-size="12" font-weight="600">Current</text>
-      <text x="114" y="518" text-anchor="middle" fill="#185fa5" font-size="12" font-weight="600">south</text>
-      <rect x="186" y="472" width="124" height="68" rx="8" fill="#e7f6ef" stroke="#0f6e56"/>
-      <text x="248" y="498" text-anchor="middle" fill="#0f6e56" font-size="12" font-weight="600">Optical</text>
-      <text x="248" y="518" text-anchor="middle" fill="#185fa5" font-size="12" font-weight="600">south + mid</text>
+      <rect x="52" y="520" width="124" height="68" rx="8" fill="#e7f6ef" stroke="#0f6e56"/>
+      <text x="114" y="546" text-anchor="middle" fill="#0f6e56" font-size="12" font-weight="600">Current</text>
+      <text x="114" y="566" text-anchor="middle" fill="#185fa5" font-size="12" font-weight="600">south</text>
+      <rect x="186" y="520" width="124" height="68" rx="8" fill="#e7f6ef" stroke="#0f6e56"/>
+      <text x="248" y="546" text-anchor="middle" fill="#0f6e56" font-size="12" font-weight="600">Optical</text>
+      <text x="248" y="566" text-anchor="middle" fill="#185fa5" font-size="12" font-weight="600">south + mid</text>
 
-      <rect x="420" y="472" width="120" height="68" rx="8" fill="#fffdf8" stroke="#0f6e56"/>
-      <text x="480" y="498" text-anchor="middle" fill="#0f6e56" font-size="12" font-weight="600">Current</text>
-      <text x="480" y="518" text-anchor="middle" fill="#185fa5" font-size="12" font-weight="600">mid</text>
+      <rect x="420" y="520" width="120" height="68" rx="8" fill="#fffdf8" stroke="#0f6e56"/>
+      <text x="480" y="546" text-anchor="middle" fill="#0f6e56" font-size="12" font-weight="600">Current</text>
+      <text x="480" y="566" text-anchor="middle" fill="#185fa5" font-size="12" font-weight="600">mid</text>
 
-      <rect x="650" y="472" width="124" height="68" rx="8" fill="#e7f6ef" stroke="#0f6e56"/>
-      <text x="712" y="498" text-anchor="middle" fill="#0f6e56" font-size="12" font-weight="600">Optical</text>
-      <text x="712" y="518" text-anchor="middle" fill="#185fa5" font-size="12" font-weight="600">mid + north</text>
-      <rect x="784" y="472" width="124" height="68" rx="8" fill="#e7f6ef" stroke="#0f6e56"/>
-      <text x="846" y="498" text-anchor="middle" fill="#0f6e56" font-size="12" font-weight="600">Current</text>
-      <text x="846" y="518" text-anchor="middle" fill="#185fa5" font-size="12" font-weight="600">north</text>
+      <rect x="650" y="520" width="124" height="68" rx="8" fill="#e7f6ef" stroke="#0f6e56"/>
+      <text x="712" y="546" text-anchor="middle" fill="#0f6e56" font-size="12" font-weight="600">Optical</text>
+      <text x="712" y="566" text-anchor="middle" fill="#185fa5" font-size="12" font-weight="600">mid + north</text>
+      <rect x="784" y="520" width="124" height="68" rx="8" fill="#e7f6ef" stroke="#0f6e56"/>
+      <text x="846" y="546" text-anchor="middle" fill="#0f6e56" font-size="12" font-weight="600">Current</text>
+      <text x="846" y="566" text-anchor="middle" fill="#185fa5" font-size="12" font-weight="600">north</text>
     </g>
 
     <g text-anchor="middle" font-size="12" fill="#57534e">
-      <text x="181" y="568">Cascade node</text>
-      <text x="480" y="568">Crossover node</text>
-      <text x="779" y="568">Cascade node</text>
+      <text x="181" y="616">Cascade node</text>
+      <text x="480" y="616">Crossover node</text>
+      <text x="779" y="616">Cascade node</text>
     </g>
 
-    <rect x="36" y="612" width="888" height="68" rx="12" fill="#e8f1fb"/>
-    <text x="52" y="638" font-size="14" font-weight="600">Train in south</text>
-    <text x="168" y="638" fill="#185fa5" font-size="14">Facing south shows Stop. Facing south into mid shows Approach.</text>
-    <text x="52" y="662" font-size="14" font-weight="600">Train in mid</text>
-    <text x="152" y="662" fill="#185fa5" font-size="14">Signals facing mid show Stop. Signals facing out show Clear.</text>
+    <rect x="36" y="660" width="888" height="68" rx="12" fill="#e8f1fb"/>
+    <text x="52" y="686" font-size="14" font-weight="600">Train in south</text>
+    <text x="168" y="686" fill="#185fa5" font-size="14">Facing south shows Stop. Facing south into mid shows Approach.</text>
+    <text x="52" y="710" font-size="14" font-weight="600">Train in mid</text>
+    <text x="152" y="710" fill="#185fa5" font-size="14">Signals facing mid show Stop. Signals facing out show Clear.</text>
   </g>
 </svg>
