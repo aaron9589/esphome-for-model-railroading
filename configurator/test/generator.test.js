@@ -317,6 +317,10 @@ test("boot does not publish a hardcoded CLOSED, and on_connect publishes the lat
   const config = withCreds(myFirstBoardPreset());
   const yaml = generateYaml(config);
   const boot = yaml.slice(yaml.indexOf("on_boot:"), yaml.indexOf("\nesp32:"));
+  assert.match(boot, /priority: 600/);
+  assert.match(boot, /esphome::random_uint32\(\) % 5000/);
+  assert.match(boot, /App\.feed_wdt\(\)/);
+  assert.match(boot, /Delaying boot for %d milliseconds/);
   assert.doesNotMatch(boot, /mqtt\.publish/);
   assert.doesNotMatch(boot, /CLOSED/);
   assert.match(boot, /announce: false/);
@@ -331,7 +335,10 @@ test("boot does not publish a hardcoded CLOSED, and on_connect publishes the lat
   const blocksOnly = withCreds(myFirstBoardPreset());
   blocksOnly.points = [];
   const blocksYaml = generateYaml(blocksOnly);
-  assert.doesNotMatch(blocksYaml, /on_boot:/);
+  assert.match(blocksYaml, /priority: 600/);
+  assert.match(blocksYaml, /esphome::random_uint32\(\) % 5000/);
+  assert.doesNotMatch(blocksYaml, /priority: -200/);
+  assert.doesNotMatch(blocksYaml, /announce: false/);
   assert.match(blocksYaml, /on_connect:/);
   assert.doesNotMatch(blocksYaml, /web_server:/);
 });
