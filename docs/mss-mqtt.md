@@ -12,7 +12,7 @@ The standard, the fundamentals, and the planning notes are the three PDFs on the
 
 Optical detectors and signal masts each have their own page in the [configurator](https://aaron9589.github.io/esphome-for-model-railroading/). **Modular signals** assigns one of each to the ends of a signal block. Skip that page if JMRI is still choosing the aspects.
 
-On Modular signals you add signal blocks. Each block uses current sensors you already created on the Blocks page. Each end of the block gets an optical detector, and the signal that protects that end. Optical detectors are their own page: a GPIO input for now, until the sensing circuit is filled in. When two signal blocks meet on this board, one end names the other block. An end that meets another module is filled in on the board's web page at the layout. The module already knows its own detectors. It only needs the neighbor's address.
+On Modular signals you add signal blocks. Each block uses current sensors you already created on the Blocks page. Each end of the block is a boundary. It gets an optical detector and two signals, one facing into the block and one facing out toward the neighbor. Optical detectors are their own page: a GPIO input for now, until the sensing circuit is filled in. When two signal blocks meet on this board, one end names the other block. An end that meets another module is filled in on the board's web page at the layout. The module already knows its own detectors. It only needs the neighbor's address.
 
 ## What stays the same
 
@@ -77,33 +77,34 @@ The Blocks page is separate. Those topics are for JMRI (`trains/track/sensor/...
 
 ## A plain stretch
 
-Three boards, one signaled track named `main`. Block `south`, then `mid`, then `north`. Signals stand at the two boundaries.
+Three boards, one signaled track named `main`. Block `south`, then `mid`, then `north`. Each boundary has two signals, one facing each way.
 
-![South and north carry the signals and both protect mid. Mid only publishes its current detector. A train in south gives north's signal Approach. A train in mid gives both signals Stop.](../_img/mss-stretch.svg)
+![Each boundary has two signals. One faces south and one faces mid at the south joint. One faces mid and one faces north at the north joint. Mid only publishes its current detector.](../_img/mss-stretch.svg)
 
 **south** is the cascade at the south end of `mid`. On its web page the north end's neighbor is `mid-board/mid/begin`.
 
-- Current detector on block `south`. That occupancy goes out as `approach`, so it is the next block for the signal at north.
+- Current detector on block `south`. That occupancy goes out as `approach`, so it is the next block for the signal facing into `mid` from the north.
 - Optical at the boundary. That goes out as `local`, so it occupies `mid` as well as `south`.
-- The signal protects `south`. Stop is `south` plus whatever `mid` reports on `local`. Approach is whatever `mid` passes through from `north`.
+- The signal facing south protects `south`. Stop is `south` plus whatever `mid` reports on `local`.
+- The signal facing north protects `mid`. Stop is `mid`'s `local`. Approach is whatever `mid` passes through from `north`.
 
 **mid** is the crossover. Both ends are web-page neighbors, `south-board/south/end` and `north-board/north/begin`. It has a current detector and no signal. Its `local` is that detector plus the opticals the two cascades send. It passes `approach` and `advance` from one neighbor to the other.
 
 **north** mirrors south. Its south end's neighbor is `mid-board/mid/end`.
 
-Watching MQTTX on `127.0.0.1:1883`, subscribe to `mss/main/#`. A train in `south` sets `mss/main/south-board/south/end/approach` to `ACTIVE`. The signal on `south` does not go to Stop for that, because Stop is `mid`'s `local` wire. The signal on `north` sees that approach wire through `mid`, so it goes to Approach. When the train reaches `mid`, `mid` publishes `local` ACTIVE and both signals go to Stop.
+Watching MQTTX on `127.0.0.1:1883`, subscribe to `mss/main/#`. A train in `south` sets `mss/main/south-board/south/end/approach` to `ACTIVE`. The signal facing south at that joint shows Stop. The signal facing north into `mid` stays Clear, because its Stop is `mid`'s `local`. Mid passes that approach wire on, so the signal facing south into `mid` shows Approach, and the signal facing north stays Clear. When the train reaches `mid`, `mid` publishes `local` ACTIVE and every signal shows Stop.
 
 Approach lighting is off in these pictures, so a clear road shows Clear. `advance` and `diverging` stay INACTIVE, and every board stays online.
 
-![The road is clear. Both signals show Clear. Mid's local wires and the approach wires are INACTIVE, and those are the wires the signals read.](../_img/mss-run-clear.svg)
+![The road is clear. All four signals show Clear. Mid's local wires and the approach wires are INACTIVE, and those are the wires the signals read.](../_img/mss-run-clear.svg)
 
-![A train in south publishes approach ACTIVE. Mid passes that wire to the north signal, which shows Approach. South stays Clear because mid's local is INACTIVE.](../_img/mss-run-south.svg)
+![A train in south. The signal facing south shows Stop. The signal facing north into mid stays Clear. The signal facing south into mid shows Approach, and the signal facing north stays Clear.](../_img/mss-run-south.svg)
 
-![The optical at the boundary publishes local ACTIVE. Mid publishes its own local ACTIVE from that, and both signals show Stop.](../_img/mss-run-gap.svg)
+![The optical at the boundary publishes local ACTIVE. Mid publishes its own local ACTIVE from that, and all four signals show Stop.](../_img/mss-run-gap.svg)
 
-![The train is in mid. The optical is clear. Mid's current detector holds local ACTIVE, so both signals stay at Stop.](../_img/mss-run-mid.svg)
+![The train is in mid. The optical is clear. Mid's current detector holds local ACTIVE, so all four signals stay at Stop.](../_img/mss-run-mid.svg)
 
-![The train is in north. Mid's local clears and the north signal shows Clear. North's approach wire is passed to the south signal, which shows Approach.](../_img/mss-run-north.svg)
+![The train is in north. The signal facing north shows Stop. The signal facing north into mid shows Approach. The two signals facing south show Clear.](../_img/mss-run-north.svg)
 
 ## A junction
 

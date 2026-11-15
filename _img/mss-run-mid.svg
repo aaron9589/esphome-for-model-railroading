@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="960" height="466" viewBox="0 0 960 466" role="img" aria-labelledby="tmss-run-mid.svg dmss-run-mid.svg">
   <title id="tmss-run-mid.svg">4. The train is in mid</title>
-  <desc id="dmss-run-mid.svg">The train is fully in mid. The optical is INACTIVE. Mid's current detector keeps both local wires ACTIVE, so both signals stay at Stop.</desc>
+  <desc id="dmss-run-mid.svg">The train is fully in mid. The optical is INACTIVE. Mid's current detector keeps both local wires ACTIVE, so all four signals stay at Stop.</desc>
   <rect width="960" height="466" fill="#f4f1ea"/>
   <g font-family="ui-sans-serif, system-ui, sans-serif" fill="#1c1917">
     <text x="32" y="36" font-size="18" font-weight="600">4. The train is in mid</text>
@@ -28,24 +28,35 @@
     <text x="476" y="117" text-anchor="middle" fill="#f4f1ea" font-size="12" font-weight="600">train</text>
     
     
-    <g transform="translate(296 152)">
+    <g transform="translate(268 156)">
       <circle cx="0" cy="0" r="11" fill="#292524"/>
       <circle cx="0" cy="0" r="5" fill="#f4f1ea"/>
       <polygon points="14,-4 24,0 14,4" fill="#1c1917"/>
     </g>
-    <rect x="324" y="140" width="64" height="24" rx="8" fill="#fde8e8" stroke="#b42318"/>
-    <text x="356.0" y="156" text-anchor="middle" fill="#9f1239" font-size="12" font-weight="600">Stop</text>
-    
-    
-    <g transform="translate(664 152) scale(-1 1)">
+    <rect x="188" y="144" width="64" height="24" rx="8" fill="#fde8e8" stroke="#b42318"/>
+    <text x="220.0" y="160" text-anchor="middle" fill="#b42318" font-size="12" font-weight="600">Stop</text>
+    <g transform="translate(324 156) scale(-1 1)">
       <circle cx="0" cy="0" r="11" fill="#292524"/>
       <circle cx="0" cy="0" r="5" fill="#f4f1ea"/>
       <polygon points="14,-4 24,0 14,4" fill="#1c1917"/>
     </g>
-    <rect x="572" y="140" width="64" height="24" rx="8" fill="#fde8e8" stroke="#b42318"/>
-    <text x="604.0" y="156" text-anchor="middle" fill="#9f1239" font-size="12" font-weight="600">Stop</text>
-    
-    
+    <rect x="340" y="144" width="64" height="24" rx="8" fill="#fde8e8" stroke="#b42318"/>
+    <text x="372.0" y="160" text-anchor="middle" fill="#b42318" font-size="12" font-weight="600">Stop</text>
+    <g transform="translate(632 156)">
+      <circle cx="0" cy="0" r="11" fill="#292524"/>
+      <circle cx="0" cy="0" r="5" fill="#f4f1ea"/>
+      <polygon points="14,-4 24,0 14,4" fill="#1c1917"/>
+    </g>
+    <rect x="552" y="144" width="64" height="24" rx="8" fill="#fde8e8" stroke="#b42318"/>
+    <text x="584.0" y="160" text-anchor="middle" fill="#b42318" font-size="12" font-weight="600">Stop</text>
+    <g transform="translate(696 156) scale(-1 1)">
+      <circle cx="0" cy="0" r="11" fill="#292524"/>
+      <circle cx="0" cy="0" r="5" fill="#f4f1ea"/>
+      <polygon points="14,-4 24,0 14,4" fill="#1c1917"/>
+    </g>
+    <rect x="712" y="144" width="64" height="24" rx="8" fill="#fde8e8" stroke="#b42318"/>
+    <text x="744.0" y="160" text-anchor="middle" fill="#b42318" font-size="12" font-weight="600">Stop</text>
+
     <rect x="32" y="214" width="896" height="68" rx="12" fill="#fffdf8" stroke="#e7e2d8"/>
     <rect x="48" y="232" width="104" height="32" rx="8" fill="#e8f1fb" stroke="#185fa5"/>
     <text x="100" y="253" text-anchor="middle" fill="#185fa5" font-size="13" font-weight="600">Publishes</text>
@@ -68,7 +79,7 @@
     <rect x="48" y="384" width="104" height="32" rx="8" fill="#e7f6ef" stroke="#0f6e56"/>
     <text x="100" y="405" text-anchor="middle" fill="#0f6e56" font-size="13" font-weight="600">Reads</text>
     <text x="168" y="396" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">mss/main/mid-board/mid/begin/local</text>
-    <text x="168" y="418" fill="#57534e" font-size="13">Both signals still show Stop. Approach wires are INACTIVE.</text>
+    <text x="168" y="418" fill="#57534e" font-size="13">All four signals still show Stop. Approach wires are INACTIVE.</text>
     <rect x="808" y="384" width="100" height="32" rx="8" fill="#fde8e8" stroke="#b42318"/>
     <text x="858" y="405" text-anchor="middle" fill="#9f1239" font-size="13" font-weight="600">ACTIVE</text>
     

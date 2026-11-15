@@ -1,10 +1,10 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="960" height="466" viewBox="0 0 960 466" role="img" aria-labelledby="tmss-run-north.svg dmss-run-north.svg">
   <title id="tmss-run-north.svg">5. The train is in north</title>
-  <desc id="dmss-run-north.svg">The train is in north. Mid's local returns to INACTIVE and the north signal shows Clear. North publishes approach, mid passes it to the south signal, and that signal shows Approach.</desc>
+  <desc id="dmss-run-north.svg">The train is in north. The signal facing north shows Stop. North publishes approach, mid passes it on, and the signal facing north into mid shows Approach. The two signals facing south show Clear.</desc>
   <rect width="960" height="466" fill="#f4f1ea"/>
   <g font-family="ui-sans-serif, system-ui, sans-serif" fill="#1c1917">
     <text x="32" y="36" font-size="18" font-weight="600">5. The train is in north</text>
-    <text x="32" y="58" fill="#57534e" font-size="13">Mid's local clears, so north shows Clear. South reads north's approach and shows Approach.</text>
+    <text x="32" y="58" fill="#57534e" font-size="13">Facing north shows Stop. Facing north into mid shows Approach. The two facing south show Clear.</text>
     <g fill="#57534e" font-size="12" font-weight="600" text-anchor="middle">
       <text x="164" y="90">south-board</text>
       <text x="480" y="90">mid-board</text>
@@ -28,29 +28,40 @@
     <text x="776" y="117" text-anchor="middle" fill="#f4f1ea" font-size="12" font-weight="600">train</text>
     
     
-    <g transform="translate(296 152)">
+    <g transform="translate(268 156)">
       <circle cx="0" cy="0" r="11" fill="#292524"/>
       <circle cx="0" cy="0" r="5" fill="#f4f1ea"/>
       <polygon points="14,-4 24,0 14,4" fill="#1c1917"/>
     </g>
-    <rect x="324" y="140" width="96" height="24" rx="8" fill="#faeeda" stroke="#854f0b"/>
-    <text x="372.0" y="156" text-anchor="middle" fill="#854f0b" font-size="12" font-weight="600">Approach</text>
-    
-    
-    <g transform="translate(664 152) scale(-1 1)">
+    <rect x="156" y="144" width="96" height="24" rx="8" fill="#faeeda" stroke="#854f0b"/>
+    <text x="204.0" y="160" text-anchor="middle" fill="#854f0b" font-size="12" font-weight="600">Approach</text>
+    <g transform="translate(324 156) scale(-1 1)">
       <circle cx="0" cy="0" r="11" fill="#292524"/>
       <circle cx="0" cy="0" r="5" fill="#f4f1ea"/>
       <polygon points="14,-4 24,0 14,4" fill="#1c1917"/>
     </g>
-    <rect x="564" y="140" width="72" height="24" rx="8" fill="#e7f6ef" stroke="#0f6e56"/>
-    <text x="600.0" y="156" text-anchor="middle" fill="#0f6e56" font-size="12" font-weight="600">Clear</text>
-    
-    
+    <rect x="340" y="144" width="72" height="24" rx="8" fill="#e7f6ef" stroke="#0f6e56"/>
+    <text x="376.0" y="160" text-anchor="middle" fill="#0f6e56" font-size="12" font-weight="600">Clear</text>
+    <g transform="translate(632 156)">
+      <circle cx="0" cy="0" r="11" fill="#292524"/>
+      <circle cx="0" cy="0" r="5" fill="#f4f1ea"/>
+      <polygon points="14,-4 24,0 14,4" fill="#1c1917"/>
+    </g>
+    <rect x="552" y="144" width="64" height="24" rx="8" fill="#fde8e8" stroke="#b42318"/>
+    <text x="584.0" y="160" text-anchor="middle" fill="#b42318" font-size="12" font-weight="600">Stop</text>
+    <g transform="translate(696 156) scale(-1 1)">
+      <circle cx="0" cy="0" r="11" fill="#292524"/>
+      <circle cx="0" cy="0" r="5" fill="#f4f1ea"/>
+      <polygon points="14,-4 24,0 14,4" fill="#1c1917"/>
+    </g>
+    <rect x="712" y="144" width="72" height="24" rx="8" fill="#e7f6ef" stroke="#0f6e56"/>
+    <text x="748.0" y="160" text-anchor="middle" fill="#0f6e56" font-size="12" font-weight="600">Clear</text>
+
     <rect x="32" y="214" width="896" height="68" rx="12" fill="#fffdf8" stroke="#e7e2d8"/>
     <rect x="48" y="232" width="104" height="32" rx="8" fill="#e8f1fb" stroke="#185fa5"/>
     <text x="100" y="253" text-anchor="middle" fill="#185fa5" font-size="13" font-weight="600">Publishes</text>
     <text x="168" y="244" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">mss/main/mid-board/mid/end/local</text>
-    <text x="168" y="266" fill="#57534e" font-size="13">Mid is empty, so both local wires clear. North leaves Stop.</text>
+    <text x="168" y="266" fill="#57534e" font-size="13">Mid is empty, so both local wires clear. The signals facing into mid leave Stop.</text>
     <rect x="808" y="232" width="100" height="32" rx="8" fill="#e7f6ef" stroke="#0f6e56"/>
     <text x="858" y="253" text-anchor="middle" fill="#0f6e56" font-size="13" font-weight="600">INACTIVE</text>
     
@@ -59,7 +70,7 @@
     <rect x="48" y="308" width="104" height="32" rx="8" fill="#e8f1fb" stroke="#185fa5"/>
     <text x="100" y="329" text-anchor="middle" fill="#185fa5" font-size="13" font-weight="600">Publishes</text>
     <text x="168" y="320" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">mss/main/north-board/north/begin/approach</text>
-    <text x="168" y="342" fill="#57534e" font-size="13">North's current detector. This is the next block for south.</text>
+    <text x="168" y="342" fill="#57534e" font-size="13">North's current detector. Next block for the signal facing north into mid.</text>
     <rect x="808" y="308" width="100" height="32" rx="8" fill="#fde8e8" stroke="#b42318"/>
     <text x="858" y="329" text-anchor="middle" fill="#9f1239" font-size="13" font-weight="600">ACTIVE</text>
     
@@ -68,7 +79,7 @@
     <rect x="48" y="384" width="104" height="32" rx="8" fill="#faeeda" stroke="#854f0b"/>
     <text x="100" y="405" text-anchor="middle" fill="#854f0b" font-size="13" font-weight="600">Passes</text>
     <text x="168" y="396" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">mss/main/mid-board/mid/begin/approach</text>
-    <text x="168" y="418" fill="#57534e" font-size="13">Mid copies it toward south. The south signal shows Approach.</text>
+    <text x="168" y="418" fill="#57534e" font-size="13">Mid copies it toward south. The signal facing north into mid shows Approach.</text>
     <rect x="808" y="384" width="100" height="32" rx="8" fill="#fde8e8" stroke="#b42318"/>
     <text x="858" y="405" text-anchor="middle" fill="#9f1239" font-size="13" font-weight="600">ACTIVE</text>
     

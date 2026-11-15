@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="960" height="810" viewBox="0 0 960 810" role="img" aria-labelledby="ovTitle ovDesc">
   <title id="ovTitle">MSS over MQTT, in the shape of the fundamentals figure</title>
-  <desc id="ovDesc">Same arrangement as figure 1.1 in the MSS fundamentals guide. One signal block runs between two cascade nodes, with two crossover nodes between them. The track, the signals, and the current and optical detectors stay. MQTT replaces the occupancy bus: there are no RJ45 jacks and no crossover cables. Each board publishes its own topics to Mosquitto. A cascade board also subscribes to the named blocks and picks the aspect. A crossover board only publishes its current detector. A missing board holds its blocks occupied.</desc>
+  <desc id="ovDesc">Same arrangement as figure 1.1 in the MSS fundamentals guide. One signal block runs between two cascade nodes, with two crossover nodes between them. Each cascade boundary has two signals, facing opposite ways. The track and the current and optical detectors stay. MQTT replaces the occupancy bus: there are no RJ45 jacks and no crossover cables. Each board publishes its own topics to Mosquitto. A cascade board also subscribes to the named blocks and picks the aspect. A crossover board only publishes its current detector. A missing board holds its blocks occupied.</desc>
   <rect width="960" height="810" fill="#f4f1ea"/>
   <g font-family="ui-sans-serif, system-ui, sans-serif" fill="#1c1917">
     <text x="52" y="34" font-size="18" font-weight="600">MSS over MQTT</text>
@@ -111,11 +111,11 @@
       <line x1="920" y1="154" x2="920" y2="166"/>
     </g>
 
-    <text x="101" y="184" text-anchor="middle" fill="#78716c" font-size="11">previous block</text>
-    <text x="874" y="184" text-anchor="middle" fill="#78716c" font-size="11">next block</text>
+    <text x="101" y="174" text-anchor="middle" fill="#78716c" font-size="11">previous block</text>
+    <text x="874" y="174" text-anchor="middle" fill="#78716c" font-size="11">next block</text>
 
-    <text x="224" y="200" fill="#44403c" font-size="12">protects this block</text>
-    <text x="766" y="200" text-anchor="end" fill="#44403c" font-size="12">protects this block</text>
+    <text x="248" y="200" fill="#44403c" font-size="12">protects this block</text>
+    <text x="736" y="200" text-anchor="end" fill="#44403c" font-size="12">protects this block</text>
 
     <g fill="#78716c" font-size="11" font-weight="600" letter-spacing="0.08em">
       <text transform="rotate(-90 18 160)" x="18" y="160" text-anchor="middle">TRACK</text>
@@ -146,12 +146,22 @@
       <line x1="187" y1="207" x2="187" y2="296"/>
       <line x1="803" y1="207" x2="803" y2="296"/>
     </g>
-    <g transform="translate(187 196)">
+    <g transform="translate(164 196) scale(-1 1)">
       <circle cx="0" cy="0" r="11" fill="#292524"/>
       <circle cx="0" cy="0" r="5" fill="#f4f1ea"/>
       <polygon points="14,-4 24,0 14,4" fill="#1c1917"/>
     </g>
-    <g transform="translate(803 196) scale(-1 1)">
+    <g transform="translate(210 196)">
+      <circle cx="0" cy="0" r="11" fill="#292524"/>
+      <circle cx="0" cy="0" r="5" fill="#f4f1ea"/>
+      <polygon points="14,-4 24,0 14,4" fill="#1c1917"/>
+    </g>
+    <g transform="translate(776 196) scale(-1 1)">
+      <circle cx="0" cy="0" r="11" fill="#292524"/>
+      <circle cx="0" cy="0" r="5" fill="#f4f1ea"/>
+      <polygon points="14,-4 24,0 14,4" fill="#1c1917"/>
+    </g>
+    <g transform="translate(830 196)">
       <circle cx="0" cy="0" r="11" fill="#292524"/>
       <circle cx="0" cy="0" r="5" fill="#f4f1ea"/>
       <polygon points="14,-4 24,0 14,4" fill="#1c1917"/>

@@ -1,10 +1,10 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="960" height="700" viewBox="0 0 960 700" role="img" aria-labelledby="stretchTitle stretchDesc">
   <title id="stretchTitle">The overview named south, mid, and north</title>
-  <desc id="stretchDesc">Track main has blocks south, mid, and north. South and north are the cascade nodes and both signals protect mid. Mid is the crossover and only publishes its current detector. A train in south gives the north signal Approach. A train in mid gives both signals Stop.</desc>
+  <desc id="stretchDesc">Track main has blocks south, mid, and north. Each boundary has two signals, one facing each way. Mid is the crossover and only publishes its current detector. A train in south puts Stop on the signal facing south, and Approach on the signal facing south into mid. A train in mid puts Stop on all four signals.</desc>
   <rect width="960" height="700" fill="#f4f1ea"/>
   <g font-family="ui-sans-serif, system-ui, sans-serif" fill="#1c1917">
     <text x="36" y="34" font-size="18" font-weight="600">Three boards, one track named main</text>
-    <text x="36" y="56" fill="#57534e" font-size="13">The overview, with one crossover. Both signals protect mid. Mid only detects.</text>
+    <text x="36" y="56" fill="#57534e" font-size="13">The overview, with one crossover. Each joint has a signal facing each way.</text>
 
     <text x="480" y="86" text-anchor="middle" fill="#0f6e56" font-size="12" font-weight="600" letter-spacing="0.08em">SIGNAL BLOCK · MID</text>
     <line x1="336" y1="96" x2="624" y2="96" stroke="#0f6e56" stroke-width="1.5"/>
@@ -28,8 +28,10 @@
       <line x1="652" y1="146" x2="652" y2="158"/><line x1="672" y1="146" x2="672" y2="158"/><line x1="692" y1="146" x2="692" y2="158"/><line x1="712" y1="146" x2="712" y2="158"/><line x1="732" y1="146" x2="732" y2="158"/><line x1="752" y1="146" x2="752" y2="158"/><line x1="772" y1="146" x2="772" y2="158"/><line x1="792" y1="146" x2="792" y2="158"/><line x1="812" y1="146" x2="812" y2="158"/><line x1="832" y1="146" x2="832" y2="158"/><line x1="852" y1="146" x2="852" y2="158"/><line x1="872" y1="146" x2="872" y2="158"/><line x1="892" y1="146" x2="892" y2="158"/>
     </g>
 
-    <text x="372" y="196" fill="#44403c" font-size="12">protects mid</text>
-    <text x="588" y="196" text-anchor="end" fill="#44403c" font-size="12">protects mid</text>
+    <text x="168" y="196" fill="#44403c" font-size="12">protects south</text>
+    <text x="400" y="196" fill="#44403c" font-size="12">protects mid</text>
+    <text x="560" y="196" text-anchor="end" fill="#44403c" font-size="12">protects mid</text>
+    <text x="688" y="196" fill="#44403c" font-size="12">protects north</text>
 
     <rect x="36" y="220" width="888" height="40" rx="10" fill="#faeeda" stroke="#854f0b"/>
     <text x="480" y="245" text-anchor="middle" font-size="13" font-weight="600">Mosquitto</text>
@@ -40,12 +42,22 @@
       <line x1="480" y1="260" x2="480" y2="318"/>
       <line x1="670" y1="260" x2="670" y2="318"/>
     </g>
-    <g transform="translate(336 176)">
+    <g transform="translate(300 176) scale(-1 1)">
       <circle cx="0" cy="0" r="11" fill="#292524"/>
       <circle cx="0" cy="0" r="5" fill="#f4f1ea"/>
       <polygon points="14,-4 24,0 14,4" fill="#1c1917"/>
     </g>
-    <g transform="translate(624 176) scale(-1 1)">
+    <g transform="translate(368 176)">
+      <circle cx="0" cy="0" r="11" fill="#292524"/>
+      <circle cx="0" cy="0" r="5" fill="#f4f1ea"/>
+      <polygon points="14,-4 24,0 14,4" fill="#1c1917"/>
+    </g>
+    <g transform="translate(592 176) scale(-1 1)">
+      <circle cx="0" cy="0" r="11" fill="#292524"/>
+      <circle cx="0" cy="0" r="5" fill="#f4f1ea"/>
+      <polygon points="14,-4 24,0 14,4" fill="#1c1917"/>
+    </g>
+    <g transform="translate(656 176)">
       <circle cx="0" cy="0" r="11" fill="#292524"/>
       <circle cx="0" cy="0" r="5" fill="#f4f1ea"/>
       <polygon points="14,-4 24,0 14,4" fill="#1c1917"/>
@@ -64,8 +76,8 @@
     <text x="181" y="352" text-anchor="middle" font-size="14" font-weight="600">south · cascade</text>
     <text x="181" y="374" text-anchor="middle" fill="#57534e" font-size="12">current feed on south</text>
     <text x="181" y="394" text-anchor="middle" fill="#57534e" font-size="12">optical gap on south and mid</text>
-    <text x="181" y="414" text-anchor="middle" fill="#57534e" font-size="12">protects mid, next is north</text>
-    <text x="181" y="434" text-anchor="middle" fill="#57534e" font-size="12">behind is south</text>
+    <text x="181" y="414" text-anchor="middle" fill="#57534e" font-size="12">northbound protects mid</text>
+    <text x="181" y="434" text-anchor="middle" fill="#57534e" font-size="12">southbound protects south</text>
 
     <rect x="360" y="328" width="240" height="128" rx="8" fill="#e8f1fb" stroke="#185fa5"/>
     <text x="480" y="368" text-anchor="middle" font-size="14" font-weight="600">mid · crossover</text>
@@ -76,8 +88,8 @@
     <text x="779" y="352" text-anchor="middle" font-size="14" font-weight="600">north · cascade</text>
     <text x="779" y="374" text-anchor="middle" fill="#57534e" font-size="12">current feed on north</text>
     <text x="779" y="394" text-anchor="middle" fill="#57534e" font-size="12">optical gap on north and mid</text>
-    <text x="779" y="414" text-anchor="middle" fill="#57534e" font-size="12">protects mid, next is south</text>
-    <text x="779" y="434" text-anchor="middle" fill="#57534e" font-size="12">reads south's current</text>
+    <text x="779" y="414" text-anchor="middle" fill="#57534e" font-size="12">southbound protects mid</text>
+    <text x="779" y="434" text-anchor="middle" fill="#57534e" font-size="12">northbound protects north</text>
 
     <g>
       <rect x="52" y="472" width="124" height="68" rx="8" fill="#e7f6ef" stroke="#0f6e56"/>
@@ -107,8 +119,8 @@
 
     <rect x="36" y="612" width="888" height="68" rx="12" fill="#e8f1fb"/>
     <text x="52" y="638" font-size="14" font-weight="600">Train in south</text>
-    <text x="168" y="638" fill="#185fa5" font-size="14">South keeps watching mid. North shows Approach.</text>
+    <text x="168" y="638" fill="#185fa5" font-size="14">Facing south shows Stop. Facing south into mid shows Approach.</text>
     <text x="52" y="662" font-size="14" font-weight="600">Train in mid</text>
-    <text x="152" y="662" fill="#185fa5" font-size="14">Both signals show Stop. Each one protects mid.</text>
+    <text x="152" y="662" fill="#185fa5" font-size="14">All four signals show Stop.</text>
   </g>
 </svg>
