@@ -63,7 +63,7 @@ This repo is a beginner path for model-railroad ESP32 boards that talk to JMRI/C
 
 - Guides live under `docs/`. Prefer linking the existing guide over inventing new steps in chat.
 - Screenshot placeholders in the guides are intentional; do not invent fake screenshots.
-- Architecture pictures: `_img/architecture.svg`, `_img/mqtt-flow.svg`. MSS pictures: `_img/mss-occupancy.svg`, `_img/mss-aspects.svg`, `_img/mss-failsafe.svg`, `_img/mss-stretch.svg`, `_img/mss-junction.svg`, embedded from `docs/mss-mqtt.md`. Advanced-sample pictures: `_img/advanced-*.svg`, embedded from `README.md` and `advanced-samples/README.md`.
+- Architecture pictures: `_img/architecture.svg`, `_img/mqtt-flow.svg`. MSS pictures: `_img/mss-overview.svg`, `_img/mss-occupancy.svg`, `_img/mss-aspects.svg`, `_img/mss-failsafe.svg`, `_img/mss-stretch.svg`, `_img/mss-junction.svg`, embedded from `docs/mss-mqtt.md`. Advanced-sample pictures: `_img/advanced-*.svg`, embedded from `README.md` and `advanced-samples/README.md`.
 
 ## When something fails, check in this order
 

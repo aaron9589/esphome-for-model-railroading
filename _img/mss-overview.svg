@@ -1,0 +1,267 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="810" viewBox="0 0 960 810" role="img" aria-labelledby="ovTitle ovDesc">
+  <title id="ovTitle">MSS over MQTT, in the shape of the fundamentals figure</title>
+  <desc id="ovDesc">Same arrangement as figure 1.1 in the MSS fundamentals guide. One signal block runs between two cascade nodes, with two crossover nodes between them. The track, the signals, and the current and optical detectors stay. MQTT replaces the occupancy bus: there are no RJ45 jacks and no crossover cables. Each board publishes its own topics to Mosquitto. A cascade board also subscribes to the named blocks and picks the aspect. A crossover board only publishes its current detector. A missing board holds its blocks occupied.</desc>
+  <rect width="960" height="810" fill="#f4f1ea"/>
+  <g font-family="ui-sans-serif, system-ui, sans-serif" fill="#1c1917">
+    <text x="52" y="34" font-size="18" font-weight="600">MSS over MQTT</text>
+    <text x="52" y="56" fill="#57534e" font-size="13">Same arrangement as figure 1.1 in the MSS fundamentals guide. Each board publishes to the broker instead of the occupancy bus.</text>
+
+    <rect x="700" y="20" width="12" height="12" rx="2" fill="#e8f1fb" stroke="#185fa5"/>
+    <text x="718" y="31" fill="#44403c" font-size="12">Board</text>
+    <rect x="770" y="20" width="12" height="12" rx="2" fill="#ebe6dc" stroke="#cfc8bc"/>
+    <text x="788" y="31" fill="#44403c" font-size="12">Node</text>
+    <rect x="838" y="20" width="12" height="12" rx="2" fill="#e7f6ef" stroke="#0f6e56"/>
+    <text x="856" y="31" fill="#44403c" font-size="12">Detector</text>
+
+    <text x="495" y="80" text-anchor="middle" fill="#44403c" font-size="12" font-weight="600" letter-spacing="0.08em">ONE SIGNAL BLOCK</text>
+    <line x1="187" y1="90" x2="803" y2="90" stroke="#44403c" stroke-width="1.5"/>
+    <line x1="187" y1="82" x2="187" y2="98" stroke="#44403c" stroke-width="1.5"/>
+    <line x1="803" y1="82" x2="803" y2="98" stroke="#44403c" stroke-width="1.5"/>
+
+    <g fill="#57534e" font-size="11" text-anchor="middle">
+      <text x="187" y="116">Block boundary</text>
+      <text x="187" y="130">double rail gaps</text>
+      <text x="333" y="116">Detector isolation</text>
+      <text x="333" y="130">double rail gaps</text>
+      <text x="495" y="116">Detector isolation</text>
+      <text x="495" y="130">double rail gaps</text>
+      <text x="657" y="116">Detector isolation</text>
+      <text x="657" y="130">double rail gaps</text>
+      <text x="803" y="116">Block boundary</text>
+      <text x="803" y="130">double rail gaps</text>
+    </g>
+    <g stroke="#a8a29e" stroke-width="1">
+      <line x1="187" y1="134" x2="187" y2="148"/>
+      <line x1="333" y1="134" x2="333" y2="148"/>
+      <line x1="495" y1="134" x2="495" y2="148"/>
+      <line x1="657" y1="134" x2="657" y2="148"/>
+      <line x1="803" y1="134" x2="803" y2="148"/>
+    </g>
+
+    <g stroke="#d32f2f" stroke-width="3" stroke-linecap="butt">
+      <line x1="28" y1="154" x2="175" y2="154"/>
+      <line x1="28" y1="166" x2="175" y2="166"/>
+      <line x1="199" y1="154" x2="326" y2="154"/>
+      <line x1="199" y1="166" x2="326" y2="166"/>
+      <line x1="340" y1="154" x2="488" y2="154"/>
+      <line x1="340" y1="166" x2="488" y2="166"/>
+      <line x1="502" y1="154" x2="650" y2="154"/>
+      <line x1="502" y1="166" x2="650" y2="166"/>
+      <line x1="664" y1="154" x2="791" y2="154"/>
+      <line x1="664" y1="166" x2="791" y2="166"/>
+      <line x1="815" y1="154" x2="932" y2="154"/>
+      <line x1="815" y1="166" x2="932" y2="166"/>
+    </g>
+    <g stroke="#d32f2f" stroke-width="2" stroke-linecap="butt">
+      <line x1="36" y1="154" x2="36" y2="166"/>
+      <line x1="50" y1="154" x2="50" y2="166"/>
+      <line x1="64" y1="154" x2="64" y2="166"/>
+      <line x1="78" y1="154" x2="78" y2="166"/>
+      <line x1="92" y1="154" x2="92" y2="166"/>
+      <line x1="106" y1="154" x2="106" y2="166"/>
+      <line x1="120" y1="154" x2="120" y2="166"/>
+      <line x1="134" y1="154" x2="134" y2="166"/>
+      <line x1="148" y1="154" x2="148" y2="166"/>
+      <line x1="162" y1="154" x2="162" y2="166"/>
+      <line x1="206" y1="154" x2="206" y2="166"/>
+      <line x1="220" y1="154" x2="220" y2="166"/>
+      <line x1="234" y1="154" x2="234" y2="166"/>
+      <line x1="248" y1="154" x2="248" y2="166"/>
+      <line x1="262" y1="154" x2="262" y2="166"/>
+      <line x1="276" y1="154" x2="276" y2="166"/>
+      <line x1="290" y1="154" x2="290" y2="166"/>
+      <line x1="304" y1="154" x2="304" y2="166"/>
+      <line x1="318" y1="154" x2="318" y2="166"/>
+      <line x1="348" y1="154" x2="348" y2="166"/>
+      <line x1="362" y1="154" x2="362" y2="166"/>
+      <line x1="376" y1="154" x2="376" y2="166"/>
+      <line x1="390" y1="154" x2="390" y2="166"/>
+      <line x1="404" y1="154" x2="404" y2="166"/>
+      <line x1="418" y1="154" x2="418" y2="166"/>
+      <line x1="432" y1="154" x2="432" y2="166"/>
+      <line x1="446" y1="154" x2="446" y2="166"/>
+      <line x1="460" y1="154" x2="460" y2="166"/>
+      <line x1="474" y1="154" x2="474" y2="166"/>
+      <line x1="510" y1="154" x2="510" y2="166"/>
+      <line x1="524" y1="154" x2="524" y2="166"/>
+      <line x1="538" y1="154" x2="538" y2="166"/>
+      <line x1="552" y1="154" x2="552" y2="166"/>
+      <line x1="566" y1="154" x2="566" y2="166"/>
+      <line x1="580" y1="154" x2="580" y2="166"/>
+      <line x1="594" y1="154" x2="594" y2="166"/>
+      <line x1="608" y1="154" x2="608" y2="166"/>
+      <line x1="622" y1="154" x2="622" y2="166"/>
+      <line x1="636" y1="154" x2="636" y2="166"/>
+      <line x1="672" y1="154" x2="672" y2="166"/>
+      <line x1="686" y1="154" x2="686" y2="166"/>
+      <line x1="700" y1="154" x2="700" y2="166"/>
+      <line x1="714" y1="154" x2="714" y2="166"/>
+      <line x1="728" y1="154" x2="728" y2="166"/>
+      <line x1="742" y1="154" x2="742" y2="166"/>
+      <line x1="756" y1="154" x2="756" y2="166"/>
+      <line x1="770" y1="154" x2="770" y2="166"/>
+      <line x1="784" y1="154" x2="784" y2="166"/>
+      <line x1="822" y1="154" x2="822" y2="166"/>
+      <line x1="836" y1="154" x2="836" y2="166"/>
+      <line x1="850" y1="154" x2="850" y2="166"/>
+      <line x1="864" y1="154" x2="864" y2="166"/>
+      <line x1="878" y1="154" x2="878" y2="166"/>
+      <line x1="892" y1="154" x2="892" y2="166"/>
+      <line x1="906" y1="154" x2="906" y2="166"/>
+      <line x1="920" y1="154" x2="920" y2="166"/>
+    </g>
+
+    <text x="101" y="184" text-anchor="middle" fill="#78716c" font-size="11">previous block</text>
+    <text x="874" y="184" text-anchor="middle" fill="#78716c" font-size="11">next block</text>
+
+    <text x="224" y="200" fill="#44403c" font-size="12">protects this block</text>
+    <text x="766" y="200" text-anchor="end" fill="#44403c" font-size="12">protects this block</text>
+
+    <g fill="#78716c" font-size="11" font-weight="600" letter-spacing="0.08em">
+      <text transform="rotate(-90 18 160)" x="18" y="160" text-anchor="middle">TRACK</text>
+      <text transform="rotate(-90 18 311)" x="18" y="311" text-anchor="middle">SIGNALING</text>
+      <text transform="rotate(-90 18 394)" x="18" y="394" text-anchor="middle">MQTT</text>
+      <text transform="rotate(-90 18 504)" x="18" y="504" text-anchor="middle">DETECTION</text>
+    </g>
+
+    <g>
+      <rect x="52" y="284" width="270" height="344" rx="12" fill="#ebe6dc" stroke="#cfc8bc"/>
+      <rect x="344" y="284" width="140" height="344" rx="12" fill="#ebe6dc" stroke="#cfc8bc"/>
+      <rect x="506" y="284" width="140" height="344" rx="12" fill="#ebe6dc" stroke="#cfc8bc"/>
+      <rect x="668" y="284" width="270" height="344" rx="12" fill="#ebe6dc" stroke="#cfc8bc"/>
+    </g>
+
+    <g stroke="#185fa5" stroke-width="1.25" stroke-dasharray="3 3">
+      <line x1="277" y1="278" x2="277" y2="338"/>
+      <line x1="414" y1="278" x2="414" y2="338"/>
+      <line x1="576" y1="278" x2="576" y2="338"/>
+      <line x1="713" y1="278" x2="713" y2="338"/>
+    </g>
+
+    <rect x="245" y="214" width="470" height="64" rx="12" fill="#faeeda" stroke="#854f0b"/>
+    <text x="480" y="238" text-anchor="middle" font-size="14" font-weight="600">Mosquitto</text>
+    <text x="480" y="260" text-anchor="middle" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="12">mss/&lt;track&gt;/&lt;block&gt;/&lt;board&gt;/&lt;kind&gt;/&lt;name&gt;</text>
+
+    <g stroke="#44403c" stroke-width="1.5">
+      <line x1="187" y1="207" x2="187" y2="296"/>
+      <line x1="803" y1="207" x2="803" y2="296"/>
+    </g>
+    <g transform="translate(187 196)">
+      <circle cx="0" cy="0" r="11" fill="#292524"/>
+      <circle cx="0" cy="0" r="5" fill="#f4f1ea"/>
+      <polygon points="14,-4 24,0 14,4" fill="#1c1917"/>
+    </g>
+    <g transform="translate(803 196) scale(-1 1)">
+      <circle cx="0" cy="0" r="11" fill="#292524"/>
+      <circle cx="0" cy="0" r="5" fill="#f4f1ea"/>
+      <polygon points="14,-4 24,0 14,4" fill="#1c1917"/>
+    </g>
+
+    <g>
+      <rect x="122" y="296" width="130" height="30" rx="8" fill="#e7f6ef" stroke="#0f6e56"/>
+      <text x="187" y="316" text-anchor="middle" fill="#0f6e56" font-size="12" font-weight="600">Signal drivers</text>
+      <rect x="738" y="296" width="130" height="30" rx="8" fill="#e7f6ef" stroke="#0f6e56"/>
+      <text x="803" y="316" text-anchor="middle" fill="#0f6e56" font-size="12" font-weight="600">Signal drivers</text>
+    </g>
+
+    <g>
+      <rect x="64" y="338" width="246" height="112" rx="8" fill="#e8f1fb" stroke="#185fa5"/>
+      <text x="187" y="360" text-anchor="middle" font-size="13" font-weight="600">Cascade board</text>
+      <text x="187" y="380" text-anchor="middle" fill="#57534e" font-size="12">Publishes its detectors</text>
+      <text x="187" y="398" text-anchor="middle" fill="#57534e" font-size="12">Subscribes to the named blocks</text>
+      <text x="187" y="416" text-anchor="middle" fill="#57534e" font-size="12">Picks the aspect</text>
+      <text x="187" y="434" text-anchor="middle" fill="#57534e" font-size="12">Last will: OFFLINE</text>
+
+      <rect x="354" y="338" width="120" height="112" rx="8" fill="#e8f1fb" stroke="#185fa5"/>
+      <text x="414" y="378" text-anchor="middle" font-size="13" font-weight="600">Crossover board</text>
+      <text x="414" y="400" text-anchor="middle" fill="#57534e" font-size="12">Publishes detection</text>
+      <text x="414" y="418" text-anchor="middle" fill="#57534e" font-size="12">Last will: OFFLINE</text>
+
+      <rect x="516" y="338" width="120" height="112" rx="8" fill="#e8f1fb" stroke="#185fa5"/>
+      <text x="576" y="378" text-anchor="middle" font-size="13" font-weight="600">Crossover board</text>
+      <text x="576" y="400" text-anchor="middle" fill="#57534e" font-size="12">Publishes detection</text>
+      <text x="576" y="418" text-anchor="middle" fill="#57534e" font-size="12">Last will: OFFLINE</text>
+
+      <rect x="680" y="338" width="246" height="112" rx="8" fill="#e8f1fb" stroke="#185fa5"/>
+      <text x="803" y="360" text-anchor="middle" font-size="13" font-weight="600">Cascade board</text>
+      <text x="803" y="380" text-anchor="middle" fill="#57534e" font-size="12">Publishes its detectors</text>
+      <text x="803" y="398" text-anchor="middle" fill="#57534e" font-size="12">Subscribes to the named blocks</text>
+      <text x="803" y="416" text-anchor="middle" fill="#57534e" font-size="12">Picks the aspect</text>
+      <text x="803" y="434" text-anchor="middle" fill="#57534e" font-size="12">Last will: OFFLINE</text>
+    </g>
+
+    <g>
+      <rect x="64" y="464" width="78" height="80" rx="8" fill="#e7f6ef" stroke="#0f6e56"/>
+      <text x="103" y="488" text-anchor="middle" fill="#0f6e56" font-size="12" font-weight="600">Current</text>
+      <text x="103" y="506" text-anchor="middle" fill="#57534e" font-size="11">feeder</text>
+      <text x="103" y="524" text-anchor="middle" fill="#185fa5" font-size="11" font-weight="600">block behind</text>
+
+      <rect x="148" y="464" width="78" height="80" rx="8" fill="#e7f6ef" stroke="#0f6e56"/>
+      <text x="187" y="488" text-anchor="middle" fill="#0f6e56" font-size="12" font-weight="600">Optical</text>
+      <text x="187" y="506" text-anchor="middle" fill="#57534e" font-size="11">in the track</text>
+      <text x="187" y="524" text-anchor="middle" fill="#185fa5" font-size="11" font-weight="600">both blocks</text>
+
+      <rect x="232" y="464" width="78" height="80" rx="8" fill="#e7f6ef" stroke="#0f6e56"/>
+      <text x="271" y="488" text-anchor="middle" fill="#0f6e56" font-size="12" font-weight="600">Current</text>
+      <text x="271" y="506" text-anchor="middle" fill="#57534e" font-size="11">feeder</text>
+      <text x="271" y="524" text-anchor="middle" fill="#185fa5" font-size="11" font-weight="600">this block</text>
+
+      <rect x="364" y="464" width="100" height="80" rx="8" fill="#e7f6ef" stroke="#0f6e56"/>
+      <text x="414" y="488" text-anchor="middle" fill="#0f6e56" font-size="12" font-weight="600">Current</text>
+      <text x="414" y="506" text-anchor="middle" fill="#57534e" font-size="11">feeder</text>
+      <text x="414" y="524" text-anchor="middle" fill="#185fa5" font-size="11" font-weight="600">this block</text>
+
+      <rect x="526" y="464" width="100" height="80" rx="8" fill="#e7f6ef" stroke="#0f6e56"/>
+      <text x="576" y="488" text-anchor="middle" fill="#0f6e56" font-size="12" font-weight="600">Current</text>
+      <text x="576" y="506" text-anchor="middle" fill="#57534e" font-size="11">feeder</text>
+      <text x="576" y="524" text-anchor="middle" fill="#185fa5" font-size="11" font-weight="600">this block</text>
+
+      <rect x="680" y="464" width="78" height="80" rx="8" fill="#e7f6ef" stroke="#0f6e56"/>
+      <text x="719" y="488" text-anchor="middle" fill="#0f6e56" font-size="12" font-weight="600">Current</text>
+      <text x="719" y="506" text-anchor="middle" fill="#57534e" font-size="11">feeder</text>
+      <text x="719" y="524" text-anchor="middle" fill="#185fa5" font-size="11" font-weight="600">this block</text>
+
+      <rect x="764" y="464" width="78" height="80" rx="8" fill="#e7f6ef" stroke="#0f6e56"/>
+      <text x="803" y="488" text-anchor="middle" fill="#0f6e56" font-size="12" font-weight="600">Optical</text>
+      <text x="803" y="506" text-anchor="middle" fill="#57534e" font-size="11">in the track</text>
+      <text x="803" y="524" text-anchor="middle" fill="#185fa5" font-size="11" font-weight="600">both blocks</text>
+
+      <rect x="848" y="464" width="78" height="80" rx="8" fill="#e7f6ef" stroke="#0f6e56"/>
+      <text x="887" y="488" text-anchor="middle" fill="#0f6e56" font-size="12" font-weight="600">Current</text>
+      <text x="887" y="506" text-anchor="middle" fill="#57534e" font-size="11">feeder</text>
+      <text x="887" y="524" text-anchor="middle" fill="#185fa5" font-size="11" font-weight="600">next block</text>
+    </g>
+
+    <g text-anchor="middle">
+      <text x="187" y="572" font-size="14" font-weight="600">Cascade node</text>
+      <text x="187" y="592" fill="#57534e" font-size="12">signals at the boundary</text>
+      <text x="414" y="572" font-size="14" font-weight="600">Crossover node</text>
+      <text x="414" y="592" fill="#57534e" font-size="12">no signal</text>
+      <text x="576" y="572" font-size="14" font-weight="600">Crossover node</text>
+      <text x="576" y="592" fill="#57534e" font-size="12">no signal</text>
+      <text x="803" y="572" font-size="14" font-weight="600">Cascade node</text>
+      <text x="803" y="592" fill="#57534e" font-size="12">signals at the boundary</text>
+    </g>
+
+    <g fill="#44403c" font-size="13">
+      <text x="52" y="656">A cascade node bounds the block</text>
+      <text x="52" y="674">and carries the signals. Its board</text>
+      <text x="52" y="692">subscribes to the named blocks</text>
+      <text x="52" y="710">and picks the aspect.</text>
+
+      <text x="344" y="656">Crossover nodes fill the block</text>
+      <text x="344" y="674">and have no signals. Any number</text>
+      <text x="344" y="692">can sit between cascade nodes.</text>
+      <text x="344" y="710">Each detector has its own topic.</text>
+
+      <text x="668" y="656">Current detectors watch each</text>
+      <text x="668" y="674">module's feeder. The optical</text>
+      <text x="668" y="692">at the boundary occupies both</text>
+      <text x="668" y="710">blocks until the train clears.</text>
+    </g>
+
+    <rect x="52" y="732" width="886" height="58" rx="12" fill="#f5f5f4" stroke="#d6d3d1"/>
+    <text x="72" y="756" font-size="13" font-weight="600">A missing board holds its blocks occupied, so the signals stay at Stop.</text>
+    <text x="72" y="776" fill="#57534e" font-size="13">On the wired bus, a disconnected detector floats clear.</text>
+  </g>
+</svg>

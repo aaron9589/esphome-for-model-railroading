@@ -2,6 +2,8 @@
 
 The [Modular Signal System](http://www.modularsignalsystem.info/) (MSS 2.0.2) is a way for modules to animate signals from the blocks ahead, without a computer deciding each aspect. The wired system carries that occupancy on a CAT5 bus. Here the same rules ride on MQTT, and the Board Configurator writes the YAML.
 
+![The MSS fundamentals layout with MQTT in place of the occupancy bus. Cascade nodes at each end of the signal block carry the signals, publish their detectors, and subscribe to the named blocks. Crossover nodes only publish a current detector. Every board talks to Mosquitto on its own. A missing board holds its blocks occupied.](../_img/mss-overview.svg)
+
 The standard, the fundamentals, and the planning notes are the three PDFs on the MSS site:
 
 - [Design standard 2.0.2](http://www.modularsignalsystem.info/ModularSignalSystemStandardV2.0.2.pdf)
