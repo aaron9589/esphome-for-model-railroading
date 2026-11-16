@@ -6,7 +6,7 @@ A board watches the track and throws points. JMRI (with CATS doing the signallin
 
 ## How it fits together
 
-![On the layout, an ESP32 reads detectors and drives point servos. A signal ESP talks UART to WLED. Both use Wi-Fi MQTT to Mosquitto, JMRI, and CATS on the layout computer.](_img/architecture.svg)
+![On the layout, one ESP32 reads detectors, drives point servos, and lights signal heads. It uses Wi-Fi MQTT to Mosquitto, JMRI, and CATS on the layout computer.](_img/architecture.svg)
 
 The layout computer runs Mosquitto and JMRI. CATS writes the signalling into JMRI’s tables, and those tables are the MQTT topics. Each ESP joins the 2.4 GHz Wi-Fi and uses the computer’s LAN address, never `localhost`. The point servos take a separate 5V supply. Signal masts are in the configurator: each mast is its own WS2812B strip, or one GPIO per lamp, painted from the JMRI aspect string. The earlier WLED setup in the advanced samples is obsolete.
 
@@ -82,8 +82,8 @@ Wiring, detector tuning, how points remember their positions, and the layout thi
 | Flash and MQTT smoke test | [first-board-setup-guide.md](docs/first-board-setup-guide.md) |
 | Advanced layout patterns (not Configurator YAML) | [advanced-samples/](advanced-samples/) |
 
-Signals, staff tokens, bell codes, end-of-block pulses, and hand throws are not in the configurator. The diagrams and the YAML are in [advanced-samples](advanced-samples/README.md).
+Signal masts are in the configurator, on the same board as the blocks and points. Staff tokens, bell codes, end-of-block pulses, and hand throws are in [advanced-samples](advanced-samples/README.md).
 
-![End-of-block sensors, ground throws, bell codes, a staff machine, and a signal ESP all talk MQTT to Mosquitto, JMRI, and CATS.](_img/advanced-overview.svg)
+![End-of-block sensors, ground throws, bell codes, and a staff machine talk MQTT to Mosquitto, JMRI, and CATS.](_img/advanced-overview.svg)
 
 Open an issue if you get stuck. I’ll help where I can.

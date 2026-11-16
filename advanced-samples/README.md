@@ -4,7 +4,7 @@ These YAML files are **not** Board Configurator compatible. They are patterns fr
 
 For a first board, use the [Board Configurator](https://aaron9589.github.io/esphome-for-model-railroading/). Ordinary blocks, points, and signal masts live there. Copy ideas from these files into your own ESPHome config. Import in the Configurator will not understand them.
 
-![End-of-block sensors, ground throws, bell codes, a staff machine, and a signal ESP all talk MQTT to Mosquitto, JMRI, and CATS. Pull the ones you need in as ESPHome packages.](../_img/advanced-overview.svg)
+![End-of-block sensors, ground throws, bell codes, and a staff machine talk MQTT to Mosquitto, JMRI, and CATS. Pull the ones you need in as ESPHome packages.](../_img/advanced-overview.svg)
 
 Keep these off the Configurator board. Add only the files you need as ESPHome packages on a separate device, so each job stays in its own file:
 
