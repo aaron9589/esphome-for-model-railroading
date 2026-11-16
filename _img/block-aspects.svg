@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="960" height="540" viewBox="0 0 960 540" role="img" aria-labelledby="title desc">
   <title id="title">How a signal picks an aspect from the blocks ahead</title>
-  <desc id="desc">Stop comes from the block the signal protects. Approach and Approach Diverging come from the next block. Advance Approach comes from the one after that. Clear or Dark comes from the block behind.</desc>
+  <desc id="desc">Stop comes from the block the signal protects. Approach comes from the next block. Approach Diverging comes from a REVERSE turnout with this block clear. Advance Approach comes from the one after that. Clear or Dark comes from the block behind.</desc>
   <rect width="960" height="540" fill="#f4f1ea"/>
   <g font-family="ui-sans-serif, system-ui, sans-serif" fill="#1c1917">
     <text x="32" y="36" font-size="18" font-weight="600">The signal that protects this block</text>
@@ -63,7 +63,7 @@
     <text x="594" y="288" text-anchor="middle" fill="#57534e" font-size="13" font-weight="400">Turnout REVERSE,</text>
     <text x="594" y="308" text-anchor="middle" fill="#57534e" font-size="13" font-weight="400">and its block clear</text>
     <text x="594" y="328" text-anchor="middle" fill="#854f0b" font-size="16" font-weight="600">Approach Diverging</text>
-    <text x="594" y="356" text-anchor="middle" fill="#78716c" font-size="12" font-weight="400">Replaces Approach.</text>
+    <text x="594" y="356" text-anchor="middle" fill="#78716c" font-size="12" font-weight="400">Throat, branch lined.</text>
     <rect x="720" y="180" width="208" height="280" rx="12" fill="#e8f1fb" stroke="#185fa5"/>
     <text x="824" y="212" text-anchor="middle" fill="#185fa5" font-size="15" font-weight="600">Two ahead</text>
     <text x="824" y="240" text-anchor="middle" fill="#57534e" font-size="13" font-weight="400">OCCUPIED, and the</text>

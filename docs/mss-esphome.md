@@ -2,17 +2,17 @@
 
 **Version 1.**
 
-The [Modular Signal System](http://www.modularsignalsystem.info/) (MSS 2.0.2) animates signals from the blocks ahead. No computer has to choose each aspect. This standard keeps those indications. A dispatcher can hold a home signal at Stop, and the same script fills the aspect once the hold lifts.
+## 1. Scope
 
-How the configurator draws the pieces, and how the web page is laid out, is in [the configurator notes](block-signalling.md).
+The [Modular Signal System](http://www.modularsignalsystem.info/) (MSS 2.0.2) animates signals from the blocks ahead. No computer has to choose each aspect. This standard keeps those indications on MQTT. A dispatcher can hold a home signal at Stop, and the same script fills the aspect once the hold lifts.
 
-The MSS standard, the fundamentals, and the planning notes are the three PDFs on the MSS site:
+### 1.1 Normative references
 
-- [Design standard 2.0.2](http://www.modularsignalsystem.info/ModularSignalSystemStandardV2.0.2.pdf)
-- [User guide part 1, fundamentals](http://www.modularsignalsystem.info/MSSUserGuide1.pdf)
-- [User guide part 2, planning](http://www.modularsignalsystem.info/MSSUserGuide2.pdf)
+- [MSS Design standard 2.0.2](http://www.modularsignalsystem.info/ModularSignalSystemStandardV2.0.2.pdf)
+- [MSS User guide part 1, fundamentals](http://www.modularsignalsystem.info/MSSUserGuide1.pdf)
+- [MSS User guide part 2, planning](http://www.modularsignalsystem.info/MSSUserGuide2.pdf)
 
-## Version
+## 2. Version and payloads
 
 This document is version **1**.
 
@@ -32,7 +32,7 @@ v1 OFFER west-board/right
 v1 ACCEPT east-board/left WITH west-board/right
 ```
 
-## The three boards
+## 3. Board types
 
 A block runs from one boundary or junction to the next boundary or junction. Those two are marked *. An interim cannot be the end of a block.
 
@@ -42,11 +42,9 @@ A block runs from one boundary or junction to the next boundary or junction. Tho
 
 **Interim.** One block detector. No signals and no optic. The detector occupies the one block this board sits in. Several interims in a row all belong to that same block.
 
-**Junction \*.** A turnout, with the optic in the centre of it, so a train on either leg is seen. One signal on each leg — throat, main, and branch — facing the turnout. Three block detectors. The throat block is the throat approach and the turnout. The main block is the main route. The diverging block is the diverging route. The centre optic occupies the throat block. It does not occupy the main block or the diverging block.
+**Junction \*.** A turnout, with the optic in the centre of it, so a train on either leg is seen. One signal on each leg — throat, main, and branch — facing the turnout. Three block detectors. The throat detector and the optic occupy the throat. The main detector occupies the main route. The diverging detector occupies the diverging route. The optic does not occupy the main route or the diverging route.
 
-![The board publishes block, optic, and turnout lined. It passes each fact on as its own ahead topic. The signal reads block as Stop, next as Approach, after as Advance Approach, and turnout REVERSE with next as Approach Diverging.](../_img/block-script.svg)
-
-## Occupancy and aspects
+## 4. Occupancy
 
 Each signalled track is its own set of topics. A block is occupied when any of these is true:
 
@@ -57,32 +55,66 @@ Each signalled track is its own set of topics. A block is occupied when any of t
 - The optic in the centre of a turnout sees a train on either leg. That occupies the throat block.
 - A turnout in a junction is set against the route that signal is protecting.
 
-![A boundary optic occupies both blocks that meet there. Each block detector occupies its own block. The turnout optic occupies the throat block, which is the approach and the turnout.](../_img/block-occupancy.svg)
+Sidings and spurs that are not signalled stay out of this. Both rails are still gapped at each block boundary, and every feeder for a block still passes through a current detector.
 
-Signals stand at the boundaries, and on each leg of a junction. The one facing a block shows the first row that matches:
+## 5. Aspects
+
+Signals stand at the boundaries, and on each leg of a junction. The signal facing a block shows the first row that matches:
 
 | What the script sees | Indication |
 |---|---|
 | An absolute mast, and CATS is holding it | Stop |
 | The block it protects is occupied | Stop |
-| That block is clear, the next is occupied, and the turnout is REVERSE | Approach Diverging |
+| That block is clear, this is the throat signal, and the turnout is REVERSE | Approach Diverging |
 | That block is clear, and the next block is occupied | Approach |
 | Those two are clear, and the one after is occupied | Advance Approach |
 | Those are clear, and a train is in the block behind | Clear |
 | Nothing ahead, and the block behind is clear, with approach lighting on | Dark |
 | Nothing ahead, and approach lighting is off | Clear |
 
-Stop wins over everything. Approach Diverging replaces Approach, and only then. Advance Approach, Approach Diverging, and approach lighting are optional. Stop, Approach, and Clear are not. MSS 2.0.2 lists the same three as required, and Advance Approach as optional. A mast without Advance Approach skips that row and shows Clear. The absolute row applies only to a mast marked Absolute. A permissive mast skips it.
+Stop wins over everything. Advance Approach, Approach Diverging, and approach lighting are optional. Stop, Approach, and Clear are not. MSS 2.0.2 lists the same three as required, and Advance Approach as optional.
 
-![The signal faces the blocks ahead. Stop comes from the block it protects. Approach and Approach Diverging come from the next block. Advance Approach comes from the one after that. Clear or Dark comes from the block behind.](../_img/block-aspects.svg)
+A mast without Approach Diverging skips that row and continues down the table. A mast without Advance Approach skips that row and continues down the table. The absolute row applies only to a mast marked Absolute. A permissive mast skips it.
 
-An interim is not a step in that list. A train on an interim occupies the whole block between the two starred boards, so the signals that protect that block show Stop. The next block shows Approach only when that whole block is the next one.
+![The signal faces the blocks ahead. Stop comes from the block it protects. Approach comes from the next block. Approach Diverging comes from a REVERSE turnout with this block clear. Advance Approach comes from the one after next. Clear or Dark comes from the block behind.](../_img/block-aspects.svg)
 
-The route that is not lined at a junction is held occupied, so the signal on that leg stays at Stop. Approach Diverging is sent only when the turnout is `REVERSE` and that block is clear. A signal that has no Approach Diverging aspect still sees the lined-away block as occupied, so it shows Approach.
+### 5.1 What a signal protects
 
-Sidings and spurs that are not signalled stay out of this. Both rails are still gapped at each block boundary, and every feeder for a block still passes through a current detector.
+Each signal protects the track in front of it, up to the next signal. On a plain stretch the two signals that face each other across a block both protect that block. A train on an interim occupies the whole of that block, so both signals show Stop. The signal one block further back shows Approach only when that whole block is its next one.
 
-## What a board publishes
+A junction splits the road into the approach, the main, and the diverging route.
+
+- The signal facing the junction from the approach protects the approach. That is the boundary block on the junction side, plus every interim up to the throat signal. A train there shows Stop on that signal. It does not, by itself, show Stop on the throat.
+- The throat signal protects the lined route beyond the turnout, up to the next boundary signal. On the main, that is the main route up to the east signals. On the branch, that is the diverging route up to the branch boundary signals. A train on that route shows Stop on the throat, and on the boundary at the far end, until the train passes that boundary signal.
+- The main signal and the branch signal face the turnout, so each protects the approach beyond the frog. A train in the approach shows Stop on the signal of the lined leg.
+- The boundary on a route, facing the junction, protects that route up to the points signal.
+
+### 5.2 Next, after, and the turnout
+
+The table reads three blocks and one turnout.
+
+- **This block** is the one the signal protects.
+- **Next** is the block the next signal protects.
+- **After** is the block after next. At a junction, after stays on the straight path when the branch is lined.
+- **Turnout** is `REVERSE` when the branch is lined, and `NORMAL` when the main is lined. An interim copies that word through.
+
+Approach Diverging is the throat signal only, and only when the branch is lined. This block is clear and the turnout is `REVERSE`. A signal one block back does not show it. With the approach empty and the branch lined, that signal shows Clear, or Advance Approach when the straight path is occupied and the mast has the aspect.
+
+### 5.3 Two holds
+
+The route that is not lined is held occupied. The signal on that leg shows Stop. The boundary one block back on that route shows Approach: its own block is clear, and the next signal is Stop.
+
+A train already in the approach holds the lined route as well, so an opposing train cannot enter it. The boundary at the far end of that route shows Stop. The throat signal does not take this hold. With the branch lined, the branch boundary shows Stop and the diverging route is held. With the main lined, the east boundary shows Stop and the main route is held.
+
+### 5.4 Junction turnout word
+
+A junction is a starred end of every block that meets it. The three signals face the turnout. Which block each one protects, and the two holds, are in the clauses above.
+
+![When the branch is lined, turnout lined is REVERSE and the main is held occupied. When the main is lined, turnout lined is NORMAL and the branch is held occupied. The optic sits in the centre of the turnout.](../_img/block-junction.svg)
+
+The junction publishes `turnout/<board>/lined` as `v1 REVERSE` when the branch is lined, and `v1 NORMAL` when the main is lined, and the same word on `ahead/<board>/<end>/turnout`. An interim in the approach adds its detector to the approach block and copies `turnout` through to the boundary one block back.
+
+## 6. Topics
 
 The topic says what changed. The payload says what it is now. Facts are retained, QoS 1. A block or an optic is `v1 OCCUPIED` or `v1 CLEAR`. A turnout is `v1 NORMAL` or `v1 REVERSE`.
 
@@ -133,7 +165,7 @@ mss/<track>/board/<board>/online
 
 ![A topic is clear only when its board is online, the payload is CLEAR, and a copy arrived within three seconds. Occupied, offline, quiet, and unheard all count as occupied.](../_img/block-failsafe.svg)
 
-## Pairing
+## 7. Pairing
 
 A boundary has two ends, `left` and `right`. A junction has three legs, `throat`, `main`, and `branch`. An interim has two ends, `one` and `two`. Either interim end can take either neighbour. Each end is used once.
 
@@ -154,9 +186,39 @@ It is not retained. QoS 1. Pair one end at a time.
 
 An offer lasts 30 seconds. A new offer replaces one that has not been accepted. A board ignores an offer from itself.
 
-![Flash blinks one side. Pair on west publishes v1 OFFER. Pair on east publishes v1 ACCEPT with the offer it accepted. Each end stores the other address, then the signals flash three times.](../_img/block-pair.svg)
+## 8. Signal masts
 
-## A plain stretch
+The script picks the aspect by the name configured for that mast (`Stop`, `Approach`, and so on). One mast, one signal. The signal starts at Stop until the topics it reads have reported.
+
+Approach lighting needs a Dark aspect with every lamp off, and the block behind the signal. It is off unless that mast is configured for it. With it off, a clear road stays Clear and the mast stays lit.
+
+The board publishes that name on `signal/<board>/<end>`, and only that name. Example: `v1 Approach`.
+
+## 9. Absolute signals and CATS
+
+Permissive signals follow the blocks. Home signals, and the signals at a junction, are the ones marked Absolute.
+
+![A permissive signal shows Approach when the next block is occupied. An absolute signal shows Stop while CATS sends Held, and shows Approach once CATS sends Unheld.](../_img/block-ctc.svg)
+
+An absolute mast listens on the topic it already has, `trains/track/signalmast/<name>`. The payload is the JMRI line, such as `Stop; Lit; Held`.
+
+- `Held` forces Stop. The aspect word in that message can be stale, so the board does not paint it. Lit and Unlit are ignored.
+- `Unheld` means the dispatcher has cleared the signal. The script then shows Clear, Approach, Advance Approach, or Approach Diverging.
+- The board publishes the bare aspect name. A full `Approach; Lit; Unheld` line would clear the hold CATS had just set.
+
+The mast topic is not retained, and CATS publishes when its rule changes. After a reboot an absolute mast stays at Stop until a fresh `Held` or `Unheld` arrives.
+
+While that signal is cleared, the board ignores fascia throws for the points in the block it protects. After CATS returns the signal to Stop, those points stay locked until the block is clear. A permissive signal does not take that lock. A turnout against the route still occupies the block.
+
+With no dispatcher, leave Absolute off. The line runs from the blocks alone.
+
+---
+
+## Appendix A. Train movement examples
+
+These pictures apply the clauses above. They are not additional requirements.
+
+### A.1 A plain stretch
 
 West and east are boundaries. An interim named gap sits between them. That is one block. The track past east is the next block.
 
@@ -165,8 +227,6 @@ West and east are boundaries. An interim named gap sits between them. That is on
 West's right neighbour is `gap-board/one`. The interim's `one` end stores `west-board/right`. Its `two` end stores `east-board/left`. East's left neighbour is `gap-board/two`.
 
 The signal on west that faces east protects this block. Stop is this block. Approach is the next block, which arrives on `next`. The signal on east that faces east protects the next block. The signal on east that faces west protects this block. The signal on west that faces west protects the west block.
-
-The next pictures follow one train from the west block to the east.
 
 ![No train. Every block and optic publishes v1 CLEAR. All four signals show Clear.](../_img/block-run-clear.svg)
 
@@ -178,7 +238,7 @@ The next pictures follow one train from the west block to the east.
 
 Approach lighting is off in these pictures, so a clear road shows Clear. Another interim between west and east still belongs to this one block. Pair west straight to east, with no interim, and the same two signals still protect the block between them.
 
-## Two more interims
+### A.2 Two more interims
 
 The same block, with two more interims between west and east. An interim still cannot end a block. A train on any of the three occupies the whole block, so moving from one interim to the next does not change the signals.
 
@@ -194,7 +254,7 @@ West's right neighbour is `near-board/one`. Near pairs onward to mid, mid pairs 
 
 ![East's right block is occupied. That signal shows Stop. West shows Approach.](../_img/block-interims-4.svg)
 
-## Two blocks
+### A.3 Two blocks
 
 West, mid, and east are boundaries. Near sits in the first block, between west and mid. Far sits in the second, between mid and east.
 
@@ -216,17 +276,7 @@ The signal on west that faces east protects the first block, and so does the sig
 
 Advance Approach is the block after the next. It is optional. A mast without it stays Clear. With it, west shows Advance Approach here, because both signal blocks are clear and the block past east is occupied.
 
-## A junction
-
-A junction is a starred end of every block that meets it. The three signals face the turnout, so each one protects entry along that leg. The leg that is not lined is held occupied. The centre optic and the throat detector occupy the throat block, whichever leg the train is on. The main detector occupies the main route. The diverging detector occupies the diverging route.
-
-![When the branch is lined, turnout lined is REVERSE and the main is held occupied. When the main is lined, turnout lined is NORMAL and the branch is held occupied. The optic sits in the centre of the turnout.](../_img/block-junction.svg)
-
-Thrown lines the branch. An interim on the way to the junction adds its detector to the approach block. The ahead block topic into the junction carries that block. The junction publishes `turnout/<board>/lined` as `v1 REVERSE` when the branch is lined, and `v1 NORMAL` when the main is lined, and the same word on `ahead/<board>/<end>/turnout`. The interim copies that topic through to the boundary one block back.
-
-Advance Approach stays the block one past the next. It stays on the straight path when the junction is thrown.
-
-## A junction with its neighbours
+### A.4 A junction with its neighbours
 
 West is a boundary. Near is an interim in the approach. Points is the junction. Straight is an interim on the main, then east is a boundary. The branch leg of that same board is on the row below, then curve and branch.
 
@@ -236,36 +286,10 @@ West's right end pairs to near, and near's other end pairs to the throat. The ma
 
 ![The main is lined. The points branch signal shows Stop. The branch boundary facing it shows Approach. The throat is Clear.](../_img/block-junction-main.svg)
 
-![The branch is lined. East shows Approach. The throat shows Approach Diverging, or Approach if that mast has no such aspect. West shows Clear, or Advance Approach.](../_img/block-junction-branch.svg)
+![The branch is lined. East shows Approach. The throat shows Approach Diverging, or continues down the table without it. West shows Clear, or Advance Approach.](../_img/block-junction-branch.svg)
 
 ![The train is on the near interim. West shows Stop. The throat shows Approach Diverging. The diverging route is held, so the branch boundary shows Stop.](../_img/block-junction-approach.svg)
 
 ![The train is on the curve. The throat stays at Stop until the train passes the branch boundary. The points branch signal shows Clear. West shows Approach.](../_img/block-junction-diverging.svg)
 
-Approach Diverging is optional, and only while the branch is lined. Without that aspect the throat shows Approach. With the branch lined and nothing ahead, west shows Clear, or Advance Approach if that mast has it. A train already in the section holds the lined route: the branch boundary stays at Stop, and the same hold would be at the east boundary if the main were lined.
-
-## On the mast
-
-The script picks the aspect by the name configured for that mast (`Stop`, `Approach`, and so on). One mast, one signal. The signal starts at Stop until the topics it reads have reported.
-
-Approach lighting needs a Dark aspect with every lamp off, and the block behind the signal. It is off unless that mast is configured for it. With it off, a clear road stays Clear and the mast stays lit.
-
-The board publishes that name on `signal/<board>/<end>`, and only that name. Example: `v1 Approach`.
-
-## A dispatcher, when you want one
-
-Permissive signals follow the blocks. Home signals, and the signals at a junction, are the ones marked Absolute.
-
-![A permissive signal shows Approach when the next block is occupied. An absolute signal shows Stop while CATS sends Held, and shows Approach once CATS sends Unheld.](../_img/block-ctc.svg)
-
-An absolute mast listens on the topic it already has, `trains/track/signalmast/<name>`. The payload is the JMRI line, such as `Stop; Lit; Held`.
-
-- `Held` forces Stop. The aspect word in that message can be stale, so the board does not paint it. Lit and Unlit are ignored.
-- `Unheld` means the dispatcher has cleared the signal. The script then shows Clear, Approach, Advance Approach, or Approach Diverging.
-- The board publishes the bare aspect name. A full `Approach; Lit; Unheld` line would clear the hold CATS had just set.
-
-The mast topic is not retained, and CATS publishes when its rule changes. After a reboot an absolute mast stays at Stop until a fresh `Held` or `Unheld` arrives.
-
-While that signal is cleared, the board ignores fascia throws for the points in the block it protects. After CATS returns the signal to Stop, those points stay locked until the block is clear. A permissive signal does not take that lock. A turnout against the route still occupies the block.
-
-With no dispatcher, leave Absolute off. The line runs from the blocks alone.
+With the main lined, the branch signal is Stop and the branch boundary shows Approach. With the branch lined and the road empty, the throat shows Approach Diverging, east shows Approach, and west shows Clear or Advance Approach. A train in the approach holds the diverging route, so the branch boundary stays at Stop while west shows Stop and the throat stays on Approach Diverging. Once that train is on the diverging route, the throat and the branch boundary show Stop, the branch signal shows Clear, and west shows Approach.
