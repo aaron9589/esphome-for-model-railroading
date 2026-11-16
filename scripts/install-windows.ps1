@@ -274,37 +274,65 @@ function Invoke-SilentUninstall($Entry) {
     return $true
 }
 
+function Get-EsphomeDesktopExe {
+    $candidates = @(
+        (Join-Path $env:LOCALAPPDATA 'ESPHome Device Builder\esphome-desktop.exe'),
+        (Join-Path $env:LOCALAPPDATA 'ESPHome Device Builder\ESPHome Device Builder.exe'),
+        (Join-Path $env:LOCALAPPDATA 'Programs\ESPHome Device Builder\esphome-desktop.exe'),
+        (Join-Path $env:LOCALAPPDATA 'Programs\ESPHome Device Builder\ESPHome Device Builder.exe')
+    )
+    return @($candidates | Where-Object { Test-Path $_ } | Select-Object -First 1)
+}
+
+function Start-DetachedApp {
+    param(
+        [Parameter(Mandatory)][string]$Exe,
+        [string[]]$ArgumentList
+    )
+    # This setup window is a console. Starting esphome-desktop or MQTTX in it
+    # attaches them to that console: `open` then waits until the tray app is
+    # closed, a launch with no arguments prints the usage text, and MQTTX
+    # writes its log here so the window never closes. `start` breaks that link.
+    $tail = ''
+    foreach ($arg in @($ArgumentList)) {
+        if ($null -eq $arg -or $arg -eq '') { continue }
+        if ($arg -match '[\s"]') { $tail += ' "' + ($arg -replace '"', '') + '"' }
+        else { $tail += " $arg" }
+    }
+    $exeQuoted = '"' + ($Exe -replace '"', '') + '"'
+    $proc = New-Object System.Diagnostics.ProcessStartInfo
+    $proc.FileName = "$env:SystemRoot\System32\cmd.exe"
+    $proc.Arguments = "/c start `"`" $exeQuoted$tail"
+    $proc.UseShellExecute = $false
+    $proc.CreateNoWindow = $true
+    $started = [System.Diagnostics.Process]::Start($proc)
+    if ($started) { [void]$started.WaitForExit(10000) }
+}
+
 function Invoke-EsphomeCli {
     param(
         [Parameter(Mandatory)][string]$Exe,
-        [Parameter(Mandatory)][string[]]$ArgumentList,
-        [switch]$Capture
+        [Parameter(Mandatory)][string[]]$ArgumentList
     )
-    # esphome-desktop.exe is a GUI program. It attaches to this console, and
-    # `open` starts the tray app and then returns. `& $exe open | Out-Null`
-    # (and `status 2>$null`) never returns: PowerShell waits on that console
-    # attach, and on the pipe the tray app still holds. Start-Process does not.
-    if ($Capture) {
-        $out = Join-Path $env:TEMP ("esphome-mr-cli-{0}.out" -f [guid]::NewGuid().ToString('n'))
-        $err = Join-Path $env:TEMP ("esphome-mr-cli-{0}.err" -f [guid]::NewGuid().ToString('n'))
-        try {
-            $proc = Start-Process -FilePath $Exe -ArgumentList $ArgumentList -Wait -PassThru `
-                -RedirectStandardOutput $out -RedirectStandardError $err
-            $text = ''
-            if (Test-Path -LiteralPath $out) {
-                $text = [string](Get-Content -Raw -LiteralPath $out -ErrorAction SilentlyContinue)
-            }
-            if (Test-Path -LiteralPath $err) {
-                $errText = [string](Get-Content -Raw -LiteralPath $err -ErrorAction SilentlyContinue)
-                if ($errText) { $text = ($text + "`n" + $errText).Trim() }
-            }
-            return [pscustomobject]@{ ExitCode = $proc.ExitCode; Text = $text }
-        } finally {
-            Remove-Item -LiteralPath $out, $err -Force -ErrorAction SilentlyContinue
+    # Redirected, and not -NoNewWindow. Sharing this console makes `status`
+    # wait on the tray app instead of returning when the command itself is done.
+    $out = Join-Path $env:TEMP ("esphome-mr-cli-{0}.out" -f [guid]::NewGuid().ToString('n'))
+    $err = Join-Path $env:TEMP ("esphome-mr-cli-{0}.err" -f [guid]::NewGuid().ToString('n'))
+    try {
+        $proc = Start-Process -FilePath $Exe -ArgumentList $ArgumentList -Wait -PassThru `
+            -RedirectStandardOutput $out -RedirectStandardError $err
+        $text = ''
+        if (Test-Path -LiteralPath $out) {
+            $text = [string](Get-Content -Raw -LiteralPath $out -ErrorAction SilentlyContinue)
         }
+        if (Test-Path -LiteralPath $err) {
+            $errText = [string](Get-Content -Raw -LiteralPath $err -ErrorAction SilentlyContinue)
+            if ($errText) { $text = ($text + "`n" + $errText).Trim() }
+        }
+        return [pscustomobject]@{ ExitCode = $proc.ExitCode; Text = $text }
+    } finally {
+        Remove-Item -LiteralPath $out, $err -Force -ErrorAction SilentlyContinue
     }
-    $proc = Start-Process -FilePath $Exe -ArgumentList $ArgumentList -Wait -PassThru -NoNewWindow
-    return [pscustomobject]@{ ExitCode = $proc.ExitCode; Text = '' }
 }
 
 function Test-DashboardUp {
@@ -317,34 +345,21 @@ function Test-DashboardUp {
 }
 
 function Update-DeviceBuilder {
-    $candidates = @(
-        (Join-Path $env:LOCALAPPDATA 'ESPHome Device Builder\esphome-desktop.exe'),
-        (Join-Path $env:LOCALAPPDATA 'ESPHome Device Builder\ESPHome Device Builder.exe'),
-        (Join-Path $env:LOCALAPPDATA 'Programs\ESPHome Device Builder\esphome-desktop.exe'),
-        (Join-Path $env:LOCALAPPDATA 'Programs\ESPHome Device Builder\ESPHome Device Builder.exe')
-    )
-    $launch = $candidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+    $launch = Get-EsphomeDesktopExe
     if (-not $launch) {
         Write-Warn 'Could not find the ESPHome command. Open the app and choose Check for Updates.'
         return
     }
     Write-Info 'The desktop app is the tray app. Updating the builder inside it.'
-    try {
-        $opened = Invoke-EsphomeCli -Exe $launch -ArgumentList @('open')
-    } catch {
-        Write-Warn "Could not start the dashboard ($($_.Exception.Message)). Open the app and choose Check for Updates."
-        return
-    }
-    if ($null -ne $opened.ExitCode -and $opened.ExitCode -ne 0) {
-        Write-Warn 'Could not start the dashboard. Open the app and choose Check for Updates.'
-        return
-    }
+    # Do not wait. `open` starts the tray app and returns; waiting here sits on
+    # "ESPHome Device Builder is not running" until that app is closed.
+    Start-DetachedApp -Exe $launch -ArgumentList @('open')
     Write-Info 'Waiting until the dashboard is ready. The first start can take several minutes.'
     $ready = $false
     for ($i = 0; $i -lt 120; $i++) {
         $status = $null
         try {
-            $status = Invoke-EsphomeCli -Exe $launch -ArgumentList @('status') -Capture
+            $status = Invoke-EsphomeCli -Exe $launch -ArgumentList @('status')
         } catch {
             $status = $null
         }
@@ -352,9 +367,8 @@ function Update-DeviceBuilder {
             $ready = $true
             break
         }
-        # `status` writes to the console when its output is not the redirected
-        # file. The dashboard port is the same "ready" signal in that case.
-        if ((-not $status -or -not $status.Text.Trim()) -and (Test-DashboardUp)) {
+        # The page can be up while `status` still says the app is not running.
+        if (Test-DashboardUp) {
             $ready = $true
             break
         }
@@ -369,7 +383,10 @@ function Update-DeviceBuilder {
     }
     Write-Info 'Updating ESPHome and the device builder. This can take several minutes.'
     try {
-        $updated = Invoke-EsphomeCli -Exe $launch -ArgumentList @('update')
+        # This command does not start the tray app, so it is safe to show its
+        # progress here and wait for it. `open` is not: that one is started
+        # above with Start-DetachedApp.
+        $updated = Start-Process -FilePath $launch -ArgumentList @('update') -Wait -PassThru -NoNewWindow
     } catch {
         Write-Warn "The in-app update did not finish ($($_.Exception.Message)). Use the tray icon and choose Check for Updates."
         return
@@ -380,7 +397,7 @@ function Update-DeviceBuilder {
     }
     Write-Ok 'Builder update finished.'
     try {
-        $done = Invoke-EsphomeCli -Exe $launch -ArgumentList @('status') -Capture
+        $done = Invoke-EsphomeCli -Exe $launch -ArgumentList @('status')
         if ($done.Text) {
             $done.Text -split '\r?\n' | Select-String '^(ESPHome:|Device builder:)'
         }
@@ -1131,17 +1148,20 @@ try {
 
     Write-Step '5/7  Open the apps'
     Write-Info 'Opening ESPHome and MQTTX.'
-    $launch = @(
-        (Join-Path $env:LOCALAPPDATA 'ESPHome Device Builder\ESPHome Device Builder.exe'),
-        (Join-Path $env:LOCALAPPDATA 'Programs\ESPHome Device Builder\ESPHome Device Builder.exe')
-    ) | Where-Object { Test-Path $_ } | Select-Object -First 1
+    $launch = Get-EsphomeDesktopExe
     if (-not $launch) {
         $shortcut = Get-ChildItem -Path "$env:ProgramData\Microsoft\Windows\Start Menu\Programs", "$env:APPDATA\Microsoft\Windows\Start Menu\Programs" -Filter '*ESPHome*.lnk' -Recurse -ErrorAction SilentlyContinue |
             Select-Object -First 1
         if ($shortcut) { $launch = $shortcut.FullName }
     }
     if ($launch) {
-        Start-Process -FilePath $launch
+        # `open` is required. With no arguments the exe sees this console and
+        # prints its usage instead of opening the window.
+        if ($launch -like '*.exe') {
+            Start-DetachedApp -Exe $launch -ArgumentList @('open')
+        } else {
+            Start-DetachedApp -Exe $launch
+        }
         Write-Ok "Started $launch"
     } else {
         Write-Warn 'Could not find the ESPHome app to start it. Open "ESPHome Device Builder" from the Start menu.'
@@ -1159,7 +1179,7 @@ try {
         if ($mqttShortcut) { $mqttLaunch = $mqttShortcut.FullName }
     }
     if ($mqttLaunch) {
-        Start-Process -FilePath $mqttLaunch
+        Start-DetachedApp -Exe $mqttLaunch
         Write-Ok "Started $mqttLaunch"
     } else {
         Write-Warn 'Could not find MQTTX to start it. Open "MQTTX" from the Start menu.'
