@@ -1,76 +1,77 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="960" height="940" viewBox="0 0 960 940" role="img" aria-labelledby="title desc">
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="888" viewBox="0 0 960 888" role="img" aria-labelledby="title desc">
   <title id="title">A dispatcher, when you want one</title>
   <desc id="desc">A permissive signal shows Approach when the next block is occupied. An absolute signal shows Stop while CATS sends Held, and Approach once CATS sends Unheld.</desc>
-  <rect width="960" height="940" fill="#f4f1ea"/>
+  <rect width="960" height="888" fill="#f4f1ea"/>
   <g font-family="ui-sans-serif, system-ui, sans-serif" fill="#1c1917">
-    <text x="32" y="32" font-size="18" font-weight="600">A dispatcher, when you want one</text>
-    <text x="32" y="52" fill="#57534e" font-size="13">Same track. Permissive follows the blocks. Absolute stays at Stop while CATS is holding it.</text>
-    <text x="48" y="78" fill="#854f0b" font-size="14" font-weight="600">Permissive. No dispatcher on this signal.</text>
-    <rect x="48" y="126" width="280" height="186" rx="14" fill="#e8f1fb"/>
-    <text x="188.0" y="116" text-anchor="middle" fill="#185fa5" font-size="13" font-weight="600">West · boundary *</text>
-    <g stroke="#185fa5" stroke-width="3" stroke-linecap="butt"><line x1="60.0" y1="196.0" x2="154.0" y2="196.0"/><line x1="60.0" y1="208.0" x2="154.0" y2="208.0"/></g><g stroke="#185fa5" stroke-width="2"><line x1="68.0" y1="196.0" x2="68.0" y2="208.0"/><line x1="84.0" y1="196.0" x2="84.0" y2="208.0"/><line x1="100.0" y1="196.0" x2="100.0" y2="208.0"/><line x1="116.0" y1="196.0" x2="116.0" y2="208.0"/><line x1="132.0" y1="196.0" x2="132.0" y2="208.0"/><line x1="148.0" y1="196.0" x2="148.0" y2="208.0"/></g>
-    <g stroke="#0f6e56" stroke-width="3" stroke-linecap="butt"><line x1="222.0" y1="196.0" x2="316.0" y2="196.0"/><line x1="222.0" y1="208.0" x2="316.0" y2="208.0"/></g><g stroke="#0f6e56" stroke-width="2"><line x1="230.0" y1="196.0" x2="230.0" y2="208.0"/><line x1="246.0" y1="196.0" x2="246.0" y2="208.0"/><line x1="262.0" y1="196.0" x2="262.0" y2="208.0"/><line x1="278.0" y1="196.0" x2="278.0" y2="208.0"/><line x1="294.0" y1="196.0" x2="294.0" y2="208.0"/><line x1="310.0" y1="196.0" x2="310.0" y2="208.0"/></g>
-    <g transform="translate(188.0 182.0) scale(1 1)"><circle cx="0" cy="0" r="11" fill="#292524"/><circle cx="0" cy="0" r="5" fill="#f4f1ea"/><polygon points="14,-4 24,0 14,4" fill="#1c1917"/></g>
-    <g transform="translate(188.0 226.0) scale(-1 1)"><circle cx="0" cy="0" r="11" fill="#292524"/><circle cx="0" cy="0" r="5" fill="#f4f1ea"/><polygon points="14,-4 24,0 14,4" fill="#1c1917"/></g>
-    <circle cx="188.0" cy="202.0" r="5" fill="#0f6e56"/>
-    <text x="107.0" y="298" text-anchor="middle" fill="#185fa5" font-size="11" font-weight="600">left block</text>
-    <text x="269.0" y="298" text-anchor="middle" fill="#0f6e56" font-size="11" font-weight="600">this block</text>
-    <rect x="149.0" y="138" width="78" height="22" rx="8" fill="#faeeda" stroke="#854f0b"/><text x="188.0" y="153" text-anchor="middle" fill="#854f0b" font-size="12" font-weight="600">Approach</text>
-    <rect x="161.0" y="246" width="54" height="22" rx="8" fill="#e7f6ef" stroke="#0f6e56"/><text x="188.0" y="261" text-anchor="middle" fill="#0f6e56" font-size="12" font-weight="600">Clear</text>
-    <rect x="344" y="126" width="150" height="186" rx="14" fill="#e7f6ef"/>
-    <text x="419.0" y="116" text-anchor="middle" fill="#0f6e56" font-size="13" font-weight="600">Gap</text>
-    <g stroke="#0f6e56" stroke-width="3" stroke-linecap="butt"><line x1="356.0" y1="196.0" x2="482.0" y2="196.0"/><line x1="356.0" y1="208.0" x2="482.0" y2="208.0"/></g><g stroke="#0f6e56" stroke-width="2"><line x1="364.0" y1="196.0" x2="364.0" y2="208.0"/><line x1="380.0" y1="196.0" x2="380.0" y2="208.0"/><line x1="396.0" y1="196.0" x2="396.0" y2="208.0"/><line x1="412.0" y1="196.0" x2="412.0" y2="208.0"/><line x1="428.0" y1="196.0" x2="428.0" y2="208.0"/><line x1="444.0" y1="196.0" x2="444.0" y2="208.0"/><line x1="460.0" y1="196.0" x2="460.0" y2="208.0"/><line x1="476.0" y1="196.0" x2="476.0" y2="208.0"/></g>
-    <text x="419.0" y="298" text-anchor="middle" fill="#0f6e56" font-size="11" font-weight="600">detector</text>
-    <rect x="510" y="126" width="280" height="186" rx="14" fill="#e8f1fb"/>
-    <text x="650.0" y="116" text-anchor="middle" fill="#185fa5" font-size="13" font-weight="600">East · boundary *</text>
-    <g stroke="#0f6e56" stroke-width="3" stroke-linecap="butt"><line x1="522.0" y1="196.0" x2="616.0" y2="196.0"/><line x1="522.0" y1="208.0" x2="616.0" y2="208.0"/></g><g stroke="#0f6e56" stroke-width="2"><line x1="530.0" y1="196.0" x2="530.0" y2="208.0"/><line x1="546.0" y1="196.0" x2="546.0" y2="208.0"/><line x1="562.0" y1="196.0" x2="562.0" y2="208.0"/><line x1="578.0" y1="196.0" x2="578.0" y2="208.0"/><line x1="594.0" y1="196.0" x2="594.0" y2="208.0"/><line x1="610.0" y1="196.0" x2="610.0" y2="208.0"/></g>
-    <g stroke="#854f0b" stroke-width="3" stroke-linecap="butt"><line x1="684.0" y1="196.0" x2="778.0" y2="196.0"/><line x1="684.0" y1="208.0" x2="778.0" y2="208.0"/></g><g stroke="#854f0b" stroke-width="2"><line x1="692.0" y1="196.0" x2="692.0" y2="208.0"/><line x1="708.0" y1="196.0" x2="708.0" y2="208.0"/><line x1="724.0" y1="196.0" x2="724.0" y2="208.0"/><line x1="740.0" y1="196.0" x2="740.0" y2="208.0"/><line x1="756.0" y1="196.0" x2="756.0" y2="208.0"/><line x1="772.0" y1="196.0" x2="772.0" y2="208.0"/></g>
-    <g transform="translate(650.0 182.0) scale(1 1)"><circle cx="0" cy="0" r="11" fill="#292524"/><circle cx="0" cy="0" r="5" fill="#f4f1ea"/><polygon points="14,-4 24,0 14,4" fill="#1c1917"/></g>
-    <g transform="translate(650.0 226.0) scale(-1 1)"><circle cx="0" cy="0" r="11" fill="#292524"/><circle cx="0" cy="0" r="5" fill="#f4f1ea"/><polygon points="14,-4 24,0 14,4" fill="#1c1917"/></g>
-    <circle cx="650.0" cy="202.0" r="5" fill="#0f6e56"/>
-    <text x="569.0" y="298" text-anchor="middle" fill="#0f6e56" font-size="11" font-weight="600">this block</text>
-    <text x="731.0" y="298" text-anchor="middle" fill="#854f0b" font-size="11" font-weight="600">next block</text>
-    <rect x="626.0" y="138" width="48" height="22" rx="8" fill="#fde8e8" stroke="#b42318"/><text x="650.0" y="153" text-anchor="middle" fill="#b42318" font-size="12" font-weight="600">Stop</text>
-    <rect x="623.0" y="246" width="54" height="22" rx="8" fill="#e7f6ef" stroke="#0f6e56"/><text x="650.0" y="261" text-anchor="middle" fill="#0f6e56" font-size="12" font-weight="600">Clear</text>
-    <rect x="707.0" y="190" width="48" height="22" rx="6" fill="#292524"/><text x="731.0" y="205" text-anchor="middle" fill="#f4f1ea" font-size="11" font-weight="600">train</text>
-    <rect x="32" y="360" width="896" height="108" rx="12" fill="#fffdf8" stroke="#e7e2d8"/>
-    <text x="48" y="384" font-size="13" font-weight="600">Sent</text>
-    <text x="48" y="408" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">block/east-board/right                     v1 OCCUPIED</text>
-    <text x="48" y="432" font-size="13" font-weight="600">Acted on</text>
-    <text x="48" y="454" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">west facing east reads gap one/next       Approach</text>
-    <text x="48" y="500" fill="#854f0b" font-size="14" font-weight="600">Absolute. CATS is holding the signal.</text>
-    <rect x="48" y="548" width="280" height="186" rx="14" fill="#e8f1fb"/>
-    <text x="188.0" y="538" text-anchor="middle" fill="#185fa5" font-size="13" font-weight="600">West · boundary *</text>
-    <g stroke="#185fa5" stroke-width="3" stroke-linecap="butt"><line x1="60.0" y1="618.0" x2="154.0" y2="618.0"/><line x1="60.0" y1="630.0" x2="154.0" y2="630.0"/></g><g stroke="#185fa5" stroke-width="2"><line x1="68.0" y1="618.0" x2="68.0" y2="630.0"/><line x1="84.0" y1="618.0" x2="84.0" y2="630.0"/><line x1="100.0" y1="618.0" x2="100.0" y2="630.0"/><line x1="116.0" y1="618.0" x2="116.0" y2="630.0"/><line x1="132.0" y1="618.0" x2="132.0" y2="630.0"/><line x1="148.0" y1="618.0" x2="148.0" y2="630.0"/></g>
-    <g stroke="#0f6e56" stroke-width="3" stroke-linecap="butt"><line x1="222.0" y1="618.0" x2="316.0" y2="618.0"/><line x1="222.0" y1="630.0" x2="316.0" y2="630.0"/></g><g stroke="#0f6e56" stroke-width="2"><line x1="230.0" y1="618.0" x2="230.0" y2="630.0"/><line x1="246.0" y1="618.0" x2="246.0" y2="630.0"/><line x1="262.0" y1="618.0" x2="262.0" y2="630.0"/><line x1="278.0" y1="618.0" x2="278.0" y2="630.0"/><line x1="294.0" y1="618.0" x2="294.0" y2="630.0"/><line x1="310.0" y1="618.0" x2="310.0" y2="630.0"/></g>
-    <g transform="translate(188.0 604.0) scale(1 1)"><circle cx="0" cy="0" r="11" fill="#292524"/><circle cx="0" cy="0" r="5" fill="#f4f1ea"/><polygon points="14,-4 24,0 14,4" fill="#1c1917"/></g>
-    <g transform="translate(188.0 648.0) scale(-1 1)"><circle cx="0" cy="0" r="11" fill="#292524"/><circle cx="0" cy="0" r="5" fill="#f4f1ea"/><polygon points="14,-4 24,0 14,4" fill="#1c1917"/></g>
-    <circle cx="188.0" cy="624.0" r="5" fill="#0f6e56"/>
-    <text x="107.0" y="720" text-anchor="middle" fill="#185fa5" font-size="11" font-weight="600">left block</text>
-    <text x="269.0" y="720" text-anchor="middle" fill="#0f6e56" font-size="11" font-weight="600">this block</text>
-    <rect x="164.0" y="560" width="48" height="22" rx="8" fill="#fde8e8" stroke="#b42318"/><text x="188.0" y="575" text-anchor="middle" fill="#b42318" font-size="12" font-weight="600">Stop</text>
-    <rect x="161.0" y="668" width="54" height="22" rx="8" fill="#e7f6ef" stroke="#0f6e56"/><text x="188.0" y="683" text-anchor="middle" fill="#0f6e56" font-size="12" font-weight="600">Clear</text>
-    <rect x="344" y="548" width="150" height="186" rx="14" fill="#e7f6ef"/>
-    <text x="419.0" y="538" text-anchor="middle" fill="#0f6e56" font-size="13" font-weight="600">Gap</text>
-    <g stroke="#0f6e56" stroke-width="3" stroke-linecap="butt"><line x1="356.0" y1="618.0" x2="482.0" y2="618.0"/><line x1="356.0" y1="630.0" x2="482.0" y2="630.0"/></g><g stroke="#0f6e56" stroke-width="2"><line x1="364.0" y1="618.0" x2="364.0" y2="630.0"/><line x1="380.0" y1="618.0" x2="380.0" y2="630.0"/><line x1="396.0" y1="618.0" x2="396.0" y2="630.0"/><line x1="412.0" y1="618.0" x2="412.0" y2="630.0"/><line x1="428.0" y1="618.0" x2="428.0" y2="630.0"/><line x1="444.0" y1="618.0" x2="444.0" y2="630.0"/><line x1="460.0" y1="618.0" x2="460.0" y2="630.0"/><line x1="476.0" y1="618.0" x2="476.0" y2="630.0"/></g>
-    <text x="419.0" y="720" text-anchor="middle" fill="#0f6e56" font-size="11" font-weight="600">detector</text>
-    <rect x="510" y="548" width="280" height="186" rx="14" fill="#e8f1fb"/>
-    <text x="650.0" y="538" text-anchor="middle" fill="#185fa5" font-size="13" font-weight="600">East · boundary *</text>
-    <g stroke="#0f6e56" stroke-width="3" stroke-linecap="butt"><line x1="522.0" y1="618.0" x2="616.0" y2="618.0"/><line x1="522.0" y1="630.0" x2="616.0" y2="630.0"/></g><g stroke="#0f6e56" stroke-width="2"><line x1="530.0" y1="618.0" x2="530.0" y2="630.0"/><line x1="546.0" y1="618.0" x2="546.0" y2="630.0"/><line x1="562.0" y1="618.0" x2="562.0" y2="630.0"/><line x1="578.0" y1="618.0" x2="578.0" y2="630.0"/><line x1="594.0" y1="618.0" x2="594.0" y2="630.0"/><line x1="610.0" y1="618.0" x2="610.0" y2="630.0"/></g>
-    <g stroke="#854f0b" stroke-width="3" stroke-linecap="butt"><line x1="684.0" y1="618.0" x2="778.0" y2="618.0"/><line x1="684.0" y1="630.0" x2="778.0" y2="630.0"/></g><g stroke="#854f0b" stroke-width="2"><line x1="692.0" y1="618.0" x2="692.0" y2="630.0"/><line x1="708.0" y1="618.0" x2="708.0" y2="630.0"/><line x1="724.0" y1="618.0" x2="724.0" y2="630.0"/><line x1="740.0" y1="618.0" x2="740.0" y2="630.0"/><line x1="756.0" y1="618.0" x2="756.0" y2="630.0"/><line x1="772.0" y1="618.0" x2="772.0" y2="630.0"/></g>
-    <g transform="translate(650.0 604.0) scale(1 1)"><circle cx="0" cy="0" r="11" fill="#292524"/><circle cx="0" cy="0" r="5" fill="#f4f1ea"/><polygon points="14,-4 24,0 14,4" fill="#1c1917"/></g>
-    <g transform="translate(650.0 648.0) scale(-1 1)"><circle cx="0" cy="0" r="11" fill="#292524"/><circle cx="0" cy="0" r="5" fill="#f4f1ea"/><polygon points="14,-4 24,0 14,4" fill="#1c1917"/></g>
-    <circle cx="650.0" cy="624.0" r="5" fill="#0f6e56"/>
-    <text x="569.0" y="720" text-anchor="middle" fill="#0f6e56" font-size="11" font-weight="600">this block</text>
-    <text x="731.0" y="720" text-anchor="middle" fill="#854f0b" font-size="11" font-weight="600">next block</text>
-    <rect x="626.0" y="560" width="48" height="22" rx="8" fill="#fde8e8" stroke="#b42318"/><text x="650.0" y="575" text-anchor="middle" fill="#b42318" font-size="12" font-weight="600">Stop</text>
-    <rect x="623.0" y="668" width="54" height="22" rx="8" fill="#e7f6ef" stroke="#0f6e56"/><text x="650.0" y="683" text-anchor="middle" fill="#0f6e56" font-size="12" font-weight="600">Clear</text>
-    <rect x="707.0" y="612" width="48" height="22" rx="6" fill="#292524"/><text x="731.0" y="627" text-anchor="middle" fill="#f4f1ea" font-size="11" font-weight="600">train</text>
-    <rect x="32" y="782" width="896" height="128" rx="12" fill="#fffdf8" stroke="#e7e2d8"/>
-    <text x="48" y="806" font-size="13" font-weight="600">Sent</text>
-    <text x="48" y="830" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">trains/track/signalmast/west-east         Stop; Lit; Held</text>
-    <text x="48" y="852" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">block/east-board/right                     v1 OCCUPIED</text>
-    <text x="48" y="876" font-size="13" font-weight="600">Acted on</text>
-    <text x="48" y="898" fill="#57534e" font-size="13">West stays at Stop while the mast says Held. Unheld runs the script, so the signal then shows Approach.</text>
+    <text x="32" y="36" font-size="18" font-weight="600">A dispatcher, when you want one</text>
+    <text x="32" y="58" fill="#57534e" font-size="13">Same track. Permissive follows the blocks. Absolute stays at Stop while CATS is holding it.</text>
+    <text x="48" y="86" fill="#854f0b" font-size="14" font-weight="600">Permissive. No dispatcher on this signal.</text>
+    <rect x="48" y="120" width="280" height="188" rx="14" fill="#e8f1fb"/>
+    <text x="188.0" y="104" text-anchor="middle" fill="#185fa5" font-size="13" font-weight="600">West · boundary *</text>
+    <g stroke="#185fa5" stroke-width="3" stroke-linecap="butt"><line x1="62.0" y1="188.0" x2="160.0" y2="188.0"/><line x1="62.0" y1="200.0" x2="160.0" y2="200.0"/></g><g stroke="#185fa5" stroke-width="2"><line x1="72.0" y1="188.0" x2="72.0" y2="200.0"/><line x1="88.0" y1="188.0" x2="88.0" y2="200.0"/><line x1="104.0" y1="188.0" x2="104.0" y2="200.0"/><line x1="120.0" y1="188.0" x2="120.0" y2="200.0"/><line x1="136.0" y1="188.0" x2="136.0" y2="200.0"/><line x1="152.0" y1="188.0" x2="152.0" y2="200.0"/></g>
+    <g stroke="#0f6e56" stroke-width="3" stroke-linecap="butt"><line x1="216.0" y1="188.0" x2="314.0" y2="188.0"/><line x1="216.0" y1="200.0" x2="314.0" y2="200.0"/></g><g stroke="#0f6e56" stroke-width="2"><line x1="226.0" y1="188.0" x2="226.0" y2="200.0"/><line x1="242.0" y1="188.0" x2="242.0" y2="200.0"/><line x1="258.0" y1="188.0" x2="258.0" y2="200.0"/><line x1="274.0" y1="188.0" x2="274.0" y2="200.0"/><line x1="290.0" y1="188.0" x2="290.0" y2="200.0"/><line x1="306.0" y1="188.0" x2="306.0" y2="200.0"/></g>
+    <g transform="translate(188.0 174.0) scale(1 1)"><circle cx="0" cy="0" r="11" fill="#292524"/><circle cx="0" cy="0" r="5" fill="#f4f1ea"/><polygon points="14,-4 24,0 14,4" fill="#1c1917"/></g>
+    <g transform="translate(188.0 218.0) scale(-1 1)"><circle cx="0" cy="0" r="11" fill="#292524"/><circle cx="0" cy="0" r="5" fill="#f4f1ea"/><polygon points="14,-4 24,0 14,4" fill="#1c1917"/></g>
+    <circle cx="188.0" cy="194.0" r="6" fill="#0f6e56"/>
+    <text x="111.0" y="290" text-anchor="middle" fill="#185fa5" font-size="11" font-weight="600">left block</text>
+    <text x="265.0" y="290" text-anchor="middle" fill="#0f6e56" font-size="11" font-weight="600">this block</text>
+    <rect x="149.0" y="136.0" width="78" height="22" rx="8" fill="#faeeda" stroke="#854f0b"/><text x="188.0" y="151.0" text-anchor="middle" fill="#854f0b" font-size="12" font-weight="600">Approach</text>
+    <rect x="161.0" y="236.0" width="54" height="22" rx="8" fill="#e7f6ef" stroke="#0f6e56"/><text x="188.0" y="251.0" text-anchor="middle" fill="#0f6e56" font-size="12" font-weight="600">Clear</text>
+    <rect x="344" y="120" width="200" height="188" rx="14" fill="#e7f6ef"/>
+    <text x="444.0" y="104" text-anchor="middle" fill="#0f6e56" font-size="13" font-weight="600">Gap</text>
+    <g stroke="#0f6e56" stroke-width="3" stroke-linecap="butt"><line x1="358.0" y1="188.0" x2="530.0" y2="188.0"/><line x1="358.0" y1="200.0" x2="530.0" y2="200.0"/></g><g stroke="#0f6e56" stroke-width="2"><line x1="368.0" y1="188.0" x2="368.0" y2="200.0"/><line x1="384.0" y1="188.0" x2="384.0" y2="200.0"/><line x1="400.0" y1="188.0" x2="400.0" y2="200.0"/><line x1="416.0" y1="188.0" x2="416.0" y2="200.0"/><line x1="432.0" y1="188.0" x2="432.0" y2="200.0"/><line x1="448.0" y1="188.0" x2="448.0" y2="200.0"/><line x1="464.0" y1="188.0" x2="464.0" y2="200.0"/><line x1="480.0" y1="188.0" x2="480.0" y2="200.0"/><line x1="496.0" y1="188.0" x2="496.0" y2="200.0"/><line x1="512.0" y1="188.0" x2="512.0" y2="200.0"/></g>
+    <text x="444.0" y="290" text-anchor="middle" fill="#0f6e56" font-size="11" font-weight="600">detector</text>
+    <rect x="560" y="120" width="280" height="188" rx="14" fill="#e8f1fb"/>
+    <text x="700.0" y="104" text-anchor="middle" fill="#185fa5" font-size="13" font-weight="600">East · boundary *</text>
+    <g stroke="#0f6e56" stroke-width="3" stroke-linecap="butt"><line x1="574.0" y1="188.0" x2="672.0" y2="188.0"/><line x1="574.0" y1="200.0" x2="672.0" y2="200.0"/></g><g stroke="#0f6e56" stroke-width="2"><line x1="584.0" y1="188.0" x2="584.0" y2="200.0"/><line x1="600.0" y1="188.0" x2="600.0" y2="200.0"/><line x1="616.0" y1="188.0" x2="616.0" y2="200.0"/><line x1="632.0" y1="188.0" x2="632.0" y2="200.0"/><line x1="648.0" y1="188.0" x2="648.0" y2="200.0"/><line x1="664.0" y1="188.0" x2="664.0" y2="200.0"/></g>
+    <g stroke="#854f0b" stroke-width="3" stroke-linecap="butt"><line x1="728.0" y1="188.0" x2="826.0" y2="188.0"/><line x1="728.0" y1="200.0" x2="826.0" y2="200.0"/></g><g stroke="#854f0b" stroke-width="2"><line x1="738.0" y1="188.0" x2="738.0" y2="200.0"/><line x1="754.0" y1="188.0" x2="754.0" y2="200.0"/><line x1="770.0" y1="188.0" x2="770.0" y2="200.0"/><line x1="786.0" y1="188.0" x2="786.0" y2="200.0"/><line x1="802.0" y1="188.0" x2="802.0" y2="200.0"/><line x1="818.0" y1="188.0" x2="818.0" y2="200.0"/></g>
+    <g transform="translate(700.0 174.0) scale(1 1)"><circle cx="0" cy="0" r="11" fill="#292524"/><circle cx="0" cy="0" r="5" fill="#f4f1ea"/><polygon points="14,-4 24,0 14,4" fill="#1c1917"/></g>
+    <g transform="translate(700.0 218.0) scale(-1 1)"><circle cx="0" cy="0" r="11" fill="#292524"/><circle cx="0" cy="0" r="5" fill="#f4f1ea"/><polygon points="14,-4 24,0 14,4" fill="#1c1917"/></g>
+    <circle cx="700.0" cy="194.0" r="6" fill="#0f6e56"/>
+    <text x="623.0" y="290" text-anchor="middle" fill="#0f6e56" font-size="11" font-weight="600">this block</text>
+    <text x="777.0" y="290" text-anchor="middle" fill="#854f0b" font-size="11" font-weight="600">next block</text>
+    <rect x="676.0" y="136.0" width="48" height="22" rx="8" fill="#fde8e8" stroke="#b42318"/><text x="700.0" y="151.0" text-anchor="middle" fill="#b42318" font-size="12" font-weight="600">Stop</text>
+    <rect x="673.0" y="236.0" width="54" height="22" rx="8" fill="#e7f6ef" stroke="#0f6e56"/><text x="700.0" y="251.0" text-anchor="middle" fill="#0f6e56" font-size="12" font-weight="600">Clear</text>
+    <rect x="751.0" y="182.0" width="52" height="22" rx="6" fill="#292524" stroke="#292524"/><text x="777.0" y="195.0" text-anchor="middle" fill="#f4f1ea" font-size="10" font-weight="600">train</text>
+    <rect x="32" y="332" width="896" height="100" rx="12" fill="#fffdf8" stroke="#e7e2d8"/>
+    <text x="48" y="356" font-size="13" font-weight="600">Sent</text>
+    <text x="48" y="380" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">block/east-board/right                     v1 OCCUPIED</text>
+    <text x="48" y="406" font-size="13" font-weight="600">Acted on</text>
+    <text x="48" y="428" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">west facing east reads gap one/next       Approach</text>
+    <text x="48" y="486" fill="#854f0b" font-size="14" font-weight="600">Absolute. CATS is holding the signal.</text>
+    <rect x="48" y="520" width="280" height="188" rx="14" fill="#e8f1fb"/>
+    <text x="188.0" y="504" text-anchor="middle" fill="#185fa5" font-size="13" font-weight="600">West · boundary *</text>
+    <g stroke="#185fa5" stroke-width="3" stroke-linecap="butt"><line x1="62.0" y1="588.0" x2="160.0" y2="588.0"/><line x1="62.0" y1="600.0" x2="160.0" y2="600.0"/></g><g stroke="#185fa5" stroke-width="2"><line x1="72.0" y1="588.0" x2="72.0" y2="600.0"/><line x1="88.0" y1="588.0" x2="88.0" y2="600.0"/><line x1="104.0" y1="588.0" x2="104.0" y2="600.0"/><line x1="120.0" y1="588.0" x2="120.0" y2="600.0"/><line x1="136.0" y1="588.0" x2="136.0" y2="600.0"/><line x1="152.0" y1="588.0" x2="152.0" y2="600.0"/></g>
+    <g stroke="#0f6e56" stroke-width="3" stroke-linecap="butt"><line x1="216.0" y1="588.0" x2="314.0" y2="588.0"/><line x1="216.0" y1="600.0" x2="314.0" y2="600.0"/></g><g stroke="#0f6e56" stroke-width="2"><line x1="226.0" y1="588.0" x2="226.0" y2="600.0"/><line x1="242.0" y1="588.0" x2="242.0" y2="600.0"/><line x1="258.0" y1="588.0" x2="258.0" y2="600.0"/><line x1="274.0" y1="588.0" x2="274.0" y2="600.0"/><line x1="290.0" y1="588.0" x2="290.0" y2="600.0"/><line x1="306.0" y1="588.0" x2="306.0" y2="600.0"/></g>
+    <g transform="translate(188.0 574.0) scale(1 1)"><circle cx="0" cy="0" r="11" fill="#292524"/><circle cx="0" cy="0" r="5" fill="#f4f1ea"/><polygon points="14,-4 24,0 14,4" fill="#1c1917"/></g>
+    <g transform="translate(188.0 618.0) scale(-1 1)"><circle cx="0" cy="0" r="11" fill="#292524"/><circle cx="0" cy="0" r="5" fill="#f4f1ea"/><polygon points="14,-4 24,0 14,4" fill="#1c1917"/></g>
+    <circle cx="188.0" cy="594.0" r="6" fill="#0f6e56"/>
+    <text x="111.0" y="690" text-anchor="middle" fill="#185fa5" font-size="11" font-weight="600">left block</text>
+    <text x="265.0" y="690" text-anchor="middle" fill="#0f6e56" font-size="11" font-weight="600">this block</text>
+    <rect x="164.0" y="536.0" width="48" height="22" rx="8" fill="#fde8e8" stroke="#b42318"/><text x="188.0" y="551.0" text-anchor="middle" fill="#b42318" font-size="12" font-weight="600">Stop</text>
+    <rect x="161.0" y="636.0" width="54" height="22" rx="8" fill="#e7f6ef" stroke="#0f6e56"/><text x="188.0" y="651.0" text-anchor="middle" fill="#0f6e56" font-size="12" font-weight="600">Clear</text>
+    <rect x="344" y="520" width="200" height="188" rx="14" fill="#e7f6ef"/>
+    <text x="444.0" y="504" text-anchor="middle" fill="#0f6e56" font-size="13" font-weight="600">Gap</text>
+    <g stroke="#0f6e56" stroke-width="3" stroke-linecap="butt"><line x1="358.0" y1="588.0" x2="530.0" y2="588.0"/><line x1="358.0" y1="600.0" x2="530.0" y2="600.0"/></g><g stroke="#0f6e56" stroke-width="2"><line x1="368.0" y1="588.0" x2="368.0" y2="600.0"/><line x1="384.0" y1="588.0" x2="384.0" y2="600.0"/><line x1="400.0" y1="588.0" x2="400.0" y2="600.0"/><line x1="416.0" y1="588.0" x2="416.0" y2="600.0"/><line x1="432.0" y1="588.0" x2="432.0" y2="600.0"/><line x1="448.0" y1="588.0" x2="448.0" y2="600.0"/><line x1="464.0" y1="588.0" x2="464.0" y2="600.0"/><line x1="480.0" y1="588.0" x2="480.0" y2="600.0"/><line x1="496.0" y1="588.0" x2="496.0" y2="600.0"/><line x1="512.0" y1="588.0" x2="512.0" y2="600.0"/></g>
+    <text x="444.0" y="690" text-anchor="middle" fill="#0f6e56" font-size="11" font-weight="600">detector</text>
+    <rect x="560" y="520" width="280" height="188" rx="14" fill="#e8f1fb"/>
+    <text x="700.0" y="504" text-anchor="middle" fill="#185fa5" font-size="13" font-weight="600">East · boundary *</text>
+    <g stroke="#0f6e56" stroke-width="3" stroke-linecap="butt"><line x1="574.0" y1="588.0" x2="672.0" y2="588.0"/><line x1="574.0" y1="600.0" x2="672.0" y2="600.0"/></g><g stroke="#0f6e56" stroke-width="2"><line x1="584.0" y1="588.0" x2="584.0" y2="600.0"/><line x1="600.0" y1="588.0" x2="600.0" y2="600.0"/><line x1="616.0" y1="588.0" x2="616.0" y2="600.0"/><line x1="632.0" y1="588.0" x2="632.0" y2="600.0"/><line x1="648.0" y1="588.0" x2="648.0" y2="600.0"/><line x1="664.0" y1="588.0" x2="664.0" y2="600.0"/></g>
+    <g stroke="#854f0b" stroke-width="3" stroke-linecap="butt"><line x1="728.0" y1="588.0" x2="826.0" y2="588.0"/><line x1="728.0" y1="600.0" x2="826.0" y2="600.0"/></g><g stroke="#854f0b" stroke-width="2"><line x1="738.0" y1="588.0" x2="738.0" y2="600.0"/><line x1="754.0" y1="588.0" x2="754.0" y2="600.0"/><line x1="770.0" y1="588.0" x2="770.0" y2="600.0"/><line x1="786.0" y1="588.0" x2="786.0" y2="600.0"/><line x1="802.0" y1="588.0" x2="802.0" y2="600.0"/><line x1="818.0" y1="588.0" x2="818.0" y2="600.0"/></g>
+    <g transform="translate(700.0 574.0) scale(1 1)"><circle cx="0" cy="0" r="11" fill="#292524"/><circle cx="0" cy="0" r="5" fill="#f4f1ea"/><polygon points="14,-4 24,0 14,4" fill="#1c1917"/></g>
+    <g transform="translate(700.0 618.0) scale(-1 1)"><circle cx="0" cy="0" r="11" fill="#292524"/><circle cx="0" cy="0" r="5" fill="#f4f1ea"/><polygon points="14,-4 24,0 14,4" fill="#1c1917"/></g>
+    <circle cx="700.0" cy="594.0" r="6" fill="#0f6e56"/>
+    <text x="623.0" y="690" text-anchor="middle" fill="#0f6e56" font-size="11" font-weight="600">this block</text>
+    <text x="777.0" y="690" text-anchor="middle" fill="#854f0b" font-size="11" font-weight="600">next block</text>
+    <rect x="676.0" y="536.0" width="48" height="22" rx="8" fill="#fde8e8" stroke="#b42318"/><text x="700.0" y="551.0" text-anchor="middle" fill="#b42318" font-size="12" font-weight="600">Stop</text>
+    <rect x="673.0" y="636.0" width="54" height="22" rx="8" fill="#e7f6ef" stroke="#0f6e56"/><text x="700.0" y="651.0" text-anchor="middle" fill="#0f6e56" font-size="12" font-weight="600">Clear</text>
+    <rect x="751.0" y="582.0" width="52" height="22" rx="6" fill="#292524" stroke="#292524"/><text x="777.0" y="595.0" text-anchor="middle" fill="#f4f1ea" font-size="10" font-weight="600">train</text>
+    <rect x="228.0" y="536.0" width="44" height="18" rx="6" fill="#fde8e8" stroke="#b42318"/><text x="250.0" y="549.0" text-anchor="middle" fill="#b42318" font-size="10" font-weight="600">held</text>
+    <rect x="32" y="732" width="896" height="120" rx="12" fill="#fffdf8" stroke="#e7e2d8"/>
+    <text x="48" y="756" font-size="13" font-weight="600">Sent</text>
+    <text x="48" y="780" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">trains/track/signalmast/west-east         Stop; Lit; Held</text>
+    <text x="48" y="802" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">block/east-board/right                     v1 OCCUPIED</text>
+    <text x="48" y="828" font-size="13" font-weight="600">Acted on</text>
+    <text x="48" y="850" fill="#57534e" font-size="13">West stays at Stop while the mast says Held. Unheld runs the script, so the signal then shows Approach.</text>
   </g>
 </svg>

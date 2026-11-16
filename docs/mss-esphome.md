@@ -228,7 +228,7 @@ Advance Approach stays the block one past the next. It stays on the straight pat
 
 ## A junction with its neighbours
 
-West is a boundary. Near is an interim in the approach. Points is the junction. Straight is an interim on the main, then east is a boundary. Curve is an interim on the branch, then branch is a boundary.
+West is a boundary. Near is an interim in the approach. Points is the junction. Straight is an interim on the main, then east is a boundary. The branch leg of that same board is on the row below, then curve and branch.
 
 ![West boundary, an interim, a junction, then an interim and a boundary on the main and on the branch.](../_img/block-junction-stretch.svg)
 
