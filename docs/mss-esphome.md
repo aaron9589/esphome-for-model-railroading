@@ -234,15 +234,15 @@ West is a boundary. Near is an interim in the approach. Points is the junction. 
 
 West's right end pairs to near, and near's other end pairs to the throat. The main pairs to straight, and straight's other end pairs to east's left. The branch pairs to curve, and curve's other end pairs to branch's left.
 
-![The main is lined. The branch is held occupied, so the signals facing that block show Stop. The throat is Clear.](../_img/block-junction-main.svg)
+![The main is lined. The points branch signal shows Stop. The branch boundary facing it shows Approach. The throat is Clear.](../_img/block-junction-main.svg)
 
-![The branch is lined. The main is held occupied. The throat shows Approach Diverging, or Approach if that mast has no such aspect.](../_img/block-junction-branch.svg)
+![The branch is lined. East shows Approach. The throat shows Approach Diverging, or Approach if that mast has no such aspect. West shows Clear, or Advance Approach.](../_img/block-junction-branch.svg)
 
-![The train is on the near interim. West and the throat show Stop. The main stays held.](../_img/block-junction-approach.svg)
+![The train is on the near interim. West shows Stop. The throat shows Approach Diverging. East shows Approach. The points branch signal shows Stop, so the branch boundary shows Approach.](../_img/block-junction-approach.svg)
 
-![The train is on the curve interim. The branch signals show Stop. The throat shows Approach Diverging, or Approach.](../_img/block-junction-diverging.svg)
+![The train is on the curve. The throat stays at Stop until the train passes the branch boundary. The points branch signal shows Clear. West shows Clear, or Advance Approach.](../_img/block-junction-diverging.svg)
 
-Approach Diverging is optional. Without it, the throat and the signal one block back show Approach. The route that is not lined is what they see as occupied.
+Approach Diverging is optional, and only while the branch is lined. Without that aspect the throat shows Approach. West, one block back, shows Clear, or Advance Approach if that mast has it.
 
 ## On the mast
 

@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="960" height="786" viewBox="0 0 960 786" role="img" aria-labelledby="title desc">
   <title id="title">1. The main is lined</title>
-  <desc id="desc">Turnout lined is NORMAL. The branch is held occupied, so the signals facing that block show Stop.</desc>
+  <desc id="desc">Turnout lined is NORMAL. The points branch signal shows Stop. The branch boundary shows Approach.</desc>
   <rect width="960" height="786" fill="#f4f1ea"/>
   <g font-family="ui-sans-serif, system-ui, sans-serif" fill="#1c1917">
     <text x="32" y="36" font-size="18" font-weight="600">1. The main is lined</text>
@@ -69,15 +69,15 @@
     <text x="742.0" y="530" text-anchor="middle" fill="#6d28d9" font-size="11" font-weight="600">branch</text>
     <text x="886.0" y="530" text-anchor="middle" fill="#57534e" font-size="11" font-weight="600">beyond</text>
     <rect x="787.0" y="376.0" width="54" height="22" rx="8" fill="#e7f6ef" stroke="#0f6e56"/><text x="814.0" y="391.0" text-anchor="middle" fill="#0f6e56" font-size="12" font-weight="600">Clear</text>
-    <rect x="790.0" y="476.0" width="48" height="22" rx="8" fill="#fde8e8" stroke="#b42318"/><text x="814.0" y="491.0" text-anchor="middle" fill="#b42318" font-size="12" font-weight="600">Stop</text>
+    <rect x="775.0" y="476.0" width="78" height="22" rx="8" fill="#faeeda" stroke="#854f0b"/><text x="814.0" y="491.0" text-anchor="middle" fill="#854f0b" font-size="12" font-weight="600">Approach</text>
     <rect x="32" y="574" width="896" height="200" rx="12" fill="#fffdf8" stroke="#e7e2d8"/>
     <text x="48" y="600" font-size="13" font-weight="600">Sent</text>
     <text x="48" y="622" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">turnout/points-board/lined                 v1 NORMAL</text>
     <text x="48" y="642" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">block/points-board/branch                  v1 OCCUPIED</text>
     <text x="48" y="668" font-size="13" font-weight="600">Acted on</text>
     <text x="48" y="690" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">points, the branch signal                  Stop</text>
-    <text x="48" y="710" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">branch facing the junction                 Stop</text>
+    <text x="48" y="710" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">branch facing the junction                 Approach</text>
     <text x="48" y="730" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">points, the throat signal                  Clear</text>
-    <text x="48" y="758" fill="#57534e" font-size="13">The throat follows the main. The main is clear, and the turnout is NORMAL.</text>
+    <text x="48" y="758" fill="#57534e" font-size="13">The next signal is at Stop, so the branch boundary shows Approach. The throat follows the clear main.</text>
   </g>
 </svg>

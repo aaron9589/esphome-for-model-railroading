@@ -1,10 +1,10 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="960" height="826" viewBox="0 0 960 826" role="img" aria-labelledby="title desc">
   <title id="title">2. The branch is lined</title>
-  <desc id="desc">Turnout lined is REVERSE. The main is held occupied. The throat shows Approach Diverging, or Approach.</desc>
+  <desc id="desc">Turnout lined is REVERSE. East shows Approach. West shows Clear, or Advance Approach. The throat shows Approach Diverging.</desc>
   <rect width="960" height="826" fill="#f4f1ea"/>
   <g font-family="ui-sans-serif, system-ui, sans-serif" fill="#1c1917">
     <text x="32" y="36" font-size="18" font-weight="600">2. The branch is lined</text>
-    <text x="32" y="58" fill="#57534e" font-size="13">The lined-away main is held occupied. Approach Diverging is optional.</text>
+    <text x="32" y="58" fill="#57534e" font-size="13">The lined-away main is held occupied. Approach Diverging only while the branch is lined.</text>
     <rect x="16" y="96" width="180" height="188" rx="14" fill="#e8f1fb"/>
     <text x="106.0" y="80" text-anchor="middle" fill="#185fa5" font-size="13" font-weight="600">West · boundary *</text>
     <g stroke="#185fa5" stroke-width="3" stroke-linecap="butt"><line x1="30.0" y1="164.0" x2="78.0" y2="164.0"/><line x1="30.0" y1="176.0" x2="78.0" y2="176.0"/></g><g stroke="#185fa5" stroke-width="2"><line x1="40.0" y1="164.0" x2="40.0" y2="176.0"/><line x1="56.0" y1="164.0" x2="56.0" y2="176.0"/><line x1="72.0" y1="164.0" x2="72.0" y2="176.0"/></g>
@@ -14,7 +14,7 @@
     <circle cx="106.0" cy="170.0" r="6" fill="#0f6e56"/>
     <text x="54.0" y="266" text-anchor="middle" fill="#185fa5" font-size="11" font-weight="600">left block</text>
     <text x="158.0" y="266" text-anchor="middle" fill="#b42318" font-size="11" font-weight="600">approach</text>
-    <rect x="33.0" y="102.0" width="146" height="32" rx="8" fill="#faeeda" stroke="#854f0b"/><text x="106.0" y="115.0" text-anchor="middle" fill="#854f0b" font-size="10.5" font-weight="600">Approach Diverging</text><text x="106.0" y="128.0" text-anchor="middle" fill="#854f0b" font-size="10.5">or Approach</text>
+    <rect x="21.0" y="112.0" width="54" height="22" rx="8" fill="#e7f6ef" stroke="#0f6e56"/><text x="48.0" y="127.0" text-anchor="middle" fill="#0f6e56" font-size="12" font-weight="600">Clear</text><rect x="81.0" y="112.0" width="118" height="22" rx="8" fill="#e8f1fb" stroke="#185fa5"/><text x="140.0" y="127.0" text-anchor="middle" fill="#185fa5" font-size="11" font-weight="600">Advance Approach</text>
     <rect x="79.0" y="212.0" width="54" height="22" rx="8" fill="#e7f6ef" stroke="#0f6e56"/><text x="106.0" y="227.0" text-anchor="middle" fill="#0f6e56" font-size="12" font-weight="600">Clear</text>
     <rect x="204" y="96" width="116" height="188" rx="14" fill="#e7f6ef"/>
     <text x="262.0" y="80" text-anchor="middle" fill="#0f6e56" font-size="13" font-weight="600">Near</text>
@@ -46,7 +46,7 @@
     <text x="799.0" y="266" text-anchor="middle" fill="#0f6e56" font-size="11" font-weight="600">main</text>
     <text x="905.0" y="266" text-anchor="middle" fill="#854f0b" font-size="11" font-weight="600">beyond</text>
     <rect x="825.0" y="112.0" width="54" height="22" rx="8" fill="#e7f6ef" stroke="#0f6e56"/><text x="852.0" y="127.0" text-anchor="middle" fill="#0f6e56" font-size="12" font-weight="600">Clear</text>
-    <rect x="828.0" y="212.0" width="48" height="22" rx="8" fill="#fde8e8" stroke="#b42318"/><text x="852.0" y="227.0" text-anchor="middle" fill="#b42318" font-size="12" font-weight="600">Stop</text>
+    <rect x="813.0" y="212.0" width="78" height="22" rx="8" fill="#faeeda" stroke="#854f0b"/><text x="852.0" y="227.0" text-anchor="middle" fill="#854f0b" font-size="12" font-weight="600">Approach</text>
     <text x="32" y="330" fill="#854f0b" font-size="13" font-weight="600">Same board</text>
     <text x="32" y="350" fill="#57534e" font-size="12">The branch signal faces the turnout.</text>
     <rect x="328" y="360" width="200" height="188" rx="14" fill="#faeeda"/>
@@ -77,9 +77,9 @@
     <text x="48" y="662" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">ahead/near-board/one/turnout               v1 REVERSE</text>
     <text x="48" y="688" font-size="13" font-weight="600">Acted on</text>
     <text x="48" y="710" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">points, the main signal                    Stop</text>
-    <text x="48" y="730" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">east facing west reads straight two/block Stop</text>
+    <text x="48" y="730" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">east facing west                           Approach</text>
     <text x="48" y="750" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">points, the throat signal                  Approach Diverging, or Approach</text>
-    <text x="48" y="770" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">west facing east reads near one/turnout   Approach Diverging, or Approach</text>
-    <text x="48" y="798" fill="#57534e" font-size="13">Without Approach Diverging, those two signals show Approach. The branch block is clear.</text>
+    <text x="48" y="770" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">west facing east                           Clear, or Advance Approach</text>
+    <text x="48" y="798" fill="#57534e" font-size="13">The throat shows Approach if that mast has no Approach Diverging. Advance Approach stays on the straight path.</text>
   </g>
 </svg>
