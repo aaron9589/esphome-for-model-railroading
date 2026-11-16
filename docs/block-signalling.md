@@ -63,16 +63,16 @@ Sidings and spurs that are not signalled stay out of this. Both rails are still 
 
 ## What the boards publish
 
-A board publishes the facts it measured. Retained, QoS 1. `OCCUPIED` or `CLEAR` for a detector, a joint, or a frog. `ACTIVE` or `INACTIVE` for diverging.
+A board publishes the facts it measured. Retained, QoS 1. `OCCUPIED` or `CLEAR` for a detector, a joint, or a turnout. `ACTIVE` or `INACTIVE` for diverging.
 
 ```
 mss/<track>/detect/<board>
 mss/<track>/joint/<board>/<end>
-mss/<track>/frog/<board>
+mss/<track>/turnout/<board>
 mss/<track>/diverging/<board>
 ```
 
-`detect` is that board's current detector. `joint` is the optic at one end of a boundary. `frog` is the optic under the frog. `diverging` is `ACTIVE` only when the branch is lined and that block's own detectors are clear.
+`detect` is that board's current detector. `joint` is the optic at one end of a boundary. `turnout` is the optic under the frog. `diverging` is `ACTIVE` only when the branch is lined and that block's own detectors are clear.
 
 The Blocks page is separate. Those topics are for JMRI (`trains/track/sensor/...`, not retained). A current sensor used here is one you already created there. The signal script does not read the JMRI topic.
 
@@ -96,7 +96,7 @@ Each board also publishes:
 mss/<track>/node/<board>/online
 ```
 
-`ONLINE` while it is connected, `OFFLINE` as its last will. Both are retained. Detector, joint, frog, diverging, and postcard topics are published again about once a second. A block input counts as occupied unless the board is `ONLINE`, the payload is `CLEAR`, and a copy arrived within the last three seconds. A missing diverging topic stays `INACTIVE`.
+`ONLINE` while it is connected, `OFFLINE` as its last will. Both are retained. Detector, joint, turnout, diverging, and postcard topics are published again about once a second. A block input counts as occupied unless the board is `ONLINE`, the payload is `CLEAR`, and a copy arrived within the last three seconds. A missing diverging topic stays `INACTIVE`.
 
 ![A topic is clear only when its board is online, the payload is CLEAR, and a copy arrived within three seconds. Occupied, offline, quiet, and unheard all count as occupied.](../_img/block-failsafe.svg)
 
