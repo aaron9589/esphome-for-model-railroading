@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="484" viewBox="0 0 960 484" role="img" aria-labelledby="title desc">
+  <title id="title">What one signal reads</title>
+  <desc id="desc">Current, optical, and a turnout against the route combine into one block topic. The signal script reads the block it protects, the next, the one after, and diverging. Held on an absolute mast forces Stop.</desc>
+  <rect width="960" height="484" fill="#f4f1ea"/>
+  <g font-family="ui-sans-serif, system-ui, sans-serif" fill="#1c1917">
+    <text x="32" y="36" font-size="18" font-weight="600">What one signal reads</text>
+    <text x="32" y="58" fill="#57534e" font-size="13">Sensors become one block topic. The script reads a few topics and sets the lamps.</text>
+    <rect x="32" y="80" width="896" height="168" rx="16" fill="#e7f6ef"/>
+    <text x="52" y="108" fill="#0f6e56" font-size="14" font-weight="600">Measured on this board</text>
+    <rect x="52" y="124" width="176" height="64" rx="10" fill="#fffdf8" stroke="#0f6e56"/>
+    <text x="140" y="150" text-anchor="middle" font-size="14" font-weight="600">Current detector</text>
+    <text x="140" y="170" text-anchor="middle" fill="#57534e" font-size="12">on a feeder</text>
+    <rect x="250" y="124" width="176" height="64" rx="10" fill="#fffdf8" stroke="#0f6e56"/>
+    <text x="338" y="150" text-anchor="middle" font-size="14" font-weight="600">Optical</text>
+    <text x="338" y="170" text-anchor="middle" fill="#57534e" font-size="12">at a boundary</text>
+    <rect x="420" y="124" width="176" height="64" rx="10" fill="#fffdf8" stroke="#0f6e56"/>
+    <text x="508" y="150" text-anchor="middle" font-size="14" font-weight="600">Turnout against</text>
+    <text x="508" y="170" text-anchor="middle" fill="#57534e" font-size="12">the signalled route</text>
+    <line x1="612" y1="156" x2="668" y2="156" stroke="#0f6e56" stroke-width="1.75"/>
+    <polygon points="678,156 668,151 668,161" fill="#0f6e56"/>
+    <rect x="688" y="124" width="216" height="96" rx="10" fill="#fffdf8" stroke="#0f6e56"/>
+    <text x="796" y="148" text-anchor="middle" font-size="14" font-weight="600">One block topic</text>
+    <text x="796" y="170" text-anchor="middle" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="11">mss/&lt;track&gt;/block/…</text>
+    <text x="796" y="192" text-anchor="middle" fill="#57534e" font-size="12">OCCUPIED if any is true</text>
+    <text x="52" y="224" fill="#57534e" font-size="13">Any one of the three is enough. The optical is also published on its own joint topic, so the next block can count it.</text>
+    <rect x="32" y="264" width="896" height="196" rx="16" fill="#e8f1fb"/>
+    <text x="52" y="292" fill="#185fa5" font-size="14" font-weight="600">The script on that signal</text>
+    <rect x="52" y="308" width="166" height="64" rx="10" fill="#fffdf8" stroke="#185fa5"/>
+    <text x="135" y="334" text-anchor="middle" font-size="13" font-weight="600">Block it protects</text>
+    <text x="135" y="354" text-anchor="middle" fill="#185fa5" font-size="12">Stop</text>
+    <rect x="230" y="308" width="166" height="64" rx="10" fill="#fffdf8" stroke="#185fa5"/>
+    <text x="313" y="334" text-anchor="middle" font-size="13" font-weight="600">Next block</text>
+    <text x="313" y="354" text-anchor="middle" fill="#185fa5" font-size="12">Approach</text>
+    <rect x="408" y="308" width="166" height="64" rx="10" fill="#fffdf8" stroke="#185fa5"/>
+    <text x="491" y="334" text-anchor="middle" font-size="13" font-weight="600">The one after</text>
+    <text x="491" y="354" text-anchor="middle" fill="#185fa5" font-size="12">Advance Approach</text>
+    <rect x="610" y="308" width="166" height="64" rx="10" fill="#fffdf8" stroke="#185fa5"/>
+    <text x="693" y="334" text-anchor="middle" font-size="13" font-weight="600">Diverging</text>
+    <text x="693" y="354" text-anchor="middle" fill="#185fa5" font-size="12">Approach Diverging</text>
+    <line x1="792" y1="340" x2="828" y2="340" stroke="#185fa5" stroke-width="1.75"/>
+    <polygon points="838,340 828,335 828,345" fill="#185fa5"/>
+    <rect x="846" y="308" width="66" height="64" rx="10" fill="#292524"/>
+    <text x="879" y="336" text-anchor="middle" fill="#f4f1ea" font-size="12" font-weight="600">Lamp</text>
+    <text x="879" y="354" text-anchor="middle" fill="#f4f1ea" font-size="12">aspect</text>
+    <text x="52" y="400" fill="#44403c" font-size="13">First match wins, from Stop downward. On a meet, next and the one after come from the neighbour’s postcard.</text>
+    <text x="52" y="422" fill="#44403c" font-size="13">On a home layout those are block topics named in the configurator, and the postcard is left out.</text>
+    <text x="52" y="444" fill="#44403c" font-size="13">An absolute mast reads Held first. Held forces Stop. The other inputs wait.</text>
+  </g>
+</svg>

@@ -1,0 +1,82 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="504" viewBox="0 0 960 504" role="img" aria-labelledby="title desc">
+  <title id="title">5. The train is in north</title>
+  <desc id="desc">A train in north sets north’s block topic OCCUPIED. The signal facing north shows Stop. Mid’s postcard toward south carries north as NEXT, so the signal facing north into mid shows Approach.</desc>
+  <rect width="960" height="504" fill="#f4f1ea"/>
+  <g font-family="ui-sans-serif, system-ui, sans-serif" fill="#1c1917">
+    <text x="32" y="36" font-size="18" font-weight="600">5. The train is in north</text>
+    <text x="32" y="58" fill="#57534e" font-size="13">Facing north shows Stop. Facing north into mid shows Approach. The two facing south show Clear.</text>
+    <g fill="#57534e" font-size="12" font-weight="600" text-anchor="middle">
+      <text x="164" y="88">south-board</text>
+      <text x="480" y="88">mid-board</text>
+      <text x="796" y="88">north-board</text>
+    </g>
+    <g stroke="#d32f2f" stroke-width="3" stroke-linecap="butt">
+      <line x1="48" y1="156" x2="280" y2="156"/>
+      <line x1="48" y1="168" x2="280" y2="168"/>
+    </g>
+    <g stroke="#d32f2f" stroke-width="2"><line x1="60" y1="156" x2="60" y2="168"/><line x1="78" y1="156" x2="78" y2="168"/><line x1="96" y1="156" x2="96" y2="168"/><line x1="114" y1="156" x2="114" y2="168"/><line x1="132" y1="156" x2="132" y2="168"/><line x1="150" y1="156" x2="150" y2="168"/><line x1="168" y1="156" x2="168" y2="168"/><line x1="186" y1="156" x2="186" y2="168"/><line x1="204" y1="156" x2="204" y2="168"/><line x1="222" y1="156" x2="222" y2="168"/><line x1="240" y1="156" x2="240" y2="168"/><line x1="258" y1="156" x2="258" y2="168"/></g>
+    <g stroke="#d32f2f" stroke-width="3" stroke-linecap="butt">
+      <line x1="312" y1="156" x2="648" y2="156"/>
+      <line x1="312" y1="168" x2="648" y2="168"/>
+    </g>
+    <g stroke="#d32f2f" stroke-width="2"><line x1="324" y1="156" x2="324" y2="168"/><line x1="342" y1="156" x2="342" y2="168"/><line x1="360" y1="156" x2="360" y2="168"/><line x1="378" y1="156" x2="378" y2="168"/><line x1="396" y1="156" x2="396" y2="168"/><line x1="414" y1="156" x2="414" y2="168"/><line x1="432" y1="156" x2="432" y2="168"/><line x1="450" y1="156" x2="450" y2="168"/><line x1="468" y1="156" x2="468" y2="168"/><line x1="486" y1="156" x2="486" y2="168"/><line x1="504" y1="156" x2="504" y2="168"/><line x1="522" y1="156" x2="522" y2="168"/><line x1="540" y1="156" x2="540" y2="168"/><line x1="558" y1="156" x2="558" y2="168"/><line x1="576" y1="156" x2="576" y2="168"/><line x1="594" y1="156" x2="594" y2="168"/><line x1="612" y1="156" x2="612" y2="168"/><line x1="630" y1="156" x2="630" y2="168"/></g>
+    <g stroke="#d32f2f" stroke-width="3" stroke-linecap="butt">
+      <line x1="680" y1="156" x2="912" y2="156"/>
+      <line x1="680" y1="168" x2="912" y2="168"/>
+    </g>
+    <g stroke="#d32f2f" stroke-width="2"><line x1="692" y1="156" x2="692" y2="168"/><line x1="710" y1="156" x2="710" y2="168"/><line x1="728" y1="156" x2="728" y2="168"/><line x1="746" y1="156" x2="746" y2="168"/><line x1="764" y1="156" x2="764" y2="168"/><line x1="782" y1="156" x2="782" y2="168"/><line x1="800" y1="156" x2="800" y2="168"/><line x1="818" y1="156" x2="818" y2="168"/><line x1="836" y1="156" x2="836" y2="168"/><line x1="854" y1="156" x2="854" y2="168"/><line x1="872" y1="156" x2="872" y2="168"/><line x1="890" y1="156" x2="890" y2="168"/></g>
+    <rect x="760" y="146" width="72" height="32" rx="6" fill="#292524"/>
+    <text x="796" y="167" text-anchor="middle" fill="#f4f1ea" font-size="12" font-weight="600">train</text>
+    <g transform="translate(246 124) scale(1 1)">
+      <circle cx="0" cy="0" r="11" fill="#292524"/>
+      <circle cx="0" cy="0" r="5" fill="#f4f1ea"/>
+      <polygon points="14,-4 24,0 14,4" fill="#1c1917"/>
+    </g>
+    <rect x="138" y="112" width="96" height="24" rx="8" fill="#faeeda" stroke="#854f0b"/>
+    <text x="186.0" y="128" text-anchor="middle" fill="#854f0b" font-size="12" font-weight="600">Approach</text>
+    <g transform="translate(246 196) scale(-1 1)">
+      <circle cx="0" cy="0" r="11" fill="#292524"/>
+      <circle cx="0" cy="0" r="5" fill="#f4f1ea"/>
+      <polygon points="14,-4 24,0 14,4" fill="#1c1917"/>
+    </g>
+    <rect x="162" y="184" width="72" height="24" rx="8" fill="#e7f6ef" stroke="#0f6e56"/>
+    <text x="198.0" y="200" text-anchor="middle" fill="#0f6e56" font-size="12" font-weight="600">Clear</text>
+    <g transform="translate(714 124) scale(1 1)">
+      <circle cx="0" cy="0" r="11" fill="#292524"/>
+      <circle cx="0" cy="0" r="5" fill="#f4f1ea"/>
+      <polygon points="14,-4 24,0 14,4" fill="#1c1917"/>
+    </g>
+    <rect x="746" y="112" width="64" height="24" rx="8" fill="#fde8e8" stroke="#b42318"/>
+    <text x="778.0" y="128" text-anchor="middle" fill="#b42318" font-size="12" font-weight="600">Stop</text>
+    <g transform="translate(714 196) scale(-1 1)">
+      <circle cx="0" cy="0" r="11" fill="#292524"/>
+      <circle cx="0" cy="0" r="5" fill="#f4f1ea"/>
+      <polygon points="14,-4 24,0 14,4" fill="#1c1917"/>
+    </g>
+    <rect x="730" y="184" width="72" height="24" rx="8" fill="#e7f6ef" stroke="#0f6e56"/>
+    <text x="766.0" y="200" text-anchor="middle" fill="#0f6e56" font-size="12" font-weight="600">Clear</text>
+    <rect x="32" y="236" width="896" height="76" rx="12" fill="#fffdf8" stroke="#e7e2d8"/>
+    <rect x="48" y="258" width="112" height="32" rx="8" fill="#e8f1fb" stroke="#185fa5"/>
+    <text x="104.0" y="278.0" text-anchor="middle" fill="#185fa5" font-size="13" font-weight="600">Publishes</text>
+    <text x="176" y="268" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">mss/main/block/north-board/north</text>
+    <text x="176" y="290" fill="#57534e" font-size="13">North’s detector. The signal facing north shows Stop.</text>
+    <rect x="776" y="254" width="118" height="32" rx="8" fill="#fde8e8" stroke="#9f1239"/>
+    <text x="835.0" y="274.0" text-anchor="middle" fill="#9f1239" font-size="12" font-weight="600">OCCUPIED</text>
+    <rect x="32" y="320" width="896" height="76" rx="12" fill="#fffdf8" stroke="#e7e2d8"/>
+    <rect x="48" y="342" width="112" height="32" rx="8" fill="#faeeda" stroke="#854f0b"/>
+    <text x="104.0" y="362.0" text-anchor="middle" fill="#854f0b" font-size="13" font-weight="600">Postcard</text>
+    <text x="176" y="352" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">mss/main/ahead/mid-board/mid/begin</text>
+    <text x="176" y="374" fill="#57534e" font-size="13">Toward south. BLOCK is mid. NEXT is north.</text>
+    <rect x="626" y="338" width="268" height="40" rx="8" fill="#fffdf8" stroke="#44403c"/>
+    <text x="760.0" y="354.0" text-anchor="middle" fill="#44403c" font-size="11" font-weight="600">BLOCK CLEAR    NEXT OCCUPIED</text>
+    <text x="760.0" y="370.0" text-anchor="middle" fill="#44403c" font-size="11" font-weight="600">AFTER CLEAR    DIV INACTIVE</text>
+    <rect x="32" y="404" width="896" height="76" rx="12" fill="#fffdf8" stroke="#e7e2d8"/>
+    <rect x="48" y="426" width="112" height="32" rx="8" fill="#e7f6ef" stroke="#0f6e56"/>
+    <text x="104.0" y="446.0" text-anchor="middle" fill="#0f6e56" font-size="13" font-weight="600">Reads</text>
+    <text x="176" y="436" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">mss/main/ahead/mid-board/mid/begin</text>
+    <text x="176" y="458" fill="#57534e" font-size="13">Facing north into mid shows Approach.</text>
+    <rect x="626" y="422" width="268" height="40" rx="8" fill="#fffdf8" stroke="#44403c"/>
+    <text x="760.0" y="438.0" text-anchor="middle" fill="#44403c" font-size="11" font-weight="600">BLOCK CLEAR    NEXT OCCUPIED</text>
+    <text x="760.0" y="454.0" text-anchor="middle" fill="#44403c" font-size="11" font-weight="600">AFTER CLEAR    DIV INACTIVE</text>
+  </g>
+</svg>
