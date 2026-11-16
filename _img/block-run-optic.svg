@@ -24,9 +24,9 @@
     <rect x="32" y="228" width="896" height="286" rx="12" fill="#fffdf8" stroke="#e7e2d8"/>
     <text x="48" y="256" font-size="13" font-weight="600">Sent</text>
     <text x="48" y="280" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">boundaryOptic/east-board                1 OCCUPIED</text>
-    <text x="48" y="304" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">ahead/east-board/right                  1 OCCUPIED CLEAR CLEAR INACTIVE</text>
-    <text x="48" y="328" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">ahead/gap-board/one                     1 OCCUPIED OCCUPIED CLEAR INACTIVE</text>
-    <text x="48" y="352" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">ahead/gap-board/two                     1 OCCUPIED CLEAR CLEAR INACTIVE</text>
+    <text x="48" y="304" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">ahead/east-board/right                  1 OCCUPIED CLEAR CLEAR NORMAL</text>
+    <text x="48" y="328" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">ahead/gap-board/one                     1 OCCUPIED OCCUPIED CLEAR NORMAL</text>
+    <text x="48" y="352" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">ahead/gap-board/two                     1 OCCUPIED CLEAR CLEAR NORMAL</text>
     <text x="48" y="376" font-size="13" font-weight="600">Acted on</text>
     <text x="48" y="400" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">east facing next reads its right BLOCK  Stop</text>
     <text x="48" y="424" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">west facing east reads one, BLOCK       Stop</text>

@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="960" height="590" viewBox="0 0 960 590" role="img" aria-labelledby="title desc">
   <title id="title">A junction with three blocks and an optic in the centre of the turnout</title>
-  <desc id="desc">When the branch is lined and clear, the main is held occupied and diverging is ACTIVE. When the main is lined, the branch is held occupied and diverging is INACTIVE. The optic in the centre occupies the throat block.</desc>
+  <desc id="desc">When the branch is lined, diverging is REVERSE and the main is held occupied. When the main is lined, diverging is NORMAL and the branch is held occupied. The optic in the centre occupies the throat block.</desc>
   <rect width="960" height="590" fill="#f4f1ea"/>
   <g font-family="ui-sans-serif, system-ui, sans-serif" fill="#1c1917">
     <text x="32" y="34" font-size="18" font-weight="600">A junction</text>
@@ -47,7 +47,7 @@
     <text x="856" y="172" text-anchor="middle" fill="#0f6e56" font-size="12" font-weight="600">CLEAR</text>
     <text x="560" y="204" fill="#44403c" font-size="13">diverging</text>
     <rect x="800" y="188" width="112" height="24" rx="6" fill="#faeeda"/>
-    <text x="856" y="204" text-anchor="middle" fill="#854f0b" font-size="12" font-weight="600">ACTIVE</text>
+    <text x="856" y="204" text-anchor="middle" fill="#854f0b" font-size="12" font-weight="600">REVERSE</text>
     <text x="36" y="290" fill="#44403c" font-size="13">The throat signal shows Approach Diverging. With no such aspect, it shows Approach.</text>
     <rect x="16" y="330" width="928" height="240" rx="16" fill="#e8f1fb"/>
     <text x="36" y="358" fill="#185fa5" font-size="15" font-weight="600">Main is lined</text>
@@ -91,7 +91,7 @@
     <text x="856" y="426" text-anchor="middle" fill="#9f1239" font-size="12" font-weight="600">OCCUPIED</text>
     <text x="560" y="458" fill="#44403c" font-size="13">diverging</text>
     <rect x="800" y="442" width="112" height="24" rx="6" fill="#e7f6ef"/>
-    <text x="856" y="458" text-anchor="middle" fill="#0f6e56" font-size="12" font-weight="600">INACTIVE</text>
+    <text x="856" y="458" text-anchor="middle" fill="#0f6e56" font-size="12" font-weight="600">NORMAL</text>
     <text x="36" y="544" fill="#44403c" font-size="13">The branch signal stays at Stop. The throat signal follows the main.</text>
   </g>
 </svg>

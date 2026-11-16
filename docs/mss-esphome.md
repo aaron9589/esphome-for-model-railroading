@@ -18,16 +18,16 @@ This document is version **1**.
 
 The first word of every payload is the version that board implements. A version 1 board sends `1` and then the words defined here. Each board sends its own version, so an older board and a newer board can share the broker.
 
-A board reads a payload whose version is the same as its own or lower. A higher version is unheard. An unheard detector, optic, or postcard counts as occupied. An unheard diverging payload counts as `INACTIVE`. An unheard pair message is ignored.
+A board reads a payload whose version is the same as its own or lower. A higher version is unheard. An unheard detector, optic, or postcard counts as occupied. An unheard diverging payload counts as `NORMAL`. An unheard pair message is ignored.
 
 ```
 1 OCCUPIED
 1 CLEAR
-1 ACTIVE
-1 INACTIVE
+1 REVERSE
+1 NORMAL
 1 ONLINE
 1 OFFLINE
-1 CLEAR CLEAR CLEAR INACTIVE
+1 CLEAR CLEAR CLEAR NORMAL
 1 OFFER west-board/right
 1 ACCEPT east-board/left west-board/right
 ```
@@ -65,7 +65,7 @@ Signals stand at the boundaries, and on each leg of a junction. The one facing a
 |---|---|
 | An absolute mast, and CATS is holding it | Stop |
 | The block it protects is occupied | Stop |
-| That block is clear, the next is occupied, and diverging is active | Approach Diverging |
+| That block is clear, the next is occupied, and diverging is REVERSE | Approach Diverging |
 | That block is clear, and the next block is occupied | Approach |
 | Those two are clear, and the one after is occupied | Advance Approach |
 | Those are clear, and a train is in the block behind | Clear |
@@ -78,13 +78,13 @@ Stop wins over everything. Approach Diverging replaces Approach, and only then. 
 
 An interim is not a step in that list. A train on an interim occupies the whole block between the two starred boards, so the signals that protect that block show Stop. The next block shows Approach only when that whole block is the next one.
 
-The route that is not lined at a junction is held occupied, so the signal on that leg stays at Stop. Approach Diverging is sent only when the branch is lined and that block is clear. A signal that has no Approach Diverging aspect still sees the lined-away block as occupied, so it shows Approach.
+The route that is not lined at a junction is held occupied, so the signal on that leg stays at Stop. Approach Diverging is sent only when diverging is `REVERSE` and that block is clear. A signal that has no Approach Diverging aspect still sees the lined-away block as occupied, so it shows Approach.
 
 Sidings and spurs that are not signalled stay out of this. Both rails are still gapped at each block boundary, and every feeder for a block still passes through a current detector.
 
 ## What a board publishes
 
-Facts are retained, QoS 1. The payload is the version, then `OCCUPIED` or `CLEAR` for a detector or an optic, and `ACTIVE` or `INACTIVE` for diverging.
+Facts are retained, QoS 1. The payload is the version, then `OCCUPIED` or `CLEAR` for a detector or an optic, and `NORMAL` or `REVERSE` for diverging.
 
 ```
 mss/<track>/detect/<board>
@@ -94,7 +94,7 @@ mss/<track>/turnoutOptic/<board>
 mss/<track>/diverging/<board>
 ```
 
-`detect/<board>` is an interim's one block detector. `detect/<board>/<place>` is one block on a boundary (`left`, `right`) or a junction (`throat`, `main`, `branch`). `boundaryOptic` is the optic in the centre of a boundary. `turnoutOptic` is the optic in the centre of the turnout. `diverging` is `ACTIVE` only when the branch is lined and that block's own detectors are clear.
+`detect/<board>` is an interim's one block detector. `detect/<board>/<place>` is one block on a boundary (`left`, `right`) or a junction (`throat`, `main`, `branch`). `boundaryOptic` is the optic in the centre of a boundary. `turnoutOptic` is the optic in the centre of the turnout. `diverging` is `REVERSE` when the branch is lined, and `NORMAL` when the main is lined.
 
 JMRI train tracking stays on `trains/track/sensor/...`, and those messages are not retained. The signal script does not read that topic.
 
@@ -104,7 +104,7 @@ Each end also publishes one postcard, retained, QoS 1:
 mss/<track>/ahead/<board>/<end>
 ```
 
-The payload is the version, then four words: `BLOCK NEXT AFTER DIVERGING`. A clear road reads `1 CLEAR CLEAR CLEAR INACTIVE`.
+The payload is the version, then four words: `BLOCK NEXT AFTER DIVERGING`. A clear road reads `1 CLEAR CLEAR CLEAR NORMAL`.
 
 An interim adds itself to the block and passes the rest through. `BLOCK` is occupied when its own detector is occupied or the postcard from the other end says the block is occupied. `NEXT`, `AFTER`, and `DIVERGING` are copied.
 
@@ -118,7 +118,7 @@ Each board also publishes:
 mss/<track>/node/<board>/online
 ```
 
-`1 ONLINE` while it is connected, `1 OFFLINE` as its last will. Both are retained. Detector, boundary optic, turnout optic, diverging, and postcard topics are published again about once a second. A block input counts as occupied unless the board is `ONLINE`, the payload is `CLEAR`, and a copy arrived within the last three seconds. A missing diverging topic stays `INACTIVE`.
+`1 ONLINE` while it is connected, `1 OFFLINE` as its last will. Both are retained. Detector, boundary optic, turnout optic, diverging, and postcard topics are published again about once a second. A block input counts as occupied unless the board is `ONLINE`, the payload is `CLEAR`, and a copy arrived within the last three seconds. A missing diverging topic stays `NORMAL`.
 
 ![A topic is clear only when its board is online, the payload is CLEAR, and a copy arrived within three seconds. Occupied, offline, quiet, and unheard all count as occupied.](../_img/block-failsafe.svg)
 
@@ -155,7 +155,7 @@ West's right neighbour is `gap-board/one`. The interim's `one` end stores `west-
 
 The signal on west that faces east protects this block. Stop is this block. Approach is the next block, which east names in `NEXT`. The signal on east that faces east protects the next block. The signal on east that faces west protects this block.
 
-![Every detector publishes 1 CLEAR. Both postcards are 1 CLEAR CLEAR CLEAR INACTIVE. West reads ahead/gap-board/one and east reads ahead/gap-board/two. The signals show Clear.](../_img/block-run-clear.svg)
+![Every detector publishes 1 CLEAR. Both postcards are 1 CLEAR CLEAR CLEAR NORMAL. West reads ahead/gap-board/one and east reads ahead/gap-board/two. The signals show Clear.](../_img/block-run-clear.svg)
 
 ![detect/gap-board is 1 OCCUPIED. Both postcards carry OCCUPIED as BLOCK. West facing east and east facing west read that word and show Stop.](../_img/block-run-interim.svg)
 
@@ -169,9 +169,9 @@ Approach lighting is off in these pictures, so a clear road shows Clear. Another
 
 A junction is a starred end of every block that meets it. The three signals face the turnout, so each one protects entry along that leg. The leg that is not lined is held occupied. The centre optic and the throat detector occupy the throat block, whichever leg the train is on. The main detector occupies the main route. The diverging detector occupies the diverging route.
 
-![When the branch is lined and clear, the main is held occupied and diverging is ACTIVE. When the main is lined, the branch is held occupied and diverging is INACTIVE. The optic sits in the centre of the turnout.](../_img/block-junction.svg)
+![When the branch is lined, diverging is REVERSE and the main is held occupied. When the main is lined, diverging is NORMAL and the branch is held occupied. The optic sits in the centre of the turnout.](../_img/block-junction.svg)
 
-Thrown lines the branch. An interim on the way to the junction adds its detector to the approach block. The postcard into the junction carries that block as `BLOCK`. The junction sends `DIVERGING` as `ACTIVE` only when the branch is lined and clear, and the interim copies that field through to the boundary one block back.
+Thrown lines the branch. An interim on the way to the junction adds its detector to the approach block. The postcard into the junction carries that block as `BLOCK`. The junction sends `DIVERGING` as `REVERSE` when the branch is lined, and `NORMAL` when the main is lined. The interim copies that field through to the boundary one block back.
 
 Advance Approach stays the block one past the next. It stays on the straight path when the junction is thrown.
 

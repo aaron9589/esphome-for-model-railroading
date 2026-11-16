@@ -24,8 +24,8 @@
     <text x="48" y="280" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">detect/gap-board                         1 CLEAR</text>
     <text x="48" y="304" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">boundaryOptic/west-board                1 CLEAR</text>
     <text x="48" y="328" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">boundaryOptic/east-board                1 CLEAR</text>
-    <text x="48" y="352" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">ahead/gap-board/one                     1 CLEAR CLEAR CLEAR INACTIVE</text>
-    <text x="48" y="376" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">ahead/gap-board/two                     1 CLEAR CLEAR CLEAR INACTIVE</text>
+    <text x="48" y="352" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">ahead/gap-board/one                     1 CLEAR CLEAR CLEAR NORMAL</text>
+    <text x="48" y="376" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">ahead/gap-board/two                     1 CLEAR CLEAR CLEAR NORMAL</text>
     <text x="48" y="400" font-size="13" font-weight="600">Acted on</text>
     <text x="48" y="424" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">west facing east reads one, BLOCK       Clear</text>
     <text x="48" y="448" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">east facing west reads two, BLOCK       Clear</text>

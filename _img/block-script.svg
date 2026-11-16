@@ -14,7 +14,7 @@
     <text x="52" y="188" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13" fill="#44403c">turnoutOptic/board</text>
     <text x="280" y="188" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">1 OCCUPIED or 1 CLEAR</text>
     <text x="52" y="212" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13" fill="#44403c">diverging/board</text>
-    <text x="280" y="212" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">1 ACTIVE or 1 INACTIVE</text>
+    <text x="280" y="212" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">1 REVERSE or 1 NORMAL</text>
     <text x="36" y="248" fill="#57534e" font-size="13">Any occupied detector or optic in the block sets BLOCK. Diverging stays its own word.</text>
     <rect x="16" y="288" width="928" height="252" rx="16" fill="#e8f1fb"/>
     <text x="36" y="316" fill="#185fa5" font-size="15" font-weight="600">2. Read from the postcard ahead</text>
@@ -26,7 +26,7 @@
     <text x="280" y="410" font-size="14" font-weight="600" fill="#854f0b">Approach</text>
     <text x="52" y="436" font-size="14">AFTER occupied</text>
     <text x="280" y="436" font-size="14" font-weight="600" fill="#854f0b">Advance Approach</text>
-    <text x="52" y="462" font-size="14">NEXT occupied and DIVERGING active</text>
+    <text x="52" y="462" font-size="14">NEXT occupied and DIVERGING REVERSE</text>
     <text x="420" y="462" font-size="14" font-weight="600" fill="#854f0b">Approach Diverging</text>
     <text x="36" y="508" fill="#57534e" font-size="13">The first match wins, from Stop downward. Held on an absolute mast is Stop before any of these.</text>
   </g>
