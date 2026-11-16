@@ -1,10 +1,10 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="960" height="520" viewBox="0 0 960 520" role="img" aria-labelledby="title desc">
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="572" viewBox="0 0 960 572" role="img" aria-labelledby="title desc">
   <title id="title">2. A train is on the west block</title>
-  <desc id="desc">block/west-board/left is occupied. The signal facing that block shows Stop.</desc>
-  <rect width="960" height="520" fill="#f4f1ea"/>
+  <desc id="desc">block/west-board/left is occupied. West facing that block shows Stop. East facing the train shows Approach.</desc>
+  <rect width="960" height="572" fill="#f4f1ea"/>
   <g font-family="ui-sans-serif, system-ui, sans-serif" fill="#1c1917">
     <text x="32" y="36" font-size="18" font-weight="600">2. A train is on the west block</text>
-    <text x="32" y="58" fill="#57534e" font-size="13">The train is on west's left block. The signal facing that block shows Stop.</text>
+    <text x="32" y="58" fill="#57534e" font-size="13">The train is on west's left block. East facing the train shows Approach, because the next signal is at Stop.</text>
     <rect x="16" y="100" width="250" height="188" rx="14" fill="#e8f1fb"/>
     <text x="141.0" y="84" text-anchor="middle" fill="#185fa5" font-size="13" font-weight="600">West · boundary *</text>
     <g stroke="#185fa5" stroke-width="3" stroke-linecap="butt"><line x1="28" y1="168" x2="102" y2="168"/><line x1="28" y1="180" x2="102" y2="180"/></g><g stroke="#185fa5" stroke-width="2"><line x1="38" y1="168" x2="38" y2="180"/><line x1="54" y1="168" x2="54" y2="180"/><line x1="70" y1="168" x2="70" y2="180"/><line x1="86" y1="168" x2="86" y2="180"/></g>
@@ -37,16 +37,18 @@
     <g transform="translate(819.0 196) scale(-1 1)"><circle cx="0" cy="0" r="11" fill="#292524"/><circle cx="0" cy="0" r="5" fill="#f4f1ea"/><polygon points="14,-4 24,0 14,4" fill="#1c1917"/></g>
     <circle cx="819.0" cy="174" r="6" fill="#0f6e56"/>
     <rect x="792.0" y="114" width="54" height="22" rx="8" fill="#e7f6ef" stroke="#0f6e56"/><text x="819.0" y="129" text-anchor="middle" fill="#0f6e56" font-size="12" font-weight="600">Clear</text>
-    <rect x="792.0" y="214" width="54" height="22" rx="8" fill="#e7f6ef" stroke="#0f6e56"/><text x="819.0" y="229" text-anchor="middle" fill="#0f6e56" font-size="12" font-weight="600">Clear</text>
+    <rect x="780.0" y="214" width="78" height="22" rx="8" fill="#faeeda" stroke="#854f0b"/><text x="819.0" y="229" text-anchor="middle" fill="#854f0b" font-size="12" font-weight="600">Approach</text>
     <text x="743.0" y="270" text-anchor="middle" fill="#b42318" font-size="11" font-weight="600">left block</text>
     <text x="890.5" y="270" text-anchor="middle" fill="#854f0b" font-size="11" font-weight="600">right block</text>
-    <rect x="32" y="304" width="896" height="200" rx="12" fill="#fffdf8" stroke="#e7e2d8"/>
+    <rect x="32" y="304" width="896" height="252" rx="12" fill="#fffdf8" stroke="#e7e2d8"/>
     <text x="48" y="332" font-size="13" font-weight="600">Sent</text>
     <text x="48" y="356" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">block/west-board/left                    v1 OCCUPIED</text>
-    <text x="48" y="386" font-size="13" font-weight="600">Acted on</text>
-    <text x="48" y="408" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">west facing west reads its left block   Stop</text>
-    <text x="48" y="430" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">west facing east reads near one/block   Clear</text>
-    <text x="48" y="452" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">east facing west reads far two/block    Clear</text>
-    <text x="48" y="484" fill="#57534e" font-size="13">This block is still clear, so the signals that face it stay Clear.</text>
+    <text x="48" y="378" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">ahead/west-board/right/next              v1 OCCUPIED</text>
+    <text x="48" y="400" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">ahead/far-board/two/next                 v1 OCCUPIED</text>
+    <text x="48" y="430" font-size="13" font-weight="600">Acted on</text>
+    <text x="48" y="452" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">west facing west reads its left block   Stop</text>
+    <text x="48" y="474" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">east facing west reads far two/next     Approach</text>
+    <text x="48" y="496" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">west facing east reads near one/block   Clear</text>
+    <text x="48" y="528" fill="#57534e" font-size="13">This block is clear. East shows Approach because the next signal, west facing west, is at Stop.</text>
   </g>
 </svg>

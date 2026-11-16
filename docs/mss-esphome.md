@@ -72,7 +72,7 @@ Signals stand at the boundaries, and on each leg of a junction. The one facing a
 | Nothing ahead, and the block behind is clear, with approach lighting on | Dark |
 | Nothing ahead, and approach lighting is off | Clear |
 
-Stop wins over everything. Approach Diverging replaces Approach, and only then. Advance Approach, Approach Diverging, and approach lighting are optional. Stop, Approach, and Clear are not. The absolute row applies only to a mast marked Absolute. A permissive mast skips it.
+Stop wins over everything. Approach Diverging replaces Approach, and only then. Advance Approach, Approach Diverging, and approach lighting are optional. Stop, Approach, and Clear are not. MSS 2.0.2 lists the same three as required, and Advance Approach as optional. A mast without Advance Approach skips that row and shows Clear. The absolute row applies only to a mast marked Absolute. A permissive mast skips it.
 
 ![The signal faces the blocks ahead. Stop comes from the block it protects. Approach and Approach Diverging come from the next block. Advance Approach comes from the one after that. Clear or Dark comes from the block behind.](../_img/block-aspects.svg)
 
@@ -188,7 +188,7 @@ West's right neighbour is `near-board/one`. Near pairs onward to mid, mid pairs 
 
 ![Three interims, no train. Every signal shows Clear.](../_img/block-interims-1.svg)
 
-![block/west-board/left is occupied. The signal facing that block shows Stop.](../_img/block-interims-2.svg)
+![block/west-board/left is occupied. West facing that block shows Stop. East facing the train shows Approach, because the next signal is at Stop.](../_img/block-interims-2.svg)
 
 ![The middle interim is occupied. Near and far pass that on, and both signals facing this block show Stop.](../_img/block-interims-3.svg)
 
@@ -206,15 +206,15 @@ The signal on west that faces east protects the first block, and so does the sig
 
 ![No train. Every signal shows Clear.](../_img/block-two-1.svg)
 
-![West's left block is occupied. The signal facing it shows Stop.](../_img/block-two-2.svg)
+![West's left block is occupied. West shows Stop. Mid facing the train shows Approach. East facing the train shows Clear, or Advance Approach if that mast has it.](../_img/block-two-2.svg)
 
-![The near interim is occupied. West facing east and mid facing west show Stop.](../_img/block-two-3.svg)
+![The near interim is occupied. West facing east and mid facing west show Stop. East facing west shows Approach.](../_img/block-two-3.svg)
 
 ![The far interim is occupied. Mid facing east and east facing west show Stop. West shows Approach.](../_img/block-two-4.svg)
 
-![East's right block is occupied. East shows Stop, mid shows Approach, and west shows Advance Approach.](../_img/block-two-5.svg)
+![East's right block is occupied. East shows Stop and mid shows Approach. West shows Clear, or Advance Approach if that mast has it.](../_img/block-two-5.svg)
 
-Advance Approach is the block after the next. It shows here because both signal blocks are clear and the block past east is occupied.
+Advance Approach is the block after the next. It is optional. A mast without it stays Clear. With it, west shows Advance Approach here, because both signal blocks are clear and the block past east is occupied.
 
 ## A junction
 

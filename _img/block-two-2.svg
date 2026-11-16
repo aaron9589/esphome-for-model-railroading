@@ -1,10 +1,10 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="960" height="498" viewBox="0 0 960 498" role="img" aria-labelledby="title desc">
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="594" viewBox="0 0 960 594" role="img" aria-labelledby="title desc">
   <title id="title">2. A train is on the west block</title>
-  <desc id="desc">West's left block is occupied. The signal facing it shows Stop.</desc>
-  <rect width="960" height="498" fill="#f4f1ea"/>
+  <desc id="desc">West's left block is occupied. West shows Stop. Mid facing the train shows Approach. East shows Clear, or Advance Approach if configured.</desc>
+  <rect width="960" height="594" fill="#f4f1ea"/>
   <g font-family="ui-sans-serif, system-ui, sans-serif" fill="#1c1917">
     <text x="32" y="36" font-size="18" font-weight="600">2. A train is on the west block</text>
-    <text x="32" y="58" fill="#57534e" font-size="13">The train is on west's left block. The signal facing that block shows Stop.</text>
+    <text x="32" y="58" fill="#57534e" font-size="13">The train is on west's left block. Mid facing the train shows Approach. East shows Clear, or Advance Approach if configured.</text>
     <rect x="16" y="100" width="216" height="188" rx="14" fill="#e8f1fb"/>
     <text x="124.0" y="84" text-anchor="middle" fill="#185fa5" font-size="13" font-weight="600">West · boundary *</text>
     <g stroke="#185fa5" stroke-width="3" stroke-linecap="butt"><line x1="28" y1="168" x2="102" y2="168"/><line x1="28" y1="180" x2="102" y2="180"/></g><g stroke="#185fa5" stroke-width="2"><line x1="38" y1="168" x2="38" y2="180"/><line x1="54" y1="168" x2="54" y2="180"/><line x1="70" y1="168" x2="70" y2="180"/><line x1="86" y1="168" x2="86" y2="180"/></g>
@@ -29,7 +29,7 @@
     <g transform="translate(480.0 196) scale(-1 1)"><circle cx="0" cy="0" r="11" fill="#292524"/><circle cx="0" cy="0" r="5" fill="#f4f1ea"/><polygon points="14,-4 24,0 14,4" fill="#1c1917"/></g>
     <circle cx="480.0" cy="174" r="6" fill="#0f6e56"/>
     <rect x="453.0" y="114" width="54" height="22" rx="8" fill="#e7f6ef" stroke="#0f6e56"/><text x="480.0" y="129" text-anchor="middle" fill="#0f6e56" font-size="12" font-weight="600">Clear</text>
-    <rect x="453.0" y="214" width="54" height="22" rx="8" fill="#e7f6ef" stroke="#0f6e56"/><text x="480.0" y="229" text-anchor="middle" fill="#0f6e56" font-size="12" font-weight="600">Clear</text>
+    <rect x="441.0" y="214" width="78" height="22" rx="8" fill="#faeeda" stroke="#854f0b"/><text x="480.0" y="229" text-anchor="middle" fill="#854f0b" font-size="12" font-weight="600">Approach</text>
     <text x="421.0" y="270" text-anchor="middle" fill="#b42318" font-size="11" font-weight="600">left block</text>
     <text x="543.0" y="270" text-anchor="middle" fill="#854f0b" font-size="11" font-weight="600">right block</text>
     <rect x="596" y="100" width="124" height="188" rx="14" fill="#e7f6ef"/>
@@ -44,15 +44,19 @@
     <g transform="translate(836.0 196) scale(-1 1)"><circle cx="0" cy="0" r="11" fill="#292524"/><circle cx="0" cy="0" r="5" fill="#f4f1ea"/><polygon points="14,-4 24,0 14,4" fill="#1c1917"/></g>
     <circle cx="836.0" cy="174" r="6" fill="#0f6e56"/>
     <rect x="809.0" y="114" width="54" height="22" rx="8" fill="#e7f6ef" stroke="#0f6e56"/><text x="836.0" y="129" text-anchor="middle" fill="#0f6e56" font-size="12" font-weight="600">Clear</text>
-    <rect x="809.0" y="214" width="54" height="22" rx="8" fill="#e7f6ef" stroke="#0f6e56"/><text x="836.0" y="229" text-anchor="middle" fill="#0f6e56" font-size="12" font-weight="600">Clear</text>
+    <rect x="742" y="214" width="54" height="22" rx="8" fill="#e7f6ef" stroke="#0f6e56"/><text x="769" y="229" text-anchor="middle" fill="#0f6e56" font-size="12" font-weight="600">Clear</text>
+    <rect x="802" y="214" width="128" height="22" rx="8" fill="#e8f1fb" stroke="#185fa5"/><text x="866" y="229" text-anchor="middle" fill="#185fa5" font-size="11" font-weight="600">Advance Approach</text>
     <text x="777.0" y="270" text-anchor="middle" fill="#854f0b" font-size="11" font-weight="600">left block</text>
     <text x="899.0" y="270" text-anchor="middle" fill="#6d28d9" font-size="11" font-weight="600">right block</text>
-    <rect x="32" y="304" width="896" height="178" rx="12" fill="#fffdf8" stroke="#e7e2d8"/>
+    <rect x="32" y="304" width="896" height="274" rx="12" fill="#fffdf8" stroke="#e7e2d8"/>
     <text x="48" y="332" font-size="13" font-weight="600">Sent</text>
     <text x="48" y="356" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">block/west-board/left                    v1 OCCUPIED</text>
-    <text x="48" y="386" font-size="13" font-weight="600">Acted on</text>
-    <text x="48" y="408" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">west facing west reads its left block   Stop</text>
-    <text x="48" y="430" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">west facing east reads near one/block   Clear</text>
-    <text x="48" y="462" fill="#57534e" font-size="13">Both signal blocks are still clear.</text>
+    <text x="48" y="378" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">ahead/near-board/two/next                v1 OCCUPIED</text>
+    <text x="48" y="400" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">ahead/far-board/two/after                v1 OCCUPIED</text>
+    <text x="48" y="430" font-size="13" font-weight="600">Acted on</text>
+    <text x="48" y="452" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">west facing west reads its left block    Stop</text>
+    <text x="48" y="474" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">mid facing west reads near two/next      Approach</text>
+    <text x="48" y="496" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">east facing west reads far two/after     Clear, or Advance Approach</text>
+    <text x="48" y="528" fill="#57534e" font-size="13">Both signal blocks are clear. Advance Approach is optional. Without it, east stays Clear.</text>
   </g>
 </svg>
