@@ -1,6 +1,6 @@
 # MSS-ESPHome in the configurator
 
-This note is the configurator and the board web page for MSS-ESPHome. It is still being refined. The configurator does not generate this yet.
+The wire protocol is the [MSS-ESPHome standard](mss-esphome.md), version 1. This note is the configurator and the board web page. It is still being refined. The configurator does not generate this yet.
 
 The configurator writes one `board.yaml`, the same file it already writes. A neighbour is stored as that end's address, such as `gap-board/one`.
 
