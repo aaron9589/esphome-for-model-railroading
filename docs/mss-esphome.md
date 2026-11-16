@@ -160,7 +160,7 @@ An offer lasts 30 seconds. A new offer replaces one that has not been accepted. 
 
 West and east are boundaries. An interim named gap sits between them. That is one block. The track past east is the next block.
 
-![West and east are boundaries. The interim publishes its block and passes next, after, and turnout through. West's right end is paired to the interim's one end, and the interim's two end is paired to east's left.](../_img/block-stretch.svg)
+![West boundary, an interim, and east boundary, snapped in a row. West's right block, the interim detector, and east's left block are one block. East's right block is the next block.](../_img/block-stretch.svg)
 
 West's right neighbour is `gap-board/one`. The interim's `one` end stores `west-board/right`. Its `two` end stores `east-board/left`. East's left neighbour is `gap-board/two`.
 
