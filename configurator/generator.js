@@ -115,6 +115,16 @@ function stateTopic(topic) {
   return `${base}/State`;
 }
 
+function lockTopic(topic) {
+  const base = String(topic || "").replace(/\/+$/, "");
+  if (!base) return "";
+  return `${base}/Lock`;
+}
+
+function lockActive(point, mqtt) {
+  return mqtt && point.lockEnabled === true;
+}
+
 function variantFor(moduleName) {
   return MODULE_VARIANTS[moduleName] || "esp32";
 }
@@ -185,6 +195,8 @@ function normalizeConfig(config) {
   }
   for (const point of config.points || []) {
     if (point.servoPin) point.servoPin = String(point.servoPin).toUpperCase();
+    point.lockEnabled = point.lockEnabled === true;
+    point.lockDefault = point.lockDefault === "locked" ? "locked" : "unlocked";
     if (!Array.isArray(point.controls)) point.controls = [];
     for (const control of point.controls) {
       if (control.action !== "closed" && control.action !== "thrown") control.action = "toggle";
@@ -644,7 +656,30 @@ function emitThrowScript(lines, point, thrown, publish) {
   lines.push("                qos: 2");
 }
 
-function emitButton(lines, point, control, index) {
+function emitButtonAllowed(lines, point, lock) {
+  lines.push("        - if:");
+  lines.push("            condition:");
+  if (lock) {
+    lines.push("              and:");
+    lines.push(`                - lambda: 'return !id(${point.id}_locked);'`);
+    lines.push("                - not:");
+    lines.push("                    or:");
+    lines.push("                      - script.is_running:");
+    lines.push(`                          id: ${point.id}_throw_closed`);
+    lines.push("                      - script.is_running:");
+    lines.push(`                          id: ${point.id}_throw_thrown`);
+  } else {
+    lines.push("              not:");
+    lines.push("                or:");
+    lines.push("                  - script.is_running:");
+    lines.push(`                      id: ${point.id}_throw_closed`);
+    lines.push("                  - script.is_running:");
+    lines.push(`                      id: ${point.id}_throw_thrown`);
+  }
+  lines.push("            then:");
+}
+
+function emitButton(lines, point, control, index, lock) {
   if (!control.buttonPin) return;
   lines.push("  - platform: gpio");
   lines.push("    pin:");
@@ -660,23 +695,28 @@ function emitButton(lines, point, control, index) {
   lines.push("      - delayed_on_off: 50ms");
   lines.push("    on_press:");
   lines.push("      then:");
+  // A second press during the 2s wait starts the other throw while the first
+  // backoff write is still pending, and that write leaves the servo short of
+  // the end it was sent to. Ignore every button on this point until both
+  // throw scripts have finished. A remote lock holds them too.
+  emitButtonAllowed(lines, point, lock);
   if (control.action === "closed" || control.action === "thrown") {
-    lines.push("        - script.execute:");
-    lines.push(`            id: ${point.id}_throw_${control.action}`);
-    lines.push("            announce: true");
+    lines.push("              - script.execute:");
+    lines.push(`                  id: ${point.id}_throw_${control.action}`);
+    lines.push("                  announce: true");
     return;
   }
-  lines.push("        - if:");
-  lines.push("            condition:");
-  lines.push(`              lambda: 'return id(${point.id}_thrown);'`);
-  lines.push("            then:");
-  lines.push("              - script.execute:");
-  lines.push(`                  id: ${point.id}_throw_closed`);
-  lines.push("                  announce: true");
-  lines.push("            else:");
-  lines.push("              - script.execute:");
-  lines.push(`                  id: ${point.id}_throw_thrown`);
-  lines.push("                  announce: true");
+  lines.push("              - if:");
+  lines.push("                  condition:");
+  lines.push(`                    lambda: 'return id(${point.id}_thrown);'`);
+  lines.push("                  then:");
+  lines.push("                    - script.execute:");
+  lines.push(`                        id: ${point.id}_throw_closed`);
+  lines.push("                        announce: true");
+  lines.push("                  else:");
+  lines.push("                    - script.execute:");
+  lines.push(`                        id: ${point.id}_throw_thrown`);
+  lines.push("                        announce: true");
 }
 
 function signalColorHex(color) {
@@ -1118,6 +1158,60 @@ function emitSignalTextSensors(lines, masts) {
   }
 }
 
+function emitThrowCommand(lines, point, thrown) {
+  const which = thrown ? "thrown" : "closed";
+  const payload = thrown ? "THROWN" : "CLOSED";
+  const lock = point.lockEnabled === true;
+  lines.push("      - if:");
+  lines.push("          condition:");
+  if (lock) {
+    lines.push("            and:");
+    lines.push("              - text_sensor.state:");
+    lines.push(`                  id: ${point.id}`);
+    lines.push(`                  state: '${payload}'`);
+    lines.push(`              - lambda: 'return !id(${point.id}_locked);'`);
+  } else {
+    lines.push("            text_sensor.state:");
+    lines.push(`              id: ${point.id}`);
+    lines.push(`              state: '${payload}'`);
+  }
+  lines.push("          then:");
+  lines.push("            - script.execute:");
+  lines.push(`                id: ${point.id}_throw_${which}`);
+  lines.push("                announce: true");
+}
+
+function emitLockSensor(lines, point) {
+  lines.push("  - platform: mqtt_subscribe");
+  lines.push(`    name: ${yamlQuote(entityName(`${point.name} lock`))}`);
+  lines.push(`    id: ${point.id}_lock`);
+  lines.push("    internal: true");
+  lines.push(`    topic: ${yamlQuote(lockTopic(point.topic))}`);
+  lines.push("    on_value:");
+  lines.push("      - if:");
+  lines.push("          condition:");
+  lines.push("            text_sensor.state:");
+  lines.push(`              id: ${point.id}_lock`);
+  lines.push("              state: 'LOCKED'");
+  lines.push("          then:");
+  lines.push(`            - lambda: 'id(${point.id}_locked) = true;'`);
+  lines.push("            - logger.log:");
+  lines.push(`                format: ${yamlQuote(`${point.name} lock -> LOCKED`)}`);
+  lines.push("                level: INFO");
+  lines.push("                tag: point_control");
+  lines.push("      - if:");
+  lines.push("          condition:");
+  lines.push("            text_sensor.state:");
+  lines.push(`              id: ${point.id}_lock`);
+  lines.push("              state: 'UNLOCKED'");
+  lines.push("          then:");
+  lines.push(`            - lambda: 'id(${point.id}_locked) = false;'`);
+  lines.push("            - logger.log:");
+  lines.push(`                format: ${yamlQuote(`${point.name} lock -> UNLOCKED`)}`);
+  lines.push("                level: INFO");
+  lines.push("                tag: point_control");
+}
+
 function emitPointTextSensors(lines, points) {
   for (const point of points) {
     lines.push("  - platform: mqtt_subscribe");
@@ -1125,24 +1219,9 @@ function emitPointTextSensors(lines, points) {
     lines.push(`    id: ${point.id}`);
     lines.push(`    topic: ${yamlQuote(point.topic)}`);
     lines.push("    on_value:");
-    lines.push("      - if:");
-    lines.push("          condition:");
-    lines.push("            text_sensor.state:");
-    lines.push(`              id: ${point.id}`);
-    lines.push("              state: 'THROWN'");
-    lines.push("          then:");
-    lines.push("            - script.execute:");
-    lines.push(`                id: ${point.id}_throw_thrown`);
-    lines.push("                announce: true");
-    lines.push("      - if:");
-    lines.push("          condition:");
-    lines.push("            text_sensor.state:");
-    lines.push(`              id: ${point.id}`);
-    lines.push("              state: 'CLOSED'");
-    lines.push("          then:");
-    lines.push("            - script.execute:");
-    lines.push(`                id: ${point.id}_throw_closed`);
-        lines.push("                announce: true");
+    emitThrowCommand(lines, point, true);
+    emitThrowCommand(lines, point, false);
+    if (point.lockEnabled === true) emitLockSensor(lines, point);
   }
 }
 
@@ -1174,13 +1253,15 @@ function generateYaml(config) {
       inverted: !!inverted,
       debounce,
     })),
-    points: (config.points || []).map(({ name, topic, topicCustom, channel, servoPin, travelTime, controls }) => ({
+    points: (config.points || []).map(({ name, topic, topicCustom, channel, servoPin, travelTime, lockEnabled, lockDefault, controls }) => ({
       name,
       topic,
       topicCustom: !!topicCustom,
       channel: Number(channel),
       servoPin: servoPin || "",
       travelTime,
+      lockEnabled: lockEnabled === true,
+      lockDefault: lockDefault === "locked" ? "locked" : "unlocked",
       controls: (controls || []).map(controlForBlob),
     })),
     i2c,
@@ -1363,6 +1444,14 @@ function generateYaml(config) {
       lines.push("    type: bool");
       lines.push("    restore_value: true");
       lines.push('    initial_value: "false"');
+      if (!lockActive(point, mqtt)) continue;
+      // The default is the boot value. A retained LOCKED or UNLOCKED replaces it
+      // when the broker connects. It is not saved, so the configurator choice wins
+      // again after a power cut if nothing is retained.
+      lines.push(`  - id: ${point.id}_locked`);
+      lines.push("    type: bool");
+      lines.push("    restore_value: false");
+      lines.push(`    initial_value: "${point.lockDefault === "locked" ? "true" : "false"}"`);
     }
     for (const mast of masts) {
       if (!mastShows(mast)) continue;
@@ -1417,7 +1506,7 @@ function generateYaml(config) {
       }
     }
     for (const point of points) {
-      (point.controls || []).forEach((control, index) => emitButton(lines, point, control, index));
+      (point.controls || []).forEach((control, index) => emitButton(lines, point, control, index, lockActive(point, mqtt)));
     }
   }
 
@@ -1550,6 +1639,7 @@ function generateYaml(config) {
     emptyConfig,
     topicFor,
     stateTopic,
+    lockTopic,
     SIGNAL_COLORS,
     SIGNAL_COLOR_ORDER,
     CATS_ASPECTS,

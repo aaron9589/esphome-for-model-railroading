@@ -181,6 +181,24 @@ The `/State` reply is what JMRI reads back to confirm the move happened. This ke
 
 ---
 
+## Optional: Lock a turnout from MQTT
+
+Tick **Remote lock** on that point in the configurator, and choose whether it starts locked or unlocked. The board then listens on the Lock topic:
+
+```
+trains/track/turnout/Kiama/Up Loop/Lock
+```
+
+Publish `LOCKED` to hold the turnout, or `UNLOCKED` to let it move. While locked, the fascia buttons do nothing, and `CLOSED` or `THROWN` on the turnout topic does nothing. The board still moves the servo back to its saved position when it boots. The default you picked is used until a lock message arrives. Publish with retain if the lock should still be there after a reboot.
+
+```bash
+mosquitto_pub -h localhost -t 'trains/track/turnout/Kiama/Up Loop/Lock' -m 'LOCKED' -r
+```
+
+The log line looks like `Kiama/Up Loop lock -> LOCKED`.
+
+---
+
 ## Troubleshooting
 
 **JMRI sensor state never changes:**
