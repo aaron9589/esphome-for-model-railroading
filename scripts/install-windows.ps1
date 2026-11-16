@@ -274,6 +274,48 @@ function Invoke-SilentUninstall($Entry) {
     return $true
 }
 
+function Invoke-EsphomeCli {
+    param(
+        [Parameter(Mandatory)][string]$Exe,
+        [Parameter(Mandatory)][string[]]$ArgumentList,
+        [switch]$Capture
+    )
+    # esphome-desktop.exe is a GUI program. It attaches to this console, and
+    # `open` starts the tray app and then returns. `& $exe open | Out-Null`
+    # (and `status 2>$null`) never returns: PowerShell waits on that console
+    # attach, and on the pipe the tray app still holds. Start-Process does not.
+    if ($Capture) {
+        $out = Join-Path $env:TEMP ("esphome-mr-cli-{0}.out" -f [guid]::NewGuid().ToString('n'))
+        $err = Join-Path $env:TEMP ("esphome-mr-cli-{0}.err" -f [guid]::NewGuid().ToString('n'))
+        try {
+            $proc = Start-Process -FilePath $Exe -ArgumentList $ArgumentList -Wait -PassThru `
+                -RedirectStandardOutput $out -RedirectStandardError $err
+            $text = ''
+            if (Test-Path -LiteralPath $out) {
+                $text = [string](Get-Content -Raw -LiteralPath $out -ErrorAction SilentlyContinue)
+            }
+            if (Test-Path -LiteralPath $err) {
+                $errText = [string](Get-Content -Raw -LiteralPath $err -ErrorAction SilentlyContinue)
+                if ($errText) { $text = ($text + "`n" + $errText).Trim() }
+            }
+            return [pscustomobject]@{ ExitCode = $proc.ExitCode; Text = $text }
+        } finally {
+            Remove-Item -LiteralPath $out, $err -Force -ErrorAction SilentlyContinue
+        }
+    }
+    $proc = Start-Process -FilePath $Exe -ArgumentList $ArgumentList -Wait -PassThru -NoNewWindow
+    return [pscustomobject]@{ ExitCode = $proc.ExitCode; Text = '' }
+}
+
+function Test-DashboardUp {
+    try {
+        $resp = Invoke-WebRequest -Uri 'http://127.0.0.1:6052/' -UseBasicParsing -TimeoutSec 3
+        return ($resp.StatusCode -ge 200 -and $resp.StatusCode -lt 500)
+    } catch {
+        return $false
+    }
+}
+
 function Update-DeviceBuilder {
     $candidates = @(
         (Join-Path $env:LOCALAPPDATA 'ESPHome Device Builder\esphome-desktop.exe'),
@@ -287,14 +329,37 @@ function Update-DeviceBuilder {
         return
     }
     Write-Info 'The desktop app is the tray app. Updating the builder inside it.'
-    & $launch open | Out-Null
+    try {
+        $opened = Invoke-EsphomeCli -Exe $launch -ArgumentList @('open')
+    } catch {
+        Write-Warn "Could not start the dashboard ($($_.Exception.Message)). Open the app and choose Check for Updates."
+        return
+    }
+    if ($null -ne $opened.ExitCode -and $opened.ExitCode -ne 0) {
+        Write-Warn 'Could not start the dashboard. Open the app and choose Check for Updates.'
+        return
+    }
     Write-Info 'Waiting until the dashboard is ready. The first start can take several minutes.'
     $ready = $false
     for ($i = 0; $i -lt 120; $i++) {
-        $status = & $launch status 2>$null
-        if ($status -match 'Backend:\s+running, healthy') {
+        $status = $null
+        try {
+            $status = Invoke-EsphomeCli -Exe $launch -ArgumentList @('status') -Capture
+        } catch {
+            $status = $null
+        }
+        if ($status -and $status.Text -match 'Backend:\s+running, healthy') {
             $ready = $true
             break
+        }
+        # `status` writes to the console when its output is not the redirected
+        # file. The dashboard port is the same "ready" signal in that case.
+        if ((-not $status -or -not $status.Text.Trim()) -and (Test-DashboardUp)) {
+            $ready = $true
+            break
+        }
+        if ($i -gt 0 -and ($i % 12) -eq 0) {
+            Write-Info 'Still waiting for the dashboard...'
         }
         Start-Sleep -Seconds 5
     }
@@ -303,13 +368,25 @@ function Update-DeviceBuilder {
         return
     }
     Write-Info 'Updating ESPHome and the device builder. This can take several minutes.'
-    & $launch update
-    if ($LASTEXITCODE -ne 0) {
+    try {
+        $updated = Invoke-EsphomeCli -Exe $launch -ArgumentList @('update')
+    } catch {
+        Write-Warn "The in-app update did not finish ($($_.Exception.Message)). Use the tray icon and choose Check for Updates."
+        return
+    }
+    if ($null -ne $updated.ExitCode -and $updated.ExitCode -ne 0) {
         Write-Warn 'The in-app update did not finish. Use the tray icon and choose Check for Updates.'
         return
     }
     Write-Ok 'Builder update finished.'
-    & $launch status | Select-String '^(ESPHome:|Device builder:)'
+    try {
+        $done = Invoke-EsphomeCli -Exe $launch -ArgumentList @('status') -Capture
+        if ($done.Text) {
+            $done.Text -split '\r?\n' | Select-String '^(ESPHome:|Device builder:)'
+        }
+    } catch {
+        # The version lines are a confirmation. The update already finished.
+    }
 }
 
 function Get-LatestMqttxUrl {
