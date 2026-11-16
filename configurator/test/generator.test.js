@@ -22,6 +22,7 @@ const {
   parseConfigFromYaml,
   topicFor,
   stateTopic,
+  lockTopic,
   STRAPPING_PINS,
   uniqueIds,
   validateConfig,
@@ -190,6 +191,70 @@ test("topic follows the name and state topic is the command topic plus /State", 
   const yaml = generateYaml(config);
   assert.match(yaml, /topic: "trains\/track\/turnout\/Kiama\/Up Loop\/State"/);
   assert.equal(stateTopic(config.points[0].topic), "trains/track/turnout/Kiama/Up Loop/State");
+  assert.equal(lockTopic(config.points[0].topic), "trains/track/turnout/Kiama/Up Loop/Lock");
+  assert.doesNotMatch(yaml, /\/Lock/);
+});
+
+test("remote lock holds a turnout until UNLOCKED, and the default is only the boot value", () => {
+  const config = withCreds(myFirstBoardPreset());
+  config.points[0].controls = [
+    { action: "toggle", buttonPin: "GPIO4", closedLight: "", openLight: "" },
+  ];
+  config.points.push({
+    name: "Yard",
+    topic: "trains/track/turnout/Yard",
+    channel: 1,
+    travelTime: "10s",
+    controls: [{ action: "toggle", buttonPin: "GPIO18", closedLight: "", openLight: "" }],
+  });
+  config.points[0].lockEnabled = true;
+  config.points[0].lockDefault = "locked";
+  const yaml = generateYaml(config);
+  assert.match(yaml, /id: kiama_up_loop_locked\n    type: bool\n    restore_value: false\n    initial_value: "true"/);
+  assert.doesNotMatch(yaml, /id: yard_locked/);
+  assert.match(yaml, /topic: "trains\/track\/turnout\/Kiama\/Up Loop\/Lock"/);
+  assert.doesNotMatch(yaml, /turnout\/Yard\/Lock/);
+  assert.match(yaml, /state: 'LOCKED'/);
+  assert.match(yaml, /state: 'UNLOCKED'/);
+  assert.match(yaml, /Kiama\/Up Loop lock -> LOCKED/);
+  assert.match(yaml, /name: "Kiama - Up Loop lock"/);
+
+  const kiamaButton = yaml.slice(yaml.indexOf("number: GPIO4"), yaml.indexOf("number: GPIO18"));
+  const yardButton = yaml.slice(yaml.indexOf("number: GPIO18"), yaml.indexOf("\nnumber:\n"));
+  assert.match(kiamaButton, /return !id\(kiama_up_loop_locked\);/);
+  assert.doesNotMatch(yardButton, /_locked/);
+
+  const commands = yaml.slice(yaml.indexOf("\ntext_sensor:\n"));
+  const kiamaCommand = commands.slice(commands.indexOf("id: kiama_up_loop\n"), commands.indexOf("id: kiama_up_loop_lock"));
+  const yardCommand = commands.slice(commands.indexOf("id: yard\n"));
+  assert.match(kiamaCommand, /return !id\(kiama_up_loop_locked\);/);
+  assert.equal((kiamaCommand.match(/return !id\(kiama_up_loop_locked\);/g) || []).length, 2);
+  assert.doesNotMatch(yardCommand, /_locked/);
+
+  const boot = yaml.slice(yaml.indexOf("on_boot:"), yaml.indexOf("\nesp32:"));
+  assert.doesNotMatch(boot, /_locked/);
+  assert.match(boot, /throw_closed/);
+
+  const restored = parseConfigFromYaml(yaml);
+  assert.equal(restored.points[0].lockEnabled, true);
+  assert.equal(restored.points[0].lockDefault, "locked");
+  assert.equal(restored.points[1].lockEnabled, false);
+  assert.equal(restored.points[1].lockDefault, "unlocked");
+
+  config.points[0].lockDefault = "unlocked";
+  const unlocked = generateYaml(config);
+  assert.match(unlocked, /initial_value: "false"/);
+
+  config.board.mqttEnabled = false;
+  const silent = generateYaml(config);
+  assert.doesNotMatch(silent, /_locked/);
+  assert.doesNotMatch(silent, /\/Lock/);
+
+  const old = myFirstBoardPreset();
+  const parsed = parseConfigFromYaml(`# ${CONFIG_MARKER}\n# ${JSON.stringify(old)}\n`);
+  normalizeConfig(parsed);
+  assert.equal(parsed.points[0].lockEnabled, false);
+  assert.equal(parsed.points[0].lockDefault, "unlocked");
 });
 
 test("uniqueIds sanitizes names", () => {
@@ -286,6 +351,19 @@ test("panel buttons use pull-up pins, and GPIO34 is rejected", () => {
   assert.match(yaml, /throw_closed/);
   assert.match(yaml, /throw_thrown/);
   assert.match(yaml, /announce: true/);
+  assert.equal((yaml.match(/script\.is_running:/g) || []).length, 4);
+  const buttons = yaml.slice(yaml.indexOf("\nbinary_sensor:\n"), yaml.indexOf("\nnumber:\n"));
+  const toggleAt = buttons.indexOf("\n  - platform: gpio\n    pin:\n      number: GPIO4\n");
+  const closedAtButton = buttons.indexOf("\n  - platform: gpio\n    pin:\n      number: GPIO5\n");
+  const toggleButton = buttons.slice(toggleAt, closedAtButton);
+  const closedButton = buttons.slice(closedAtButton);
+  for (const button of [toggleButton, closedButton]) {
+    assert.match(button, /script\.is_running:\n\s+id: kiama_up_loop_throw_closed/);
+    assert.match(button, /script\.is_running:\n\s+id: kiama_up_loop_throw_thrown/);
+  }
+  assert.match(toggleButton, /lambda: 'return id\(kiama_up_loop_thrown\);'/);
+  assert.match(closedButton, /throw_closed/);
+  assert.doesNotMatch(closedButton, /lambda: 'return id\(kiama_up_loop_thrown\);'/);
   assert.doesNotMatch(yaml, /number: GPIO34/);
 
   config.points[0].controls = [{ action: "toggle", buttonPin: "GPIO34", closedLight: "", openLight: "" }];

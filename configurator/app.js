@@ -9,6 +9,7 @@ const {
   normalizeConfig,
   parseConfigFromYaml,
   stateTopic,
+  lockTopic,
   topicFor,
   validateConfig,
   SIGNAL_COLORS,
@@ -265,6 +266,8 @@ function followName(item, kind, card) {
   }
   const stateInput = card.querySelector("[data-role=state-topic]");
   if (stateInput) stateInput.value = stateTopic(item.topic);
+  const lockInput = card.querySelector("[data-role=lock-topic]");
+  if (lockInput) lockInput.value = lockTopic(item.topic);
 }
 
 function extractCredentials(board = {}) {
@@ -337,7 +340,7 @@ function flash(kind, text) {
   setTimeout(() => div.remove(), 4000);
 }
 
-function linkedField(labelText, value, hint) {
+function linkedField(labelText, value, hint, role = "state-topic") {
   const label = document.createElement("label");
   label.classList.add("full", "linked");
   const title = document.createElement("span");
@@ -347,7 +350,7 @@ function linkedField(labelText, value, hint) {
   input.type = "text";
   input.disabled = true;
   input.value = value;
-  input.dataset.role = "state-topic";
+  input.dataset.role = role;
   label.append(title, input, hintEl(hint));
   return label;
 }
@@ -714,6 +717,8 @@ function renderPoints() {
       point.topicCustom = v !== topicFor("point", point.name);
       const stateInput = card.querySelector("[data-role=state-topic]");
       if (stateInput) stateInput.value = stateTopic(point.topic);
+      const lockInput = card.querySelector("[data-role=lock-topic]");
+      if (lockInput) lockInput.value = lockTopic(point.topic);
       persist();
       updatePreview();
     }, {
@@ -740,6 +745,36 @@ function renderPoints() {
         stateTopic(point.topic),
         "Where the board reports closed or thrown."
       ),
+      field("Remote lock", point.lockEnabled === true, (checked) => {
+        point.lockEnabled = checked;
+        if (point.lockDefault !== "locked") point.lockDefault = "unlocked";
+        persist();
+        render();
+      }, {
+        checkbox: true,
+        hint: state.board.mqttEnabled === false
+          ? "Saved until MQTT is turned back on. LOCKED holds this turnout. UNLOCKED lets it move."
+          : "Listen on the Lock topic. LOCKED holds this turnout. UNLOCKED lets it move.",
+      }),
+      ...(point.lockEnabled === true ? [
+        linkedField(
+          "Lock topic",
+          lockTopic(point.topic),
+          "Publish LOCKED or UNLOCKED here.",
+          "lock-topic"
+        ),
+        field("Default", point.lockDefault === "locked" ? "locked" : "unlocked", (v) => {
+          point.lockDefault = v === "locked" ? "locked" : "unlocked";
+          persist();
+          updatePreview();
+        }, {
+          select: [
+            { value: "unlocked", label: "Unlocked" },
+            { value: "locked", label: "Locked" },
+          ],
+          hint: "How it starts after a reboot, until a lock message arrives.",
+        }),
+      ] : []),
       usesPca()
         ? field("PCA9685 channel (0–15)", point.channel, (v) => {
           point.channel = Number(v);
