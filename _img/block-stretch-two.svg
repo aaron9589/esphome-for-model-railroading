@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="424" viewBox="0 0 960 424" role="img" aria-labelledby="title desc">
+  <title id="title">Two blocks, each with an interim</title>
+  <desc id="desc">Boundary, interim, boundary, interim, boundary. The first block runs from west to mid. The second runs from mid to east.</desc>
+  <rect width="960" height="424" fill="#f4f1ea"/>
+  <g font-family="ui-sans-serif, system-ui, sans-serif" fill="#1c1917">
+    <text x="32" y="36" font-size="18" font-weight="600">Two blocks, each with an interim</text>
+    <text x="32" y="58" fill="#57534e" font-size="13">Mid ends the first block and starts the second. Each block has one interim.</text>
+    <rect x="16" y="100" width="216" height="188" rx="14" fill="#e8f1fb"/>
+    <text x="124.0" y="84" text-anchor="middle" fill="#185fa5" font-size="13" font-weight="600">West · boundary *</text>
+    <g stroke="#185fa5" stroke-width="3" stroke-linecap="butt"><line x1="28" y1="168" x2="102" y2="168"/><line x1="28" y1="180" x2="102" y2="180"/></g><g stroke="#185fa5" stroke-width="2"><line x1="38" y1="168" x2="38" y2="180"/><line x1="54" y1="168" x2="54" y2="180"/><line x1="70" y1="168" x2="70" y2="180"/><line x1="86" y1="168" x2="86" y2="180"/></g>
+    <g stroke="#d32f2f" stroke-width="3" stroke-linecap="butt"><line x1="154.0" y1="168" x2="220" y2="168"/><line x1="154.0" y1="180" x2="220" y2="180"/></g><g stroke="#d32f2f" stroke-width="2"><line x1="164.0" y1="168" x2="164.0" y2="180"/><line x1="180.0" y1="168" x2="180.0" y2="180"/><line x1="196.0" y1="168" x2="196.0" y2="180"/><line x1="212.0" y1="168" x2="212.0" y2="180"/></g>
+    <g transform="translate(124.0 152) scale(1 1)"><circle cx="0" cy="0" r="11" fill="#292524"/><circle cx="0" cy="0" r="5" fill="#f4f1ea"/><polygon points="14,-4 24,0 14,4" fill="#1c1917"/></g>
+    <g transform="translate(124.0 196) scale(-1 1)"><circle cx="0" cy="0" r="11" fill="#292524"/><circle cx="0" cy="0" r="5" fill="#f4f1ea"/><polygon points="14,-4 24,0 14,4" fill="#1c1917"/></g>
+    <circle cx="124.0" cy="174" r="6" fill="#0f6e56"/>
+    <text x="65.0" y="270" text-anchor="middle" fill="#185fa5" font-size="11" font-weight="600">left block</text>
+    <text x="187.0" y="270" text-anchor="middle" fill="#b42318" font-size="11" font-weight="600">right block</text>
+    <rect x="240" y="100" width="124" height="188" rx="14" fill="#e7f6ef"/>
+    <text x="302.0" y="84" text-anchor="middle" fill="#0f6e56" font-size="13" font-weight="600">Near</text>
+    <g stroke="#0f6e56" stroke-width="3" stroke-linecap="butt"><line x1="256" y1="168" x2="348" y2="168"/><line x1="256" y1="180" x2="348" y2="180"/></g><g stroke="#0f6e56" stroke-width="2"><line x1="266" y1="168" x2="266" y2="180"/><line x1="282" y1="168" x2="282" y2="180"/><line x1="298" y1="168" x2="298" y2="180"/><line x1="314" y1="168" x2="314" y2="180"/><line x1="330" y1="168" x2="330" y2="180"/></g>
+    <text x="302.0" y="270" text-anchor="middle" fill="#0f6e56" font-size="11" font-weight="600">detector</text>
+    <rect x="372" y="100" width="216" height="188" rx="14" fill="#e8f1fb"/>
+    <text x="480.0" y="84" text-anchor="middle" fill="#185fa5" font-size="13" font-weight="600">Mid · boundary *</text>
+    <g stroke="#d32f2f" stroke-width="3" stroke-linecap="butt"><line x1="384" y1="168" x2="458" y2="168"/><line x1="384" y1="180" x2="458" y2="180"/></g><g stroke="#d32f2f" stroke-width="2"><line x1="394" y1="168" x2="394" y2="180"/><line x1="410" y1="168" x2="410" y2="180"/><line x1="426" y1="168" x2="426" y2="180"/><line x1="442" y1="168" x2="442" y2="180"/></g>
+    <g stroke="#854f0b" stroke-width="3" stroke-linecap="butt"><line x1="510.0" y1="168" x2="576" y2="168"/><line x1="510.0" y1="180" x2="576" y2="180"/></g><g stroke="#854f0b" stroke-width="2"><line x1="520.0" y1="168" x2="520.0" y2="180"/><line x1="536.0" y1="168" x2="536.0" y2="180"/><line x1="552.0" y1="168" x2="552.0" y2="180"/><line x1="568.0" y1="168" x2="568.0" y2="180"/></g>
+    <g transform="translate(480.0 152) scale(1 1)"><circle cx="0" cy="0" r="11" fill="#292524"/><circle cx="0" cy="0" r="5" fill="#f4f1ea"/><polygon points="14,-4 24,0 14,4" fill="#1c1917"/></g>
+    <g transform="translate(480.0 196) scale(-1 1)"><circle cx="0" cy="0" r="11" fill="#292524"/><circle cx="0" cy="0" r="5" fill="#f4f1ea"/><polygon points="14,-4 24,0 14,4" fill="#1c1917"/></g>
+    <circle cx="480.0" cy="174" r="6" fill="#0f6e56"/>
+    <text x="421.0" y="270" text-anchor="middle" fill="#b42318" font-size="11" font-weight="600">left block</text>
+    <text x="543.0" y="270" text-anchor="middle" fill="#854f0b" font-size="11" font-weight="600">right block</text>
+    <rect x="596" y="100" width="124" height="188" rx="14" fill="#e7f6ef"/>
+    <text x="658.0" y="84" text-anchor="middle" fill="#0f6e56" font-size="13" font-weight="600">Far</text>
+    <g stroke="#0f6e56" stroke-width="3" stroke-linecap="butt"><line x1="612" y1="168" x2="704" y2="168"/><line x1="612" y1="180" x2="704" y2="180"/></g><g stroke="#0f6e56" stroke-width="2"><line x1="622" y1="168" x2="622" y2="180"/><line x1="638" y1="168" x2="638" y2="180"/><line x1="654" y1="168" x2="654" y2="180"/><line x1="670" y1="168" x2="670" y2="180"/><line x1="686" y1="168" x2="686" y2="180"/></g>
+    <text x="658.0" y="270" text-anchor="middle" fill="#0f6e56" font-size="11" font-weight="600">detector</text>
+    <rect x="728" y="100" width="216" height="188" rx="14" fill="#e8f1fb"/>
+    <text x="836.0" y="84" text-anchor="middle" fill="#185fa5" font-size="13" font-weight="600">East · boundary *</text>
+    <g stroke="#854f0b" stroke-width="3" stroke-linecap="butt"><line x1="740" y1="168" x2="814" y2="168"/><line x1="740" y1="180" x2="814" y2="180"/></g><g stroke="#854f0b" stroke-width="2"><line x1="750" y1="168" x2="750" y2="180"/><line x1="766" y1="168" x2="766" y2="180"/><line x1="782" y1="168" x2="782" y2="180"/><line x1="798" y1="168" x2="798" y2="180"/></g>
+    <g stroke="#6d28d9" stroke-width="3" stroke-linecap="butt"><line x1="866.0" y1="168" x2="932" y2="168"/><line x1="866.0" y1="180" x2="932" y2="180"/></g><g stroke="#6d28d9" stroke-width="2"><line x1="876.0" y1="168" x2="876.0" y2="180"/><line x1="892.0" y1="168" x2="892.0" y2="180"/><line x1="908.0" y1="168" x2="908.0" y2="180"/><line x1="924.0" y1="168" x2="924.0" y2="180"/></g>
+    <g transform="translate(836.0 152) scale(1 1)"><circle cx="0" cy="0" r="11" fill="#292524"/><circle cx="0" cy="0" r="5" fill="#f4f1ea"/><polygon points="14,-4 24,0 14,4" fill="#1c1917"/></g>
+    <g transform="translate(836.0 196) scale(-1 1)"><circle cx="0" cy="0" r="11" fill="#292524"/><circle cx="0" cy="0" r="5" fill="#f4f1ea"/><polygon points="14,-4 24,0 14,4" fill="#1c1917"/></g>
+    <circle cx="836.0" cy="174" r="6" fill="#0f6e56"/>
+    <text x="777.0" y="270" text-anchor="middle" fill="#854f0b" font-size="11" font-weight="600">left block</text>
+    <text x="899.0" y="270" text-anchor="middle" fill="#6d28d9" font-size="11" font-weight="600">right block</text>
+    <line x1="154.0" y1="312" x2="458" y2="312" stroke="#d32f2f" stroke-width="2"/><line x1="154.0" y1="304" x2="154.0" y2="320" stroke="#d32f2f" stroke-width="2"/><line x1="458" y1="304" x2="458" y2="320" stroke="#d32f2f" stroke-width="2"/><text x="306.0" y="340" text-anchor="middle" fill="#b42318" font-size="12" font-weight="600">first block</text><line x1="510.0" y1="312" x2="814" y2="312" stroke="#854f0b" stroke-width="2"/><line x1="510.0" y1="304" x2="510.0" y2="320" stroke="#854f0b" stroke-width="2"/><line x1="814" y1="304" x2="814" y2="320" stroke="#854f0b" stroke-width="2"/><text x="662.0" y="340" text-anchor="middle" fill="#854f0b" font-size="12" font-weight="600">second block</text><text x="32" y="372" fill="#57534e" font-size="13">West's right pairs to near, and near's other end pairs to mid's left.</text><text x="32" y="396" fill="#57534e" font-size="13">Mid's right pairs to far, and far's other end pairs to east's left.</text>
+  </g>
+</svg>

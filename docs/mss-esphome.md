@@ -178,6 +178,44 @@ The next pictures follow one train from the west block to the east.
 
 Approach lighting is off in these pictures, so a clear road shows Clear. Another interim between west and east still belongs to this one block. Pair west straight to east, with no interim, and the same two signals still protect the block between them.
 
+## Two more interims
+
+The same block, with two more interims between west and east. An interim still cannot end a block. A train on any of the three occupies the whole block, so moving from one interim to the next does not change the signals.
+
+![West boundary, three interims, and east boundary. West's right block, the three detectors, and east's left block are one block.](../_img/block-stretch-interims.svg)
+
+West's right neighbour is `near-board/one`. Near pairs onward to mid, mid pairs onward to far, and far's other end is `east-board/left`. East's left neighbour is `far-board/two`. Each interim adds its own detector to this block and passes `next` through.
+
+![Three interims, no train. Every signal shows Clear.](../_img/block-interims-1.svg)
+
+![block/west-board/left is occupied. The signal facing that block shows Stop.](../_img/block-interims-2.svg)
+
+![The middle interim is occupied. Near and far pass that on, and both signals facing this block show Stop.](../_img/block-interims-3.svg)
+
+![East's right block is occupied. That signal shows Stop. West shows Approach.](../_img/block-interims-4.svg)
+
+## Two blocks
+
+West, mid, and east are boundaries. Near sits in the first block, between west and mid. Far sits in the second, between mid and east.
+
+![Boundary, interim, boundary, interim, boundary. The first block runs from west to mid. The second runs from mid to east.](../_img/block-stretch-two.svg)
+
+West's right neighbour is `near-board/one`, and near's other end is `mid-board/left`. Mid's right neighbour is `far-board/one`, and far's other end is `east-board/left`.
+
+The signal on west that faces east protects the first block, and so does the signal on mid that faces west. The signal on mid that faces east protects the second block, and so does the signal on east that faces west.
+
+![No train. Every signal shows Clear.](../_img/block-two-1.svg)
+
+![West's left block is occupied. The signal facing it shows Stop.](../_img/block-two-2.svg)
+
+![The near interim is occupied. West facing east and mid facing west show Stop.](../_img/block-two-3.svg)
+
+![The far interim is occupied. Mid facing east and east facing west show Stop. West shows Approach.](../_img/block-two-4.svg)
+
+![East's right block is occupied. East shows Stop, mid shows Approach, and west shows Advance Approach.](../_img/block-two-5.svg)
+
+Advance Approach is the block after the next. It shows here because both signal blocks are clear and the block past east is occupied.
+
 ## A junction
 
 A junction is a starred end of every block that meets it. The three signals face the turnout, so each one protects entry along that leg. The leg that is not lined is held occupied. The centre optic and the throat detector occupy the throat block, whichever leg the train is on. The main detector occupies the main route. The diverging detector occupies the diverging route.
