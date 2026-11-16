@@ -10,7 +10,7 @@
     <text x="52" y="156" fill="#57534e" font-size="13">At the signals. A train here</text>
     <text x="52" y="176" fill="#57534e" font-size="13">occupies both blocks that</text>
     <text x="52" y="196" fill="#57534e" font-size="13">meet at that boundary.</text>
-    <text x="52" y="262" fill="#0f6e56" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">joint/board</text>
+    <text x="52" y="262" fill="#0f6e56" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">boundaryOptic/board</text>
     <rect x="336" y="88" width="288" height="210" rx="12" fill="#fffdf8" stroke="#e7e2d8"/>
     <text x="356" y="122" font-size="15" font-weight="600">Current detector</text>
     <text x="356" y="156" fill="#57534e" font-size="13">Left and right on a boundary.</text>
@@ -22,7 +22,7 @@
     <text x="660" y="156" fill="#57534e" font-size="13">In the centre. A train on</text>
     <text x="660" y="176" fill="#57534e" font-size="13">either leg occupies the</text>
     <text x="660" y="196" fill="#57534e" font-size="13">throat block.</text>
-    <text x="660" y="262" fill="#0f6e56" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">turnout/board</text>
+    <text x="660" y="262" fill="#0f6e56" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">turnoutOptic/board</text>
     <rect x="32" y="318" width="896" height="88" rx="12" fill="#e7f6ef" stroke="#0f6e56"/>
     <text x="52" y="350" font-size="14" font-weight="600">The block</text>
     <text x="52" y="376" fill="#57534e" font-size="13">Occupied when any detector or optic in it is occupied, or a junction turnout is set against the route.</text>

@@ -44,7 +44,7 @@ A block runs from one boundary or junction to the next boundary or junction. Tho
 
 **Junction \*.** A turnout, with the optic in the centre of it, so a train on either leg is seen. One signal on each leg — throat, main, and branch — facing the turnout. Three block detectors. The throat block is the throat approach and the turnout. The main block is the main route. The diverging block is the diverging route. The centre optic occupies the throat block. It does not occupy the main block or the diverging block.
 
-![Current, optic, and a turnout against the route become one block. The script reads the block it protects, the next block, the one after, and diverging. Held on an absolute mast forces Stop.](../_img/block-script.svg)
+![The board publishes detect, boundaryOptic, turnoutOptic, and diverging. Those words become the postcard. The signal reads BLOCK, NEXT, AFTER, and DIVERGING.](../_img/block-script.svg)
 
 ## Occupancy and aspects
 
@@ -84,17 +84,17 @@ Sidings and spurs that are not signalled stay out of this. Both rails are still 
 
 ## What a board publishes
 
-Facts are retained, QoS 1. The payload is the version, then `OCCUPIED` or `CLEAR` for a detector, a joint, or a turnout, and `ACTIVE` or `INACTIVE` for diverging.
+Facts are retained, QoS 1. The payload is the version, then `OCCUPIED` or `CLEAR` for a detector or an optic, and `ACTIVE` or `INACTIVE` for diverging.
 
 ```
 mss/<track>/detect/<board>
 mss/<track>/detect/<board>/<place>
-mss/<track>/joint/<board>
-mss/<track>/turnout/<board>
+mss/<track>/boundaryOptic/<board>
+mss/<track>/turnoutOptic/<board>
 mss/<track>/diverging/<board>
 ```
 
-`detect/<board>` is an interim's one block detector. `detect/<board>/<place>` is one block on a boundary (`left`, `right`) or a junction (`throat`, `main`, `branch`). `joint` is the optic in the centre of a boundary. `turnout` is the optic in the centre of the turnout. `diverging` is `ACTIVE` only when the branch is lined and that block's own detectors are clear.
+`detect/<board>` is an interim's one block detector. `detect/<board>/<place>` is one block on a boundary (`left`, `right`) or a junction (`throat`, `main`, `branch`). `boundaryOptic` is the optic in the centre of a boundary. `turnoutOptic` is the optic in the centre of the turnout. `diverging` is `ACTIVE` only when the branch is lined and that block's own detectors are clear.
 
 JMRI train tracking stays on `trains/track/sensor/...`, and those messages are not retained. The signal script does not read that topic.
 
@@ -118,7 +118,7 @@ Each board also publishes:
 mss/<track>/node/<board>/online
 ```
 
-`1 ONLINE` while it is connected, `1 OFFLINE` as its last will. Both are retained. Detector, joint, turnout, diverging, and postcard topics are published again about once a second. A block input counts as occupied unless the board is `ONLINE`, the payload is `CLEAR`, and a copy arrived within the last three seconds. A missing diverging topic stays `INACTIVE`.
+`1 ONLINE` while it is connected, `1 OFFLINE` as its last will. Both are retained. Detector, boundary optic, turnout optic, diverging, and postcard topics are published again about once a second. A block input counts as occupied unless the board is `ONLINE`, the payload is `CLEAR`, and a copy arrived within the last three seconds. A missing diverging topic stays `INACTIVE`.
 
 ![A topic is clear only when its board is online, the payload is CLEAR, and a copy arrived within three seconds. Occupied, offline, quiet, and unheard all count as occupied.](../_img/block-failsafe.svg)
 
@@ -155,13 +155,13 @@ West's right neighbour is `gap-board/one`. The interim's `one` end stores `west-
 
 The signal on west that faces east protects this block. Stop is this block. Approach is the next block, which east names in `NEXT`. The signal on east that faces east protects the next block. The signal on east that faces west protects this block.
 
-![The block is clear. The signals facing this block and the next block show Clear.](../_img/block-run-clear.svg)
+![Every detector publishes 1 CLEAR. Both postcards are 1 CLEAR CLEAR CLEAR INACTIVE. West reads ahead/gap-board/one and east reads ahead/gap-board/two. The signals show Clear.](../_img/block-run-clear.svg)
 
-![A train on the interim occupies the whole block. Both signals that protect it show Stop. The signal facing the next block stays Clear.](../_img/block-run-interim.svg)
+![detect/gap-board is 1 OCCUPIED. Both postcards carry OCCUPIED as BLOCK. West facing east and east facing west read that word and show Stop.](../_img/block-run-interim.svg)
 
-![The optic at the east signals occupies this block and the next. The signals that protect either block show Stop.](../_img/block-run-optic.svg)
+![boundaryOptic/east-board is 1 OCCUPIED. East's right postcard and both interim postcards carry it. The signals that protect this block and the next show Stop.](../_img/block-run-optic.svg)
 
-![A train in the next block, clear of the optic. The signal facing that block shows Stop. The signal on west that faces this block shows Approach.](../_img/block-run-next.svg)
+![ahead/east-board/right is 1 OCCUPIED. East facing next reads BLOCK and shows Stop. The westward postcard carries that as NEXT, so west facing east shows Approach.](../_img/block-run-next.svg)
 
 Approach lighting is off in these pictures, so a clear road shows Clear. Another interim between west and east still belongs to this one block. Pair west straight to east, with no interim, and the same two signals still protect the block between them.
 
