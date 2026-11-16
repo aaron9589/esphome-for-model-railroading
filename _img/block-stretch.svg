@@ -56,9 +56,9 @@
     <text x="360" y="248" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="12">detect/gap-board</text>
     <text x="360" y="270" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="12">ahead/gap-board/one</text>
     <text x="360" y="292" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="12">ahead/gap-board/two</text>
-    <text x="360" y="322" fill="#57534e" font-size="13">Board one</text>
+    <text x="360" y="322" fill="#57534e" font-size="13">end one</text>
     <text x="360" y="340" fill="#57534e" font-size="13">west-board/right</text>
-    <text x="360" y="368" fill="#57534e" font-size="13">Board two</text>
+    <text x="360" y="368" fill="#57534e" font-size="13">end two</text>
     <text x="360" y="386" fill="#57534e" font-size="13">east-board/left</text>
     <rect x="628" y="200" width="300" height="248" rx="12" fill="#e8f1fb" stroke="#185fa5"/>
     <text x="778.0" y="228" text-anchor="middle" font-size="15" font-weight="600">east · boundary</text>

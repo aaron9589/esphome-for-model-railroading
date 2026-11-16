@@ -12,12 +12,12 @@
     <text x="176" y="200" text-anchor="middle" fill="#57534e" font-size="13">is stored.</text>
     <rect x="336" y="84" width="288" height="168" rx="12" fill="#faeeda" stroke="#854f0b"/>
     <text x="480" y="116" text-anchor="middle" font-size="15" font-weight="600">2. Pair on west</text>
-    <text x="480" y="148" text-anchor="middle" fill="#44403c" font-size="13">Publishes OFFER</text>
+    <text x="480" y="148" text-anchor="middle" fill="#44403c" font-size="13">Publishes 1 OFFER</text>
     <text x="480" y="170" text-anchor="middle" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">west-board/right</text>
     <text x="480" y="200" text-anchor="middle" fill="#57534e" font-size="13">and keeps flashing.</text>
     <rect x="640" y="84" width="288" height="168" rx="12" fill="#e7f6ef" stroke="#0f6e56"/>
     <text x="784" y="116" text-anchor="middle" font-size="15" font-weight="600">3. Pair on east</text>
-    <text x="784" y="148" text-anchor="middle" fill="#44403c" font-size="13">Publishes ACCEPT</text>
+    <text x="784" y="148" text-anchor="middle" fill="#44403c" font-size="13">Publishes 1 ACCEPT</text>
     <text x="784" y="170" text-anchor="middle" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">east-board/left</text>
     <text x="784" y="200" text-anchor="middle" fill="#57534e" font-size="13">Both ends store it.</text>
     <text x="32" y="284" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">mss/main/pair</text>
