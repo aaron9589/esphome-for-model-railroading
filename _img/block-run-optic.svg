@@ -1,10 +1,10 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="960" height="538" viewBox="0 0 960 538" role="img" aria-labelledby="title desc">
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="562" viewBox="0 0 960 562" role="img" aria-labelledby="title desc">
   <title id="title">3. A train is on the boundary optic</title>
-  <desc id="desc">boundaryOptic/east-board is 1 OCCUPIED. It sets BLOCK for this block and for the next. The signals that protect either block show Stop.</desc>
-  <rect width="960" height="538" fill="#f4f1ea"/>
+  <desc id="desc">optic/boundary/east-board is v1 OCCUPIED. That occupies this block and the next. The signals that protect either block show Stop.</desc>
+  <rect width="960" height="562" fill="#f4f1ea"/>
   <g font-family="ui-sans-serif, system-ui, sans-serif" fill="#1c1917">
     <text x="32" y="36" font-size="18" font-weight="600">3. A train is on the boundary optic</text>
-    <text x="32" y="58" fill="#57534e" font-size="13">East's optic publishes OCCUPIED. It occupies this block and the next, so the signals that protect either block show Stop.</text>
+    <text x="32" y="58" fill="#57534e" font-size="13">East's optic publishes v1 OCCUPIED. It occupies this block and the next, so the signals that protect either block show Stop.</text>
     <text x="160" y="88" text-anchor="middle" fill="#185fa5" font-size="12" font-weight="600">west boundary</text>
     <text x="470" y="88" text-anchor="middle" fill="#0f6e56" font-size="12" font-weight="600">interim · this block</text>
     <text x="700" y="88" text-anchor="middle" fill="#185fa5" font-size="12" font-weight="600">east boundary</text>
@@ -21,15 +21,16 @@
     <rect x="512" y="184" width="64" height="24" rx="8" fill="#fde8e8" stroke="#b42318"/><text x="544.0" y="200" text-anchor="middle" fill="#b42318" font-size="12" font-weight="600">Stop</text>
     <rect x="668" y="146" width="72" height="32" rx="6" fill="#292524"/>
     <text x="704" y="167" text-anchor="middle" fill="#f4f1ea" font-size="12" font-weight="600">train</text>
-    <rect x="32" y="228" width="896" height="286" rx="12" fill="#fffdf8" stroke="#e7e2d8"/>
+    <rect x="32" y="228" width="896" height="310" rx="12" fill="#fffdf8" stroke="#e7e2d8"/>
     <text x="48" y="256" font-size="13" font-weight="600">Sent</text>
-    <text x="48" y="280" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">boundaryOptic/east-board                1 OCCUPIED</text>
-    <text x="48" y="304" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">ahead/east-board/right                  1 OCCUPIED CLEAR CLEAR NORMAL</text>
-    <text x="48" y="328" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">ahead/gap-board/one                     1 OCCUPIED OCCUPIED CLEAR NORMAL</text>
-    <text x="48" y="352" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">ahead/gap-board/two                     1 OCCUPIED CLEAR CLEAR NORMAL</text>
-    <text x="48" y="376" font-size="13" font-weight="600">Acted on</text>
-    <text x="48" y="400" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">east facing next reads its right BLOCK  Stop</text>
-    <text x="48" y="424" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">west facing east reads one, BLOCK       Stop</text>
-    <text x="48" y="448" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">east facing west reads two, BLOCK       Stop</text>
-    <text x="48" y="480" fill="#57534e" font-size="13">Stop wins, so the OCCUPIED next word on the westward postcard does not show Approach.</text>
+    <text x="48" y="280" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">optic/boundary/east-board               v1 OCCUPIED</text>
+    <text x="48" y="304" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">ahead/east-board/right/block            v1 OCCUPIED</text>
+    <text x="48" y="328" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">ahead/gap-board/one/block               v1 OCCUPIED</text>
+    <text x="48" y="352" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">ahead/gap-board/one/next                v1 OCCUPIED</text>
+    <text x="48" y="376" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">ahead/gap-board/two/block               v1 OCCUPIED</text>
+    <text x="48" y="400" font-size="13" font-weight="600">Acted on</text>
+    <text x="48" y="424" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">east facing next reads right/block      Stop</text>
+    <text x="48" y="448" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">west facing east reads one/block        Stop</text>
+    <text x="48" y="472" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">east facing west reads two/block        Stop</text>
+    <text x="48" y="504" fill="#57534e" font-size="13">Stop wins, so one/next being occupied does not show Approach.</text>
   </g></svg>

@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="960" height="520" viewBox="0 0 960 520" role="img" aria-labelledby="title desc">
   <title id="title">A boundary, an interim, and a boundary forming one block</title>
-  <desc id="desc">West and east are boundaries. The interim between them publishes its detector and passes the postcard through, adding its detector to BLOCK. The track past east is the next block.</desc>
+  <desc id="desc">West and east are boundaries. The interim between them publishes its block and passes next, after, and turnout through. The track past east is the next block.</desc>
   <rect width="960" height="520" fill="#f4f1ea"/>
   <g font-family="ui-sans-serif, system-ui, sans-serif" fill="#1c1917">
     <text x="32" y="36" font-size="18" font-weight="600">One block, with an interim in it</text>
@@ -46,28 +46,28 @@
     <text x="786" y="128" text-anchor="middle" fill="#78716c" font-size="12">next block</text>
     <rect x="32" y="200" width="300" height="248" rx="12" fill="#e8f1fb" stroke="#185fa5"/>
     <text x="182.0" y="228" text-anchor="middle" font-size="15" font-weight="600">west · boundary</text>
-    <text x="48" y="248" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="12">detect/west-board/right</text>
-    <text x="48" y="270" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="12">boundaryOptic/west-board</text>
-    <text x="48" y="292" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="12">ahead/west-board/right</text>
+    <text x="48" y="248" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="12">block/west-board/right</text>
+    <text x="48" y="270" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="12">optic/boundary/west-board</text>
+    <text x="48" y="292" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="12">ahead/west-board/right/block</text>
     <text x="48" y="322" fill="#57534e" font-size="13">Right neighbour</text>
     <text x="48" y="340" fill="#57534e" font-size="13">gap-board/one</text>
     <rect x="344" y="200" width="272" height="248" rx="12" fill="#e7f6ef" stroke="#0f6e56"/>
     <text x="480.0" y="228" text-anchor="middle" font-size="15" font-weight="600">gap · interim</text>
-    <text x="360" y="248" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="12">detect/gap-board</text>
-    <text x="360" y="270" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="12">ahead/gap-board/one</text>
-    <text x="360" y="292" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="12">ahead/gap-board/two</text>
+    <text x="360" y="248" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="12">block/gap-board</text>
+    <text x="360" y="270" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="12">ahead/gap-board/one/block</text>
+    <text x="360" y="292" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="12">ahead/gap-board/two/block</text>
     <text x="360" y="322" fill="#57534e" font-size="13">end one</text>
     <text x="360" y="340" fill="#57534e" font-size="13">west-board/right</text>
     <text x="360" y="368" fill="#57534e" font-size="13">end two</text>
     <text x="360" y="386" fill="#57534e" font-size="13">east-board/left</text>
     <rect x="628" y="200" width="300" height="248" rx="12" fill="#e8f1fb" stroke="#185fa5"/>
     <text x="778.0" y="228" text-anchor="middle" font-size="15" font-weight="600">east · boundary</text>
-    <text x="644" y="248" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="12">detect/east-board/left</text>
-    <text x="644" y="270" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="12">boundaryOptic/east-board</text>
-    <text x="644" y="292" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="12">ahead/east-board/left</text>
+    <text x="644" y="248" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="12">block/east-board/left</text>
+    <text x="644" y="270" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="12">optic/boundary/east-board</text>
+    <text x="644" y="292" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="12">ahead/east-board/left/block</text>
     <text x="644" y="322" fill="#57534e" font-size="13">Left neighbour</text>
     <text x="644" y="340" fill="#57534e" font-size="13">gap-board/two</text>
-    <text x="32" y="472" fill="#57534e" font-size="13">West's signal facing east reads ahead/gap-board/one. East's signal facing west reads ahead/gap-board/two.</text>
-    <text x="32" y="494" fill="#57534e" font-size="13">The interim ORs detect/gap-board into BLOCK on both postcards, and copies NEXT through.</text>
+    <text x="32" y="472" fill="#57534e" font-size="13">West's signal facing east reads ahead/gap-board/one/block. East facing west reads two/block.</text>
+    <text x="32" y="494" fill="#57534e" font-size="13">The interim ORs block/gap-board into ahead/…/block on both ends, and copies next through.</text>
   </g>
 </svg>

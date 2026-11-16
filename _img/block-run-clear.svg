@@ -1,10 +1,10 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="960" height="538" viewBox="0 0 960 538" role="img" aria-labelledby="title desc">
   <title id="title">1. The block is clear</title>
-  <desc id="desc">Clear detectors and a clear postcard. The signals facing this block and the next block show Clear.</desc>
+  <desc id="desc">Clear block and optic topics. ahead block topics are clear. The signals facing this block and the next block show Clear.</desc>
   <rect width="960" height="538" fill="#f4f1ea"/>
   <g font-family="ui-sans-serif, system-ui, sans-serif" fill="#1c1917">
     <text x="32" y="36" font-size="18" font-weight="600">1. The block is clear</text>
-    <text x="32" y="58" fill="#57534e" font-size="13">Every detector and optic publishes CLEAR. Both postcards say CLEAR, so every signal shows Clear.</text>
+    <text x="32" y="58" fill="#57534e" font-size="13">Every block and optic publishes v1 CLEAR. The ahead block topics are clear, so every signal shows Clear.</text>
     <text x="160" y="88" text-anchor="middle" fill="#185fa5" font-size="12" font-weight="600">west boundary</text>
     <text x="470" y="88" text-anchor="middle" fill="#0f6e56" font-size="12" font-weight="600">interim · this block</text>
     <text x="700" y="88" text-anchor="middle" fill="#185fa5" font-size="12" font-weight="600">east boundary</text>
@@ -21,13 +21,13 @@
     <rect x="512" y="184" width="64" height="24" rx="8" fill="#e7f6ef" stroke="#0f6e56"/><text x="544.0" y="200" text-anchor="middle" fill="#0f6e56" font-size="12" font-weight="600">Clear</text>
     <rect x="32" y="228" width="896" height="286" rx="12" fill="#fffdf8" stroke="#e7e2d8"/>
     <text x="48" y="256" font-size="13" font-weight="600">Sent</text>
-    <text x="48" y="280" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">detect/gap-board                         1 CLEAR</text>
-    <text x="48" y="304" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">boundaryOptic/west-board                1 CLEAR</text>
-    <text x="48" y="328" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">boundaryOptic/east-board                1 CLEAR</text>
-    <text x="48" y="352" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">ahead/gap-board/one                     1 CLEAR CLEAR CLEAR NORMAL</text>
-    <text x="48" y="376" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">ahead/gap-board/two                     1 CLEAR CLEAR CLEAR NORMAL</text>
+    <text x="48" y="280" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">block/gap-board                         v1 CLEAR</text>
+    <text x="48" y="304" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">optic/boundary/west-board               v1 CLEAR</text>
+    <text x="48" y="328" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">optic/boundary/east-board               v1 CLEAR</text>
+    <text x="48" y="352" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">ahead/gap-board/one/block               v1 CLEAR</text>
+    <text x="48" y="376" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">ahead/gap-board/two/block               v1 CLEAR</text>
     <text x="48" y="400" font-size="13" font-weight="600">Acted on</text>
-    <text x="48" y="424" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">west facing east reads one, BLOCK       Clear</text>
-    <text x="48" y="448" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">east facing west reads two, BLOCK       Clear</text>
+    <text x="48" y="424" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">west facing east reads one/block        Clear</text>
+    <text x="48" y="448" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">east facing west reads two/block        Clear</text>
     <text x="48" y="480" fill="#57534e" font-size="13">Grey is the previous block. Red is this block. Brown is the next block.</text>
   </g></svg>

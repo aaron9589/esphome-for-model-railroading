@@ -1,33 +1,35 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="960" height="560" viewBox="0 0 960 560" role="img" aria-labelledby="title desc">
   <title id="title">What one signal reads</title>
-  <desc id="desc">The board publishes detect, boundaryOptic, turnoutOptic, and diverging. Those become the four words of the ahead postcard. The signal reads BLOCK as Stop, NEXT as Approach, AFTER as Advance Approach, and DIVERGING with NEXT as Approach Diverging.</desc>
+  <desc id="desc">The board publishes block, optic, and turnout lined. It passes each fact on as its own ahead topic. The signal reads block as Stop, next as Approach, after as Advance Approach, and turnout REVERSE with next as Approach Diverging.</desc>
   <rect width="960" height="560" fill="#f4f1ea"/>
   <g font-family="ui-sans-serif, system-ui, sans-serif" fill="#1c1917">
     <text x="32" y="36" font-size="18" font-weight="600">What one signal reads</text>
-    <text x="32" y="58" fill="#57534e" font-size="13">The board publishes what it measured. The postcard carries that to the signal facing this way.</text>
+    <text x="32" y="58" fill="#57534e" font-size="13">The board publishes what it measured. Each ahead topic carries one fact to the signal facing this way.</text>
     <rect x="16" y="76" width="928" height="196" rx="16" fill="#e7f6ef"/>
     <text x="36" y="104" fill="#0f6e56" font-size="15" font-weight="600">1. Published</text>
-    <text x="52" y="140" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13" fill="#44403c">detect/board/right</text>
-    <text x="280" y="140" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">1 OCCUPIED or 1 CLEAR</text>
-    <text x="52" y="164" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13" fill="#44403c">boundaryOptic/board</text>
-    <text x="280" y="164" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">1 OCCUPIED or 1 CLEAR</text>
-    <text x="52" y="188" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13" fill="#44403c">turnoutOptic/board</text>
-    <text x="280" y="188" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">1 OCCUPIED or 1 CLEAR</text>
-    <text x="52" y="212" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13" fill="#44403c">diverging/board</text>
-    <text x="280" y="212" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">1 REVERSE or 1 NORMAL</text>
-    <text x="36" y="248" fill="#57534e" font-size="13">Any occupied detector or optic in the block sets BLOCK. Diverging stays its own word.</text>
+    <text x="52" y="140" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13" fill="#44403c">block/board/right</text>
+    <text x="300" y="140" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">v1 OCCUPIED or v1 CLEAR</text>
+    <text x="52" y="164" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13" fill="#44403c">optic/boundary/board</text>
+    <text x="300" y="164" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">v1 OCCUPIED or v1 CLEAR</text>
+    <text x="52" y="188" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13" fill="#44403c">optic/turnout/board</text>
+    <text x="300" y="188" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">v1 OCCUPIED or v1 CLEAR</text>
+    <text x="52" y="212" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13" fill="#44403c">turnout/board/lined</text>
+    <text x="300" y="212" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">v1 REVERSE or v1 NORMAL</text>
+    <text x="36" y="248" fill="#57534e" font-size="13">Any occupied block or optic sets ahead/…/block. The turnout topic stays its own fact.</text>
     <rect x="16" y="288" width="928" height="252" rx="16" fill="#e8f1fb"/>
-    <text x="36" y="316" fill="#185fa5" font-size="15" font-weight="600">2. Read from the postcard ahead</text>
-    <text x="36" y="344" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13" fill="#44403c">ahead/neighbour</text>
-    <text x="220" y="344" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">1  BLOCK  NEXT  AFTER  DIVERGING</text>
-    <text x="52" y="384" font-size="14">BLOCK occupied</text>
-    <text x="280" y="384" font-size="14" font-weight="600" fill="#b42318">Stop</text>
-    <text x="52" y="410" font-size="14">NEXT occupied</text>
-    <text x="280" y="410" font-size="14" font-weight="600" fill="#854f0b">Approach</text>
-    <text x="52" y="436" font-size="14">AFTER occupied</text>
-    <text x="280" y="436" font-size="14" font-weight="600" fill="#854f0b">Advance Approach</text>
-    <text x="52" y="462" font-size="14">NEXT occupied and DIVERGING REVERSE</text>
-    <text x="420" y="462" font-size="14" font-weight="600" fill="#854f0b">Approach Diverging</text>
+    <text x="36" y="316" fill="#185fa5" font-size="15" font-weight="600">2. Read the ahead topics</text>
+    <text x="52" y="352" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13" fill="#44403c">ahead/neighbour/block</text>
+    <text x="320" y="352" font-size="14">occupied</text>
+    <text x="460" y="352" font-size="14" font-weight="600" fill="#b42318">Stop</text>
+    <text x="52" y="384" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13" fill="#44403c">ahead/neighbour/next</text>
+    <text x="320" y="384" font-size="14">occupied</text>
+    <text x="460" y="384" font-size="14" font-weight="600" fill="#854f0b">Approach</text>
+    <text x="52" y="416" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13" fill="#44403c">ahead/neighbour/after</text>
+    <text x="320" y="416" font-size="14">occupied</text>
+    <text x="460" y="416" font-size="14" font-weight="600" fill="#854f0b">Advance Approach</text>
+    <text x="52" y="448" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13" fill="#44403c">ahead/neighbour/next</text>
+    <text x="320" y="448" font-size="14">occupied, turnout REVERSE</text>
+    <text x="560" y="448" font-size="14" font-weight="600" fill="#854f0b">Approach Diverging</text>
     <text x="36" y="508" fill="#57534e" font-size="13">The first match wins, from Stop downward. Held on an absolute mast is Stop before any of these.</text>
   </g>
 </svg>
