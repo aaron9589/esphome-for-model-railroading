@@ -238,11 +238,11 @@ West's right end pairs to near, and near's other end pairs to the throat. The ma
 
 ![The branch is lined. East shows Approach. The throat shows Approach Diverging, or Approach if that mast has no such aspect. West shows Clear, or Advance Approach.](../_img/block-junction-branch.svg)
 
-![The train is on the near interim. West shows Stop. The throat shows Approach Diverging. East shows Approach. The points branch signal shows Stop, so the branch boundary shows Approach.](../_img/block-junction-approach.svg)
+![The train is on the near interim. West shows Stop. The throat shows Approach Diverging. The diverging route is held, so the branch boundary shows Stop.](../_img/block-junction-approach.svg)
 
-![The train is on the curve. The throat stays at Stop until the train passes the branch boundary. The points branch signal shows Clear. West shows Clear, or Advance Approach.](../_img/block-junction-diverging.svg)
+![The train is on the curve. The throat stays at Stop until the train passes the branch boundary. The points branch signal shows Clear. West shows Approach.](../_img/block-junction-diverging.svg)
 
-Approach Diverging is optional, and only while the branch is lined. Without that aspect the throat shows Approach. West, one block back, shows Clear, or Advance Approach if that mast has it.
+Approach Diverging is optional, and only while the branch is lined. Without that aspect the throat shows Approach. With the branch lined and nothing ahead, west shows Clear, or Advance Approach if that mast has it. A train already in the section holds the lined route: the branch boundary stays at Stop, and the same hold would be at the east boundary if the main were lined.
 
 ## On the mast
 

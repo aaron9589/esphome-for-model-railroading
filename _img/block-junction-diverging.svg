@@ -14,7 +14,7 @@
     <circle cx="106.0" cy="170.0" r="6" fill="#0f6e56"/>
     <text x="54.0" y="266" text-anchor="middle" fill="#185fa5" font-size="11" font-weight="600">left block</text>
     <text x="158.0" y="266" text-anchor="middle" fill="#b42318" font-size="11" font-weight="600">approach</text>
-    <rect x="21.0" y="112.0" width="54" height="22" rx="8" fill="#e7f6ef" stroke="#0f6e56"/><text x="48.0" y="127.0" text-anchor="middle" fill="#0f6e56" font-size="12" font-weight="600">Clear</text><rect x="81.0" y="112.0" width="118" height="22" rx="8" fill="#e8f1fb" stroke="#185fa5"/><text x="140.0" y="127.0" text-anchor="middle" fill="#185fa5" font-size="11" font-weight="600">Advance Approach</text>
+    <rect x="67.0" y="112.0" width="78" height="22" rx="8" fill="#faeeda" stroke="#854f0b"/><text x="106.0" y="127.0" text-anchor="middle" fill="#854f0b" font-size="12" font-weight="600">Approach</text>
     <rect x="79.0" y="212.0" width="54" height="22" rx="8" fill="#e7f6ef" stroke="#0f6e56"/><text x="106.0" y="227.0" text-anchor="middle" fill="#0f6e56" font-size="12" font-weight="600">Clear</text>
     <rect x="204" y="96" width="116" height="188" rx="14" fill="#e7f6ef"/>
     <text x="262.0" y="80" text-anchor="middle" fill="#0f6e56" font-size="13" font-weight="600">Near</text>
@@ -80,7 +80,7 @@
     <text x="48" y="710" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">points, the throat signal                  Stop</text>
     <text x="48" y="730" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">points, the branch signal                  Clear</text>
     <text x="48" y="750" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">branch facing the train                    Stop</text>
-    <text x="48" y="770" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">west facing east                           Clear, or Advance Approach</text>
-    <text x="48" y="798" fill="#57534e" font-size="13">The throat stays at Stop until the train passes the branch boundary. West shows Advance Approach only if that mast has it.</text>
+    <text x="48" y="770" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">west facing east                           Approach</text>
+    <text x="48" y="798" fill="#57534e" font-size="13">The throat stays at Stop until the train passes the branch boundary. West shows Approach.</text>
   </g>
 </svg>
