@@ -37,7 +37,8 @@ This repo is a beginner path for model-railroad ESP32 boards that talk to JMRI/C
 - MQTT is Mosquitto on port **1883**, anonymous, on a trusted home LAN. Setup writes `listener 1883`, `allow_anonymous true`, and `persistence true` (retained messages survive a broker restart), then checks the service is running with auto-start.
 - MQTTX is the GUI topic browser (not MQTT Explorer — Mac Gatekeeper breaks those builds). Connect to `127.0.0.1:1883` with no username to watch the local broker.
 - After install, the script offers to open the Board Configurator in the browser (Enter to open, `n` to skip).
-- The broker address in board YAML and in JMRI is the computer's **LAN IP**. Never `localhost` / `127.0.0.1` in board YAML or JMRI.
+- The configurator defaults the MQTT broker to `layout-mqtt.local`. A typed-in LAN IP works in that field too. Never `localhost` / `127.0.0.1` in board YAML or JMRI.
+- The install scripts publish `layout-mqtt.local` on the network. `ping layout-mqtt.local` checks this computer. The name comes back after a reboot and is removed on uninstall.
 - Generated YAML needs ESPHome **2026.9.0** or newer (`esp32: variant`, `ota` encryption, `min_version`).
 
 ## Board Configurator
@@ -72,7 +73,7 @@ This repo is a beginner path for model-railroad ESP32 boards that talk to JMRI/C
 3. Nothing else owns ports 1883 or 6052.
 4. USB cable, driver, and Chrome or Edge for the first flash.
 5. Wi-Fi is 2.4 GHz with DHCP.
-6. The broker IP is the LAN address, and the firewall allows inbound TCP 1883.
+6. The broker is `layout-mqtt.local` (or the LAN address from `ping layout-mqtt.local`), and the firewall allows inbound TCP 1883.
 7. For MQTT watching: MQTTX (or `mosquitto_sub`) on `127.0.0.1:1883`, subscribe to `#`.
 
 ## Where to send people

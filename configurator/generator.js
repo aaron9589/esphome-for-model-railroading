@@ -129,13 +129,15 @@ function variantFor(moduleName) {
   return MODULE_VARIANTS[moduleName] || "esp32";
 }
 
+const DEFAULT_MQTT_BROKER = "layout-mqtt.local";
+
 function boardDefaults() {
   return {
     name: "my-first-board",
     module: "nodemcu-32s",
     wifiSsid: "",
     wifiPassword: "",
-    mqttBroker: "",
+    mqttBroker: DEFAULT_MQTT_BROKER,
     mqttEnabled: true,
     apPassword: "",
     apiKey: "",
@@ -396,7 +398,7 @@ function validateConfig(config) {
   }
   if (!board.wifiSsid) warnings.push("Wi-Fi name is empty — fill it in on the Board page before you download.");
   if (!board.wifiPassword) warnings.push("Wi-Fi password is empty — fill it in on the Board page before you download.");
-  if (board.mqttEnabled !== false && !board.mqttBroker) warnings.push("MQTT address is empty — use this computer’s network address, not localhost.");
+  if (board.mqttEnabled !== false && !board.mqttBroker) warnings.push("MQTT address is empty — layout-mqtt.local is the name from the install script.");
   if (String(board.apPassword || "").length > 0 && String(board.apPassword).length < 8) {
     errors.push("Hotspot password must be at least 8 characters.");
   }
@@ -1630,6 +1632,7 @@ function generateYaml(config) {
   global.EsphomeMr = {
     CONFIG_MARKER,
     MIN_ESPHOME_VERSION,
+    DEFAULT_MQTT_BROKER,
     PULLUP_PINS,
     STRAPPING_PINS,
     NO_PULLUP_PINS,

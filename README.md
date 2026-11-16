@@ -62,7 +62,7 @@ Type `1` to install. If something fails later, see **If Something Fails** in [fi
 
 **[Open the Board Configurator](https://aaron9589.github.io/esphome-for-model-railroading/)**
 
-Click **My first board**, fill in Wi-Fi and this computer’s MQTT address, add the blocks and points you actually have, then download the file. Paste it into ESPHome. Don’t edit the YAML by hand — import the same file back into the configurator when you want to change something. The file contains your Wi-Fi password, so don’t commit it.
+Click **My first board**, fill in Wi-Fi, add the blocks and points you actually have, then download the file. The MQTT broker field is already `layout-mqtt.local`, the name the install script publishes. `ping layout-mqtt.local` checks that this computer answers. Paste it into ESPHome. Don’t edit the YAML by hand — import the same file back into the configurator when you want to change something. The file contains your Wi-Fi password, so don’t commit it.
 
 ### 3. Flash it
 
