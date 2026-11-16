@@ -100,13 +100,13 @@ mss/<track>/node/<board>/online
 
 ![A topic is clear only when its board is online, the payload is CLEAR, and a copy arrived within three seconds. Occupied, offline, quiet, and unheard all count as occupied.](../_img/block-failsafe.svg)
 
-## Left, right, and pairing
+## Pairing
 
-A boundary and an interim have two ends, **left** and **right**. A junction has three legs, **throat**, **main**, and **branch**. Left and right are just the two ends of that board. Flash tells you which physical side the button belongs to.
+A boundary has two ends, **left** and **right**. A junction has three legs, **throat**, **main**, and **branch**. An interim has two ends, **one** and **two**. The buttons on an interim read Board one and Board two. Either button can take either neighbour. You use each button once.
 
-Each end stores the neighbour's address, such as `east-board/left`. That address is the end of the postcard and joint topics. The web page shows it. You can still correct it by hand.
+Each end stores the neighbour's address, such as `east-board/left` or `gap-board/one`. That address is the end of the postcard and joint topics. Pairing writes it into the box on the web page. You can still correct it by hand.
 
-**Flash** blinks the signals that face that end. Nothing is stored. Use it to see which side you are about to pair. An interim has no signals, so Flash on an interim does nothing visible. Flash on the board that has the signals.
+**Flash** blinks the signals that face that end. Nothing is stored. Use it to see which side you are about to pair. An interim has no signals, so it has no Flash button. Flash the boundary or the junction, then press Pair on Board one or Board two.
 
 **Pair** uses one topic for the whole track:
 
@@ -119,21 +119,21 @@ It is not retained. QoS 1. Pair one joint at a time.
 1. Press Pair on one end. The board publishes `OFFER west-board/right` and flashes that side.
 2. Press Pair on an end of the other board. That board publishes `ACCEPT east-board/left west-board/right`.
 3. West stores `east-board/left` as its right neighbour. East stores `west-board/right` as its left neighbour.
-4. Both ends flash three slow blinks. An interim cannot flash, so the board with signals does it, and both web pages show the new address.
+4. Both ends flash three slow blinks. An interim has no signals, so the board with signals flashes, and both web pages show the new address. On an interim that address lands in Board one or Board two, whichever button you pressed.
 
 An offer lasts 30 seconds. A new offer replaces one that has not been accepted. A board ignores an offer from itself.
 
 ![Flash blinks one side. Pair on west publishes OFFER. Pair on east publishes ACCEPT. Each end stores the other address, then the signals flash three times.](../_img/block-pair.svg)
 
-Open `http://<board-name>.local`. The neighbour box for each end is there, with Flash and Pair beside it. Both boards must use the same signalled track, usually `main`. The broker address stays in the flashed file.
+Open `http://<board-name>.local`. A boundary shows Left and Right, each with Flash and Pair. A junction shows Throat, Main, and Branch. An interim shows Board one and Board two, each with Pair, and the address box fills in when the pair is accepted. Both boards must use the same signalled track, usually `main`. The broker address stays in the flashed file.
 
 ## A plain stretch
 
 West and east are boundaries. An interim named gap sits between them. That is one block. The track past east is the next block.
 
-![West and east are boundaries. The interim publishes its detector and passes the postcard through. Pair west's right to the interim's left, and the interim's right to east's left.](../_img/block-stretch.svg)
+![West and east are boundaries. The interim publishes its detector and passes the postcard through. Pair west's right to Board one, and east's left to Board two. The two buttons are interchangeable.](../_img/block-stretch.svg)
 
-On the web page, west's right neighbour is `gap-board/left`. The interim's right neighbour is `east-board/left`. East's right neighbour is whatever begins the next block.
+On the web page, west's right neighbour is `gap-board/one`. Board one shows `west-board/right`. Board two shows `east-board/left`. East's left neighbour is `gap-board/two`. East's right neighbour is whatever begins the next block.
 
 The signal on west that faces east protects this block. Stop is this block. Approach is the next block, which east names in `NEXT`. The signal on east that faces east protects the next block. The signal on east that faces west protects this block.
 

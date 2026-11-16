@@ -50,21 +50,23 @@
     <text x="48" y="270" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="12">joint/west-board/right</text>
     <text x="48" y="292" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="12">ahead/west-board/right</text>
     <text x="48" y="322" fill="#57534e" font-size="13">Right neighbour</text>
-    <text x="48" y="340" fill="#57534e" font-size="13">gap-board/left</text>
+    <text x="48" y="340" fill="#57534e" font-size="13">gap-board/one</text>
     <rect x="344" y="200" width="272" height="248" rx="12" fill="#e7f6ef" stroke="#0f6e56"/>
     <text x="480.0" y="228" text-anchor="middle" font-size="15" font-weight="600">gap · interim</text>
     <text x="360" y="248" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="12">detect/gap-board</text>
-    <text x="360" y="270" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="12">ahead/gap-board/left</text>
-    <text x="360" y="292" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="12">ahead/gap-board/right</text>
-    <text x="360" y="322" fill="#57534e" font-size="13">ORs its detector into</text>
-    <text x="360" y="340" fill="#57534e" font-size="13">BLOCK. Copies NEXT.</text>
+    <text x="360" y="270" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="12">ahead/gap-board/one</text>
+    <text x="360" y="292" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="12">ahead/gap-board/two</text>
+    <text x="360" y="322" fill="#57534e" font-size="13">Board one</text>
+    <text x="360" y="340" fill="#57534e" font-size="13">west-board/right</text>
+    <text x="360" y="368" fill="#57534e" font-size="13">Board two</text>
+    <text x="360" y="386" fill="#57534e" font-size="13">east-board/left</text>
     <rect x="628" y="200" width="300" height="248" rx="12" fill="#e8f1fb" stroke="#185fa5"/>
     <text x="778.0" y="228" text-anchor="middle" font-size="15" font-weight="600">east · boundary</text>
     <text x="644" y="248" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="12">detect/east-board</text>
     <text x="644" y="270" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="12">joint/east-board/left</text>
     <text x="644" y="292" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="12">ahead/east-board/left</text>
     <text x="644" y="322" fill="#57534e" font-size="13">Left neighbour</text>
-    <text x="644" y="340" fill="#57534e" font-size="13">gap-board/right</text>
+    <text x="644" y="340" fill="#57534e" font-size="13">gap-board/two</text>
     <text x="32" y="472" fill="#57534e" font-size="13">Another interim paired between these two would add its detector to the same block. NEXT still names the block past east.</text>
     <text x="32" y="494" fill="#57534e" font-size="13">Pair west/right straight to east/left and the interim is simply absent. The postcards meet.</text>
   </g>
