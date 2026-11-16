@@ -52,7 +52,7 @@ Each signalled track is its own set of topics. A block is occupied when any of t
 
 - The left or right block detector on a boundary sees a train. That occupies the block on that side.
 - A block detector on an interim in the block sees a train.
-- The optic in the centre of a boundary sees any part of a train. That occupies both blocks that meet there, so the signals hold until the last car clears the joint.
+- The optic in the centre of a boundary sees any part of a train. That occupies both blocks that meet there, so the signals hold until the last car clears the boundary.
 - The throat, main, or diverging block detector on a junction sees a train. That occupies that block.
 - The optic in the centre of a turnout sees a train on either leg. That occupies the throat block.
 - A turnout in a junction is set against the route that signal is protecting.
@@ -134,7 +134,7 @@ Pairing uses one topic for the whole track:
 mss/<track>/pair
 ```
 
-It is not retained. QoS 1. Pair one joint at a time.
+It is not retained. QoS 1. Pair one end at a time.
 
 1. One end publishes `1 OFFER west-board/right` and flashes the signals on that side.
 2. An end of the other board publishes `1 ACCEPT east-board/left west-board/right`.

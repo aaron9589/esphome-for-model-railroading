@@ -25,7 +25,7 @@
     <text x="480" y="242" text-anchor="middle" font-size="14" font-weight="600">Topic</text>
     <text x="480" y="262" text-anchor="middle" fill="#854f0b" font-size="13">OCCUPIED</text>
     <text x="480" y="312" text-anchor="middle" font-size="18" font-weight="600">Occupied</text>
-    <text x="480" y="336" text-anchor="middle" fill="#57534e" font-size="13">train, joint, or turnout</text>
+    <text x="480" y="336" text-anchor="middle" fill="#57534e" font-size="13">detector or optic</text>
     <text x="480" y="360" text-anchor="middle" fill="#78716c" font-size="12">from this publisher</text>
     <rect x="640" y="84" width="288" height="300" rx="12" fill="#f5f5f4" stroke="#44403c"/>
     <text x="784" y="116" text-anchor="middle" fill="#44403c" font-size="13" font-weight="600">Offline, quiet, or unheard</text>
@@ -40,7 +40,7 @@
     <text x="784" y="360" text-anchor="middle" fill="#78716c" font-size="12">from this publisher</text>
     <text x="32" y="420" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">mss/&lt;track&gt;/node/&lt;board&gt;/online</text>
     <text x="380" y="420" fill="#57534e" font-size="13">Birth is ONLINE. The last will is OFFLINE. Both are retained.</text>
-    <text x="32" y="448" fill="#57534e" font-size="13">Block, joint, diverging, and postcard topics are published again about once a second.</text>
+    <text x="32" y="448" fill="#57534e" font-size="13">detect, boundaryOptic, turnoutOptic, diverging, and ahead are published again about once a second.</text>
     <text x="32" y="472" fill="#57534e" font-size="13">Three seconds without a copy counts as occupied, even if an older CLEAR is still retained.</text>
   </g>
 </svg>
