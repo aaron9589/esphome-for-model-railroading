@@ -164,15 +164,17 @@ West and east are boundaries. An interim named gap sits between them. That is on
 
 West's right neighbour is `gap-board/one`. The interim's `one` end stores `west-board/right`. Its `two` end stores `east-board/left`. East's left neighbour is `gap-board/two`.
 
-The signal on west that faces east protects this block. Stop is this block. Approach is the next block, which east names in `NEXT`. The signal on east that faces east protects the next block. The signal on east that faces west protects this block.
+The signal on west that faces east protects this block. Stop is this block. Approach is the next block, which arrives on `next`. The signal on east that faces east protects the next block. The signal on east that faces west protects this block. The signal on west that faces west protects the west block.
 
-![Every block and optic publishes v1 CLEAR. ahead/gap-board/one/block and ahead/gap-board/two/block are v1 CLEAR. West reads one/block and east reads two/block. The signals show Clear.](../_img/block-run-clear.svg)
+The next pictures follow one train from the west block to the east.
 
-![block/gap-board is v1 OCCUPIED. Both ends publish that on ahead/.../block. West facing east and east facing west read that topic and show Stop.](../_img/block-run-interim.svg)
+![No train. Every block and optic publishes v1 CLEAR. All four signals show Clear.](../_img/block-run-clear.svg)
 
-![optic/boundary/east-board is v1 OCCUPIED. East publishes that on ahead/east-board/right/block, and the interim publishes it on block and on next. The signals that protect this block and the next show Stop.](../_img/block-run-optic.svg)
+![block/west-board/left is v1 OCCUPIED. The signal facing that block shows Stop. The other signals stay Clear.](../_img/block-run-interim.svg)
 
-![ahead/east-board/right/block is v1 OCCUPIED. East facing next reads block and shows Stop. The interim copies that onto ahead/gap-board/one/next, so west facing east shows Approach.](../_img/block-run-next.svg)
+![block/gap-board is v1 OCCUPIED. Both ends publish that on the ahead block topic. The signals facing this block show Stop.](../_img/block-run-optic.svg)
+
+![block/east-board/right is v1 OCCUPIED. East facing that block shows Stop. West reads next and shows Approach.](../_img/block-run-next.svg)
 
 Approach lighting is off in these pictures, so a clear road shows Clear. Another interim between west and east still belongs to this one block. Pair west straight to east, with no interim, and the same two signals still protect the block between them.
 
