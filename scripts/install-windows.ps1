@@ -1,6 +1,7 @@
 # ESPHome Device Builder + Mosquitto + MQTTX setup for Windows 10/11.
 # Anonymous MQTT on port 1883 is for a trusted home network only.
 # Publishes layout-mqtt.local so `ping layout-mqtt.local` shows this PC's LAN IP.
+# If another computer already has that name, this script leaves it alone.
 # Re-running this script is safe: it skips what is already in place.
 #
 # Open PowerShell (you do NOT need "Run as administrator") and paste:
@@ -19,6 +20,7 @@ $ConfiguratorUrl = 'https://aaron9589.github.io/esphome-for-model-railroading/'
 $MdnsTask = 'ESPHome MR layout-mqtt.local'
 $MdnsFirewall = 'layout-mqtt.local mDNS (ESPHome model railroad)'
 $MdnsScript = Join-Path $env:ProgramData 'esphome-mr\layout-mqtt-mdns.ps1'
+$script:LayoutMqttForeign = ''
 
 function Test-IsAdmin {
     $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
@@ -98,12 +100,20 @@ function Write-Kv([string]$Label, [string]$Value) {
     Write-Host " $Value" -ForegroundColor Gray
 }
 
+function Write-MqttBrokerNote {
+    Write-Host '  MQTT broker:   layout-mqtt.local' -ForegroundColor Yellow
+    if ($script:LayoutMqttForeign) {
+        Write-Host "  Already in use at $script:LayoutMqttForeign. This PC did not take that name." -ForegroundColor Gray
+    } else {
+        Write-Host '  Type that name in the Configurator and in JMRI. Port 1883, no password.' -ForegroundColor Gray
+    }
+}
+
 function Offer-Configurator([string]$LanIp = '') {
     Write-Step 'Next: Board Configurator'
     Write-Host '  Your PC is ready. Next you build board.yaml in the Board Configurator.' -ForegroundColor Gray
     Write-Host ''
-    Write-Host '  MQTT broker:   layout-mqtt.local' -ForegroundColor Yellow
-    Write-Host '  Type that name in the Configurator and in JMRI. Port 1883, no password.' -ForegroundColor Gray
+    Write-MqttBrokerNote
     if ($LanIp) {
         Write-Info "This PC is also $LanIp, if you need the number."
     }
@@ -117,7 +127,11 @@ function Offer-Configurator([string]$LanIp = '') {
     } else {
         Start-Process $ConfiguratorUrl
         Write-Ok 'Opened Board Configurator'
-        Write-Info 'Click My first board and fill in Wi-Fi. The MQTT broker is layout-mqtt.local.'
+        if ($script:LayoutMqttForeign) {
+            Write-Info 'Click My first board and fill in Wi-Fi. layout-mqtt.local is already another computer.'
+        } else {
+            Write-Info 'Click My first board and fill in Wi-Fi. The MQTT broker is layout-mqtt.local.'
+        }
     }
 }
 
@@ -435,9 +449,154 @@ function Stop-LayoutMqttPublisher {
         ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
 }
 
+function Find-LayoutMqttOwner {
+    # Ask the network who, if anyone, already answers for layout-mqtt.local.
+    # A reply from this PC is our own advertisement. Any other address means
+    # leave that name alone.
+    $udp = $null
+    try {
+        $mine = @{}
+        Get-NetIPAddress -AddressFamily IPv4 -ErrorAction SilentlyContinue | ForEach-Object {
+            if ($_.IPAddress -and $_.IPAddress -ne '0.0.0.0' -and $_.IPAddress -notlike '127.*') {
+                $mine[$_.IPAddress] = $true
+            }
+        }
+
+        function Read-MdnsU16([byte[]]$Buf, [int]$Offset) {
+            return (($Buf[$Offset] -shl 8) -bor $Buf[$Offset + 1])
+        }
+
+        function Read-MdnsName([byte[]]$Buf, [int]$Offset) {
+            $labels = New-Object System.Collections.Generic.List[string]
+            $jumped = $false
+            $end = $Offset
+            for ($guard = 0; $guard -lt 40; $guard++) {
+                if ($Offset -ge $Buf.Length) { return @{ Name = $null; Next = $end } }
+                $len = $Buf[$Offset]
+                if ($len -eq 0) {
+                    if (-not $jumped) { $end = $Offset + 1 }
+                    $name = if ($labels.Count -eq 0) { '' } else { ($labels -join '.') }
+                    return @{ Name = $name; Next = $end }
+                }
+                if (($len -band 192) -eq 192) {
+                    if (($Offset + 1) -ge $Buf.Length) { return @{ Name = $null; Next = $end } }
+                    if (-not $jumped) { $end = $Offset + 2 }
+                    $Offset = (($len -band 63) -shl 8) -bor $Buf[$Offset + 1]
+                    $jumped = $true
+                    continue
+                }
+                if (($Offset + 1 + $len) -gt $Buf.Length) { return @{ Name = $null; Next = $end } }
+                $labels.Add([Text.Encoding]::ASCII.GetString($Buf, ($Offset + 1), $len))
+                $Offset += 1 + $len
+            }
+            return @{ Name = $null; Next = $end }
+        }
+
+        function Get-MdnsAnswerIps([byte[]]$Buf) {
+            $found = New-Object System.Collections.Generic.List[string]
+            if ($Buf.Length -lt 12) { return ,$found.ToArray() }
+            $flags = Read-MdnsU16 $Buf 2
+            if (($flags -band 0x8000) -eq 0) { return ,$found.ToArray() }
+            $questions = Read-MdnsU16 $Buf 4
+            $answers = (Read-MdnsU16 $Buf 6) + (Read-MdnsU16 $Buf 8) + (Read-MdnsU16 $Buf 10)
+            $offset = 12
+            for ($i = 0; $i -lt $questions; $i++) {
+                $part = Read-MdnsName $Buf $offset
+                $offset = $part.Next + 4
+                if ($offset -gt $Buf.Length) { return ,$found.ToArray() }
+            }
+            for ($i = 0; $i -lt $answers; $i++) {
+                $part = Read-MdnsName $Buf $offset
+                $offset = $part.Next
+                if ($null -eq $part.Name -or ($offset + 10) -gt $Buf.Length) { return ,$found.ToArray() }
+                $type = Read-MdnsU16 $Buf $offset
+                $ttl = [uint64]$Buf[$offset + 4] * 16777216 + [uint64]$Buf[$offset + 5] * 65536 + [uint64]$Buf[$offset + 6] * 256 + [uint64]$Buf[$offset + 7]
+                $rdlen = Read-MdnsU16 $Buf ($offset + 8)
+                $offset += 10
+                if (($offset + $rdlen) -gt $Buf.Length) { return ,$found.ToArray() }
+                if ($part.Name.ToLowerInvariant() -eq 'layout-mqtt.local' -and $type -eq 1 -and $rdlen -eq 4 -and $ttl -gt 0) {
+                    $raw = New-Object byte[] 4
+                    [Array]::Copy($Buf, $offset, $raw, 0, 4)
+                    $found.Add(([Net.IPAddress]::new($raw)).ToString())
+                }
+                $offset += $rdlen
+            }
+            return ,$found.ToArray()
+        }
+
+        $query = New-Object IO.MemoryStream
+        foreach ($word in @(0, 0, 1, 0, 0, 0)) {
+            $query.WriteByte([byte](($word -shr 8) -band 255))
+            $query.WriteByte([byte]($word -band 255))
+        }
+        foreach ($label in @('layout-mqtt', 'local')) {
+            $bytes = [Text.Encoding]::ASCII.GetBytes($label)
+            $query.WriteByte([byte]$bytes.Length)
+            $query.Write($bytes, 0, $bytes.Length)
+        }
+        $query.WriteByte(0)
+        foreach ($word in @(1, 0x8001)) {
+            $query.WriteByte([byte](($word -shr 8) -band 255))
+            $query.WriteByte([byte]($word -band 255))
+        }
+        $packet = [byte[]]$query.ToArray()
+
+        $udp = New-Object System.Net.Sockets.UdpClient
+        $udp.Client.SetSocketOption([Net.Sockets.SocketOptionLevel]::Socket, [Net.Sockets.SocketOptionName]::ReuseAddress, $true)
+        $udp.ExclusiveAddressUse = $false
+        $udp.Client.Bind((New-Object System.Net.IPEndPoint ([Net.IPAddress]::Any, 0)))
+        $udp.JoinMulticastGroup([Net.IPAddress]::Parse('224.0.0.251'))
+        $target = New-Object System.Net.IPEndPoint ([Net.IPAddress]::Parse('224.0.0.251'), 5353)
+
+        $seen = @{}
+        $sent = $false
+        $deadline = [DateTime]::UtcNow.AddSeconds(2)
+        $nextSend = [DateTime]::UtcNow
+        while ([DateTime]::UtcNow -lt $deadline) {
+            if ([DateTime]::UtcNow -ge $nextSend) {
+                $nextSend = [DateTime]::UtcNow.AddMilliseconds(500)
+                try {
+                    [void]$udp.Send($packet, $packet.Length, $target)
+                    $sent = $true
+                } catch { }
+            }
+            $remain = [int]($deadline - [DateTime]::UtcNow).TotalMilliseconds
+            if ($remain -le 0) { break }
+            $udp.Client.ReceiveTimeout = [Math]::Min(200, $remain)
+            try {
+                $remote = New-Object System.Net.IPEndPoint ([Net.IPAddress]::Any, 0)
+                $buf = $udp.Receive([ref]$remote)
+                foreach ($ip in @(Get-MdnsAnswerIps $buf)) {
+                    if ($ip) { $seen[$ip] = $true }
+                }
+            } catch { }
+        }
+
+        if (-not $sent -and $seen.Count -eq 0) {
+            return [pscustomobject]@{ Status = 'error'; Addresses = @() }
+        }
+        $foreign = @($seen.Keys | Where-Object { -not $mine.ContainsKey($_) } | Sort-Object)
+        if ($foreign.Count -gt 0) {
+            return [pscustomobject]@{ Status = 'foreign'; Addresses = $foreign }
+        }
+        if ($seen.Count -gt 0) {
+            return [pscustomobject]@{ Status = 'self'; Addresses = @() }
+        }
+        return [pscustomobject]@{ Status = 'free'; Addresses = @() }
+    } catch {
+        return [pscustomobject]@{ Status = 'error'; Addresses = @() }
+    } finally {
+        if ($udp) { $udp.Close() }
+    }
+}
+
 function Install-LayoutMqttMdns {
     # Windows has no Avahi and no supported way to add a .local name, so a
     # startup task answers mDNS queries for layout-mqtt.local itself.
+    if ($script:LayoutMqttForeign) {
+        Write-Info "Leaving layout-mqtt.local at $script:LayoutMqttForeign."
+        return
+    }
     Write-Info 'Installing a helper that publishes this PC''s MQTT address on your network as layout-mqtt.local (mDNS).'
     Write-Info 'You may get a firewall or security prompt. Allow it, so other computers can find this broker.'
     try {
@@ -963,6 +1122,30 @@ try {
         Write-Ok 'Port 6052 is free'
     }
 
+    Write-Info 'Checking whether layout-mqtt.local is already on the network...'
+    $mqttName = Find-LayoutMqttOwner
+    switch ($mqttName.Status) {
+        'free' { Write-Ok 'layout-mqtt.local is free on this network' }
+        'self' { Write-Ok 'layout-mqtt.local is already this PC' }
+        'foreign' {
+            $script:LayoutMqttForeign = ($mqttName.Addresses -join ', ')
+            Write-Warn "layout-mqtt.local is already in use at $script:LayoutMqttForeign. This PC will not take that name."
+            $hadAdvert = Test-Path $MdnsScript
+            if (-not $hadAdvert) {
+                try {
+                    if (Get-ScheduledTask -TaskName $MdnsTask -ErrorAction SilentlyContinue) { $hadAdvert = $true }
+                } catch { }
+            }
+            if ($hadAdvert) {
+                Write-Info 'Stopping the advertisement this PC already started.'
+                Uninstall-LayoutMqttMdns
+            }
+        }
+        default {
+            Write-Warn 'Could not scan for layout-mqtt.local. If another computer already uses that name, this PC will not know.'
+        }
+    }
+
     Write-Step '2/7  Mosquitto'
     New-Item -ItemType Directory -Path $DownloadDir -Force | Out-Null
     $mosquittoExe = Join-Path ${env:ProgramFiles} 'mosquitto\mosquitto.exe'
@@ -1194,8 +1377,7 @@ try {
     Write-Kv 'Config files:' "$env:USERPROFILE\esphome"
     Write-Kv 'Dashboard:' 'http://localhost:6052'
     Write-Host ''
-    Write-Host '  MQTT broker:   layout-mqtt.local' -ForegroundColor Yellow
-    Write-Host '  Type that name in the Configurator and in JMRI. Port 1883, no password.' -ForegroundColor Gray
+    Write-MqttBrokerNote
     Write-Kv 'MQTTX:' 'host 127.0.0.1   port 1883   (no username/password)'
     if ($lan) {
         Write-Kv 'This PC:' "$($lan.IP)   (only if you need the number)"

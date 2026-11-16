@@ -38,7 +38,7 @@ This repo is a beginner path for model-railroad ESP32 boards that talk to JMRI/C
 - MQTTX is the GUI topic browser (not MQTT Explorer — Mac Gatekeeper breaks those builds). Connect to `127.0.0.1:1883` with no username to watch the local broker.
 - After install, the script offers to open the Board Configurator in the browser (Enter to open, `n` to skip).
 - The configurator defaults the MQTT broker to `layout-mqtt.local`. A typed-in LAN IP works in that field too. Never `localhost` / `127.0.0.1` in board YAML or JMRI.
-- The install scripts publish `layout-mqtt.local` on the network. `ping layout-mqtt.local` checks this computer. The name comes back after a reboot and is removed on uninstall.
+- The install scripts publish `layout-mqtt.local` on the network. Preflight looks for that name first. If another computer already answers, the script warns and does not publish over it. `ping layout-mqtt.local` checks the computer that owns the name. On this computer, the name comes back after a reboot and is removed on uninstall.
 - Generated YAML needs ESPHome **2026.9.0** or newer (`esp32: variant`, `ota` encryption, `min_version`).
 
 ## Board Configurator

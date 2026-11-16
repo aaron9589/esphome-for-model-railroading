@@ -2,6 +2,7 @@
 # ESPHome Device Builder + Mosquitto + MQTTX setup for macOS.
 # Anonymous MQTT on port 1883 is for a trusted home network only.
 # Publishes layout-mqtt.local so `ping layout-mqtt.local` shows this Mac's LAN IP.
+# If another computer already has that name, this script leaves it alone.
 # Re-running this script is safe: it skips what is already in place.
 #
 # One line (Terminal). Do not pipe this into bash — the menu needs your keyboard.
@@ -19,6 +20,7 @@ MDNS_DIR="${HOME}/Library/Application Support/esphome-mr"
 MDNS_PY="${MDNS_DIR}/layout-mqtt-mdns.py"
 MDNS_PLIST="${HOME}/Library/LaunchAgents/${MDNS_LABEL}.plist"
 MDNS_LOG="${HOME}/Library/Logs/esphome-mr-mdns.log"
+LAYOUT_MQTT_FOREIGN=""
 
 mkdir -p "${HOME}/Library/Logs"
 touch "$LOG"
@@ -106,14 +108,24 @@ kv() {
   log_file "  $1 $2"
 }
 
+note_mqtt_broker() {
+  if [[ -n "${LAYOUT_MQTT_FOREIGN:-}" ]]; then
+    printf '  %s%sMQTT broker:   layout-mqtt.local%s\n' "$C_ACCENT" "$C_BOLD" "$C_RESET" >&2
+    printf '  %sAlready in use at %s. This Mac did not take that name.%s\n' "$C_TEXT" "$LAYOUT_MQTT_FOREIGN" "$C_RESET" >&2
+    log_file "MQTT broker: layout-mqtt.local already at ${LAYOUT_MQTT_FOREIGN}"
+  else
+    printf '  %s%sMQTT broker:   layout-mqtt.local%s\n' "$C_ACCENT" "$C_BOLD" "$C_RESET" >&2
+    printf '  %sType that name in the Configurator and in JMRI. Port 1883, no password.%s\n' "$C_TEXT" "$C_RESET" >&2
+    log_file "MQTT broker: layout-mqtt.local"
+  fi
+}
+
 offer_configurator() {
   local lan_ip="${1:-}"
   step "Next: Board Configurator"
   say "Your Mac is ready. Next you build board.yaml in the Board Configurator."
   printf '\n' >&2
-  printf '  %s%sMQTT broker:   layout-mqtt.local%s\n' "$C_ACCENT" "$C_BOLD" "$C_RESET" >&2
-  printf '  %sType that name in the Configurator and in JMRI. Port 1883, no password.%s\n' "$C_TEXT" "$C_RESET" >&2
-  log_file "MQTT broker: layout-mqtt.local"
+  note_mqtt_broker
   if [[ -n "$lan_ip" ]]; then
     info "This Mac is also ${lan_ip}, if you need the number."
   fi
@@ -133,7 +145,11 @@ offer_configurator() {
     *)
       open "$CONFIGURATOR_URL" || warn "Could not open a browser. Go to: $CONFIGURATOR_URL"
       ok "Opened Board Configurator"
-      info "Click My first board and fill in Wi-Fi. The MQTT broker is layout-mqtt.local."
+      if [[ -n "$LAYOUT_MQTT_FOREIGN" ]]; then
+        info "Click My first board and fill in Wi-Fi. layout-mqtt.local is already another computer."
+      else
+        info "Click My first board and fill in Wi-Fi. The MQTT broker is layout-mqtt.local."
+      fi
       ;;
   esac
 }
@@ -241,9 +257,211 @@ update_device_builder() {
   "$bin" status 2>/dev/null | grep -E '^(ESPHome:|Device builder:)' || true
 }
 
+scan_layout_mqtt() {
+  python3 - <<'PY'
+import re
+import select
+import socket
+import struct
+import subprocess
+import time
+
+NAME = "layout-mqtt.local"
+
+
+def local_ipv4s():
+    found = set()
+    for cmd in (["ip", "-4", "-o", "addr"], ["ifconfig"]):
+        try:
+            out = subprocess.check_output(cmd, text=True, stderr=subprocess.DEVNULL)
+        except (OSError, subprocess.CalledProcessError):
+            continue
+        found.update(re.findall(r"\binet (\d+\.\d+\.\d+\.\d+)", out))
+        if found:
+            break
+    try:
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        sock.connect(("192.0.2.1", 9))
+        found.add(sock.getsockname()[0])
+        sock.close()
+    except OSError:
+        pass
+    return {ip for ip in found if ip != "0.0.0.0" and not ip.startswith("127.")}
+
+
+def encode_name(name):
+    out = b""
+    for label in name.rstrip(".").split("."):
+        raw = label.encode("ascii")
+        out += bytes([len(raw)]) + raw
+    return out + b"\x00"
+
+
+def query(unicast):
+    klass = 0x8001 if unicast else 1
+    return (
+        b"\x00\x00\x00\x00\x00\x01\x00\x00\x00\x00\x00\x00"
+        + encode_name(NAME)
+        + struct.pack("!HH", 1, klass)
+    )
+
+
+def read_name(buf, offset):
+    labels = []
+    jumped = False
+    end = offset
+    for _ in range(40):
+        if offset >= len(buf):
+            return None, end
+        length = buf[offset]
+        if length == 0:
+            if not jumped:
+                end = offset + 1
+            return ".".join(labels), end
+        if length & 0xC0 == 0xC0:
+            if offset + 1 >= len(buf):
+                return None, end
+            if not jumped:
+                end = offset + 2
+            offset = ((length & 0x3F) << 8) | buf[offset + 1]
+            jumped = True
+            continue
+        offset += 1
+        if offset + length > len(buf):
+            return None, end
+        labels.append(buf[offset : offset + length].decode("ascii", "replace"))
+        offset += length
+    return None, end
+
+
+def a_records(buf):
+    if len(buf) < 12:
+        return []
+    flags = int.from_bytes(buf[2:4], "big")
+    if flags & 0x8000 == 0:
+        return []
+    qd, an, ns, ar = struct.unpack("!HHHH", buf[4:12])
+    off = 12
+    for _ in range(qd):
+        _name, off = read_name(buf, off)
+        off += 4
+        if off > len(buf):
+            return []
+    found = []
+    for _ in range(an + ns + ar):
+        name, off = read_name(buf, off)
+        if name is None or off + 10 > len(buf):
+            return found
+        rtype, _rclass, ttl, rdlen = struct.unpack("!HHIH", buf[off : off + 10])
+        off += 10
+        if off + rdlen > len(buf):
+            return found
+        rdata = buf[off : off + rdlen]
+        off += rdlen
+        if (
+            name
+            and name.lower().rstrip(".") == NAME
+            and rtype == 1
+            and rdlen == 4
+            and ttl > 0
+        ):
+            found.append(socket.inet_ntoa(rdata))
+    return found
+
+
+def open_sockets():
+    socks = []
+    ephemeral = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    ephemeral.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    ephemeral.bind(("0.0.0.0", 0))
+    ephemeral.setblocking(False)
+    socks.append(ephemeral)
+    try:
+        shared = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        shared.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        if hasattr(socket, "SO_REUSEPORT"):
+            shared.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
+        shared.bind(("0.0.0.0", 5353))
+        shared.setsockopt(
+            socket.IPPROTO_IP,
+            socket.IP_ADD_MEMBERSHIP,
+            socket.inet_aton("224.0.0.251") + socket.inet_aton("0.0.0.0"),
+        )
+        shared.setblocking(False)
+        socks.append(shared)
+    except OSError:
+        pass
+    return socks
+
+
+def main():
+    mine = local_ipv4s()
+    socks = open_sockets()
+    try:
+        seen = set()
+        deadline = time.time() + 2
+        next_send = 0
+        while time.time() < deadline:
+            now = time.time()
+            if now >= next_send:
+                next_send = now + 0.5
+                socks[0].sendto(query(True), ("224.0.0.251", 5353))
+                socks[-1].sendto(query(False), ("224.0.0.251", 5353))
+            readable, _, _ = select.select(socks, [], [], 0.2)
+            for sock in readable:
+                try:
+                    data, _addr = sock.recvfrom(1500)
+                except OSError:
+                    continue
+                seen.update(a_records(data))
+    finally:
+        for sock in socks:
+            sock.close()
+    foreign = sorted(ip for ip in seen if ip not in mine)
+    if foreign:
+        print("foreign " + " ".join(foreign))
+    elif seen:
+        print("self")
+    else:
+        print("free")
+
+
+main()
+PY
+}
+
+check_layout_mqtt_name() {
+  local who="$1"
+  local scan=""
+  info "Checking whether layout-mqtt.local is already on the network..."
+  if ! scan="$(scan_layout_mqtt)"; then
+    scan="error"
+  fi
+  case "$scan" in
+    free)
+      ok "layout-mqtt.local is free on this network"
+      ;;
+    self)
+      ok "layout-mqtt.local is already this ${who}"
+      ;;
+    foreign\ *)
+      LAYOUT_MQTT_FOREIGN="${scan#foreign }"
+      LAYOUT_MQTT_FOREIGN="${LAYOUT_MQTT_FOREIGN// /, }"
+      warn "layout-mqtt.local is already in use at ${LAYOUT_MQTT_FOREIGN}. This ${who} will not take that name."
+      ;;
+    *)
+      warn "Could not scan for layout-mqtt.local. If another computer already uses that name, this ${who} will not know."
+      ;;
+  esac
+}
+
 publish_layout_mqtt_mdns() {
   # Bonjour keeps the name only while this helper is running. A login agent
   # starts it again after a reboot, same as the Mosquitto brew service.
+  if [[ -n "$LAYOUT_MQTT_FOREIGN" ]]; then
+    info "Leaving layout-mqtt.local at ${LAYOUT_MQTT_FOREIGN}."
+    return 0
+  fi
   info "Installing a helper that publishes this Mac's MQTT address on your network as layout-mqtt.local (mDNS)."
   info "You may get a firewall or security prompt. Allow it, so other computers can find this broker."
   mkdir -p "$MDNS_DIR" "${HOME}/Library/LaunchAgents" "${HOME}/Library/Logs"
@@ -603,6 +821,12 @@ else
   ok "Port 6052 is free"
 fi
 
+check_layout_mqtt_name "Mac"
+if [[ -n "$LAYOUT_MQTT_FOREIGN" && ( -f "$MDNS_PLIST" || -f "$MDNS_PY" ) ]]; then
+  info "Stopping the advertisement this Mac already started."
+  stop_layout_mqtt_mdns
+fi
+
 step "2/8  Homebrew"
 load_brew
 
@@ -895,9 +1119,7 @@ info "Menu bar: an ESPHome icon. Use Open Dashboard and Open Config Folder."
 kv "Config files:" "${HOME}/esphome"
 kv "Dashboard:" "http://localhost:6052"
 printf '\n' >&2
-printf '  %s%sMQTT broker:   layout-mqtt.local%s\n' "$C_ACCENT" "$C_BOLD" "$C_RESET" >&2
-printf '  %sType that name in the Configurator and in JMRI. Port 1883, no password.%s\n' "$C_TEXT" "$C_RESET" >&2
-log_file "MQTT broker: layout-mqtt.local"
+note_mqtt_broker
 kv "MQTTX:" "host 127.0.0.1   port 1883   (no username/password)"
 if [[ -n "$LAN_IP" ]]; then
   kv "This Mac:" "${LAN_IP}   (only if you need the number)"
