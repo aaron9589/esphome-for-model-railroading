@@ -12,6 +12,7 @@ const {
   lockTopic,
   topicFor,
   validateConfig,
+  DEFAULT_MQTT_BROKER,
   SIGNAL_COLORS,
   SIGNAL_COLOR_ORDER,
   CATS_ASPECTS,
@@ -79,6 +80,9 @@ let state = loadState() || myFirstBoardPreset();
 normalizeConfig(state);
 normalizeTopics(state);
 applyCredentials(state, loadCredentials());
+if (state.board.mqttEnabled !== false && !state.board.mqttBroker) {
+  state.board.mqttBroker = DEFAULT_MQTT_BROKER;
+}
 ensureSecrets(state);
 persist();
 
@@ -134,10 +138,10 @@ document.getElementById("btn-clear-creds").addEventListener("click", () => {
   clearCredentials();
   state.board.wifiSsid = "";
   state.board.wifiPassword = "";
-  state.board.mqttBroker = "";
+  state.board.mqttBroker = DEFAULT_MQTT_BROKER;
   persist();
   render();
-  flash("ok", "Cleared Wi-Fi and MQTT broker.");
+  flash("ok", "Cleared Wi-Fi. MQTT broker is layout-mqtt.local again.");
 });
 
 document.getElementById("btn-add-block").addEventListener("click", () => {
@@ -539,9 +543,9 @@ function renderBoard() {
   );
   if (b.mqttEnabled !== false) {
     el.boardNetwork.append(
-      field("MQTT broker IP", b.mqttBroker, (v) => setCredential("mqttBroker", v), {
-        placeholder: "192.168.1.10",
-        hint: "Address of the computer running the MQTT broker (such as Mosquitto).",
+      field("MQTT broker", b.mqttBroker, (v) => setCredential("mqttBroker", v), {
+        placeholder: DEFAULT_MQTT_BROKER,
+        hint: "layout-mqtt.local is the name from the install script. A numeric address works here too.",
       })
     );
   }

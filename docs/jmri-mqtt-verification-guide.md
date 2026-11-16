@@ -15,7 +15,7 @@ Goal:
 - Your config must include at least one block detector and one point (Configurator **My First Board** preset, or modules enabled — see [first-board-setup-guide.md](first-board-setup-guide.md)).
 - JMRI must be running with an MQTT connection configured.
 - Open JMRI **Edit → Preferences → Connections → MQTT** and confirm:
-  - The **broker IP** matches your PC's IP address (the same value as `mqtt:` → `broker:` in your board YAML)
+  - The broker address matches `mqtt:` → `broker:` in your board YAML. A new board uses `layout-mqtt.local`.
   - Note the **MQTT Channel**, **Sensor receive topic**, and **Turnout send topic** fields — you will use these to build the correct System Names below.
 
 > **Screenshot placeholder:** JMRI Preferences → Connections → MQTT panel, showing the broker IP, MQTT Channel field (blank or `trains/`), Sensor receive topic, and Turnout send topic fields.

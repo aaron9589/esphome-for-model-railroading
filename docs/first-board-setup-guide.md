@@ -34,7 +34,7 @@ Success looks like:
 
 A new device tile appears. Now paste the YAML from the Configurator:
 
-1. Open the **[Board Configurator](https://aaron9589.github.io/esphome-for-model-railroading/)**, load **My First Board** (or import a previous download), fill in Wi-Fi and the MQTT broker IP, then **Download board.yaml**.
+1. Open the **[Board Configurator](https://aaron9589.github.io/esphome-for-model-railroading/)**, load **My First Board** (or import a previous download), fill in Wi-Fi, then **Download board.yaml**. The MQTT broker field is already `layout-mqtt.local`. `ping layout-mqtt.local` checks that this computer answers.
 2. Click **Edit** on the device tile in ESPHome Dashboard.
 3. Select all the text in the editor and delete it.
 4. Paste the full contents of the downloaded `board.yaml`.
@@ -172,7 +172,7 @@ Mosquitto is not running. Windows: `Set-Service mosquitto -StartupType Automatic
 - Linux: `sudo systemctl enable --now mosquitto` (check with `systemctl is-enabled mosquitto`)
 
 **Board is Online in ESPHome but never talks to MQTT:**
-- Broker IP in the YAML is the PC's LAN IP, not `localhost`.
+- Broker IP in the YAML is the PC's LAN IP, not `localhost`. `ping layout-mqtt.local` prints it.
 - Mosquitto is running on 1883 (`mosquitto_sub -h <LAN-IP> -t 'test/#' -v` from this PC).
 - The firewall allows inbound TCP 1883. On Windows, the Wi-Fi profile may need to be **Private**.
 

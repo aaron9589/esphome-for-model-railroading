@@ -3,6 +3,7 @@
 # Aimed at Raspberry Pi OS on a Pi-SPROG, and also Debian, Ubuntu, Fedora,
 # RHEL and relatives, openSUSE, and Arch. 64-bit only.
 # Anonymous MQTT on port 1883 is for a trusted home network only.
+# Publishes layout-mqtt.local so `ping layout-mqtt.local` shows this computer's LAN IP.
 # Re-running this script is safe: it skips what is already in place.
 # It does not change Pi boot files, the UART, or JMRI.
 #
@@ -843,6 +844,180 @@ lan_ip() {
   ip -4 route get 1.1.1.1 2>/dev/null | awk '{for (i = 1; i <= NF; i++) if ($i == "src") { print $(i + 1); exit }}'
 }
 
+ensure_avahi_for_mdns() {
+  local nss="nss-mdns"
+  local -a pkgs=()
+  case "$PKG_FAMILY" in
+    apt)
+      nss="libnss-mdns"
+      pkgs=(avahi-daemon avahi-utils)
+      ;;
+    dnf)
+      pkgs=(avahi avahi-tools)
+      ;;
+    zypper)
+      pkgs=(avahi avahi-utils)
+      ;;
+    pacman)
+      pkgs=(avahi)
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+  if ! command -v avahi-publish-address >/dev/null 2>&1; then
+    info "Installing Avahi so this computer answers to layout-mqtt.local..."
+    case "$PKG_FAMILY" in
+      apt)
+        apt_update_once
+        sudo_cmd apt-get install -y "${pkgs[@]}" || return 1
+        ;;
+      dnf)
+        sudo_cmd dnf install -y "${pkgs[@]}" || return 1
+        ;;
+      zypper)
+        sudo_cmd zypper --non-interactive install "${pkgs[@]}" || return 1
+        ;;
+      pacman)
+        sudo_cmd pacman -Sy --noconfirm --needed "${pkgs[@]}" || return 1
+        ;;
+    esac
+  fi
+  if ! command -v avahi-publish-address >/dev/null 2>&1; then
+    return 1
+  fi
+  # Lets this computer itself answer `ping layout-mqtt.local`. Other computers
+  # can still resolve the name if this package is missing.
+  if ! pkg_is_installed "$nss"; then
+    case "$PKG_FAMILY" in
+      apt)
+        apt_update_once
+        sudo_cmd apt-get install -y "$nss" || warn "Could not install ${nss}. Other computers can still ping layout-mqtt.local."
+        ;;
+      dnf)
+        sudo_cmd dnf install -y "$nss" || warn "Could not install ${nss}. Other computers can still ping layout-mqtt.local."
+        ;;
+      zypper)
+        sudo_cmd zypper --non-interactive install "$nss" || warn "Could not install ${nss}. Other computers can still ping layout-mqtt.local."
+        ;;
+      pacman)
+        sudo_cmd pacman -Sy --noconfirm --needed "$nss" || warn "Could not install ${nss}. Other computers can still ping layout-mqtt.local."
+        ;;
+    esac
+  fi
+  sudo_cmd systemctl enable --now avahi-daemon || return 1
+  return 0
+}
+
+publish_layout_mqtt_mdns() {
+  info "Installing a helper that publishes this computer's MQTT address on your network as layout-mqtt.local (mDNS)."
+  info "You may get a password, firewall, or security prompt. Allow it, so other computers can find this broker."
+  if ! ensure_avahi_for_mdns; then
+    warn "Avahi is not available, so layout-mqtt.local was not published. Use the LAN IP above."
+    return 0
+  fi
+  local bin="/usr/local/libexec/esphome-mr/layout-mqtt-mdns"
+  local unit="/etc/systemd/system/esphome-mr-layout-mqtt.service"
+  local tmp
+  sudo_cmd install -d -m 0755 /usr/local/libexec/esphome-mr
+  tmp="$(mktemp)"
+  cat > "$tmp" << 'EOF'
+#!/bin/bash
+# Publish layout-mqtt.local as this computer's LAN address.
+# Avahi removes the name when this process stops.
+name="layout-mqtt.local"
+lan_ip() {
+  ip -4 route get 1.1.1.1 2>/dev/null | awk '{for (i = 1; i <= NF; i++) if ($i == "src") { print $(i + 1); exit }}'
+}
+while true; do
+  ip="$(lan_ip || true)"
+  case "$ip" in
+    ""|127.*)
+      sleep 5
+      continue
+      ;;
+  esac
+  started="$(date +%s)"
+  avahi-publish-address -R "$name" "$ip" &
+  pid=$!
+  while kill -0 "$pid" 2>/dev/null; do
+    sleep 10
+    now="$(lan_ip || true)"
+    if [[ "$now" != "$ip" ]]; then
+      kill "$pid" 2>/dev/null || true
+      wait "$pid" 2>/dev/null || true
+      break
+    fi
+  done
+  wait "$pid" 2>/dev/null || true
+  ended="$(date +%s)"
+  if [[ $((ended - started)) -lt 5 ]]; then
+    sleep 5
+  fi
+done
+EOF
+  sudo_cmd install -m 0755 "$tmp" "$bin"
+  rm -f "$tmp"
+  tmp="$(mktemp)"
+  cat > "$tmp" << EOF
+[Unit]
+Description=Advertise layout-mqtt.local for the layout Mosquitto broker
+After=network-online.target avahi-daemon.service
+Wants=network-online.target avahi-daemon.service
+
+[Service]
+Type=simple
+ExecStart=${bin}
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target
+EOF
+  sudo_cmd install -m 0644 "$tmp" "$unit"
+  rm -f "$tmp"
+  sudo_cmd systemctl daemon-reload
+  if ! sudo_cmd systemctl enable --now esphome-mr-layout-mqtt.service; then
+    warn "Could not start the layout-mqtt.local advertisement. The broker still works."
+    return 0
+  fi
+  sudo_cmd systemctl restart esphome-mr-layout-mqtt.service || true
+  local out i resolved=0 rpid
+  out="$(mktemp)"
+  if command -v avahi-resolve-host-name >/dev/null 2>&1; then
+    avahi-resolve-host-name -4 layout-mqtt.local >"$out" 2>/dev/null &
+    rpid=$!
+    for i in 1 2 3 4 5 6 7 8 9 10; do
+      if grep -q 'layout-mqtt.local' "$out" 2>/dev/null; then
+        resolved=1
+        break
+      fi
+      sleep 0.5
+    done
+    kill "$rpid" >/dev/null 2>&1 || true
+    wait "$rpid" 2>/dev/null || true
+  fi
+  rm -f "$out"
+  if [[ "$resolved" -eq 1 ]]; then
+    ok "This computer answers to layout-mqtt.local"
+  else
+    warn "layout-mqtt.local is not answering yet. Give it a few seconds, then try: ping layout-mqtt.local"
+  fi
+}
+
+remove_layout_mqtt_mdns() {
+  if [[ -f /etc/systemd/system/esphome-mr-layout-mqtt.service ]]; then
+    sudo_cmd systemctl disable --now esphome-mr-layout-mqtt.service >/dev/null 2>&1 || true
+    sudo_cmd rm -f /etc/systemd/system/esphome-mr-layout-mqtt.service
+    sudo_cmd systemctl daemon-reload >/dev/null 2>&1 || true
+    ok "Stopped advertising layout-mqtt.local"
+  else
+    ok "layout-mqtt.local was not published"
+  fi
+  sudo_cmd rm -f /usr/local/libexec/esphome-mr/layout-mqtt-mdns
+  sudo_cmd rmdir /usr/local/libexec/esphome-mr 2>/dev/null || true
+}
+
 install_esphome() {
   local -a suffixes=()
   local installed
@@ -1022,10 +1197,12 @@ offer_configurator() {
   local lan_ip="${1:-}"
   step "Next: Board Configurator"
   say "This computer is ready. Next you build board.yaml in the Board Configurator."
+  printf '\n' >&2
+  printf '  %s%sMQTT broker:   layout-mqtt.local%s\n' "$C_ACCENT" "$C_BOLD" "$C_RESET" >&2
+  printf '  %sType that name in the Configurator and in JMRI. Port 1883, no password.%s\n' "$C_TEXT" "$C_RESET" >&2
+  log_file "MQTT broker: layout-mqtt.local"
   if [[ -n "$lan_ip" ]]; then
-    info "When the form asks for the MQTT broker IP, use ${lan_ip}."
-  else
-    info "When the form asks for the MQTT broker IP, use this computer's LAN address (from: ip -4 addr)."
+    info "This computer is also ${lan_ip}, if you need the number."
   fi
   if [[ "$HAVE_GUI" -ne 1 ]]; then
     info "No desktop session here, so a browser was not opened."
@@ -1052,14 +1229,15 @@ offer_configurator() {
         warn "xdg-open is not installed. Go to: $CONFIGURATOR_URL"
       fi
       ok "Opened Board Configurator"
-      info "Click My first board, fill Wi-Fi and the MQTT broker IP, then Download board.yaml."
+      info "Click My first board and fill in Wi-Fi. The MQTT broker is layout-mqtt.local."
       ;;
   esac
 }
 
 cmd_uninstall() {
   step "Uninstall"
-  say "This removes ESPHome Device Builder, Mosquitto, and MQTTX."
+  say "This removes ESPHome Device Builder, Mosquitto, MQTTX, and the layout-mqtt.local name."
+  info "Avahi stays installed. The computer may already use it for other .local names."
   info "Board files in ${HOME}/esphome stay. JMRI stays. The Pi serial port and boot files stay."
   info "Your user stays in the dialout group."
   printf '\n  %sType uninstall to continue:%s ' "$C_BOLD" "$C_RESET" >&2
@@ -1071,6 +1249,8 @@ cmd_uninstall() {
     warn "Cancelled. Nothing was removed."
     exit 0
   fi
+
+  remove_layout_mqtt_mdns
 
   if command -v esphome-desktop >/dev/null 2>&1; then
     esphome-desktop quit >/dev/null 2>&1 || true
@@ -1277,6 +1457,8 @@ PY
     warn "Could not find a LAN IP. Run 'ip -4 addr' and put that address in the Configurator and in JMRI."
   fi
 
+  publish_layout_mqtt_mdns
+
   step "3/8  ESPHome Device Builder"
   install_esphome
   update_device_builder
@@ -1311,15 +1493,16 @@ PY
   printf '  %s%s└────────────────────────────────────────────────────┘%s\n' "$C_ACCENT" "$C_BOLD" "$C_RESET" >&2
   kv "Config files:" "${HOME}/esphome"
   kv "Dashboard:" "http://localhost:6052"
+  printf '\n' >&2
+  printf '  %s%sMQTT broker:   layout-mqtt.local%s\n' "$C_ACCENT" "$C_BOLD" "$C_RESET" >&2
+  printf '  %sType that name in the Configurator and in JMRI. Port 1883, no password.%s\n' "$C_TEXT" "$C_RESET" >&2
+  log_file "MQTT broker: layout-mqtt.local"
   kv "MQTTX:" "host 127.0.0.1   port 1883   (no username/password)"
   if [[ -n "$LAN_IP" ]]; then
-    kv "MQTT broker:" "${LAN_IP}   port 1883   (no username/password)"
-  else
-    kv "MQTT broker:" "(LAN IP from ip -4 addr)   port 1883"
+    kv "This computer:" "${LAN_IP}   (only if you need the number)"
   fi
-  info "Put that LAN IP in the Configurator and in JMRI. Do not use localhost in the board YAML."
-  if [[ "$IS_PI" -eq 1 && -n "$LAN_IP" ]]; then
-    info "JMRI on this Pi uses ${LAN_IP} too, even though Mosquitto is running here."
+  if [[ "$IS_PI" -eq 1 ]]; then
+    info "JMRI on this Pi uses layout-mqtt.local too."
   fi
   info "In MQTTX, or with mosquitto_sub, use 127.0.0.1 so you can watch topics on this computer."
   info "The first USB flash uses Chrome, Edge, or Chromium. Firefox will not see the board."
@@ -1352,8 +1535,17 @@ else
 fi
 info "Selected: $ACTION"
 case "$ACTION" in
-  install) cmd_install ;;
-  uninstall) cmd_uninstall ;;
-  quit) warn "Cancelled. Nothing was changed."; exit 0 ;;
-  *) die "Unknown action '$ACTION'. Use: bash install-linux.sh [install|uninstall]" ;;
+  install)
+    cmd_install
+    ;;
+  uninstall)
+    cmd_uninstall
+    ;;
+  quit)
+    warn "Cancelled. Nothing was changed."
+    exit 0
+    ;;
+  *)
+    die "Unknown action '$ACTION'. Use: bash install-linux.sh [install|uninstall]"
+    ;;
 esac

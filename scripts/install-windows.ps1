@@ -1,5 +1,6 @@
 # ESPHome Device Builder + Mosquitto + MQTTX setup for Windows 10/11.
 # Anonymous MQTT on port 1883 is for a trusted home network only.
+# Publishes layout-mqtt.local so `ping layout-mqtt.local` shows this PC's LAN IP.
 # Re-running this script is safe: it skips what is already in place.
 #
 # Open PowerShell (you do NOT need "Run as administrator") and paste:
@@ -15,6 +16,9 @@ $MinFreeGb = 8
 $Log = Join-Path $env:USERPROFILE 'esphome-mr-setup.log'
 $DownloadDir = Join-Path $env:USERPROFILE 'esphome-mr-installers'
 $ConfiguratorUrl = 'https://aaron9589.github.io/esphome-for-model-railroading/'
+$MdnsTask = 'ESPHome MR layout-mqtt.local'
+$MdnsFirewall = 'layout-mqtt.local mDNS (ESPHome model railroad)'
+$MdnsScript = Join-Path $env:ProgramData 'esphome-mr\layout-mqtt-mdns.ps1'
 
 function Test-IsAdmin {
     $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
@@ -97,10 +101,11 @@ function Write-Kv([string]$Label, [string]$Value) {
 function Offer-Configurator([string]$LanIp = '') {
     Write-Step 'Next: Board Configurator'
     Write-Host '  Your PC is ready. Next you build board.yaml in the Board Configurator.' -ForegroundColor Gray
+    Write-Host ''
+    Write-Host '  MQTT broker:   layout-mqtt.local' -ForegroundColor Yellow
+    Write-Host '  Type that name in the Configurator and in JMRI. Port 1883, no password.' -ForegroundColor Gray
     if ($LanIp) {
-        Write-Info "When the form asks for the MQTT broker IP, use $LanIp."
-    } else {
-        Write-Info 'When the form asks for the MQTT broker IP, use this PC''s LAN address (from ipconfig).'
+        Write-Info "This PC is also $LanIp, if you need the number."
     }
     Write-Host ''
     Write-Host '  Press Enter to open the Configurator in your browser' -ForegroundColor White
@@ -112,7 +117,7 @@ function Offer-Configurator([string]$LanIp = '') {
     } else {
         Start-Process $ConfiguratorUrl
         Write-Ok 'Opened Board Configurator'
-        Write-Info 'Click My first board, fill Wi-Fi and the MQTT broker IP, then Download board.yaml.'
+        Write-Info 'Click My first board and fill in Wi-Fi. The MQTT broker is layout-mqtt.local.'
     }
 }
 
@@ -329,9 +334,399 @@ function Get-LatestMqttxUrl {
     }
 }
 
+function Stop-LayoutMqttPublisher {
+    Stop-ScheduledTask -TaskName $MdnsTask -ErrorAction SilentlyContinue
+    Get-CimInstance Win32_Process -Filter "Name = 'powershell.exe'" -ErrorAction SilentlyContinue |
+        Where-Object { $_.CommandLine -like '*layout-mqtt-mdns.ps1*' } |
+        ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
+}
+
+function Install-LayoutMqttMdns {
+    # Windows has no Avahi and no supported way to add a .local name, so a
+    # startup task answers mDNS queries for layout-mqtt.local itself.
+    Write-Info 'Installing a helper that publishes this PC''s MQTT address on your network as layout-mqtt.local (mDNS).'
+    Write-Info 'You may get a firewall or security prompt. Allow it, so other computers can find this broker.'
+    try {
+        $dir = Split-Path $MdnsScript -Parent
+        if (-not (Test-Path $dir)) {
+            New-Item -ItemType Directory -Path $dir -Force | Out-Null
+        }
+        $publisher = @'
+$ErrorActionPreference = 'Stop'
+$HostName = 'layout-mqtt.local'
+$Group = [Net.IPAddress]::Parse('224.0.0.251')
+$Port = 5353
+$LogPath = Join-Path $env:ProgramData 'esphome-mr\layout-mqtt-mdns.log'
+$mutex = New-Object Threading.Mutex($false, 'Global\esphome-mr-layout-mqtt')
+$owned = $false
+try {
+    $owned = $mutex.WaitOne(0)
+} catch {
+    $inner = $_.Exception
+    while ($inner.InnerException) { $inner = $inner.InnerException }
+    # Stop-Process abandons the mutex. The waiter still owns it afterwards.
+    if ($inner -isnot [System.Threading.AbandonedMutexException]) { throw }
+    $owned = $true
+}
+if (-not $owned) { exit 0 }
+if ((Test-Path $LogPath) -and (Get-Item $LogPath).Length -gt 200KB) {
+    Set-Content -Path $LogPath -Value '' -Encoding UTF8 -ErrorAction SilentlyContinue
+}
+
+function Write-Log([string]$Message) {
+    $line = '{0} {1}' -f (Get-Date -Format 'HH:mm:ss'), $Message
+    Add-Content -Path $LogPath -Value $line -ErrorAction SilentlyContinue
+}
+
+function Get-PublisherIp {
+    try {
+        $profiles = @(Get-NetConnectionProfile -ErrorAction SilentlyContinue)
+        foreach ($profile in $profiles) {
+            $addr = Get-NetIPAddress -InterfaceIndex $profile.InterfaceIndex -AddressFamily IPv4 -ErrorAction SilentlyContinue |
+                Where-Object { $_.IPAddress -notlike '127.*' -and $_.IPAddress -notlike '169.254.*' } |
+                Select-Object -First 1
+            if ($addr) { return $addr.IPAddress }
+        }
+    } catch {
+        Write-Log "LAN address lookup failed: $($_.Exception.Message)"
+    }
+    return $null
+}
+
+function Add-U16([IO.MemoryStream]$Stream, [int]$Value) {
+    $Stream.WriteByte([byte](($Value -shr 8) -band 255))
+    $Stream.WriteByte([byte]($Value -band 255))
+}
+
+function Add-U32([IO.MemoryStream]$Stream, [int]$Value) {
+    $Stream.WriteByte([byte](($Value -shr 24) -band 255))
+    $Stream.WriteByte([byte](($Value -shr 16) -band 255))
+    $Stream.WriteByte([byte](($Value -shr 8) -band 255))
+    $Stream.WriteByte([byte]($Value -band 255))
+}
+
+function Get-NameBytes([string]$DnsName) {
+    $stream = New-Object IO.MemoryStream
+    foreach ($label in $DnsName.Split('.')) {
+        $bytes = [Text.Encoding]::ASCII.GetBytes($label)
+        $stream.WriteByte([byte]$bytes.Length)
+        $stream.Write($bytes, 0, $bytes.Length)
+    }
+    $stream.WriteByte(0)
+    return ,$stream.ToArray()
+}
+
+function Read-U16([byte[]]$Buf, [int]$Offset) {
+    return (($Buf[$Offset] -shl 8) -bor $Buf[$Offset + 1])
+}
+
+function Read-DnsName([byte[]]$Buf, [int]$Length, [ref]$Offset) {
+    $labels = @()
+    $pos = $Offset.Value
+    $end = $pos
+    $jumped = $false
+    for ($guard = 0; $guard -lt 40; $guard++) {
+        if ($pos -ge $Length) { return $null }
+        $len = $Buf[$pos]
+        if ($len -eq 0) {
+            if (-not $jumped) { $end = $pos + 1 }
+            $Offset.Value = $end
+            if ($labels.Count -eq 0) { return '' }
+            return ($labels -join '.')
+        }
+        if (($len -band 192) -eq 192) {
+            if ($pos + 1 -ge $Length) { return $null }
+            if (-not $jumped) { $end = $pos + 2 }
+            $pos = (($len -band 63) -shl 8) -bor $Buf[$pos + 1]
+            $jumped = $true
+            continue
+        }
+        if ($pos + 1 + $len -gt $Length) { return $null }
+        $labels += [Text.Encoding]::ASCII.GetString($Buf, ($pos + 1), $len)
+        $pos += 1 + $len
+    }
+    return $null
+}
+
+function New-QuestionBytes {
+    $stream = New-Object IO.MemoryStream
+    $name = Get-NameBytes $HostName
+    $stream.Write($name, 0, $name.Length)
+    Add-U16 $stream 1
+    Add-U16 $stream 1
+    return ,$stream.ToArray()
+}
+
+function New-AnswerBytes([string]$Ip, [int]$Ttl) {
+    $stream = New-Object IO.MemoryStream
+    $name = Get-NameBytes $HostName
+    $stream.Write($name, 0, $name.Length)
+    Add-U16 $stream 1
+    # Cache-flush + IN, so a DHCP address change replaces the old one.
+    Add-U16 $stream 0x8001
+    Add-U32 $stream $Ttl
+    Add-U16 $stream 4
+    $octets = [Net.IPAddress]::Parse($Ip).GetAddressBytes()
+    $stream.Write($octets, 0, 4)
+    return ,$stream.ToArray()
+}
+
+function New-DnsPacket([int]$Id, [int]$Flags, [byte[]]$Question, [byte[]]$Answer) {
+    $stream = New-Object IO.MemoryStream
+    Add-U16 $stream $Id
+    Add-U16 $stream $Flags
+    if ($Question) { Add-U16 $stream 1 } else { Add-U16 $stream 0 }
+    if ($Answer) { Add-U16 $stream 1 } else { Add-U16 $stream 0 }
+    Add-U16 $stream 0
+    Add-U16 $stream 0
+    if ($Question) { $stream.Write($Question, 0, $Question.Length) }
+    if ($Answer) { $stream.Write($Answer, 0, $Answer.Length) }
+    return ,$stream.ToArray()
+}
+
+function New-MdnsSocket([string]$Ip) {
+    $socket = New-Object Net.Sockets.Socket -ArgumentList ([Net.Sockets.AddressFamily]::InterNetwork), ([Net.Sockets.SocketType]::Dgram), ([Net.Sockets.ProtocolType]::Udp)
+    $socket.SetSocketOption([Net.Sockets.SocketOptionLevel]::Socket, [Net.Sockets.SocketOptionName]::ReuseAddress, $true)
+    $socket.ExclusiveAddressUse = $false
+    $socket.Bind((New-Object Net.IPEndPoint -ArgumentList ([Net.IPAddress]::Any), $Port))
+    $socket.SetSocketOption([Net.Sockets.SocketOptionLevel]::IP, [Net.Sockets.SocketOptionName]::MulticastTimeToLive, 255)
+    $socket.SetSocketOption([Net.Sockets.SocketOptionLevel]::IP, [Net.Sockets.SocketOptionName]::MulticastLoopback, $true)
+    $local = [Net.IPAddress]::Parse($Ip)
+    $membership = New-Object Net.Sockets.MulticastOption -ArgumentList $Group, $local
+    $socket.SetSocketOption([Net.Sockets.SocketOptionLevel]::IP, [Net.Sockets.SocketOptionName]::AddMembership, $membership)
+    try {
+        $socket.SetSocketOption([Net.Sockets.SocketOptionLevel]::IP, [Net.Sockets.SocketOptionName]::MulticastInterface, $local.GetAddressBytes())
+    } catch {
+        Write-Log "multicast interface option skipped: $($_.Exception.Message)"
+    }
+    $socket.ReceiveTimeout = 1000
+    return $socket
+}
+
+function Send-MdnsPacket($Socket, [byte[]]$Packet, $EndPoint) {
+    [void]$Socket.SendTo($Packet, $EndPoint)
+}
+
+function Test-ForeignOwner([byte[]]$Buf, [int]$Length, [string]$OurIp) {
+    if ($Length -lt 12) { return $false }
+    $flags = Read-U16 $Buf 2
+    if (($flags -band 0x8000) -eq 0) { return $false }
+    $questions = Read-U16 $Buf 4
+    $answers = Read-U16 $Buf 6
+    $offset = 12
+    for ($i = 0; $i -lt $questions; $i++) {
+        $null = Read-DnsName $Buf $Length ([ref]$offset)
+        $offset += 4
+        if ($offset -gt $Length) { return $false }
+    }
+    for ($i = 0; $i -lt $answers; $i++) {
+        $owner = Read-DnsName $Buf $Length ([ref]$offset)
+        if ($null -eq $owner -or ($offset + 10) -gt $Length) { return $false }
+        $type = Read-U16 $Buf $offset
+        $rdlen = Read-U16 $Buf ($offset + 8)
+        $offset += 10
+        if (($offset + $rdlen) -gt $Length) { return $false }
+        if ($owner.ToLower() -eq $HostName -and $type -eq 1 -and $rdlen -eq 4) {
+            $raw = New-Object byte[] 4
+            [Array]::Copy($Buf, $offset, $raw, 0, 4)
+            $seen = (New-Object Net.IPAddress -ArgumentList (, $raw)).ToString()
+            if ($seen -ne $OurIp) { return $true }
+        }
+        $offset += $rdlen
+    }
+    return $false
+}
+
+function Test-QueryForUs([byte[]]$Buf, [int]$Length) {
+    if ($Length -lt 12) { return $false }
+    $flags = Read-U16 $Buf 2
+    if (($flags -band 0x8000) -ne 0) { return $false }
+    $questions = Read-U16 $Buf 4
+    $offset = 12
+    for ($i = 0; $i -lt $questions; $i++) {
+        $owner = Read-DnsName $Buf $Length ([ref]$offset)
+        if ($null -eq $owner -or ($offset + 4) -gt $Length) { return $false }
+        $type = Read-U16 $Buf $offset
+        $class = Read-U16 $Buf ($offset + 2)
+        $offset += 4
+        if ($owner.ToLower() -eq $HostName -and ($type -eq 1 -or $type -eq 255)) {
+            return @{ Unicast = (($class -band 0x8000) -ne 0) }
+        }
+    }
+    return $false
+}
+
+$multicast = New-Object Net.IPEndPoint -ArgumentList $Group, $Port
+$question = New-QuestionBytes
+$socket = $null
+$currentIp = $null
+$probing = $false
+$probeUntil = [DateTime]::UtcNow
+
+function Close-MdnsSocket {
+    if ($script:socket) {
+        $script:socket.Close()
+        $script:socket = $null
+    }
+}
+
+try {
+    while ($true) {
+        $ip = Get-PublisherIp
+        if ($ip -ne $currentIp) {
+            if ($socket -and $currentIp) {
+                try {
+                    $bye = New-DnsPacket 0 0x8400 $null (New-AnswerBytes $currentIp 0)
+                    Send-MdnsPacket $socket $bye $multicast
+                } catch { }
+            }
+            Close-MdnsSocket
+            $currentIp = $ip
+            if (-not $ip) {
+                Write-Log 'waiting for a LAN address'
+                Start-Sleep -Seconds 5
+                continue
+            }
+            try {
+                $socket = New-MdnsSocket $ip
+            } catch {
+                Write-Log "socket failed: $($_.Exception.Message)"
+                $socket = $null
+                $currentIp = $null
+                Start-Sleep -Seconds 5
+                continue
+            }
+            Write-Log "probing $HostName for $ip"
+            $probe = New-DnsPacket (Get-Random -Minimum 1 -Maximum 65535) 0 $question $null
+            Send-MdnsPacket $socket $probe $multicast
+            $probing = $true
+            $probeUntil = [DateTime]::UtcNow.AddMilliseconds(800)
+        }
+
+        $buf = New-Object byte[] 1500
+        $remote = New-Object Net.IPEndPoint -ArgumentList ([Net.IPAddress]::Any), 0
+        $endpoint = [Net.EndPoint]$remote
+        $got = $false
+        $received = 0
+        try {
+            $received = $socket.ReceiveFrom($buf, [ref]$endpoint)
+            $remote = $endpoint
+            $got = $true
+        } catch {
+            $err = $_.Exception
+            $timedOut = $err -is [System.Net.Sockets.SocketException] -and $err.SocketErrorCode -eq [System.Net.Sockets.SocketError]::TimedOut
+            if (-not $timedOut) {
+                Write-Log "receive failed: $($err.Message)"
+                Close-MdnsSocket
+                $currentIp = $null
+                Start-Sleep -Seconds 2
+                continue
+            }
+        }
+
+        if ($got -and $probing -and (Test-ForeignOwner $buf $received $currentIp)) {
+            Write-Log "$HostName is already in use on the network. Retrying in 60 seconds."
+            Close-MdnsSocket
+            $currentIp = $null
+            Start-Sleep -Seconds 60
+            continue
+        }
+        if ($got -and -not $probing) {
+            $hit = Test-QueryForUs $buf $received
+            if ($hit -is [hashtable]) {
+                $answer = New-DnsPacket (Read-U16 $buf 0) 0x8400 $question (New-AnswerBytes $currentIp 120)
+                if ($hit.Unicast) {
+                    Send-MdnsPacket $socket $answer $remote
+                } else {
+                    Send-MdnsPacket $socket $answer $multicast
+                }
+            }
+        }
+        if ($probing -and [DateTime]::UtcNow -ge $probeUntil) {
+            $probing = $false
+            $announce = New-DnsPacket 0 0x8400 $null (New-AnswerBytes $currentIp 120)
+            Send-MdnsPacket $socket $announce $multicast
+            Start-Sleep -Milliseconds 250
+            Send-MdnsPacket $socket $announce $multicast
+            Write-Log "advertising $HostName -> $currentIp"
+        }
+    }
+} finally {
+    if ($socket -and $currentIp) {
+        try {
+            $bye = New-DnsPacket 0 0x8400 $null (New-AnswerBytes $currentIp 0)
+            Send-MdnsPacket $socket $bye $multicast
+        } catch { }
+    }
+    Close-MdnsSocket
+    $mutex.ReleaseMutex() | Out-Null
+}
+'@
+        Set-Content -Path $MdnsScript -Value $publisher -Encoding UTF8
+
+        $mdnsRule = Get-NetFirewallRule -DisplayName $MdnsFirewall -ErrorAction SilentlyContinue
+        if (-not $mdnsRule) {
+            New-NetFirewallRule -DisplayName $MdnsFirewall -Direction Inbound -Action Allow -Protocol UDP -LocalPort 5353 -Profile Private, Domain | Out-Null
+            Write-Ok 'Firewall allows mDNS (UDP 5353) so other computers can find layout-mqtt.local'
+        }
+
+        Stop-LayoutMqttPublisher
+        $arg = "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$MdnsScript`""
+        $action = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument $arg
+        $trigger = New-ScheduledTaskTrigger -AtStartup
+        $principal = New-ScheduledTaskPrincipal -UserId 'SYSTEM' -LogonType ServiceAccount -RunLevel Highest
+        $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable -RestartCount 999 -RestartInterval (New-TimeSpan -Minutes 1) -ExecutionTimeLimit ([TimeSpan]::Zero)
+        $task = New-ScheduledTask -Action $action -Trigger $trigger -Principal $principal -Settings $settings -Description 'Publishes layout-mqtt.local for the layout Mosquitto broker.'
+        Register-ScheduledTask -TaskName $MdnsTask -InputObject $task -Force | Out-Null
+        Start-ScheduledTask -TaskName $MdnsTask
+
+        $answered = $false
+        foreach ($tryPing in 1..8) {
+            $ping = & ping.exe -n 1 -w 1000 layout-mqtt.local 2>&1 | Out-String
+            if ($ping -match 'Reply from') {
+                $answered = $true
+                break
+            }
+            Start-Sleep -Milliseconds 500
+        }
+        if ($answered) {
+            Write-Ok 'This PC answers to layout-mqtt.local'
+        } else {
+            Write-Warn 'layout-mqtt.local is not answering yet. Give it a few seconds, then try: ping layout-mqtt.local'
+        }
+    } catch {
+        Write-Warn "Could not publish layout-mqtt.local ($($_.Exception.Message)). The broker still works. Use the LAN IP."
+    }
+}
+
+function Uninstall-LayoutMqttMdns {
+    $hadTask = $null
+    try { $hadTask = Get-ScheduledTask -TaskName $MdnsTask -ErrorAction SilentlyContinue } catch { $hadTask = $null }
+    $hadScript = Test-Path $MdnsScript
+    Stop-LayoutMqttPublisher
+    Unregister-ScheduledTask -TaskName $MdnsTask -Confirm:$false -ErrorAction SilentlyContinue
+    $rule = Get-NetFirewallRule -DisplayName $MdnsFirewall -ErrorAction SilentlyContinue
+    if ($rule) {
+        Remove-NetFirewallRule -DisplayName $MdnsFirewall -ErrorAction SilentlyContinue
+        Write-Ok 'Removed the layout-mqtt.local firewall rule'
+    }
+    $dir = Split-Path $MdnsScript -Parent
+    Remove-Item -Force $MdnsScript -ErrorAction SilentlyContinue
+    $log = Join-Path $dir 'layout-mqtt-mdns.log'
+    Remove-Item -Force $log -ErrorAction SilentlyContinue
+    if ((Test-Path $dir) -and -not (Get-ChildItem -Force $dir -ErrorAction SilentlyContinue)) {
+        Remove-Item -Force $dir -ErrorAction SilentlyContinue
+    }
+    if ($hadTask -or $hadScript) {
+        Write-Ok 'Stopped advertising layout-mqtt.local'
+    } else {
+        Write-Ok 'layout-mqtt.local was not published'
+    }
+}
+
 function Invoke-OurUninstall {
     Write-Step 'Uninstall'
-    Write-Host '  This removes ESPHome Device Builder, Mosquitto, and MQTTX.' -ForegroundColor Gray
+    Write-Host '  This removes ESPHome Device Builder, Mosquitto, MQTTX, and the layout-mqtt.local name.' -ForegroundColor Gray
     Write-Info "Your board files in $env:USERPROFILE\esphome stay."
     Write-Host ''
     $confirm = Read-Host '  Type uninstall to continue'
@@ -358,6 +753,8 @@ function Invoke-OurUninstall {
     } else {
         Write-Ok 'No setup firewall rule was present'
     }
+
+    Uninstall-LayoutMqttMdns
 
     $mosquittoExe = Join-Path ${env:ProgramFiles} 'mosquitto\mosquitto.exe'
     $service = Get-Service -Name mosquitto -ErrorAction SilentlyContinue
@@ -590,6 +987,8 @@ try {
     }
     Write-Ok 'Mosquitto is running and set to Automatic start'
 
+    Install-LayoutMqttMdns
+
     Write-Step '3/7  ESPHome Device Builder'
     Write-Info 'Asking GitHub for the latest official desktop app...'
     $release = Invoke-RestMethod -Headers @{
@@ -697,13 +1096,13 @@ try {
     Write-Info 'Notification area: an ESPHome icon. Use Open Dashboard and Open Config Folder.'
     Write-Kv 'Config files:' "$env:USERPROFILE\esphome"
     Write-Kv 'Dashboard:' 'http://localhost:6052'
+    Write-Host ''
+    Write-Host '  MQTT broker:   layout-mqtt.local' -ForegroundColor Yellow
+    Write-Host '  Type that name in the Configurator and in JMRI. Port 1883, no password.' -ForegroundColor Gray
     Write-Kv 'MQTTX:' 'host 127.0.0.1   port 1883   (no username/password)'
     if ($lan) {
-        Write-Kv 'MQTT broker:' "$($lan.IP)   port 1883   (no username/password)"
-    } else {
-        Write-Kv 'MQTT broker:' '(the IPv4 address from ipconfig)   port 1883'
+        Write-Kv 'This PC:' "$($lan.IP)   (only if you need the number)"
     }
-    Write-Info 'Put that LAN IP in the Configurator and in JMRI. Do not use localhost in the board YAML.'
     Write-Info 'In MQTTX, use 127.0.0.1 so you can watch topics on this PC.'
     Write-Kv 'Installers:' $DownloadDir
 

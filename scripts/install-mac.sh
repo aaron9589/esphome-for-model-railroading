@@ -1,6 +1,7 @@
 #!/bin/bash
 # ESPHome Device Builder + Mosquitto + MQTTX setup for macOS.
 # Anonymous MQTT on port 1883 is for a trusted home network only.
+# Publishes layout-mqtt.local so `ping layout-mqtt.local` shows this Mac's LAN IP.
 # Re-running this script is safe: it skips what is already in place.
 #
 # One line (Terminal). Do not pipe this into bash — the menu needs your keyboard.
@@ -13,6 +14,11 @@ CONFIGURATOR_URL="https://aaron9589.github.io/esphome-for-model-railroading/"
 MARKER_BEGIN="# BEGIN esphome-for-model-railroading"
 MARKER_END="# END esphome-for-model-railroading"
 MIN_FREE_GB=8
+MDNS_LABEL="com.esphome-mr.layout-mqtt"
+MDNS_DIR="${HOME}/Library/Application Support/esphome-mr"
+MDNS_PY="${MDNS_DIR}/layout-mqtt-mdns.py"
+MDNS_PLIST="${HOME}/Library/LaunchAgents/${MDNS_LABEL}.plist"
+MDNS_LOG="${HOME}/Library/Logs/esphome-mr-mdns.log"
 
 mkdir -p "${HOME}/Library/Logs"
 touch "$LOG"
@@ -104,10 +110,12 @@ offer_configurator() {
   local lan_ip="${1:-}"
   step "Next: Board Configurator"
   say "Your Mac is ready. Next you build board.yaml in the Board Configurator."
+  printf '\n' >&2
+  printf '  %s%sMQTT broker:   layout-mqtt.local%s\n' "$C_ACCENT" "$C_BOLD" "$C_RESET" >&2
+  printf '  %sType that name in the Configurator and in JMRI. Port 1883, no password.%s\n' "$C_TEXT" "$C_RESET" >&2
+  log_file "MQTT broker: layout-mqtt.local"
   if [[ -n "$lan_ip" ]]; then
-    info "When the form asks for the MQTT broker IP, use ${lan_ip}."
-  else
-    info "When the form asks for the MQTT broker IP, use this Mac's LAN address (System Settings → Network)."
+    info "This Mac is also ${lan_ip}, if you need the number."
   fi
   printf '\n' >&2
   printf '  %sPress Enter%s to open the Configurator in your browser\n' "$C_BOLD" "$C_RESET" >&2
@@ -125,7 +133,7 @@ offer_configurator() {
     *)
       open "$CONFIGURATOR_URL" || warn "Could not open a browser. Go to: $CONFIGURATOR_URL"
       ok "Opened Board Configurator"
-      info "Click My first board, fill Wi-Fi and the MQTT broker IP, then Download board.yaml."
+      info "Click My first board and fill in Wi-Fi. The MQTT broker is layout-mqtt.local."
       ;;
   esac
 }
@@ -233,9 +241,228 @@ update_device_builder() {
   "$bin" status 2>/dev/null | grep -E '^(ESPHome:|Device builder:)' || true
 }
 
+publish_layout_mqtt_mdns() {
+  # Bonjour keeps the name only while this helper is running. A login agent
+  # starts it again after a reboot, same as the Mosquitto brew service.
+  info "Installing a helper that publishes this Mac's MQTT address on your network as layout-mqtt.local (mDNS)."
+  info "You may get a firewall or security prompt. Allow it, so other computers can find this broker."
+  mkdir -p "$MDNS_DIR" "${HOME}/Library/LaunchAgents" "${HOME}/Library/Logs"
+  cat > "$MDNS_PY" << 'PY'
+#!/usr/bin/env python3
+"""Advertise layout-mqtt.local as this Mac's LAN address."""
+import ctypes
+import select
+import socket
+import subprocess
+import time
+
+NAME = b"layout-mqtt.local."
+IFACES = (b"en0", b"en1", b"bridge0")
+FLAG_UNIQUE = 0x20
+
+libc = ctypes.CDLL("/usr/lib/libSystem.B.dylib")
+
+
+class _Opaque(ctypes.Structure):
+    pass
+
+
+DNSServiceRef = ctypes.POINTER(_Opaque)
+DNSRecordRef = ctypes.POINTER(_Opaque)
+Reply = ctypes.CFUNCTYPE(
+    None, DNSServiceRef, DNSRecordRef, ctypes.c_uint32, ctypes.c_int32, ctypes.c_void_p
+)
+status = {"err": 0}
+
+
+def _on_record(sdref, rec, flags, err, ctx):
+    status["err"] = int(err)
+    if err != 0:
+        print("mDNS record error %s" % err, flush=True)
+
+
+CALLBACK = Reply(_on_record)
+
+libc.DNSServiceCreateConnection.argtypes = [ctypes.POINTER(DNSServiceRef)]
+libc.DNSServiceCreateConnection.restype = ctypes.c_int32
+libc.DNSServiceRegisterRecord.argtypes = [
+    DNSServiceRef,
+    ctypes.POINTER(DNSRecordRef),
+    ctypes.c_uint32,
+    ctypes.c_uint32,
+    ctypes.c_char_p,
+    ctypes.c_uint16,
+    ctypes.c_uint16,
+    ctypes.c_uint16,
+    ctypes.c_void_p,
+    ctypes.c_uint32,
+    Reply,
+    ctypes.c_void_p,
+]
+libc.DNSServiceRegisterRecord.restype = ctypes.c_int32
+libc.DNSServiceRefSockFD.argtypes = [DNSServiceRef]
+libc.DNSServiceRefSockFD.restype = ctypes.c_int
+libc.DNSServiceProcessResult.argtypes = [DNSServiceRef]
+libc.DNSServiceProcessResult.restype = ctypes.c_int32
+libc.DNSServiceRefDeallocate.argtypes = [DNSServiceRef]
+libc.DNSServiceRefDeallocate.restype = None
+
+
+def lan_ip():
+    for iface in IFACES:
+        try:
+            ip = subprocess.check_output(
+                ["ipconfig", "getifaddr", iface],
+                text=True,
+                stderr=subprocess.DEVNULL,
+            ).strip()
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            continue
+        if ip and not ip.startswith("127."):
+            return ip
+    return ""
+
+
+def drop(sd):
+    if sd is not None:
+        libc.DNSServiceRefDeallocate(sd)
+    return None
+
+
+def advertise(ip):
+    sd = DNSServiceRef()
+    err = libc.DNSServiceCreateConnection(ctypes.byref(sd))
+    if err != 0:
+        print("DNSServiceCreateConnection %s" % err, flush=True)
+        return None
+    rec = DNSRecordRef()
+    buf = ctypes.create_string_buffer(socket.inet_aton(ip))
+    status["err"] = 0
+    err = libc.DNSServiceRegisterRecord(
+        sd, ctypes.byref(rec), FLAG_UNIQUE, 0,
+        NAME, 1, 1, 4, buf, 120, CALLBACK, None,
+    )
+    if err != 0:
+        print("DNSServiceRegisterRecord %s" % err, flush=True)
+        libc.DNSServiceRefDeallocate(sd)
+        return None
+    print("advertising layout-mqtt.local -> %s" % ip, flush=True)
+    return sd
+
+
+def main():
+    sd = None
+    current = ""
+    next_check = 0
+    while True:
+        now = time.time()
+        if now >= next_check:
+            next_check = now + 10
+            ip = lan_ip()
+            if ip != current:
+                sd = drop(sd)
+                current = ""
+                if not ip:
+                    time.sleep(5)
+                    continue
+                sd = advertise(ip)
+                if sd is None:
+                    time.sleep(5)
+                    continue
+                current = ip
+        if sd is None:
+            time.sleep(5)
+            continue
+        fd = int(libc.DNSServiceRefSockFD(sd))
+        if fd < 0:
+            sd = drop(sd)
+            current = ""
+            time.sleep(2)
+            continue
+        readable, _, _ = select.select([fd], [], [], max(0, next_check - time.time()))
+        if readable:
+            err = libc.DNSServiceProcessResult(sd)
+            if err != 0 or status["err"] != 0:
+                print("mDNS registration dropped", flush=True)
+                sd = drop(sd)
+                current = ""
+                time.sleep(30)
+
+
+if __name__ == "__main__":
+    main()
+PY
+  local py_bin="/usr/bin/python3"
+  if [[ ! -x "$py_bin" ]]; then
+    py_bin="$(command -v python3)"
+  fi
+  cat > "$MDNS_PLIST" << PLIST
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>${MDNS_LABEL}</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>${py_bin}</string>
+    <string>-u</string>
+    <string>${MDNS_PY}</string>
+  </array>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+  <key>StandardOutPath</key>
+  <string>${MDNS_LOG}</string>
+  <key>StandardErrorPath</key>
+  <string>${MDNS_LOG}</string>
+</dict>
+</plist>
+PLIST
+  local domain="gui/$(id -u)"
+  launchctl bootout "${domain}/${MDNS_LABEL}" >/dev/null 2>&1 || true
+  launchctl enable "${domain}/${MDNS_LABEL}" >/dev/null 2>&1 || true
+  if ! launchctl bootstrap "$domain" "$MDNS_PLIST"; then
+    # Already loaded (a re-run) still needs a restart so it reads the new helper.
+    if ! launchctl kickstart -k "${domain}/${MDNS_LABEL}" >/dev/null 2>&1; then
+      warn "Could not start the layout-mqtt.local advertisement. The broker still works."
+      info "After you log in, run this setup again, or: launchctl bootstrap ${domain} \"${MDNS_PLIST}\""
+      return 0
+    fi
+  else
+    launchctl kickstart -k "${domain}/${MDNS_LABEL}" >/dev/null 2>&1 || true
+  fi
+  local i
+  for i in 1 2 3 4 5 6 7 8; do
+    if ping -c 1 -t 1 layout-mqtt.local >/dev/null 2>&1; then
+      ok "This Mac answers to layout-mqtt.local"
+      return 0
+    fi
+    sleep 0.5
+  done
+  warn "layout-mqtt.local is not answering yet. Give it a few seconds, then try: ping layout-mqtt.local"
+}
+
+stop_layout_mqtt_mdns() {
+  local domain="gui/$(id -u)"
+  local had=0
+  if [[ -f "$MDNS_PLIST" || -f "$MDNS_PY" ]]; then
+    had=1
+  fi
+  launchctl bootout "${domain}/${MDNS_LABEL}" >/dev/null 2>&1 || true
+  rm -f "$MDNS_PLIST" "$MDNS_PY" "$MDNS_LOG"
+  rmdir "$MDNS_DIR" 2>/dev/null || true
+  if [[ "$had" -eq 1 ]]; then
+    ok "Stopped advertising layout-mqtt.local"
+  else
+    ok "layout-mqtt.local was not published"
+  fi
+}
+
 cmd_uninstall() {
   step "Uninstall"
-  say "This removes ESPHome Device Builder, Mosquitto, and MQTTX."
+  say "This removes ESPHome Device Builder, Mosquitto, MQTTX, and the layout-mqtt.local name."
   info "Homebrew stays. Board files in ${HOME}/esphome stay."
   printf '\n  %sType uninstall to continue:%s ' "$C_BOLD" "$C_RESET" >&2
   local confirm
@@ -246,6 +473,8 @@ cmd_uninstall() {
     warn "Cancelled. Nothing was removed."
     exit 0
   fi
+
+  stop_layout_mqtt_mdns
 
   osascript -e 'quit app "ESPHome Device Builder"' >/dev/null 2>&1 || true
   osascript -e 'quit app "MQTTX"' >/dev/null 2>&1 || true
@@ -575,6 +804,8 @@ case "$MOSQ_SVC_STATE" in
     ;;
 esac
 
+publish_layout_mqtt_mdns
+
 step "4/8  ESPHome Device Builder"
 info "Asking GitHub for the latest official desktop app..."
 RELEASE_JSON="$(curl -fsSL -H "User-Agent: esphome-for-model-railroading-setup" -H "Accept: application/vnd.github+json" https://api.github.com/repos/esphome/esphome-desktop/releases/latest)"
@@ -663,13 +894,14 @@ printf '  %s%s└─────────────────────
 info "Menu bar: an ESPHome icon. Use Open Dashboard and Open Config Folder."
 kv "Config files:" "${HOME}/esphome"
 kv "Dashboard:" "http://localhost:6052"
+printf '\n' >&2
+printf '  %s%sMQTT broker:   layout-mqtt.local%s\n' "$C_ACCENT" "$C_BOLD" "$C_RESET" >&2
+printf '  %sType that name in the Configurator and in JMRI. Port 1883, no password.%s\n' "$C_TEXT" "$C_RESET" >&2
+log_file "MQTT broker: layout-mqtt.local"
 kv "MQTTX:" "host 127.0.0.1   port 1883   (no username/password)"
 if [[ -n "$LAN_IP" ]]; then
-  kv "MQTT broker:" "${LAN_IP}   port 1883   (no username/password)"
-else
-  kv "MQTT broker:" "(LAN IP from System Settings → Network)   port 1883"
+  kv "This Mac:" "${LAN_IP}   (only if you need the number)"
 fi
-info "Put that LAN IP in the Configurator and in JMRI. Do not use localhost in the board YAML."
 info "In MQTTX, use 127.0.0.1 so you can watch topics on this Mac."
 
 step "8/8  Done"
@@ -696,8 +928,17 @@ else
 fi
 info "Selected: $ACTION"
 case "$ACTION" in
-  install) cmd_install ;;
-  uninstall) cmd_uninstall ;;
-  quit) warn "Cancelled. Nothing was changed."; exit 0 ;;
-  *) die "Unknown action '$ACTION'. Use: bash install-mac.sh [install|uninstall]" ;;
+  install)
+    cmd_install
+    ;;
+  uninstall)
+    cmd_uninstall
+    ;;
+  quit)
+    warn "Cancelled. Nothing was changed."
+    exit 0
+    ;;
+  *)
+    die "Unknown action '$ACTION'. Use: bash install-mac.sh [install|uninstall]"
+    ;;
 esac

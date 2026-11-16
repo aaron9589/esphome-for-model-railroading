@@ -59,6 +59,8 @@ test("My First Board preset matches sample topics and pins", () => {
   assert.equal(config.points[0].channel, 0);
   assert.equal(config.i2c.sda, "GPIO21");
   assert.equal(config.i2c.scl, "GPIO22");
+  assert.equal(config.board.mqttBroker, "layout-mqtt.local");
+  assert.match(generateYaml(config), /broker: layout-mqtt\.local/);
 });
 
 test("generated YAML embeds credentials and min_version", () => {
