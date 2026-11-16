@@ -226,6 +226,24 @@ Thrown lines the branch. An interim on the way to the junction adds its detector
 
 Advance Approach stays the block one past the next. It stays on the straight path when the junction is thrown.
 
+## A junction with its neighbours
+
+West is a boundary. Near is an interim in the approach. Points is the junction. Straight is an interim on the main, then east is a boundary. Curve is an interim on the branch, then branch is a boundary.
+
+![West boundary, an interim, a junction, then an interim and a boundary on the main and on the branch.](../_img/block-junction-stretch.svg)
+
+West's right end pairs to near, and near's other end pairs to the throat. The main pairs to straight, and straight's other end pairs to east's left. The branch pairs to curve, and curve's other end pairs to branch's left.
+
+![The main is lined. The branch is held occupied, so the signals facing that block show Stop. The throat is Clear.](../_img/block-junction-main.svg)
+
+![The branch is lined. The main is held occupied. The throat shows Approach Diverging, or Approach if that mast has no such aspect.](../_img/block-junction-branch.svg)
+
+![The train is on the near interim. West and the throat show Stop. The main stays held.](../_img/block-junction-approach.svg)
+
+![The train is on the curve interim. The branch signals show Stop. The throat shows Approach Diverging, or Approach.](../_img/block-junction-diverging.svg)
+
+Approach Diverging is optional. Without it, the throat and the signal one block back show Approach. The route that is not lined is what they see as occupied.
+
 ## On the mast
 
 The script picks the aspect by the name configured for that mast (`Stop`, `Approach`, and so on). One mast, one signal. The signal starts at Stop until the topics it reads have reported.
