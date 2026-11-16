@@ -1,95 +1,71 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="960" height="676" viewBox="0 0 960 676" role="img" aria-labelledby="title desc">
-  <title id="title">Three boards paired at a meet, south then mid then north</title>
-  <desc id="desc">South and north publish a block topic, a joint optical, and one postcard. Mid publishes its block and a postcard out of each end. Signals at the joints face both ways. The postcard fields are BLOCK, NEXT, AFTER, and DIVERGING.</desc>
-  <rect width="960" height="676" fill="#f4f1ea"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="520" viewBox="0 0 960 520" role="img" aria-labelledby="title desc">
+  <title id="title">A boundary, an interim, and a boundary forming one block</title>
+  <desc id="desc">West and east are boundaries. The interim between them publishes its detector and passes the postcard through, adding its detector to BLOCK. The track past east is the next block.</desc>
+  <rect width="960" height="520" fill="#f4f1ea"/>
   <g font-family="ui-sans-serif, system-ui, sans-serif" fill="#1c1917">
-    <text x="32" y="36" font-size="18" font-weight="600">Three boards, paired at a meet</text>
-    <text x="32" y="58" fill="#57534e" font-size="13">Track main. Each joint has a signal facing each way. Mid has no signal. It carries the postcard.</text>
-    <g fill="#57534e" font-size="12" font-weight="600" text-anchor="middle">
-      <text x="180" y="96">south</text>
-      <text x="480" y="96">mid</text>
-      <text x="780" y="96">north</text>
+    <text x="32" y="36" font-size="18" font-weight="600">One block, with an interim in it</text>
+    <text x="32" y="58" fill="#57534e" font-size="13">West and east are boundaries. The interim between them belongs to that block. Past east is the next block.</text>
+    <g stroke="#a8a29e" stroke-width="3" stroke-linecap="butt">
+      <line x1="48" y1="100" x2="140" y2="100"/>
+      <line x1="48" y1="112" x2="140" y2="112"/>
     </g>
+    <g stroke="#a8a29e" stroke-width="2"><line x1="60" y1="100" x2="60" y2="112"/><line x1="78" y1="100" x2="78" y2="112"/><line x1="96" y1="100" x2="96" y2="112"/><line x1="114" y1="100" x2="114" y2="112"/><line x1="132" y1="100" x2="132" y2="112"/></g>
     <g stroke="#d32f2f" stroke-width="3" stroke-linecap="butt">
-      <line x1="48" y1="118" x2="300" y2="118"/>
-      <line x1="48" y1="130" x2="300" y2="130"/>
+      <line x1="180" y1="100" x2="600" y2="100"/>
+      <line x1="180" y1="112" x2="600" y2="112"/>
     </g>
-    <g stroke="#d32f2f" stroke-width="2"><line x1="60" y1="118" x2="60" y2="130"/><line x1="78" y1="118" x2="78" y2="130"/><line x1="96" y1="118" x2="96" y2="130"/><line x1="114" y1="118" x2="114" y2="130"/><line x1="132" y1="118" x2="132" y2="130"/><line x1="150" y1="118" x2="150" y2="130"/><line x1="168" y1="118" x2="168" y2="130"/><line x1="186" y1="118" x2="186" y2="130"/><line x1="204" y1="118" x2="204" y2="130"/><line x1="222" y1="118" x2="222" y2="130"/><line x1="240" y1="118" x2="240" y2="130"/><line x1="258" y1="118" x2="258" y2="130"/><line x1="276" y1="118" x2="276" y2="130"/></g>
-    <g stroke="#d32f2f" stroke-width="3" stroke-linecap="butt">
-      <line x1="332" y1="118" x2="628" y2="118"/>
-      <line x1="332" y1="130" x2="628" y2="130"/>
+    <g stroke="#d32f2f" stroke-width="2"><line x1="192" y1="100" x2="192" y2="112"/><line x1="210" y1="100" x2="210" y2="112"/><line x1="228" y1="100" x2="228" y2="112"/><line x1="246" y1="100" x2="246" y2="112"/><line x1="264" y1="100" x2="264" y2="112"/><line x1="282" y1="100" x2="282" y2="112"/><line x1="300" y1="100" x2="300" y2="112"/><line x1="318" y1="100" x2="318" y2="112"/><line x1="336" y1="100" x2="336" y2="112"/><line x1="354" y1="100" x2="354" y2="112"/><line x1="372" y1="100" x2="372" y2="112"/><line x1="390" y1="100" x2="390" y2="112"/><line x1="408" y1="100" x2="408" y2="112"/><line x1="426" y1="100" x2="426" y2="112"/><line x1="444" y1="100" x2="444" y2="112"/><line x1="462" y1="100" x2="462" y2="112"/><line x1="480" y1="100" x2="480" y2="112"/><line x1="498" y1="100" x2="498" y2="112"/><line x1="516" y1="100" x2="516" y2="112"/><line x1="534" y1="100" x2="534" y2="112"/><line x1="552" y1="100" x2="552" y2="112"/><line x1="570" y1="100" x2="570" y2="112"/><line x1="588" y1="100" x2="588" y2="112"/></g>
+    <g stroke="#a8a29e" stroke-width="3" stroke-linecap="butt">
+      <line x1="660" y1="100" x2="912" y2="100"/>
+      <line x1="660" y1="112" x2="912" y2="112"/>
     </g>
-    <g stroke="#d32f2f" stroke-width="2"><line x1="344" y1="118" x2="344" y2="130"/><line x1="362" y1="118" x2="362" y2="130"/><line x1="380" y1="118" x2="380" y2="130"/><line x1="398" y1="118" x2="398" y2="130"/><line x1="416" y1="118" x2="416" y2="130"/><line x1="434" y1="118" x2="434" y2="130"/><line x1="452" y1="118" x2="452" y2="130"/><line x1="470" y1="118" x2="470" y2="130"/><line x1="488" y1="118" x2="488" y2="130"/><line x1="506" y1="118" x2="506" y2="130"/><line x1="524" y1="118" x2="524" y2="130"/><line x1="542" y1="118" x2="542" y2="130"/><line x1="560" y1="118" x2="560" y2="130"/><line x1="578" y1="118" x2="578" y2="130"/><line x1="596" y1="118" x2="596" y2="130"/><line x1="614" y1="118" x2="614" y2="130"/></g>
-    <g stroke="#d32f2f" stroke-width="3" stroke-linecap="butt">
-      <line x1="660" y1="118" x2="912" y2="118"/>
-      <line x1="660" y1="130" x2="912" y2="130"/>
-    </g>
-    <g stroke="#d32f2f" stroke-width="2"><line x1="672" y1="118" x2="672" y2="130"/><line x1="690" y1="118" x2="690" y2="130"/><line x1="708" y1="118" x2="708" y2="130"/><line x1="726" y1="118" x2="726" y2="130"/><line x1="744" y1="118" x2="744" y2="130"/><line x1="762" y1="118" x2="762" y2="130"/><line x1="780" y1="118" x2="780" y2="130"/><line x1="798" y1="118" x2="798" y2="130"/><line x1="816" y1="118" x2="816" y2="130"/><line x1="834" y1="118" x2="834" y2="130"/><line x1="852" y1="118" x2="852" y2="130"/><line x1="870" y1="118" x2="870" y2="130"/><line x1="888" y1="118" x2="888" y2="130"/></g>
-    <text x="248" y="112" text-anchor="end" fill="#44403c" font-size="12">protects mid</text>
-    <text x="228" y="164" text-anchor="end" fill="#44403c" font-size="12">protects south</text>
-    <text x="712" y="112" fill="#44403c" font-size="12">protects north</text>
-    <text x="692" y="164" fill="#44403c" font-size="12">protects mid</text>
-    <g transform="translate(300 128) scale(1 1)">
+    <g stroke="#a8a29e" stroke-width="2"><line x1="672" y1="100" x2="672" y2="112"/><line x1="690" y1="100" x2="690" y2="112"/><line x1="708" y1="100" x2="708" y2="112"/><line x1="726" y1="100" x2="726" y2="112"/><line x1="744" y1="100" x2="744" y2="112"/><line x1="762" y1="100" x2="762" y2="112"/><line x1="780" y1="100" x2="780" y2="112"/><line x1="798" y1="100" x2="798" y2="112"/><line x1="816" y1="100" x2="816" y2="112"/><line x1="834" y1="100" x2="834" y2="112"/><line x1="852" y1="100" x2="852" y2="112"/><line x1="870" y1="100" x2="870" y2="112"/><line x1="888" y1="100" x2="888" y2="112"/></g>
+    <g transform="translate(160 106) scale(1 1)">
       <circle cx="0" cy="0" r="11" fill="#292524"/>
       <circle cx="0" cy="0" r="5" fill="#f4f1ea"/>
       <polygon points="14,-4 24,0 14,4" fill="#1c1917"/>
     </g>
-    <g transform="translate(300 176) scale(-1 1)">
+    <g transform="translate(160 142) scale(-1 1)">
       <circle cx="0" cy="0" r="11" fill="#292524"/>
       <circle cx="0" cy="0" r="5" fill="#f4f1ea"/>
       <polygon points="14,-4 24,0 14,4" fill="#1c1917"/>
     </g>
-    <g transform="translate(660 128) scale(1 1)">
+    <g transform="translate(620 106) scale(1 1)">
       <circle cx="0" cy="0" r="11" fill="#292524"/>
       <circle cx="0" cy="0" r="5" fill="#f4f1ea"/>
       <polygon points="14,-4 24,0 14,4" fill="#1c1917"/>
     </g>
-    <g transform="translate(660 176) scale(-1 1)">
+    <g transform="translate(620 142) scale(-1 1)">
       <circle cx="0" cy="0" r="11" fill="#292524"/>
       <circle cx="0" cy="0" r="5" fill="#f4f1ea"/>
       <polygon points="14,-4 24,0 14,4" fill="#1c1917"/>
     </g>
-    <rect x="32" y="200" width="896" height="36" rx="10" fill="#faeeda" stroke="#854f0b"/>
-    <text x="400" y="223" text-anchor="end" font-size="13" font-weight="600">Mosquitto</text>
-    <text x="416" y="223" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">mss/main/#</text>
-    <rect x="32" y="252" width="300" height="300" rx="12" fill="#ebe6dc" stroke="#cfc8bc"/>
-    <text x="182.0" y="280" text-anchor="middle" font-size="15" font-weight="600">south-board</text>
-    <text x="48" y="304" fill="#57534e" font-size="12" font-weight="600">Publishes</text>
-    <rect x="48" y="316" width="268" height="28" rx="8" fill="#e7f6ef" stroke="#0f6e56"/>
-    <text x="182.0" y="334" text-anchor="middle" fill="#0f6e56" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="11">block/south-board/south</text>
-    <rect x="48" y="350" width="268" height="28" rx="8" fill="#e7f6ef" stroke="#0f6e56"/>
-    <text x="182.0" y="368" text-anchor="middle" fill="#0f6e56" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="11">joint/south-board/south/end</text>
-    <rect x="48" y="384" width="268" height="28" rx="8" fill="#faeeda" stroke="#854f0b"/>
-    <text x="182.0" y="402" text-anchor="middle" fill="#854f0b" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="11">ahead/south-board/south/end</text>
-    <text x="48" y="436" fill="#57534e" font-size="13">Neighbour on the web page:</text>
-    <text x="48" y="454" fill="#57534e" font-size="13">mid-board/mid/begin</text>
-    <rect x="344" y="252" width="272" height="300" rx="12" fill="#e7f6ef" stroke="#0f6e56"/>
-    <text x="480.0" y="280" text-anchor="middle" font-size="15" font-weight="600">mid-board</text>
-    <text x="360" y="304" fill="#57534e" font-size="12" font-weight="600">Publishes</text>
-    <rect x="360" y="316" width="240" height="28" rx="8" fill="#e7f6ef" stroke="#0f6e56"/>
-    <text x="480.0" y="334" text-anchor="middle" fill="#0f6e56" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="11">block/mid-board/mid</text>
-    <rect x="360" y="350" width="240" height="28" rx="8" fill="#faeeda" stroke="#854f0b"/>
-    <text x="480.0" y="368" text-anchor="middle" fill="#854f0b" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="11">ahead/mid-board/mid/begin</text>
-    <rect x="360" y="384" width="240" height="28" rx="8" fill="#faeeda" stroke="#854f0b"/>
-    <text x="480.0" y="402" text-anchor="middle" fill="#854f0b" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="11">ahead/mid-board/mid/end</text>
-    <text x="360" y="436" fill="#57534e" font-size="13">begin faces south.</text>
-    <text x="360" y="454" fill="#57534e" font-size="13">end faces north.</text>
-    <text x="360" y="472" fill="#57534e" font-size="13">No signal on this board.</text>
-    <rect x="628" y="252" width="300" height="300" rx="12" fill="#ebe6dc" stroke="#cfc8bc"/>
-    <text x="778.0" y="280" text-anchor="middle" font-size="15" font-weight="600">north-board</text>
-    <text x="644" y="304" fill="#57534e" font-size="12" font-weight="600">Publishes</text>
-    <rect x="644" y="316" width="268" height="28" rx="8" fill="#e7f6ef" stroke="#0f6e56"/>
-    <text x="778.0" y="334" text-anchor="middle" fill="#0f6e56" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="11">block/north-board/north</text>
-    <rect x="644" y="350" width="268" height="28" rx="8" fill="#e7f6ef" stroke="#0f6e56"/>
-    <text x="778.0" y="368" text-anchor="middle" fill="#0f6e56" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="11">joint/north-board/north/begin</text>
-    <rect x="644" y="384" width="268" height="28" rx="8" fill="#faeeda" stroke="#854f0b"/>
-    <text x="778.0" y="402" text-anchor="middle" fill="#854f0b" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="11">ahead/north-board/north/begin</text>
-    <text x="644" y="436" fill="#57534e" font-size="13">Neighbour on the web page:</text>
-    <text x="644" y="454" fill="#57534e" font-size="13">mid-board/mid/end</text>
-    <rect x="32" y="568" width="896" height="88" rx="12" fill="#fffdf8" stroke="#e7e2d8"/>
-    <text x="48" y="592" font-size="14" font-weight="600">Postcard fields, in order</text>
-    <text x="280" y="592" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">BLOCK  NEXT  AFTER  DIVERGING</text>
-    <text x="48" y="616" fill="#57534e" font-size="13">BLOCK is this block. NEXT is the block beyond it. AFTER is one further. DIVERGING is ACTIVE only</text>
-    <text x="48" y="636" fill="#57534e" font-size="13">when a junction here is lined for the branch and that branch is clear. Example, road clear: CLEAR CLEAR CLEAR INACTIVE</text>
+    <text x="160" y="178" text-anchor="middle" fill="#185fa5" font-size="12" font-weight="600">west</text>
+    <text x="470" y="128" text-anchor="middle" fill="#0f6e56" font-size="12" font-weight="600">interim</text>
+    <text x="620" y="178" text-anchor="middle" fill="#185fa5" font-size="12" font-weight="600">east</text>
+    <text x="786" y="128" text-anchor="middle" fill="#78716c" font-size="12">next block</text>
+    <rect x="32" y="200" width="300" height="248" rx="12" fill="#e8f1fb" stroke="#185fa5"/>
+    <text x="182.0" y="228" text-anchor="middle" font-size="15" font-weight="600">west · boundary</text>
+    <text x="48" y="248" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="12">detect/west-board</text>
+    <text x="48" y="270" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="12">joint/west-board/right</text>
+    <text x="48" y="292" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="12">ahead/west-board/right</text>
+    <text x="48" y="322" fill="#57534e" font-size="13">Right neighbour</text>
+    <text x="48" y="340" fill="#57534e" font-size="13">gap-board/left</text>
+    <rect x="344" y="200" width="272" height="248" rx="12" fill="#e7f6ef" stroke="#0f6e56"/>
+    <text x="480.0" y="228" text-anchor="middle" font-size="15" font-weight="600">gap · interim</text>
+    <text x="360" y="248" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="12">detect/gap-board</text>
+    <text x="360" y="270" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="12">ahead/gap-board/left</text>
+    <text x="360" y="292" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="12">ahead/gap-board/right</text>
+    <text x="360" y="322" fill="#57534e" font-size="13">ORs its detector into</text>
+    <text x="360" y="340" fill="#57534e" font-size="13">BLOCK. Copies NEXT.</text>
+    <rect x="628" y="200" width="300" height="248" rx="12" fill="#e8f1fb" stroke="#185fa5"/>
+    <text x="778.0" y="228" text-anchor="middle" font-size="15" font-weight="600">east · boundary</text>
+    <text x="644" y="248" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="12">detect/east-board</text>
+    <text x="644" y="270" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="12">joint/east-board/left</text>
+    <text x="644" y="292" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="12">ahead/east-board/left</text>
+    <text x="644" y="322" fill="#57534e" font-size="13">Left neighbour</text>
+    <text x="644" y="340" fill="#57534e" font-size="13">gap-board/right</text>
+    <text x="32" y="472" fill="#57534e" font-size="13">Another interim paired between these two would add its detector to the same block. NEXT still names the block past east.</text>
+    <text x="32" y="494" fill="#57534e" font-size="13">Pair west/right straight to east/left and the interim is simply absent. The postcards meet.</text>
   </g>
 </svg>

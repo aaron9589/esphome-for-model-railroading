@@ -2,9 +2,9 @@
 
 The [Modular Signal System](http://www.modularsignalsystem.info/) (MSS 2.0.2) animates signals from the blocks ahead. No computer has to choose each aspect. This spec keeps those indications. A dispatcher can hold a home signal at Stop when you want that, and the same script fills the aspect once the hold lifts.
 
-Each board publishes the occupancy it measured. Each signal runs one script over those topics. The Board Configurator would write the YAML. It does not generate this yet.
+There are three boards. A **boundary** and a **junction** end a block. An **interim** sits inside a block and only detects. Each board publishes what it measured. Each signal runs one script over those topics. The Board Configurator would write the YAML. It does not generate this yet.
 
-![Three boards on one track. South and north carry the signals. Mid only detects. Green chips are block and joint topics. Amber chips are the postcard a neighbour reads when the modules were paired at the layout.](../_img/block-overview.svg)
+![A boundary has signals facing both ways, an optic at the signals, and one current detector. An interim is a detector inside the block. A junction is a turnout with a signal on each leg facing in, and one optic under the frog.](../_img/block-overview.svg)
 
 The standard, the fundamentals, and the planning notes are the three PDFs on the MSS site:
 
@@ -12,23 +12,33 @@ The standard, the fundamentals, and the planning notes are the three PDFs on the
 - [User guide part 1, fundamentals](http://www.modularsignalsystem.info/MSSUserGuide1.pdf)
 - [User guide part 2, planning](http://www.modularsignalsystem.info/MSSUserGuide2.pdf)
 
-![Current, optical, and a turnout against the route become one block topic. The script reads the block it protects, the next block, the one after, and diverging. Held on an absolute mast forces Stop.](../_img/block-script.svg)
+![Current, optic, and a turnout against the route become one block. The script reads the block it protects, the next block, the one after, and diverging. Held on an absolute mast forces Stop.](../_img/block-script.svg)
 
-Optical detectors and signal masts each have their own page in the configurator. **Block signalling** assigns them to the ends of a signal block. Skip that page when JMRI is still choosing every aspect.
+## The three boards
 
-On that page you add signal blocks. Each block uses current sensors you already created on the Blocks page. Each end of the block is a boundary. It gets an optical detector and two signals, one facing into the block and one facing out toward the neighbour. Optical detectors are their own page: a GPIO input for now, until the sensing circuit is filled in. When two signal blocks meet on this board, one end names the other block. An end that meets another module is filled in on the board's web page at the layout, or named in the configurator when you already know the neighbour.
+A block runs from one boundary or junction to the next boundary or junction. Those two are marked * below. An interim cannot be the end of a block.
+
+**Boundary \*.** Signals facing both ways, an optic at the same place as the signals, and one current detector. The optic occupies both blocks that meet at the signals. The current detector occupies the block on one side. The web page has a left/right choice for that side. It starts on the left.
+
+**Interim.** A current detector. No signals and no optic. The detector occupies the one block this board sits in. Several interims in a row all belong to that same block.
+
+**Junction \*.** A turnout. One signal on each leg — throat, main, and branch — facing the turnout. One current detector. One optic under the frog, so a train on either leg is seen. The detector and the frog optic occupy the junction block. The frog optic does not occupy the blocks that approach the turnout.
+
+Skip this when JMRI is still choosing every aspect. Optical detectors and signal masts each have their own page. The optic is a GPIO input for now, until the sensing circuit is filled in.
 
 ## What stays the same
 
-Each signalled track is its own set of topics. A signal block is a stretch of that track. A block is occupied when any of these is true:
+Each signalled track is its own set of topics. A block is occupied when any of these is true:
 
-- A current detector on its feeder sees a train.
-- An optical detector at either boundary sees any part of a train. That sensor occupies both blocks, so the signals hold until the last car clears the boundary.
-- A turnout in the block is set against the signalled route.
+- A current detector on a boundary, on the side chosen for that board, sees a train.
+- A current detector on an interim in the block sees a train.
+- The optic at a boundary sees any part of a train. That occupies both blocks that meet there, so the signals hold until the last car clears the joint.
+- The frog optic sees a train on either leg of a junction.
+- A turnout in a junction is set against the route that signal is protecting.
 
-![An optical at either boundary occupies both blocks. A current detector occupies its own block. A turnout set against the route occupies that block. All three feed one block topic.](../_img/block-occupancy.svg)
+![A boundary optic occupies both blocks that meet there. A current detector occupies the block it belongs to. A frog optic occupies the junction block on either leg.](../_img/block-occupancy.svg)
 
-Signals stand at the block boundaries. The one facing a block shows the first row that matches:
+Signals stand at the boundaries, and on each leg of a junction. The one facing a block shows the first row that matches:
 
 | What the script sees | Indication |
 |---|---|
@@ -45,23 +55,40 @@ Stop wins over everything. Approach Diverging replaces Approach, and only then. 
 
 ![The signal faces the blocks ahead. Stop comes from the block it protects. Approach and Approach Diverging come from the next block. Advance Approach comes from the one after that. Clear or Dark comes from the block behind.](../_img/block-aspects.svg)
 
-A crossover module only detects. It has no signal. A cascade module is a block boundary and usually has the signals. A junction is a cascade where the signalled track splits. The route that is not lined is held occupied, so the signal facing that route stays at Stop. Approach Diverging is published only when the diverging route is lined and that block is actually clear. A signal one block back, with no Approach Diverging aspect, still sees the lined-away block as occupied, so it shows Approach.
+An interim is not a step in that list. A train on an interim occupies the whole block between the two starred boards, so the signals that protect that block show Stop. The next block shows Approach only when that whole block is the next one.
 
-Sidings and spurs that are not signalled stay out of this. Both rails are still gapped at each block boundary, and every feeder for a block still passes through a current detector. The planning guide's list is unchanged: one optical at each boundary, current detection on every module that feeds the track, and the turnout position on each signalled turnout.
+The route that is not lined at a junction is held occupied, so the signal on that leg stays at Stop. Approach Diverging is published only when the branch is lined and that block is actually clear. A signal that has no Approach Diverging aspect still sees the lined-away block as occupied, so it shows Approach.
+
+Sidings and spurs that are not signalled stay out of this. Both rails are still gapped at each block boundary, and every feeder for a block still passes through a current detector.
 
 ## What the boards publish
 
-A board publishes the facts it can measure. Retained, QoS 1. `OCCUPIED` or `CLEAR` for a block or a joint. `ACTIVE` or `INACTIVE` for diverging.
+A board publishes the facts it measured. Retained, QoS 1. `OCCUPIED` or `CLEAR` for a detector, a joint, or a frog. `ACTIVE` or `INACTIVE` for diverging.
 
 ```
-mss/<track>/block/<board>/<block>
-mss/<track>/joint/<board>/<block>/<end>
-mss/<track>/diverging/<board>/<name>
+mss/<track>/detect/<board>
+mss/<track>/joint/<board>/<end>
+mss/<track>/frog/<board>
+mss/<track>/diverging/<board>
 ```
 
-`block` is that block's signalling occupancy: its current detectors, opticals this board owns, a neighbour joint it has heard, a turnout against the route, and a route held occupied at a junction. `joint` is one optical, on its own, so the other block can count it before the neighbour republishes. `diverging` is `ACTIVE` only when the branch is lined and that block's own detectors are clear.
+`detect` is that board's current detector. `joint` is the optic at one end of a boundary. `frog` is the optic under the frog. `diverging` is `ACTIVE` only when the branch is lined and that block's own detectors are clear.
 
 The Blocks page is separate. Those topics are for JMRI (`trains/track/sensor/...`, not retained). A current sensor used here is one you already created there. The signal script does not read the JMRI topic.
+
+Each end also publishes one postcard, retained, QoS 1:
+
+```
+mss/<track>/ahead/<board>/<end>
+```
+
+Four words, in order: `BLOCK NEXT AFTER DIVERGING`. A clear road reads `CLEAR CLEAR CLEAR INACTIVE`.
+
+An interim adds itself to the block and passes the rest through. `BLOCK` is occupied when its own detector is occupied or the postcard from the other end says the block is occupied. `NEXT`, `AFTER`, and `DIVERGING` are copied.
+
+A boundary or a junction is the edge of a block. The postcard it sends across that edge names this block as `BLOCK`, the next signal block as `NEXT`, and the one after as `AFTER`.
+
+Two boundaries can be neighbours with no interim between them. Each reads the other's postcard. A row of interims still adds up to one block, and `NEXT` still arrives at the far boundary. That is how a train in the following block becomes Approach on the signal behind the interims.
 
 Each board also publishes:
 
@@ -69,66 +96,70 @@ Each board also publishes:
 mss/<track>/node/<board>/online
 ```
 
-`ONLINE` while it is connected, `OFFLINE` as its last will. Both are retained. Block, joint, diverging, and postcard topics are published again about once a second. A subscriber treats a block or joint as occupied unless the board is `ONLINE`, the payload is `CLEAR`, and a copy arrived within the last three seconds. A missing diverging topic stays `INACTIVE`, so a dark neighbour shows Stop or Approach and does not show Approach Diverging.
+`ONLINE` while it is connected, `OFFLINE` as its last will. Both are retained. Detector, joint, frog, diverging, and postcard topics are published again about once a second. A block input counts as occupied unless the board is `ONLINE`, the payload is `CLEAR`, and a copy arrived within the last three seconds. A missing diverging topic stays `INACTIVE`.
 
 ![A topic is clear only when its board is online, the payload is CLEAR, and a copy arrived within three seconds. Occupied, offline, quiet, and unheard all count as occupied.](../_img/block-failsafe.svg)
 
-On a home layout you name the next blocks in the configurator. The signal subscribes to those block topics, the joint topics, and the diverging topic. That is the whole input to the script.
+## Left, right, and pairing
 
-At a meet you do not know the neighbour until the modules are placed. Open `http://<board-name>.local`. Each end that was left for the web page has two text boxes. The address box is already filled in with this end, slashes included, such as `board/block/end`. Copy that value into the other module. The box title uses dashes, like `board - block - end address`, because ESPHome rejects `/` in a name. The neighbour box starts empty. Paste the other module's address there, still with slashes. Editing the address box does not stick; it returns to this end. There is also a Signaled track field, already set to the name you flashed (usually `main`). Both modules must show the same track name. The broker address stays in the flashed file.
+A boundary and an interim have two ends, **left** and **right**. A junction has three legs, **throat**, **main**, and **branch**. Left and right are just the two ends of that board. Flash tells you which physical side the button belongs to.
 
-That end then publishes one postcard, retained, QoS 1:
+Each end stores the neighbour's address, such as `east-board/left`. That address is the end of the postcard and joint topics. The web page shows it. You can still correct it by hand.
+
+**Flash** blinks the signals that face that end. Nothing is stored. Use it to see which side you are about to pair. An interim has no signals, so Flash on an interim does nothing visible. Flash on the board that has the signals.
+
+**Pair** uses one topic for the whole track:
 
 ```
-mss/<track>/ahead/<board>/<block>/<end>
+mss/<track>/pair
 ```
 
-Four words, in order: `BLOCK NEXT AFTER DIVERGING`. `BLOCK` is this block. `NEXT` is the block beyond it. `AFTER` is one further. `DIVERGING` is `ACTIVE` or `INACTIVE`. A clear road reads `CLEAR CLEAR CLEAR INACTIVE`.
+It is not retained. QoS 1. Pair one joint at a time.
 
-A crossover has a postcard out of each end. Its `BLOCK` is its own block topic. `NEXT`, `AFTER`, and `DIVERGING` come from the postcard on the other end: `NEXT` is that postcard's `BLOCK`, `AFTER` is its `NEXT`, and `DIVERGING` is passed through. The far signal learns the block beyond the crossover from that one message.
+1. Press Pair on one end. The board publishes `OFFER west-board/right` and flashes that side.
+2. Press Pair on an end of the other board. That board publishes `ACCEPT east-board/left west-board/right`.
+3. West stores `east-board/left` as its right neighbour. East stores `west-board/right` as its left neighbour.
+4. Both ends flash three slow blinks. An interim cannot flash, so the board with signals does it, and both web pages show the new address.
 
-The board that owns an optical folds that sensor into its own block, and into the signal that protects the neighbour block. The neighbour folds the joint topic into its block topic. That is how the signal on the far side of the block drops to Stop.
+An offer lasts 30 seconds. A new offer replaces one that has not been accepted. A board ignores an offer from itself.
+
+![Flash blinks one side. Pair on west publishes OFFER. Pair on east publishes ACCEPT. Each end stores the other address, then the signals flash three times.](../_img/block-pair.svg)
+
+Open `http://<board-name>.local`. The neighbour box for each end is there, with Flash and Pair beside it. Both boards must use the same signalled track, usually `main`. The broker address stays in the flashed file.
 
 ## A plain stretch
 
-Three boards, one signalled track named `main`. Block `south`, then `mid`, then `north`. Each boundary has two signals, one facing each way. The neighbours are paired on the web page, so the postcards are in use. A home layout with the same three names would subscribe to the block topics and leave the postcards out. The aspects in the pictures would be the same.
+West and east are boundaries. An interim named gap sits between them. That is one block. The track past east is the next block.
 
-![South and north publish a block, a joint, and one postcard. Mid publishes its block and a postcard out of each end. Postcard fields are BLOCK, NEXT, AFTER, and DIVERGING.](../_img/block-stretch.svg)
+![West and east are boundaries. The interim publishes its detector and passes the postcard through. Pair west's right to the interim's left, and the interim's right to east's left.](../_img/block-stretch.svg)
 
-**south** is the cascade at the south end of `mid`. On its web page the north end's neighbour is `mid-board/mid/begin`.
+On the web page, west's right neighbour is `gap-board/left`. The interim's right neighbour is `east-board/left`. East's right neighbour is whatever begins the next block.
 
-- Current detector on block `south`. That occupancy is `mss/main/block/south-board/south`.
-- Optical at the boundary, `mss/main/joint/south-board/south/end`. South folds it into the south block. Mid folds it into the mid block.
-- The signal facing south protects `south`. Stop is the south block. A train that is only in `mid` does not put this signal at Stop.
-- The signal facing north protects `mid`. Stop is mid's `BLOCK`. Approach is mid's `NEXT`, which is whatever mid copied from north.
-
-**mid** is the crossover. Both ends are web-page neighbours, `south-board/south/end` and `north-board/north/begin`. It has a current detector and no signal. Its block topic is that detector plus the two joint topics. Its postcard toward north is `mss/main/ahead/mid-board/mid/end`. Its postcard toward south is `mss/main/ahead/mid-board/mid/begin`.
-
-**north** mirrors south. Its south end's neighbour is `mid-board/mid/end`.
+The signal on west that faces east protects this block. Stop is this block. Approach is the next block, which east names in `NEXT`. The signal on east that faces east protects the next block. The signal on east that faces west protects this block.
 
 Watching MQTTX on `127.0.0.1:1883`, subscribe to `mss/main/#`.
 
-![The road is clear. All four signals show Clear. Mid's block topic is CLEAR, and both postcards read CLEAR CLEAR CLEAR INACTIVE.](../_img/block-run-clear.svg)
+![The block is clear. The signals facing this block and the next block show Clear.](../_img/block-run-clear.svg)
 
-![A train in south. The signal facing south shows Stop. The signal facing north into mid stays Clear. Mid's postcard toward north carries south as NEXT, so the signal facing south into mid shows Approach.](../_img/block-run-south.svg)
+![A train on the interim occupies the whole block. Both signals that protect it show Stop. The signal facing the next block stays Clear.](../_img/block-run-interim.svg)
 
-![The optical at the south joint occupies south and mid. The three signals that protect those blocks show Stop. The signal facing north stays Clear.](../_img/block-run-gap.svg)
+![The optic at the east signals occupies this block and the next. The signals that protect either block show Stop.](../_img/block-run-optic.svg)
 
-![The train is in mid. The two signals facing mid show Stop. The signals facing south and north show Clear.](../_img/block-run-mid.svg)
+![A train in the next block, clear of the optic. The signal facing that block shows Stop. The signal on west that faces this block shows Approach.](../_img/block-run-next.svg)
 
-![The train is in north. The signal facing north shows Stop. The signal facing north into mid shows Approach. The two signals facing south show Clear.](../_img/block-run-north.svg)
-
-Approach lighting is off in these pictures, so a clear road shows Clear. `AFTER` and `DIVERGING` stay clear, and every board stays online.
+Approach lighting is off in these pictures, so a clear road shows Clear. Add another interim between west and east and a train on either interim still occupies this one block. Pair west straight to east, with no interim, and the same two signals still protect the block between them.
 
 ## A junction
 
-Tick **The track splits here** on the signal block that holds the points. That is an advanced cascade in MSS: Beginning, Main, and Diverging, and each of those three signals faces into the block. The block you are editing is the straight route. Pick the branch and the point, or a pin, that lines it. Thrown lines the branch unless you untick that.
+A junction is a starred end of every block that meets it. The three signals face the turnout, so each one protects entry along that leg. The leg that is not lined is held occupied. The frog optic and the current detector occupy the junction block whichever way the train is moving.
 
-![When the branch is lined and clear, the main block topic is held occupied and diverging is ACTIVE. When the main is lined, the branch is held occupied and diverging is INACTIVE.](../_img/block-junction.svg)
+![When the branch is lined and clear, the main is held occupied and diverging is ACTIVE. When the main is lined, the branch is held occupied and diverging is INACTIVE. The frog optic sits under the turnout.](../_img/block-junction.svg)
 
-The inactive route is held occupied on its block topic, so a signal that has no Approach Diverging aspect still shows Approach. The diverging topic is `ACTIVE` only when the diverging route is lined and that block's detectors are clear. A crossover passes that field through in the postcard, so the signal one block back does not need the junction's name. On a home layout that signal subscribes to `mss/<track>/diverging/<board>/<name>` directly.
+Thrown lines the branch unless you untick that on the web page. An interim on the way to the junction adds its detector to the approach block. The postcard into the junction carries that block as `BLOCK`. The junction sends `DIVERGING` as `ACTIVE` only when the branch is lined and clear, and the interim copies that field through to the boundary one block back.
 
-Advance Approach stays the block you named one past the next. It stays on that path when the junction is thrown.
+Advance Approach stays the block you named one past the next. It stays on the straight path when the junction is thrown.
+
+Pair each leg the same way as a left or right end. The buttons read Throat, Main, and Branch. Flash blinks the signal on that leg.
 
 ## On the mast
 

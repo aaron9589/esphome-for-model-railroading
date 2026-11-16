@@ -1,53 +1,31 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="960" height="544" viewBox="0 0 960 544" role="img" aria-labelledby="title desc">
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="430" viewBox="0 0 960 430" role="img" aria-labelledby="title desc">
   <title id="title">What occupies a signal block</title>
-  <desc id="desc">An optical at either boundary occupies both blocks. A current detector occupies its own block. A turnout set against the signalled route occupies that block. All three feed one block topic.</desc>
-  <rect width="960" height="544" fill="#f4f1ea"/>
+  <desc id="desc">A boundary optic occupies both blocks that meet at the signals. A current detector occupies the block it belongs to. A frog optic occupies the junction block whichever leg the train is on.</desc>
+  <rect width="960" height="430" fill="#f4f1ea"/>
   <g font-family="ui-sans-serif, system-ui, sans-serif" fill="#1c1917">
-    <text x="32" y="36" font-size="18" font-weight="600">What occupies this block</text>
-    <text x="32" y="58" fill="#57534e" font-size="13">Any one of these makes the block topic OCCUPIED. The signal script reads that one topic.</text>
-    <text x="480" y="96" text-anchor="middle" fill="#44403c" font-size="12" font-weight="600" letter-spacing="0.08em">ONE SIGNAL BLOCK</text>
-    <g stroke="#a8a29e" stroke-width="3" stroke-linecap="butt">
-      <line x1="48" y1="124" x2="300" y2="124"/>
-      <line x1="48" y1="136" x2="300" y2="136"/>
-    </g>
-    <g stroke="#a8a29e" stroke-width="2"><line x1="60" y1="124" x2="60" y2="136"/><line x1="78" y1="124" x2="78" y2="136"/><line x1="96" y1="124" x2="96" y2="136"/><line x1="114" y1="124" x2="114" y2="136"/><line x1="132" y1="124" x2="132" y2="136"/><line x1="150" y1="124" x2="150" y2="136"/><line x1="168" y1="124" x2="168" y2="136"/><line x1="186" y1="124" x2="186" y2="136"/><line x1="204" y1="124" x2="204" y2="136"/><line x1="222" y1="124" x2="222" y2="136"/><line x1="240" y1="124" x2="240" y2="136"/><line x1="258" y1="124" x2="258" y2="136"/><line x1="276" y1="124" x2="276" y2="136"/></g>
-    <g stroke="#d32f2f" stroke-width="3" stroke-linecap="butt">
-      <line x1="332" y1="124" x2="628" y2="124"/>
-      <line x1="332" y1="136" x2="628" y2="136"/>
-    </g>
-    <g stroke="#d32f2f" stroke-width="2"><line x1="344" y1="124" x2="344" y2="136"/><line x1="362" y1="124" x2="362" y2="136"/><line x1="380" y1="124" x2="380" y2="136"/><line x1="398" y1="124" x2="398" y2="136"/><line x1="416" y1="124" x2="416" y2="136"/><line x1="434" y1="124" x2="434" y2="136"/><line x1="452" y1="124" x2="452" y2="136"/><line x1="470" y1="124" x2="470" y2="136"/><line x1="488" y1="124" x2="488" y2="136"/><line x1="506" y1="124" x2="506" y2="136"/><line x1="524" y1="124" x2="524" y2="136"/><line x1="542" y1="124" x2="542" y2="136"/><line x1="560" y1="124" x2="560" y2="136"/><line x1="578" y1="124" x2="578" y2="136"/><line x1="596" y1="124" x2="596" y2="136"/><line x1="614" y1="124" x2="614" y2="136"/></g>
-    <g stroke="#a8a29e" stroke-width="3" stroke-linecap="butt">
-      <line x1="660" y1="124" x2="912" y2="124"/>
-      <line x1="660" y1="136" x2="912" y2="136"/>
-    </g>
-    <g stroke="#a8a29e" stroke-width="2"><line x1="672" y1="124" x2="672" y2="136"/><line x1="690" y1="124" x2="690" y2="136"/><line x1="708" y1="124" x2="708" y2="136"/><line x1="726" y1="124" x2="726" y2="136"/><line x1="744" y1="124" x2="744" y2="136"/><line x1="762" y1="124" x2="762" y2="136"/><line x1="780" y1="124" x2="780" y2="136"/><line x1="798" y1="124" x2="798" y2="136"/><line x1="816" y1="124" x2="816" y2="136"/><line x1="834" y1="124" x2="834" y2="136"/><line x1="852" y1="124" x2="852" y2="136"/><line x1="870" y1="124" x2="870" y2="136"/><line x1="888" y1="124" x2="888" y2="136"/></g>
-    <text x="174" y="166" text-anchor="middle" fill="#78716c" font-size="12">previous block</text>
-    <text x="480" y="166" text-anchor="middle" fill="#44403c" font-size="12" font-weight="600">this block</text>
-    <text x="786" y="166" text-anchor="middle" fill="#78716c" font-size="12">next block</text>
-    <path d="M560 136 L630 196" fill="none" stroke="#854f0b" stroke-width="3" stroke-linecap="round"/>
-    <path d="M548 136 L618 196" fill="none" stroke="#854f0b" stroke-width="3" stroke-linecap="round"/>
-    <text x="640" y="200" fill="#854f0b" font-size="12" font-weight="600">against the route</text>
-    <rect x="32" y="228" width="288" height="196" rx="12" fill="#fffdf8" stroke="#e7e2d8"/>
-    <text x="52" y="260" font-size="15" font-weight="600">Optical at the boundary</text>
-    <text x="52" y="288" fill="#57534e" font-size="13">Sees any part of a train sitting</text>
-    <text x="52" y="308" fill="#57534e" font-size="13">across the joint. Occupies both</text>
-    <text x="52" y="328" fill="#57534e" font-size="13">blocks that meet there.</text>
-    <text x="52" y="390" fill="#0f6e56" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="12">joint/…/end</text>
-    <rect x="336" y="228" width="288" height="196" rx="12" fill="#fffdf8" stroke="#e7e2d8"/>
-    <text x="356" y="260" font-size="15" font-weight="600">Current detector</text>
-    <text x="356" y="288" fill="#57534e" font-size="13">On a feeder of this block.</text>
-    <text x="356" y="308" fill="#57534e" font-size="13">A train clear of the joints</text>
-    <text x="356" y="328" fill="#57534e" font-size="13">occupies this block only.</text>
-    <text x="356" y="390" fill="#0f6e56" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="12">folded into the block topic</text>
-    <rect x="640" y="228" width="288" height="196" rx="12" fill="#fffdf8" stroke="#e7e2d8"/>
-    <text x="660" y="260" font-size="15" font-weight="600">Turnout against</text>
-    <text x="660" y="288" fill="#57534e" font-size="13">Set off the signalled route.</text>
-    <text x="660" y="308" fill="#57534e" font-size="13">The block topic goes occupied</text>
-    <text x="660" y="328" fill="#57534e" font-size="13">with no extra contact.</text>
-    <text x="660" y="390" fill="#0f6e56" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="12">folded into the block topic</text>
-    <rect x="32" y="448" width="896" height="72" rx="12" fill="#e7f6ef" stroke="#0f6e56"/>
-    <text x="52" y="478" font-size="14" font-weight="600">The block topic</text>
-    <text x="200" y="478" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="14">mss/&lt;track&gt;/block/&lt;board&gt;/&lt;block&gt;</text>
-    <text x="52" y="502" fill="#57534e" font-size="13">OCCUPIED when any input above is true. CLEAR when the board is online and every input is clear.</text>
+    <text x="32" y="36" font-size="18" font-weight="600">What occupies a block</text>
+    <text x="32" y="58" fill="#57534e" font-size="13">Any one of these is enough. The signal script reads the block, not each board.</text>
+    <rect x="32" y="88" width="288" height="210" rx="12" fill="#fffdf8" stroke="#e7e2d8"/>
+    <text x="52" y="122" font-size="15" font-weight="600">Boundary optic</text>
+    <text x="52" y="156" fill="#57534e" font-size="13">At the signals. A train here</text>
+    <text x="52" y="176" fill="#57534e" font-size="13">occupies both blocks that</text>
+    <text x="52" y="196" fill="#57534e" font-size="13">meet at that boundary.</text>
+    <text x="52" y="262" fill="#0f6e56" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">joint/board/right</text>
+    <rect x="336" y="88" width="288" height="210" rx="12" fill="#fffdf8" stroke="#e7e2d8"/>
+    <text x="356" y="122" font-size="15" font-weight="600">Current detector</text>
+    <text x="356" y="156" fill="#57534e" font-size="13">On a boundary, the side you</text>
+    <text x="356" y="176" fill="#57534e" font-size="13">chose. On an interim, the</text>
+    <text x="356" y="196" fill="#57534e" font-size="13">block that interim sits in.</text>
+    <text x="356" y="262" fill="#0f6e56" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">detect/board</text>
+    <rect x="640" y="88" width="288" height="210" rx="12" fill="#fffdf8" stroke="#e7e2d8"/>
+    <text x="660" y="122" font-size="15" font-weight="600">Frog optic</text>
+    <text x="660" y="156" fill="#57534e" font-size="13">Under the frog. A train on</text>
+    <text x="660" y="176" fill="#57534e" font-size="13">either leg occupies the</text>
+    <text x="660" y="196" fill="#57534e" font-size="13">junction block.</text>
+    <text x="660" y="262" fill="#0f6e56" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">frog/board</text>
+    <rect x="32" y="318" width="896" height="88" rx="12" fill="#e7f6ef" stroke="#0f6e56"/>
+    <text x="52" y="350" font-size="14" font-weight="600">The block</text>
+    <text x="52" y="376" fill="#57534e" font-size="13">Occupied when any detector or optic in it is occupied, or a junction turnout is set against the route.</text>
+    <text x="52" y="396" fill="#57534e" font-size="13">Clear when every one of those is clear and the boards are online.</text>
   </g>
 </svg>
