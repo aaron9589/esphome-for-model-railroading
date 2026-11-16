@@ -46,8 +46,8 @@
     <text x="786" y="128" text-anchor="middle" fill="#78716c" font-size="12">next block</text>
     <rect x="32" y="200" width="300" height="248" rx="12" fill="#e8f1fb" stroke="#185fa5"/>
     <text x="182.0" y="228" text-anchor="middle" font-size="15" font-weight="600">west · boundary</text>
-    <text x="48" y="248" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="12">detect/west-board</text>
-    <text x="48" y="270" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="12">joint/west-board/right</text>
+    <text x="48" y="248" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="12">detect/west-board/right</text>
+    <text x="48" y="270" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="12">joint/west-board</text>
     <text x="48" y="292" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="12">ahead/west-board/right</text>
     <text x="48" y="322" fill="#57534e" font-size="13">Right neighbour</text>
     <text x="48" y="340" fill="#57534e" font-size="13">gap-board/one</text>
@@ -62,8 +62,8 @@
     <text x="360" y="386" fill="#57534e" font-size="13">east-board/left</text>
     <rect x="628" y="200" width="300" height="248" rx="12" fill="#e8f1fb" stroke="#185fa5"/>
     <text x="778.0" y="228" text-anchor="middle" font-size="15" font-weight="600">east · boundary</text>
-    <text x="644" y="248" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="12">detect/east-board</text>
-    <text x="644" y="270" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="12">joint/east-board/left</text>
+    <text x="644" y="248" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="12">detect/east-board/left</text>
+    <text x="644" y="270" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="12">joint/east-board</text>
     <text x="644" y="292" fill="#44403c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="12">ahead/east-board/left</text>
     <text x="644" y="322" fill="#57534e" font-size="13">Left neighbour</text>
     <text x="644" y="340" fill="#57534e" font-size="13">gap-board/two</text>

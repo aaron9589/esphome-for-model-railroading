@@ -1,10 +1,10 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="960" height="590" viewBox="0 0 960 590" role="img" aria-labelledby="title desc">
-  <title id="title">A junction with signals facing the turnout and one optic under the frog</title>
-  <desc id="desc">When the branch is lined and clear, the main is held occupied and diverging is ACTIVE. When the main is lined, the branch is held occupied and diverging is INACTIVE. The frog optic occupies the junction block on either leg.</desc>
+  <title id="title">A junction with three blocks and an optic in the centre of the turnout</title>
+  <desc id="desc">When the branch is lined and clear, the main is held occupied and diverging is ACTIVE. When the main is lined, the branch is held occupied and diverging is INACTIVE. The optic in the centre occupies the throat block.</desc>
   <rect width="960" height="590" fill="#f4f1ea"/>
   <g font-family="ui-sans-serif, system-ui, sans-serif" fill="#1c1917">
     <text x="32" y="34" font-size="18" font-weight="600">A junction</text>
-    <text x="32" y="56" fill="#57534e" font-size="13">Three signals, each facing the turnout. One optic under the frog sees a train on either leg.</text>
+    <text x="32" y="56" fill="#57534e" font-size="13">Three blocks: throat, main, and diverging. The optic in the centre sees a train on either leg.</text>
     <rect x="16" y="76" width="928" height="240" rx="16" fill="#faeeda"/>
     <text x="36" y="104" fill="#854f0b" font-size="15" font-weight="600">Branch is lined, and that block is clear</text>
     <g transform="translate(70 154) scale(1 1)">

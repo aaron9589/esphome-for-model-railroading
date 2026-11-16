@@ -1,28 +1,28 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="960" height="496" viewBox="0 0 960 496" role="img" aria-labelledby="title desc">
   <title id="title">Boundary, interim, and junction boards</title>
-  <desc id="desc">A boundary has signals facing both ways, an optic at the signals, and one current detector. An interim is a current detector inside a block. A junction is a turnout with a signal on each leg facing in, and one optic under the frog. A block runs from one boundary or junction to the next.</desc>
+  <desc id="desc">A boundary has the optic and the signals in the centre, and a block on each side. An interim is one block detector. A junction is a turnout with the optic in the centre, a throat block, a main block, and a diverging block.</desc>
   <rect width="960" height="496" fill="#f4f1ea"/>
   <g font-family="ui-sans-serif, system-ui, sans-serif" fill="#1c1917">
     <text x="32" y="36" font-size="18" font-weight="600">Three boards</text>
     <text x="32" y="58" fill="#57534e" font-size="13">A block runs from one starred board to the next. An interim only adds its detector.</text>
     <rect x="32" y="80" width="288" height="168" rx="12" fill="#e8f1fb" stroke="#185fa5"/>
     <text x="176" y="112" text-anchor="middle" font-size="16" font-weight="600">Boundary *</text>
-    <text x="52" y="142" fill="#44403c" font-size="13">Signals face both ways.</text>
-    <text x="52" y="164" fill="#44403c" font-size="13">Optic at the signals.</text>
-    <text x="52" y="186" fill="#44403c" font-size="13">One current detector,</text>
-    <text x="52" y="208" fill="#44403c" font-size="13">on the left or the right.</text>
+    <text x="52" y="142" fill="#44403c" font-size="13">Optic and signals</text>
+    <text x="52" y="164" fill="#44403c" font-size="13">in the centre.</text>
+    <text x="52" y="186" fill="#44403c" font-size="13">A block on the left.</text>
+    <text x="52" y="208" fill="#44403c" font-size="13">A block on the right.</text>
     <rect x="336" y="80" width="288" height="168" rx="12" fill="#e7f6ef" stroke="#0f6e56"/>
     <text x="480" y="112" text-anchor="middle" font-size="16" font-weight="600">Interim</text>
-    <text x="356" y="142" fill="#44403c" font-size="13">Current detector only.</text>
+    <text x="356" y="142" fill="#44403c" font-size="13">One block detector.</text>
     <text x="356" y="164" fill="#44403c" font-size="13">No signals and no optic.</text>
     <text x="356" y="186" fill="#44403c" font-size="13">Sits inside a block.</text>
     <text x="356" y="208" fill="#44403c" font-size="13">Cannot end a block.</text>
     <rect x="640" y="80" width="288" height="168" rx="12" fill="#faeeda" stroke="#854f0b"/>
     <text x="784" y="112" text-anchor="middle" font-size="16" font-weight="600">Junction *</text>
-    <text x="660" y="142" fill="#44403c" font-size="13">A turnout.</text>
-    <text x="660" y="164" fill="#44403c" font-size="13">A signal on each leg,</text>
-    <text x="660" y="186" fill="#44403c" font-size="13">facing the turnout.</text>
-    <text x="660" y="208" fill="#44403c" font-size="13">Optic under the frog.</text>
+    <text x="660" y="142" fill="#44403c" font-size="13">Turnout, optic in the centre.</text>
+    <text x="660" y="164" fill="#44403c" font-size="13">Throat block: approach</text>
+    <text x="660" y="186" fill="#44403c" font-size="13">and the turnout.</text>
+    <text x="660" y="208" fill="#44403c" font-size="13">Main and diverging blocks.</text>
     <text x="480" y="286" text-anchor="middle" fill="#44403c" font-size="12" font-weight="600" letter-spacing="0.06em">ONE BLOCK</text>
     <line x1="160" y1="298" x2="620" y2="298" stroke="#44403c" stroke-width="1.5"/>
     <line x1="160" y1="290" x2="160" y2="306" stroke="#44403c" stroke-width="1.5"/>
