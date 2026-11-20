@@ -4,8 +4,10 @@
 # If another computer already has that name, this script leaves it alone.
 # Re-running this script is safe: it skips what is already in place.
 #
-# Open PowerShell (you do NOT need "Run as administrator") and paste:
-#   irm https://raw.githubusercontent.com/aaron9589/esphome-for-model-railroading/main/scripts/install-windows.ps1 -OutFile "$env:TEMP\esphome-mr-setup.ps1"; Start-Process powershell -Verb RunAs -Wait -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$env:TEMP\esphome-mr-setup.ps1`""
+# Open PowerShell (you do NOT need "Run as administrator") and paste the Windows
+# block from README.md. It sets RemoteSigned for your account, downloads this
+# file, Unblock-File's it, then asks for admin. Avoid -ExecutionPolicy Bypass:
+# Defender often flags that pattern as a trojan false positive.
 
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
@@ -20,6 +22,7 @@ $ConfiguratorUrl = 'https://aaron9589.github.io/esphome-for-model-railroading/'
 $MdnsTask = 'ESPHome MR layout-mqtt.local'
 $MdnsFirewall = 'layout-mqtt.local mDNS (ESPHome model railroad)'
 $MdnsScript = Join-Path $env:ProgramData 'esphome-mr\layout-mqtt-mdns.ps1'
+$MdnsDir = Split-Path $MdnsScript -Parent
 $script:LayoutMqttForeign = ''
 
 function Test-IsAdmin {
@@ -33,14 +36,20 @@ if (-not (Test-IsAdmin)) {
     if (-not $scriptPath) {
         Write-Host ''
         Write-Host 'This script was piped into PowerShell, so Windows cannot show the admin prompt from it.' -ForegroundColor Yellow
-        Write-Host 'Use the one-liner in the README. It saves the file, then asks for admin.' -ForegroundColor Yellow
+        Write-Host 'Use the Windows commands in the README. They save the file, then ask for admin.' -ForegroundColor Yellow
         exit 1
     }
+    try {
+        Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned -Force -ErrorAction SilentlyContinue
+    } catch { }
+    Unblock-File -Path $scriptPath -ErrorAction SilentlyContinue
     Write-Host 'Windows needs administrator permission to install Mosquitto and open the firewall.'
     Write-Host 'Approve the User Account Control prompt. A second window will open and do the work.'
     try {
+        # RemoteSigned (not Bypass): local/unblocked scripts run, and Defender is less likely
+        # to treat the elevated launch as a trojan heuristic.
         $elevated = Start-Process -FilePath 'powershell.exe' -Verb RunAs -Wait -PassThru -ArgumentList @(
-            '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $scriptPath
+            '-NoProfile', '-ExecutionPolicy', 'RemoteSigned', '-File', $scriptPath
         )
     } catch {
         Write-Host 'The admin prompt was closed. Nothing was installed.' -ForegroundColor Red
@@ -49,6 +58,8 @@ if (-not (Test-IsAdmin)) {
     if (-not $elevated -or $elevated.ExitCode -ne 0) {
         Write-Host 'Setup did not finish. If a second window opened, read the error there.' -ForegroundColor Red
         Write-Host "Log (after a real run): $Log"
+        Write-Host 'If Windows said scripts are disabled, run: Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned'
+        Write-Host 'If Defender quarantined this file, restore it in Windows Security, then run the README commands again.'
         exit 1
     }
     exit 0
@@ -107,6 +118,54 @@ function Write-MqttBrokerNote {
     } else {
         Write-Host '  Type that name in the Configurator and in JMRI. Port 1883, no password.' -ForegroundColor Gray
     }
+}
+
+function Get-SetupDefenderPaths {
+    $paths = @($DownloadDir, $MdnsDir)
+    if ($PSCommandPath) { $paths += $PSCommandPath }
+    return @($paths | Where-Object { $_ } | Select-Object -Unique)
+}
+
+function Enable-SetupDefenderAllowList {
+    # Defender's ML heuristics sometimes quarantine this unsigned setup script or the
+    # installers it downloads (Trojan:Script/Wacatac.*!ml style). Allow only our folders.
+    $paths = Get-SetupDefenderPaths
+    foreach ($path in $paths) {
+        if ($path -eq $DownloadDir -or $path -eq $MdnsDir) {
+            New-Item -ItemType Directory -Path $path -Force | Out-Null
+        }
+        try {
+            $prefs = Get-MpPreference -ErrorAction Stop
+            $already = @($prefs.ExclusionPath) -contains $path
+            if (-not $already) {
+                Add-MpPreference -ExclusionPath $path -ErrorAction Stop
+                Write-Ok "Told Windows Defender this setup path is OK: $path"
+            } else {
+                Write-Ok "Windows Defender already allows: $path"
+            }
+        } catch {
+            Write-Warn "Could not adjust Defender for $path. If a file vanishes, restore it in Windows Security → Protection history, then re-run setup."
+        }
+    }
+}
+
+function Disable-SetupDefenderAllowList {
+    foreach ($path in (Get-SetupDefenderPaths)) {
+        try {
+            Remove-MpPreference -ExclusionPath $path -ErrorAction SilentlyContinue
+        } catch { }
+    }
+}
+
+function Assert-DownloadedFile([string]$Path, [string]$Url) {
+    if (Test-Path -LiteralPath $Path) { return }
+    throw @"
+Download failed or Windows Defender removed the file.
+URL: $Url
+Expected: $Path
+Open Windows Security → Virus & threat protection → Protection history.
+If it quarantined this setup file or an installer, choose Allow / Restore, then run the README commands again.
+"@
 }
 
 function Offer-Configurator([string]$LanIp = '') {
@@ -924,7 +983,9 @@ try {
         }
 
         Stop-LayoutMqttPublisher
-        $arg = "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$MdnsScript`""
+        # RemoteSigned is enough: this file is written locally (no Mark of the Web).
+        # Bypass here is a common Defender false-positive trigger.
+        $arg = "-NoProfile -WindowStyle Hidden -ExecutionPolicy RemoteSigned -File `"$MdnsScript`""
         $action = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument $arg
         $trigger = New-ScheduledTaskTrigger -AtStartup
         $principal = New-ScheduledTaskPrincipal -UserId 'SYSTEM' -LogonType ServiceAccount -RunLevel Highest
@@ -1008,6 +1069,7 @@ function Invoke-OurUninstall {
     }
 
     Uninstall-LayoutMqttMdns
+    Disable-SetupDefenderAllowList
 
     $mosquittoExe = Join-Path ${env:ProgramFiles} 'mosquitto\mosquitto.exe'
     $service = Get-Service -Name mosquitto -ErrorAction SilentlyContinue
@@ -1075,6 +1137,7 @@ try {
 
     Write-Host '  This installs ESPHome Device Builder, the Mosquitto MQTT broker, and MQTTX.' -ForegroundColor Gray
     Write-Step '1/7  Preflight'
+    Enable-SetupDefenderAllowList
     $os = Get-CimInstance Win32_OperatingSystem
     Write-Info "Windows: $($os.Caption) ($($os.Version))"
     if ([Environment]::OSVersion.Version.Major -lt 10) {
@@ -1156,9 +1219,10 @@ try {
         $installer = Join-Path $DownloadDir (Split-Path $mosquittoUrl -Leaf)
         Write-Info "Downloading $mosquittoUrl"
         & curl.exe -fL --retry 3 --retry-delay 2 -o $installer $mosquittoUrl
-        if ($LASTEXITCODE -ne 0 -or -not (Test-Path $installer)) {
+        if ($LASTEXITCODE -ne 0) {
             throw "Download failed. The installer URL was $mosquittoUrl"
         }
+        Assert-DownloadedFile -Path $installer -Url $mosquittoUrl
         Unblock-File -Path $installer
         Write-Info 'Running the Mosquitto installer silently...'
         $install = Start-Process -FilePath $installer -ArgumentList '/S' -Wait -PassThru
@@ -1288,14 +1352,15 @@ try {
         if ($already) { Write-Info "Installed version is $($already.DisplayVersion). Upgrading to $version." }
         Write-Info "Downloading $($asset.browser_download_url)"
         & curl.exe -fL --retry 3 --retry-delay 2 -o $esphomeSetup $asset.browser_download_url
-        if ($LASTEXITCODE -ne 0 -or -not (Test-Path $esphomeSetup)) {
+        if ($LASTEXITCODE -ne 0) {
             throw "ESPHome download failed. URL was $($asset.browser_download_url)"
         }
+        Assert-DownloadedFile -Path $esphomeSetup -Url $asset.browser_download_url
         Unblock-File -Path $esphomeSetup
         Write-Info 'Running the ESPHome installer silently...'
         $appInstall = Start-Process -FilePath $esphomeSetup -ArgumentList '/S' -Wait -PassThru
         if ($appInstall.ExitCode -ne 0) {
-            throw "ESPHome installer exited with code $($appInstall.ExitCode). Double-click $esphomeSetup and finish it by hand. If Windows says it protected your PC, choose More info → Run anyway."
+            throw "ESPHome installer exited with code $($appInstall.ExitCode). Double-click $esphomeSetup and finish it by hand. If Windows says it protected your PC, choose More info → Run anyway. If Defender quarantined it, Allow / Restore in Windows Security, then re-run setup."
         }
         Write-Ok "Installed ESPHome Device Builder $version"
     }
@@ -1317,14 +1382,15 @@ try {
         if ($mqttAlready) { Write-Info "Installed version is $($mqttAlready.DisplayVersion). Upgrading to $($mqttx.Version)." }
         Write-Info "Downloading $($mqttx.Url)"
         & curl.exe -fL --retry 3 --retry-delay 2 -o $mqttSetup $mqttx.Url
-        if ($LASTEXITCODE -ne 0 -or -not (Test-Path $mqttSetup)) {
+        if ($LASTEXITCODE -ne 0) {
             throw "MQTTX download failed. URL was $($mqttx.Url)"
         }
+        Assert-DownloadedFile -Path $mqttSetup -Url $mqttx.Url
         Unblock-File -Path $mqttSetup
         Write-Info 'Running the MQTTX installer silently...'
         $mqttInstall = Start-Process -FilePath $mqttSetup -ArgumentList '/S' -Wait -PassThru
         if ($mqttInstall.ExitCode -ne 0) {
-            throw "MQTTX installer exited with code $($mqttInstall.ExitCode). Double-click $mqttSetup and finish it by hand. If Windows says it protected your PC, choose More info → Run anyway."
+            throw "MQTTX installer exited with code $($mqttInstall.ExitCode). Double-click $mqttSetup and finish it by hand. If Windows says it protected your PC, choose More info → Run anyway. If Defender quarantined it, Allow / Restore in Windows Security, then re-run setup."
         }
         Write-Ok "Installed MQTTX $($mqttx.Version)"
     }
