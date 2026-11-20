@@ -44,11 +44,16 @@ Mac — Terminal:
 curl -fsSL https://raw.githubusercontent.com/aaron9589/esphome-for-model-railroading/main/scripts/install-mac.sh -o /tmp/esphome-mr-setup.sh && bash /tmp/esphome-mr-setup.sh
 ```
 
-Windows — PowerShell. You do not need to start it as administrator. The script asks for that itself.
+Windows — PowerShell. You do not need to start it as administrator. The script asks for that itself. Paste all four lines:
 
 ```powershell
-irm https://raw.githubusercontent.com/aaron9589/esphome-for-model-railroading/main/scripts/install-windows.ps1 -OutFile "$env:TEMP\esphome-mr-setup.ps1"; Start-Process powershell -Verb RunAs -Wait -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$env:TEMP\esphome-mr-setup.ps1`""
+Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned -Force
+$setup = "$env:TEMP\esphome-mr-setup.ps1"
+irm https://raw.githubusercontent.com/aaron9589/esphome-for-model-railroading/main/scripts/install-windows.ps1 -OutFile $setup
+Unblock-File $setup; Start-Process powershell -Verb RunAs -Wait -ArgumentList "-NoProfile -ExecutionPolicy RemoteSigned -File `"$setup`""
 ```
+
+The first line lets your account run local scripts (needed on many Windows PCs). If Windows Security says the setup file is a trojan, that is a known false alarm on this installer — open **Protection history**, choose **Allow** / **Restore**, then paste the block again.
 
 Linux — a terminal on Raspberry Pi OS, Debian, Ubuntu, Fedora, openSUSE, or Arch. On a Pi-SPROG, run it on the Pi. JMRI and the SPROG serial port stay as they are. 64-bit only. From the desktop it opens the apps; over SSH it prints the addresses.
 

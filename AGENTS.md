@@ -32,6 +32,7 @@ This repo is a beginner path for model-railroad ESP32 boards that talk to JMRI/C
 ## Install and MQTT
 
 - Supported install: `scripts/install-mac.sh`, `scripts/install-windows.ps1`, or `scripts/install-linux.sh` only. One-liners are in `README.md`. Do not maintain a parallel hand-install guide.
+- Windows install must set `RemoteSigned` for the current user, `Unblock-File` the downloaded `.ps1`, and elevate with `-ExecutionPolicy RemoteSigned` — never `Bypass`. Defender often false-positives `Bypass` and unsigned PowerShell installers; the script adds Defender exclusions for `%USERPROFILE%\esphome-mr-installers` and `%ProgramData%\esphome-mr`, and the failure guide covers Allow / Restore.
 - Linux install is 64-bit Raspberry Pi OS (the usual Pi-SPROG machine), Debian, Ubuntu and relatives, Fedora and RHEL relatives, openSUSE, and Arch. It does not edit Pi boot files or the SPROG serial port. A 32-bit Pi needs the 64-bit image.
 - ESPHome is the Device Builder desktop app at http://localhost:6052. The install script downloads the latest desktop app, then runs its updater so the builder inside it matches the current release. Config files live in `~/esphome` (Mac and Linux) or `%USERPROFILE%\esphome` (Windows).
 - MQTT is Mosquitto on port **1883**, anonymous, on a trusted home LAN. Setup writes `listener 1883`, `allow_anonymous true`, and `persistence true` (retained messages survive a broker restart), then checks the service is running with auto-start.

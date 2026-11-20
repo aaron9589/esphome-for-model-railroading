@@ -135,6 +135,12 @@ Your ESP32 is online, connected to MQTT, and ready to talk to JMRI.
 
 ## If Something Fails
 
+**Windows says running scripts is disabled:**
+In PowerShell, run `Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned`, then paste the Windows install block from the [README](../README.md) again.
+
+**Windows Defender quarantined the setup file or an installer:**
+Open **Windows Security → Virus & threat protection → Protection history**. Allow / Restore the file (often named `esphome-mr-setup.ps1` or an installer under `%USERPROFILE%\esphome-mr-installers`), then paste the README install block again. The setup script also tells Defender those folders are OK once it can run as administrator.
+
 **ESPHome dashboard does not open:**
 The first launch is still downloading. Wait a few minutes, then use the menu-bar or tray icon → **Open Dashboard**. If it still fails, icon → **View Logs**. Re-run the install script from the [README](../README.md) if the app is missing.
 
