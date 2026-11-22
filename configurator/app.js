@@ -39,11 +39,20 @@ const MODULES = [
   },
 ];
 
-const ACTIONS = [
+const MOMENTARY_ACTIONS = [
   { value: "toggle", label: "Toggle" },
-  { value: "closed", label: "Set closed" },
-  { value: "thrown", label: "Set thrown" },
+  { value: "closed", label: "Press = closed" },
+  { value: "thrown", label: "Press = thrown" },
 ];
+
+const LATCHED_ACTIONS = [
+  { value: "latch-thrown", label: "On = thrown" },
+  { value: "latch-closed", label: "On = closed" },
+];
+
+function isLatched(control) {
+  return LATCHED_ACTIONS.some((option) => option.value === control.action);
+}
 
 const COLOR_LABELS = {
   off: "Off",
@@ -401,6 +410,38 @@ function field(labelText, value, onInput, opts = {}) {
   label.append(title, input);
   if (opts.hint) label.append(hintEl(opts.hint));
   return label;
+}
+
+let radioGroupCount = 0;
+
+function radioField(labelText, value, options, onChange, opts = {}) {
+  const group = document.createElement("fieldset");
+  group.className = "radio-group";
+  const legend = document.createElement("legend");
+  legend.className = "field-label";
+  legend.textContent = labelText;
+  const row = document.createElement("div");
+  row.className = "radio-options";
+  radioGroupCount += 1;
+  const name = `radio-${radioGroupCount}`;
+  for (const option of options) {
+    const label = document.createElement("label");
+    const input = document.createElement("input");
+    input.type = "radio";
+    input.name = name;
+    input.value = option.value;
+    input.checked = option.value === value;
+    input.addEventListener("change", () => {
+      if (input.checked) onChange(option.value);
+    });
+    const text = document.createElement("span");
+    text.textContent = option.label;
+    label.append(input, text);
+    row.append(label);
+  }
+  group.append(legend, row);
+  if (opts.hint) group.append(hintEl(opts.hint));
+  return group;
 }
 
 function hintEl(text) {
@@ -841,14 +882,25 @@ function renderPanel(point) {
 
     const fields = document.createElement("div");
     fields.className = "fields";
+    const latched = isLatched(control);
     fields.append(
+      radioField("Type", latched ? "latched" : "momentary", [
+        { value: "momentary", label: "Momentary (push button)" },
+        { value: "latched", label: "Latched (toggle switch)" },
+      ], (v) => {
+        control.action = v === "latched" ? "latch-thrown" : "toggle";
+        persist();
+        render();
+      }),
       field("Action", control.action || "toggle", (v) => {
         control.action = v;
         persist();
         updatePreview();
       }, {
-        select: ACTIONS,
-        hint: "What this button does.",
+        select: latched ? LATCHED_ACTIONS : MOMENTARY_ACTIONS,
+        hint: latched
+          ? "On means the switch connects the pin to GND (LOW). Off is open (HIGH)."
+          : "What a press does.",
       }),
       field("Button pin", control.buttonPin, (v) => {
         control.buttonPin = v;
