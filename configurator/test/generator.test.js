@@ -57,8 +57,7 @@ test("My First Board preset matches sample topics and pins", () => {
   assert.equal(config.points[0].name, "Kiama/Up Loop");
   assert.equal(config.points[0].topic, "trains/track/turnout/Kiama/Up Loop");
   assert.equal(config.points[0].channel, 0);
-  assert.equal(config.i2c.sda, "GPIO21");
-  assert.equal(config.i2c.scl, "GPIO22");
+  assert.deepEqual(JSON.parse(JSON.stringify(config.pcaBoards)), [{ sda: "GPIO21", scl: "GPIO22" }]);
   assert.equal(config.board.mqttBroker, "layout-mqtt.local");
   assert.match(generateYaml(config), /broker: layout-mqtt\.local/);
 });
@@ -118,7 +117,7 @@ test("round-trip import restores UI state including secrets", () => {
   assert.deepEqual(JSON.parse(JSON.stringify(restored.points[0].controls)), [
     { action: "toggle", buttonPin: "GPIO4", closedLight: "GPIO16", openLight: "GPIO13" },
   ]);
-  assert.deepEqual(restored.i2c, config.i2c);
+  assert.deepEqual(restored.pcaBoards, config.pcaBoards);
 });
 
 test("second point shares one pca9685 hub and unique ids", () => {
@@ -856,6 +855,64 @@ test("individual LEDs use one GPIO each", () => {
   config.signals.masts[0].lamps[1].pin = "GPIO18";
   const { errors } = validateConfig(config);
   assert.ok(errors.some((error) => error.includes("GPIO18")));
+});
+
+test("one PCA9685 keeps the single-bus YAML", () => {
+  const yaml = generateYaml(withCreds(myFirstBoardPreset()));
+  assert.match(yaml, /^i2c:\n  sda: GPIO21\n  scl: GPIO22\n  scan: true\n\npca9685:\n  frequency: 50Hz$/m);
+  assert.doesNotMatch(yaml, /pca9685_id/);
+});
+
+test("two PCA9685 boards get their own I2C buses", () => {
+  const config = withCreds(myFirstBoardPreset());
+  config.pcaBoards.push({ sda: "GPIO25", scl: "GPIO26" });
+  config.points.push({
+    name: "Bombo/Siding",
+    topic: "trains/track/turnout/Bombo/Siding",
+    pcaBoard: 1,
+    channel: 0,
+    travelTime: "10s",
+    controls: [],
+  });
+  const yaml = generateYaml(config);
+  assert.match(yaml, /^i2c:\n  - id: i2c_1\n    sda: GPIO21\n    scl: GPIO22\n    scan: true\n  - id: i2c_2\n    sda: GPIO25\n    scl: GPIO26\n    scan: true$/m);
+  assert.match(yaml, /^pca9685:\n  - id: pca9685_1\n    i2c_id: i2c_1\n    frequency: 50Hz\n  - id: pca9685_2\n    i2c_id: i2c_2\n    frequency: 50Hz$/m);
+  assert.match(yaml, /id: kiama_up_loop_output\n    pca9685_id: pca9685_1\n    channel: 0/);
+  assert.match(yaml, /id: bombo_siding_output\n    pca9685_id: pca9685_2\n    channel: 0/);
+
+  // Channel 0 on each board is not a clash.
+  const ok = validateConfig(config);
+  assert.equal(ok.errors.length, 0);
+  assert.equal(ok.warnings.some((w) => w.includes("channel clash")), false);
+
+  config.points[1].pcaBoard = 0;
+  assert.ok(validateConfig(config).warnings.some((w) => w.includes("PCA9685 1 channel clash: 0")));
+  config.points[1].pcaBoard = 1;
+
+  config.pcaBoards[1] = { sda: "GPIO21", scl: "GPIO34" };
+  const bad = validateConfig(config);
+  assert.ok(bad.warnings.some((w) => w.includes("GPIO clash: GPIO21")));
+  assert.ok(bad.errors.some((e) => e.includes("PCA9685 2 SCL pin GPIO34") && e.includes("cannot drive I2C")));
+  config.pcaBoards[1] = { sda: "GPIO25", scl: "GPIO26" };
+
+  const restored = parseConfigFromYaml(yaml);
+  assert.deepEqual(JSON.parse(JSON.stringify(restored.pcaBoards)), JSON.parse(JSON.stringify(config.pcaBoards)));
+  assert.equal(restored.points[1].pcaBoard, 1);
+
+  config.pcaBoards.push({ sda: "GPIO32", scl: "GPIO33" });
+  assert.ok(validateConfig(config).errors.some((e) => e.includes("2 PCA9685 boards at most")));
+});
+
+test("old files with one i2c pair import as PCA9685 1", () => {
+  const legacy = withCreds(myFirstBoardPreset());
+  delete legacy.pcaBoards;
+  legacy.i2c = { sda: "GPIO19", scl: "GPIO23" };
+  legacy.points[0].pcaBoard = 3;
+  normalizeConfig(legacy);
+  assert.equal(legacy.i2c, undefined);
+  assert.deepEqual(JSON.parse(JSON.stringify(legacy.pcaBoards)), [{ sda: "GPIO19", scl: "GPIO23" }]);
+  assert.equal(legacy.points[0].pcaBoard, 0);
+  assert.match(generateYaml(legacy), /^i2c:\n  sda: GPIO19\n  scl: GPIO23$/m);
 });
 
 console.log("\nAll generator tests passed.");
