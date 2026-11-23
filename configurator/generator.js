@@ -138,6 +138,18 @@ function lockTopic(topic) {
   return `${base}/Lock`;
 }
 
+// Lock report: a JMRI sensor beside the turnout, so CATS can use it as the
+// Turnout Locked Report. trains/track/turnout/X -> trains/track/sensor/X/Locked.
+// A topic without track/turnout/ (JMRI cannot reach it anyway) gets <topic>/Locked.
+function lockedTopic(topic) {
+  const base = String(topic || "").replace(/\/+$/, "");
+  if (!base) return "";
+  const typeTopic = "track/turnout/";
+  const at = base.indexOf(typeTopic);
+  if (at < 0) return `${base}/Locked`;
+  return `${base.slice(0, at)}track/sensor/${base.slice(at + typeTopic.length)}/Locked`;
+}
+
 function lockActive(point, mqtt) {
   return mqtt && point.lockEnabled === true;
 }
@@ -569,6 +581,18 @@ function validateConfig(config) {
     }
   }
 
+  if (board.mqttEnabled !== false) {
+    for (const point of config.points || []) {
+      if (point.lockEnabled !== true) continue;
+      const report = lockedTopic(point.topic);
+      for (const block of config.blocks || []) {
+        if (report && block.topic === report) {
+          errors.push(`Sensor "${block.name}" uses ${report}, where turnout "${point.name}" reports its lock. Rename the sensor.`);
+        }
+      }
+    }
+  }
+
   const ids = new Set();
   for (const block of uniqueIds(config.blocks || [])) {
     if (ids.has(block.id)) warnings.push(`Duplicate id after sanitize: ${block.id}`);
@@ -663,6 +687,8 @@ function generateJmriXml(config) {
       else {
         channels.add(found.channel);
         turnouts.push(found.address);
+        // The lock report, for CATS's Turnout Locked Report.
+        if (point.lockEnabled === true) sensors.push(jmriAddress(lockedTopic(point.topic), "sensor").address);
       }
     }
     for (const mast of config.signals?.masts || []) {
@@ -1435,6 +1461,15 @@ function emitThrowCommand(lines, point, thrown) {
   lines.push("                announce: true");
 }
 
+function emitLockedPublish(lines, indent, point) {
+  lines.push(`${indent}- mqtt.publish:`);
+  lines.push(`${indent}    topic: ${yamlQuote(lockedTopic(point.topic))}`);
+  lines.push(`${indent}    payload: !lambda |-`);
+  lines.push(`${indent}      return id(${point.id}_locked) ? "ACTIVE" : "INACTIVE";`);
+  lines.push(`${indent}    retain: true`);
+  lines.push(`${indent}    qos: 2`);
+}
+
 function emitLockSensor(lines, point) {
   lines.push("  - platform: mqtt_subscribe");
   lines.push(`    name: ${yamlQuote(entityName(`${point.name} lock`))}`);
@@ -1453,6 +1488,7 @@ function emitLockSensor(lines, point) {
   lines.push(`                format: ${yamlQuote(`${point.name} lock -> LOCKED`)}`);
   lines.push("                level: INFO");
   lines.push("                tag: point_control");
+  emitLockedPublish(lines, "            ", point);
   lines.push("      - if:");
   lines.push("          condition:");
   lines.push("            text_sensor.state:");
@@ -1475,6 +1511,7 @@ function emitLockSensor(lines, point) {
   lines.push(`                format: ${yamlQuote(`${point.name} lock -> UNLOCKED`)}`);
   lines.push("                level: INFO");
   lines.push("                tag: point_control");
+  emitLockedPublish(lines, "            ", point);
 }
 
 function emitPointTextSensors(lines, points) {
@@ -1683,6 +1720,7 @@ function generateYaml(config) {
         lines.push(`          return id(${point.id}_thrown) ? "THROWN" : "CLOSED";`);
         lines.push("        retain: true");
         lines.push("        qos: 2");
+        if (point.lockEnabled === true) emitLockedPublish(lines, "    ", point);
       }
     }
     lines.push("");
@@ -1936,6 +1974,7 @@ function generateYaml(config) {
     topicFor,
     stateTopic,
     lockTopic,
+    lockedTopic,
     SIGNAL_COLORS,
     SIGNAL_COLOR_ORDER,
     CATS_ASPECTS,

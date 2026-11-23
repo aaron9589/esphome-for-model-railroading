@@ -24,6 +24,7 @@ const {
   topicFor,
   stateTopic,
   lockTopic,
+  lockedTopic,
   STRAPPING_PINS,
   uniqueIds,
   validateConfig,
@@ -260,6 +261,44 @@ test("remote lock holds a turnout until UNLOCKED, and the default is only the bo
   normalizeConfig(parsed);
   assert.equal(parsed.points[0].lockEnabled, false);
   assert.equal(parsed.points[0].lockDefault, "unlocked");
+});
+
+test("a locked turnout reports its lock as a JMRI sensor", () => {
+  assert.equal(lockedTopic("trains/track/turnout/Kiama/Up Loop"), "trains/track/sensor/Kiama/Up Loop/Locked");
+  assert.equal(lockedTopic("track/turnout/Yard/"), "track/sensor/Yard/Locked");
+  assert.equal(lockedTopic("layout/custom/thing"), "layout/custom/thing/Locked");
+
+  const config = withCreds(myFirstBoardPreset());
+  config.points.push({
+    name: "Yard",
+    topic: "trains/track/turnout/Yard",
+    channel: 1,
+    travelTime: "10s",
+    controls: [],
+  });
+  config.points[0].lockEnabled = true;
+  const yaml = generateYaml(config);
+  const report = /- mqtt\.publish:\n\s+topic: "trains\/track\/sensor\/Kiama\/Up Loop\/Locked"\n\s+payload: !lambda \|-\n\s+return id\(kiama_up_loop_locked\) \? "ACTIVE" : "INACTIVE";\n\s+retain: true\n\s+qos: 2/;
+
+  // On connect, and after both LOCKED and UNLOCKED.
+  const connect = yaml.slice(yaml.indexOf("  on_connect:"), yaml.indexOf("\nbutton:"));
+  assert.match(connect, report);
+  const lock = yaml.slice(yaml.indexOf("id: kiama_up_loop_lock\n"));
+  assert.match(lock.slice(0, lock.indexOf("state: 'UNLOCKED'")), report);
+  assert.match(lock.slice(lock.indexOf("state: 'UNLOCKED'")), report);
+  assert.equal((yaml.match(/\/Locked"/g) || []).length, 3);
+  assert.doesNotMatch(yaml, /Yard\/Locked/);
+
+  const { xml, counts } = generateJmriXml(config);
+  assert.match(xml, /<systemName>MSKiama\/Up Loop\/Locked<\/systemName>/);
+  assert.doesNotMatch(xml, /MSYard\/Locked/);
+  assert.equal(counts.sensors, 2);
+
+  // A real sensor cannot sit on the report topic.
+  config.blocks.push({ name: "Kiama/Up Loop/Locked", topic: topicFor("block", "Kiama/Up Loop/Locked"), gpio: "GPIO27" });
+  assert.ok(validateConfig(config).errors.some((error) => /where turnout "Kiama\/Up Loop" reports its lock/.test(error)));
+  config.points[0].lockEnabled = false;
+  assert.ok(!validateConfig(config).errors.some((error) => /reports its lock/.test(error)));
 });
 
 test("uniqueIds sanitizes names", () => {

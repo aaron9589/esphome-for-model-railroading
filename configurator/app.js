@@ -12,6 +12,7 @@ const {
   parseConfigFromYaml,
   stateTopic,
   lockTopic,
+  lockedTopic,
   topicFor,
   validateConfig,
   DEFAULT_MQTT_BROKER,
@@ -354,6 +355,8 @@ function followName(item, kind, card) {
   if (stateInput) stateInput.value = stateTopic(item.topic);
   const lockInput = card.querySelector("[data-role=lock-topic]");
   if (lockInput) lockInput.value = lockTopic(item.topic);
+  const lockedInput = card.querySelector("[data-role=locked-topic]");
+  if (lockedInput) lockedInput.value = lockedTopic(item.topic);
 }
 
 function extractCredentials(board = {}) {
@@ -894,6 +897,8 @@ function renderPointCard(point, index) {
     if (stateInput) stateInput.value = stateTopic(point.topic);
     const lockInput = card.querySelector("[data-role=lock-topic]");
     if (lockInput) lockInput.value = lockTopic(point.topic);
+    const lockedInput = card.querySelector("[data-role=locked-topic]");
+    if (lockedInput) lockedInput.value = lockedTopic(point.topic);
     persist();
     updatePreview();
   }, {
@@ -937,6 +942,12 @@ function renderPointCard(point, index) {
         lockTopic(point.topic),
         "Publish LOCKED or UNLOCKED here.",
         "lock-topic"
+      ),
+      linkedField(
+        "Lock report",
+        lockedTopic(point.topic),
+        "The board reports ACTIVE here while locked, INACTIVE when not. It is a JMRI sensor: in CATS, use it as the Turnout Locked Report.",
+        "locked-topic"
       ),
       field("Default", point.lockDefault === "locked" ? "locked" : "unlocked", (v) => {
         point.lockDefault = v === "locked" ? "locked" : "unlocked";

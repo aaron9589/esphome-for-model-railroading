@@ -207,6 +207,14 @@ mosquitto_pub -h localhost -t 'trains/track/turnout/Kiama/Up Loop/Lock' -m 'LOCK
 
 The log line looks like `Kiama/Up Loop lock -> LOCKED`.
 
+The board also reports the lock on a sensor topic, retained:
+
+```
+trains/track/sensor/Kiama/Up Loop/Locked
+```
+
+It is `ACTIVE` while locked and `INACTIVE` when not, and it is sent again whenever the board connects. In JMRI that is the sensor `MSKiama/Up Loop/Locked`. **Download JMRI XML** adds it for you. In CATS, use that sensor as the turnout's *Turnout Locked Report*. CATS then keeps the signals over the turnout at Stop and ignores local requests to move it. No other sensor on the board can use that name.
+
 ---
 
 ## Troubleshooting
