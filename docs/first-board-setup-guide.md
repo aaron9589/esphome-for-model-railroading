@@ -16,38 +16,31 @@ Goal:
 2. You should see the ESPHome dashboard page.
 
 Success looks like:
-- You can see a button to create a new device.
+- You can see a **Create device** button at the bottom right.
 
-> **Screenshot placeholder:** ESPHome Dashboard at http://localhost:6052 with the **New Device** button visible and no device tiles yet (empty dashboard).
+> **Screenshot placeholder:** ESPHome Device Builder at http://localhost:6052 with the **Create device** button visible and no device tiles yet.
 
 ---
 
 ## Step 2: Create Device Entry and Paste Configurator YAML
 
-1. Click **New Device**.
-2. Enter a device name (example: `yard-board-01`). Use lowercase letters, numbers, and dashes only — this should match the board name you set in the Configurator.
-3. Enter your 2.4 GHz Wi-Fi name and password (these are only used to register the device — you will replace the YAML next).
-4. Pick your board type. If unsure, choose **ESP32**.
-5. Click **Skip** at the install page for now.
+1. Open the **[Board Configurator](https://aaron9589.github.io/esphome-for-model-railroading/)**, load **My First Board** (or import a previous download), and fill in Wi-Fi. The MQTT broker field is already `layout-mqtt.local`. `ping layout-mqtt.local` checks that this computer answers.
+2. On the configurator's **Download** page, click **Send to ESPHome**. It copies the YAML and opens ESPHome in a new tab. (Or click **Download YAML** and open the file in a text editor to copy it.)
+3. In ESPHome, click **Create device**, open **Advanced set up options**, and choose **Empty Configuration**.
+4. Type the board name from the Configurator as the **Device name** (example: `my-first-board`), then click **Finish setup**.
+5. The editor opens with some starter text. Select all of it (Ctrl+A, or ⌘A on a Mac) and paste over it.
+6. Click **Save**.
 
-> **Screenshot placeholder:** ESPHome **New Device** wizard showing the device name field filled in and the board type set to **ESP32**.
-
-A new device tile appears. Now paste the YAML from the Configurator:
-
-1. Open the **[Board Configurator](https://aaron9589.github.io/esphome-for-model-railroading/)**, load **My First Board** (or import a previous download), fill in Wi-Fi, then **Download board.yaml**. The MQTT broker field is already `layout-mqtt.local`. `ping layout-mqtt.local` checks that this computer answers.
-2. Click **Edit** on the device tile in ESPHome Dashboard.
-3. Select all the text in the editor and delete it.
-4. Paste the full contents of the downloaded `board.yaml`.
-5. Click **Save**.
+> **Screenshot placeholder:** ESPHome **Create empty configuration** window with the Device name filled in.
 
 The Configurator writes Wi-Fi, MQTT, and the hotspot password directly into the file (no `secrets.yaml` needed for this path). Requires **ESPHome ≥ 2026.9.0**.
 
 Success looks like:
-- No red error banner after saving.
+- A green **YAML saved** message, and no red error banner.
 
 > **Screenshot placeholder:** ESPHome YAML editor with the Configurator `board.yaml` pasted in, showing no red error banner at the top.
 
-To change blocks or points later, re-import that same file in the Configurator, edit there, download again, and paste over the device YAML (then **Install → Wireless**).
+To change blocks or points later, re-import that same file in the Configurator (**Import → From a file**), edit there, download again, and paste over the device YAML (then **Install → Wireless**). No file to hand? Click **Edit** on the device's card in ESPHome, copy all the YAML, and use **Import → Paste from ESPHome** instead.
 
 ---
 

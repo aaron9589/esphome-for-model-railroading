@@ -52,6 +52,16 @@ When you add an entry, JMRI asks for the **Hardware Address** — just the locat
 
 ---
 
+## Shortcut: Load the JMRI XML from the Configurator
+
+Instead of adding each entry by hand, open the Configurator's **Download** page and click **Download JMRI XML**. It lists this board's sensors, turnouts, and signal masts as MQTT items, with system names built from their topics (for example `MSKiama/Up XOver` and `MTKiama/Up Loop`).
+
+In PanelPro, use **File → Load table content and panels** and pick the file. Then use **File → Store table content and panels** so JMRI keeps them. Signal masts also need the CATS signal template loaded first. It is step 1 on the same page. The file assumes JMRI's usual type topics (`track/sensor/`, `track/turnout/`, `track/signalmast/`). It also notes which MQTT Channel the topics expect.
+
+The steps below still show how to check each entry works.
+
+---
+
 ## Part 1: Test Block Detection (ESP32 → JMRI)
 
 The ESP32 publishes `ACTIVE` or `INACTIVE` to the sensor topic when a train enters or leaves a block. JMRI reads this and updates the Sensor table.

@@ -17,6 +17,7 @@ const {
   MIN_ESPHOME_VERSION,
   generatePassword,
   generateYaml,
+  generateJmriXml,
   myFirstBoardPreset,
   normalizeConfig,
   parseConfigFromYaml,
@@ -913,6 +914,103 @@ test("old files with one i2c pair import as PCA9685 1", () => {
   assert.deepEqual(JSON.parse(JSON.stringify(legacy.pcaBoards)), [{ sda: "GPIO19", scl: "GPIO23" }]);
   assert.equal(legacy.points[0].pcaBoard, 0);
   assert.match(generateYaml(legacy), /^i2c:\n  sda: GPIO19\n  scl: GPIO23$/m);
+});
+
+test("JMRI XML lists sensors, turnouts, and signal masts as MQTT items", () => {
+  const config = withCreds(myFirstBoardPreset());
+  config.blocks.push({ name: "Yard & <Loop>", topic: topicFor("block", "Yard & <Loop>"), gpio: "GPIO27" });
+  config.blocks.push({ name: "Custom", topic: "layout/custom/thing", gpio: "GPIO26" });
+  config.signals.masts.push({ name: "Kiama/Up Home", topic: topicFor("signal", "Kiama/Up Home"), lamps: [], aspects: [] });
+  config.signals.masts.push({ name: "Bad (mast)", topic: topicFor("signal", "Bad (mast)"), lamps: [], aspects: [] });
+  const { xml, counts, skipped } = generateJmriXml(config);
+
+  assert.match(xml, /^<\?xml version="1.0" encoding="UTF-8"\?>\n<layout-config /);
+  assert.match(xml, /<sensors class="jmri.jmrix.mqtt.configurexml.MqttSensorManagerXml">/);
+  assert.match(xml, /<systemName>MSKiama\/Up XOver<\/systemName>/);
+  assert.match(xml, /<systemName>MSYard &amp; &lt;Loop&gt;<\/systemName>/);
+  assert.match(xml, /<turnouts class="jmri.jmrix.mqtt.configurexml.MqttTurnoutManagerXml">/);
+  assert.match(xml, /<systemName>MTKiama\/Up Loop<\/systemName>/);
+  assert.match(xml, /<mqttsignalmast class="jmri.jmrix.mqtt.configurexml.MqttSignalMastXml">\n      <systemName>IF\$mqm:cats-masts:cats-virtual\(Kiama\/Up Home\)<\/systemName>\n      <userName>Kiama\/Up Home<\/userName>/);
+  assert.match(xml, /MQTT Channel to be "trains\/"/);
+  assert.doesNotMatch(xml, /Custom|Bad \(mast\)/);
+  assert.deepEqual(JSON.parse(JSON.stringify(counts)), { sensors: 2, turnouts: 1, masts: 1 });
+  assert.equal(skipped.length, 2);
+  assert.ok(skipped[0].includes("Custom"));
+  assert.ok(skipped[1].includes("Bad (mast)"));
+
+  // An XML comment cannot hold "--".
+  config.board.name = "my--board";
+  assert.doesNotMatch(generateJmriXml(config).xml.split("\n")[2], /--.*--.*--/);
+
+  config.board.mqttEnabled = false;
+  const off = generateJmriXml(config);
+  assert.deepEqual(JSON.parse(JSON.stringify(off.counts)), { sensors: 0, turnouts: 0, masts: 0 });
+  assert.doesNotMatch(off.xml, /<sensors|<turnouts|<signalmasts/);
+});
+
+test("mast messages: exact match, then Unlit, Held, and the aspect name", () => {
+  const config = withCreds(myFirstBoardPreset());
+  config.points = [];
+  config.blocks = [];
+  const off = { color: "off", mode: "steady" };
+  const red = { color: "red", mode: "steady" };
+  const green = { color: "green", mode: "steady" };
+  config.signals = {
+    masts: [
+      signalMast("Home", 0, [{ name: "Lamp", count: 1 }], [
+        { label: "Clear", states: ["R281; Lit; Unheld"], lamps: [green] },
+        { label: "Stop", states: ["R292; Lit; Unheld"], lamps: [red] },
+        // A deliberate Held match must win over the Held rule.
+        { label: "Held clear", states: ['R281 "x"; Lit; Held'], lamps: [green] },
+      ]),
+      signalMast("Shunt", 0, [{ name: "Lamp", count: 1 }], [
+        { label: "On", states: ["Proceed; Lit; Unheld"], lamps: [green] },
+      ]),
+      signalMast("Empty", 0, [{ name: "Lamp", count: 1 }], [
+        { label: "Nothing yet", states: [""], lamps: [off] },
+      ]),
+    ],
+  };
+  const yaml = generateYaml(config);
+  const handler = (id) => {
+    const start = yaml.indexOf(`    id: ${id}\n    internal: true`);
+    return yaml.slice(start, yaml.indexOf("\n  - platform:", start + 1));
+  };
+
+  const home = handler("home");
+  assert.match(home, /std::string name = x\.substr\(0, x\.find\(';'\)\);/);
+  const order = [
+    'if (x == "R281; Lit; Unheld") pick = 0;',
+    'else if (x == "R292; Lit; Unheld") pick = 1;',
+    'else if (x == "R281 \\"x\\"; Lit; Held") pick = 2;',
+    "else if (unlit) pick = -2;",
+    "else if (held) pick = 1;",
+    'else if (name == "R281") pick = 0;',
+    'else if (name == "R292") pick = 1;',
+    'else if (name == "R281 \\"x\\"") pick = 2;',
+    "if (pick == -1) return;",
+    "id(home_aspect) = pick;",
+    "id(home_show).execute(true);",
+  ];
+  let at = 0;
+  for (const row of order) {
+    const found = home.indexOf(row, at);
+    assert.ok(found >= 0, `missing or out of order: ${row}`);
+    at = found;
+  }
+  assert.doesNotMatch(home, /text_sensor\.state/);
+
+  // No Stop aspect: Held goes dark rather than leaving the last aspect lit.
+  assert.match(handler("shunt"), /else if \(held\) pick = -2;/);
+
+  // A mast with nothing to show has no handler (and no aspect global to set).
+  assert.doesNotMatch(handler("empty"), /on_value/);
+  assert.doesNotMatch(yaml, /id: empty_aspect/);
+
+  // The show script has a dark branch that turns every lamp off.
+  const show = yaml.slice(yaml.indexOf("  - id: home_show"), yaml.indexOf("  - id: shunt_show"));
+  assert.match(show, /lambda: 'return id\(home_aspect\) == -2;'/);
+  assert.match(show, /Home \| Dark/);
 });
 
 console.log("\nAll generator tests passed.");

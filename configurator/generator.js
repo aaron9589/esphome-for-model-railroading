@@ -446,7 +446,7 @@ function validateConfig(config) {
     const pin = String(block.gpio || "").toUpperCase();
     const issue = detectorPinProblem(pin);
     if (issue) {
-      errors.push(`Block "${block.name}" ${issue}.`);
+      errors.push(`Sensor "${block.name}" ${issue}.`);
       continue;
     }
     notePin(pin, block.name);
@@ -476,7 +476,7 @@ function validateConfig(config) {
         const ch = Number(point.channel);
         const b = pcaBoardIndex(point, pcaBoards.length);
         if (Number.isNaN(ch) || ch < 0 || ch > 15) {
-          errors.push(`Point "${point.name}" channel must be 0–15.`);
+          errors.push(`Turnout "${point.name}" channel must be 0–15.`);
         } else if (channels[b].has(ch)) {
           warnings.push(`${pcaLabel(b)} channel clash: ${ch} used by "${channels[b].get(ch)}" and "${point.name}".`);
         } else {
@@ -485,29 +485,29 @@ function validateConfig(config) {
       } else {
         const servoPin = String(point.servoPin || "").toUpperCase();
         const servoIssue = outputPinProblem(servoPin, "servo");
-        if (servoIssue) errors.push(`Point "${point.name}" ${servoIssue}.`);
+        if (servoIssue) errors.push(`Turnout "${point.name}" ${servoIssue}.`);
         else notePin(servoPin, `${point.name} servo`);
       }
       const latched = (point.controls || []).filter((control) => LATCH_ACTIONS.has(control.action));
       if (latched.length > 1) {
-        errors.push(`Point "${point.name}" has ${latched.length} latched switches. Use one, or the switches fight over the point.`);
+        errors.push(`Turnout "${point.name}" has ${latched.length} latched switches. Use one, or the switches fight over the turnout.`);
       }
       for (const control of point.controls || []) {
         const button = String(control.buttonPin || "").toUpperCase();
         const closedLight = String(control.closedLight || "").toUpperCase();
         const openLight = String(control.openLight || "").toUpperCase();
         const buttonIssue = pinProblem(button, "button");
-        if (buttonIssue) errors.push(`Point "${point.name}" ${buttonIssue}.`);
+        if (buttonIssue) errors.push(`Turnout "${point.name}" ${buttonIssue}.`);
         for (const [role, light] of [["closed", closedLight], ["open", openLight]]) {
           if (!light) continue;
           const lightIssue = pinProblem(light, `${role} light`);
-          if (lightIssue) errors.push(`Point "${point.name}" ${lightIssue}.`);
+          if (lightIssue) errors.push(`Turnout "${point.name}" ${lightIssue}.`);
           if (button && light === button) {
-            errors.push(`Point "${point.name}" uses ${button} for both the button and a light.`);
+            errors.push(`Turnout "${point.name}" uses ${button} for both the button and a light.`);
           }
         }
         if (closedLight && openLight && closedLight === openLight) {
-          errors.push(`Point "${point.name}" uses ${closedLight} for both the closed and open lights.`);
+          errors.push(`Turnout "${point.name}" uses ${closedLight} for both the closed and open lights.`);
         }
         if (button && !buttonIssue) notePin(button, `${point.name} button`);
         if (closedLight && closedLight !== button && !pinProblem(closedLight, "light")) {
@@ -524,7 +524,7 @@ function validateConfig(config) {
   const masts = signals.masts || [];
   if (masts.length) {
     if (board.mqttEnabled === false) {
-      errors.push("Signals need MQTT. Turn it back on under Board.");
+      errors.push("Signal masts need MQTT. Turn it back on under Board.");
     }
     for (const mast of masts) {
       const seen = new Map();
@@ -598,6 +598,133 @@ function yamlQuote(value) {
     return JSON.stringify(s);
   }
   return s;
+}
+
+// JMRI builds an MQTT topic as [MQTT Channel] + [type topic] + [hardware
+// address], and the system name is the connection prefix "M", a type letter,
+// and that address. So the address is whatever follows the type topic.
+const JMRI_TABLES = Object.freeze({
+  sensor: { typeTopic: "track/sensor/", table: "Sensor Table" },
+  turnout: { typeTopic: "track/turnout/", table: "Turnout Table" },
+  signalmast: { typeTopic: "track/signalmast/", table: "Signal Mast Table" },
+});
+
+// XML comments cannot contain "--".
+function xmlComment(value) {
+  return String(value).replace(/-(?=-)/g, "- ");
+}
+
+function xmlText(value) {
+  return String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+// Split a topic into JMRI's channel and hardware address, or null if the topic
+// does not have the type topic in it (a custom topic JMRI cannot reach).
+function jmriAddress(topic, kind) {
+  const text = String(topic || "");
+  const typeTopic = JMRI_TABLES[kind].typeTopic;
+  const at = text.indexOf(typeTopic);
+  if (at < 0) return null;
+  const address = text.slice(at + typeTopic.length);
+  if (!address.trim()) return null;
+  return { channel: text.slice(0, at), address };
+}
+
+/**
+ * JMRI table XML for this board: its sensors, turnouts, and signal masts as
+ * MQTT items. Load it in PanelPro with File > Load table content and panels.
+ * Masts use the CATS signal template the configurator ships
+ * (resources/signals/cats-masts, appearance cats-virtual).
+ */
+function generateJmriXml(config) {
+  const sensors = [];
+  const turnouts = [];
+  const masts = [];
+  const skipped = [];
+  const channels = new Set();
+  const mqtt = config.board?.mqttEnabled !== false;
+
+  if (mqtt) {
+    for (const block of config.blocks || []) {
+      const found = jmriAddress(block.topic, "sensor");
+      if (!found) skipped.push(`Sensor "${block.name}": topic has no ${JMRI_TABLES.sensor.typeTopic}`);
+      else {
+        channels.add(found.channel);
+        sensors.push(found.address);
+      }
+    }
+    for (const point of config.points || []) {
+      const found = jmriAddress(point.topic, "turnout");
+      if (!found) skipped.push(`Turnout "${point.name}": topic has no ${JMRI_TABLES.turnout.typeTopic}`);
+      else {
+        channels.add(found.channel);
+        turnouts.push(found.address);
+      }
+    }
+    for (const mast of config.signals?.masts || []) {
+      const found = jmriAddress(mast.topic, "signalmast");
+      if (!found) {
+        skipped.push(`Signal mast "${mast.name}": topic has no ${JMRI_TABLES.signalmast.typeTopic}`);
+      } else if (/[():]/.test(found.address)) {
+        // JMRI reads the mast's topic from between the brackets of its system
+        // name, and splits the name on colons.
+        skipped.push(`Signal mast "${mast.name}": JMRI cannot use ( ) or : in a mast address`);
+      } else {
+        channels.add(found.channel);
+        masts.push({ address: found.address, name: mast.name });
+      }
+    }
+  }
+
+  const lines = [];
+  lines.push('<?xml version="1.0" encoding="UTF-8"?>');
+  lines.push('<layout-config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://jmri.org/xml/schema/layout-4-19-2.xsd">');
+  lines.push(`  <!-- ${xmlComment(config.board?.name || "board")}: MQTT items from the ESPHome for Model Railroading Board Configurator. -->`);
+  lines.push("  <!-- In PanelPro: File > Load table content and panels, then File > Store table content and panels to keep them. -->");
+  if (channels.size) {
+    const list = [...channels].map((channel) => (channel ? `"${channel}"` : "blank")).join(" or ");
+    lines.push(`  <!-- These topics expect the JMRI MQTT Channel to be ${xmlComment(list)}. -->`);
+  }
+  if (sensors.length) {
+    lines.push('  <sensors class="jmri.jmrix.mqtt.configurexml.MqttSensorManagerXml">');
+    for (const address of sensors) {
+      lines.push('    <sensor inverted="false">');
+      lines.push(`      <systemName>MS${xmlText(address)}</systemName>`);
+      lines.push("    </sensor>");
+    }
+    lines.push("  </sensors>");
+  }
+  if (turnouts.length) {
+    lines.push('  <turnouts class="jmri.jmrix.mqtt.configurexml.MqttTurnoutManagerXml">');
+    for (const address of turnouts) {
+      lines.push('    <turnout feedback="DIRECT" inverted="false" automate="Default">');
+      lines.push(`      <systemName>MT${xmlText(address)}</systemName>`);
+      lines.push("    </turnout>");
+    }
+    lines.push("  </turnouts>");
+  }
+  if (masts.length) {
+    lines.push("  <!-- Signal masts need the CATS signal template in the JMRI profile (resources/signals/cats-masts). -->");
+    lines.push('  <signalmasts class="jmri.managers.configurexml.DefaultSignalMastManagerXml">');
+    for (const mast of masts) {
+      lines.push('    <mqttsignalmast class="jmri.jmrix.mqtt.configurexml.MqttSignalMastXml">');
+      lines.push(`      <systemName>IF$mqm:cats-masts:cats-virtual(${xmlText(mast.address)})</systemName>`);
+      if (String(mast.name || "").trim()) lines.push(`      <userName>${xmlText(String(mast.name).trim())}</userName>`);
+      lines.push('      <unlit allowed="no" />');
+      lines.push("    </mqttsignalmast>");
+    }
+    lines.push("  </signalmasts>");
+  }
+  lines.push("</layout-config>");
+  return {
+    xml: `${lines.join("\n")}\n`,
+    counts: { sensors: sensors.length, turnouts: turnouts.length, masts: masts.length },
+    skipped,
+  };
 }
 
 /**
@@ -1133,6 +1260,21 @@ function emitAspectActions(lines, mast, aspect, gpio) {
   });
 }
 
+// The aspect global holds an aspect index, -1 for nothing yet, or DARK_ASPECT.
+const DARK_ASPECT = -2;
+
+// Aspect names a held mast shows: CATS's Stop, then the usual JMRI name.
+const HELD_ASPECT_NAMES = ["R292", "Stop"];
+
+// JMRI publishes "<aspect>; Lit|Unlit; Held|Unheld". The name is before the first ";".
+function jmriAspectName(state) {
+  return String(state).split(";")[0].trim();
+}
+
+function cppString(value) {
+  return `"${String(value).replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
+}
+
 function emitShowScript(lines, mast) {
   const gpio = mast.mode === "gpio";
   lines.push(`  - id: ${mast.id}_show`);
@@ -1140,6 +1282,15 @@ function emitShowScript(lines, mast) {
   lines.push("    parameters:");
   lines.push("      restart_effects: bool");
   lines.push("    then:");
+  // Every lamp off: an Unlit message, or Held with no Stop aspect to show.
+  lines.push("      - if:");
+  lines.push("          condition:");
+  lines.push(`            lambda: 'return id(${mast.id}_aspect) == ${DARK_ASPECT};'`);
+  lines.push("          then:");
+  emitAspectActions(lines, mast, {
+    label: "Dark",
+    lamps: (mast.lamps || []).map(() => ({ color: "off", mode: "steady" })),
+  }, gpio);
   (mast.aspects || []).forEach((aspect, index) => {
     const states = (aspect.states || []).map((state) => String(state).trim()).filter(Boolean);
     if (!states.length) return;
@@ -1210,39 +1361,54 @@ function emitSecondsSlider(lines, name, id, min, max, initial) {
   lines.push("    mode: slider");
 }
 
+// Picks the aspect for a JMRI message. A message matching an aspect exactly
+// wins, so custom strings still work. Otherwise Unlit (approach lighting) is
+// dark, Held shows the Stop aspect (dark if there is none), and anything else
+// matches on the aspect name, so "R281; Lit; Held" cannot leave R281 showing.
 function emitSignalTextSensors(lines, masts) {
   for (const mast of masts) {
+    const exact = [];
+    const byName = new Map();
+    (mast.aspects || []).forEach((aspect, index) => {
+      for (const state of (aspect.states || []).map((item) => String(item).trim()).filter(Boolean)) {
+        exact.push({ state, index });
+        const name = jmriAspectName(state);
+        if (name && !byName.has(name)) byName.set(name, index);
+      }
+    });
+    const heldName = HELD_ASPECT_NAMES.find((name) => byName.has(name));
+    const heldIndex = heldName ? byName.get(heldName) : DARK_ASPECT;
+
     lines.push("  - platform: mqtt_subscribe");
     lines.push(`    name: ${yamlQuote(entityName(mast.name))}`);
     lines.push(`    id: ${mast.id}`);
     lines.push("    internal: true");
     lines.push(`    topic: ${yamlQuote(mast.topic)}`);
+    // No aspect to show yet, so no aspect global or show script to call.
+    if (!exact.length) continue;
     lines.push("    on_value:");
-    (mast.aspects || []).forEach((aspect, index) => {
-      const states = (aspect.states || []).map((state) => String(state).trim()).filter(Boolean);
-      if (!states.length) return;
-      lines.push("      - if:");
-      lines.push("          condition:");
-      if (states.length === 1) {
-        lines.push("            text_sensor.state:");
-        lines.push(`              id: ${mast.id}`);
-        lines.push(`              state: ${yamlQuote(states[0])}`);
-      } else {
-        lines.push("            or:");
-        for (const state of states) {
-          lines.push("              - text_sensor.state:");
-          lines.push(`                  id: ${mast.id}`);
-          lines.push(`                  state: ${yamlQuote(state)}`);
-        }
-      }
-      lines.push("          then:");
-      lines.push("            - globals.set:");
-      lines.push(`                id: ${mast.id}_aspect`);
-      lines.push(`                value: '${index}'`);
-      lines.push("            - script.execute:");
-      lines.push(`                id: ${mast.id}_show`);
-      lines.push("                restart_effects: true");
-    });
+    lines.push("      - lambda: |-");
+    const body = [
+      '// JMRI sends "<aspect>; Lit or Unlit; Held or Unheld".',
+      "std::string name = x.substr(0, x.find(';'));",
+      "while (!name.empty() && name.back() == ' ') name.pop_back();",
+      'const bool unlit = x.find("; Unlit") != std::string::npos;',
+      'const bool held = x.find("; Held") != std::string::npos;',
+      "int pick = -1;",
+    ];
+    let first = true;
+    const branch = (condition, value) => {
+      body.push(`${first ? "if" : "else if"} (${condition}) pick = ${value};`);
+      first = false;
+    };
+    for (const { state, index } of exact) branch(`x == ${cppString(state)}`, index);
+    branch("unlit", DARK_ASPECT);
+    branch("held", heldIndex);
+    for (const [name, index] of byName) branch(`name == ${cppString(name)}`, index);
+    body.push("if (pick == -1) return;");
+    body.push(`id(${mast.id}_aspect) = pick;`);
+    body.push(`id(${mast.id}_show).execute(true);`);
+    for (const row of body) lines.push(`          ${row}`);
   }
 }
 
@@ -1770,5 +1936,6 @@ function generateYaml(config) {
     validateConfig,
     parseConfigFromYaml,
     generateYaml,
+    generateJmriXml,
   };
 })(typeof globalThis !== "undefined" ? globalThis : window);
