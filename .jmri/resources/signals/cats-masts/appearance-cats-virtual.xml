@@ -1,10 +1,33 @@
 <?xml version="1.0" encoding="utf-8"?>
 <?xml-stylesheet href="../../XSLT/appearancetable.xsl" type="text/xsl"?>
 <appearancetable xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://jmri.org/xml/schema/appearancetable.xsd">
+  <copyright xmlns="http://docbook.org/ns/docbook">
+    <year>2026</year>
+    <holder>ESPHome for Model Railroading</holder>
+  </copyright>
+  <authorgroup xmlns="http://docbook.org/ns/docbook">
+    <author>
+      <orgname>ESPHome for Model Railroading</orgname>
+    </author>
+  </authorgroup>
+  <revhistory xmlns="http://docbook.org/ns/docbook">
+    <revision>
+      <revnumber>1</revnumber>
+      <date>2026-11-14</date>
+      <authorinitials>EMR</authorinitials>
+      <revremark>Initial version: the 30 aspects of the default CATS signal template</revremark>
+    </revision>
+    <revision>
+      <revnumber>2</revnumber>
+      <date>2026-11-23</date>
+      <authorinitials>EMR</authorinitials>
+      <revremark>Add the copyright, author, and revision history JMRI's schema requires. Danger and held show R292; permissive shows R291</revremark>
+    </revision>
+  </revhistory>
   <aspecttable>CATS Virtual Signals</aspecttable>
   <name>Default</name>
-  <reference>(similar to basic signals described in various magazine articles)</reference>
-  <description>A simple signal for use as e.g. a block signal</description>
+  <reference>Mapping the Default CATS Signal Template into Masts</reference>
+  <description>A virtual mast for MQTT signal masts. JMRI publishes the aspect name and the board shows it.</description>
   <appearances>
     <appearance>
       <aspectname>R288</aspectname>
@@ -98,12 +121,17 @@
     </appearance>
   </appearances>
   <specificappearances>
+    <danger>
+      <aspect>R292</aspect>
+    </danger>
+    <permissive>
+      <aspect>R291</aspect>
+    </permissive>
+    <held>
+      <aspect>R292</aspect>
+    </held>
   </specificappearances>
   <!-- End of Specific Appearances list -->
-  <aspectMappings>
-    <!-- Start of Aspect Mapping -->
-  </aspectMappings>
-  <!-- End of Aspect Mapping -->
 </appearancetable>
 
 

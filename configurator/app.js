@@ -6,6 +6,7 @@ const {
   ensureSecrets,
   generatePassword,
   generateYaml,
+  generateJmriXml,
   myFirstBoardPreset,
   normalizeConfig,
   parseConfigFromYaml,
@@ -43,10 +44,10 @@ const MODULES = [
 // What is wired to a point control. "switch" is the UI choice for a toggle
 // switch; its stored action is latch-thrown, or latch-closed when reversed.
 const CONTROL_KINDS = [
-  { value: "toggle", label: "Push button: each press swaps the point" },
+  { value: "toggle", label: "Push button: each press swaps the turnout" },
   { value: "closed", label: "Push button: always sets closed" },
   { value: "thrown", label: "Push button: always sets thrown" },
-  { value: "switch", label: "Toggle switch: the point follows the switch" },
+  { value: "switch", label: "Toggle switch: the turnout follows the switch" },
 ];
 
 function isLatched(control) {
@@ -60,27 +61,6 @@ const COLOR_LABELS = {
   green: "Green",
   white: "White",
 };
-
-const LAMP_STARTERS = [
-  { label: "3 lamps", lamps: [
-    { name: "Bottom", count: 1 },
-    { name: "Middle", count: 1 },
-    { name: "Top", count: 1 },
-  ] },
-  { label: "Head and marker", lamps: [
-    { name: "Marker", count: 1 },
-    { name: "Bottom", count: 1 },
-    { name: "Middle", count: 1 },
-    { name: "Top", count: 1 },
-  ] },
-  { label: "Head, marker and route", lamps: [
-    { name: "Route", count: 3 },
-    { name: "Marker", count: 1 },
-    { name: "Bottom", count: 1 },
-    { name: "Middle", count: 1 },
-    { name: "Top", count: 1 },
-  ] },
-];
 
 const CRED_FIELDS = ["wifiSsid", "wifiPassword", "mqttBroker", "apPassword"];
 
@@ -121,7 +101,12 @@ document.querySelectorAll(".nav-item").forEach((button) => {
 });
 
 document.querySelectorAll("[data-goto]").forEach((button) => {
-  button.addEventListener("click", () => showView(button.dataset.goto));
+  button.addEventListener("click", (event) => {
+    event.preventDefault();
+    showView(button.dataset.goto);
+    // A link can also point at one part of that page.
+    if (button.dataset.scroll) document.getElementById(button.dataset.scroll)?.scrollIntoView({ block: "start" });
+  });
 });
 
 function showView(name) {
@@ -138,7 +123,7 @@ document.getElementById("btn-clear").addEventListener("click", () => {
   state.blocks = [];
   persist();
   render();
-  flash("ok", "Removed all blocks. Credentials kept.");
+  flash("ok", "Removed all sensors. Credentials kept.");
 });
 
 document.getElementById("btn-clear-creds").addEventListener("click", () => {
@@ -152,7 +137,7 @@ document.getElementById("btn-clear-creds").addEventListener("click", () => {
 });
 
 document.getElementById("btn-add-block").addEventListener("click", () => {
-  const name = `Block ${state.blocks.length + 1}`;
+  const name = `Sensor ${state.blocks.length + 1}`;
   state.blocks.push({
     name,
     topic: topicFor("block", name),
@@ -176,7 +161,7 @@ function nextChannel(pcaBoard, except) {
 }
 
 function addPoint(pcaBoard = 0) {
-  const name = `Point ${state.points.length + 1}`;
+  const name = `Turnout ${state.points.length + 1}`;
   state.points.push({
     name,
     topic: topicFor("point", name),
@@ -226,6 +211,44 @@ document.getElementById("btn-download").addEventListener("click", () => {
   flash("ok", `Downloaded ${a.download}. Paste it into ESPHome Dashboard.`);
 });
 
+// The Device Builder only accepts writes from its own page, so this copies the
+// YAML and opens it in a tab; the steps say where to paste.
+const ESPHOME_URL = "http://localhost:6052/";
+
+document.getElementById("btn-send-esphome").addEventListener("click", async () => {
+  const { errors } = validateConfig(state);
+  if (errors.length) {
+    flash("err", errors.join(" "));
+    return;
+  }
+  let copied = true;
+  try {
+    // Copy before opening the tab: the clipboard needs this page in focus.
+    await navigator.clipboard.writeText(generateYaml(state));
+  } catch {
+    copied = false;
+  }
+  window.open(ESPHOME_URL, "esphome-device-builder", "noopener");
+  const steps = document.getElementById("esphome-steps");
+  document.getElementById("esphome-steps-lead").textContent = copied
+    ? "The YAML is copied, and ESPHome is opening in a new tab. Paste it there:"
+    : "Could not copy the YAML. Click Download YAML instead. In ESPHome, click Create device, open Advanced set up options, and choose Import from file.";
+  for (const name of steps.querySelectorAll(".board-name")) name.textContent = state.board.name || "board";
+  steps.hidden = false;
+});
+
+document.getElementById("btn-download-jmri").addEventListener("click", () => {
+  const { xml } = generateJmriXml(state);
+  const blob = new Blob([xml], { type: "application/xml;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `${state.board.name || "board"}-jmri.xml`;
+  a.click();
+  URL.revokeObjectURL(url);
+  flash("ok", `Downloaded ${a.download}. Load it in PanelPro with File → Load table content and panels.`);
+});
+
 document.getElementById("btn-copy").addEventListener("click", async () => {
   try {
     await navigator.clipboard.writeText(generateYaml(state));
@@ -235,12 +258,10 @@ document.getElementById("btn-copy").addEventListener("click", async () => {
   }
 });
 
-el.importFile.addEventListener("change", async (event) => {
-  const file = event.target.files?.[0];
-  event.target.value = "";
-  if (!file) return;
+// Load a configurator board.yaml, from a file or pasted from ESPHome.
+// Returns false (after showing why) when the text is not one of ours.
+function importText(text, source) {
   try {
-    const text = await file.text();
     state = parseConfigFromYaml(text);
     normalizeTopics(state);
     // Prefer credentials from the imported file when present; otherwise keep browser-saved ones.
@@ -254,9 +275,54 @@ el.importFile.addEventListener("change", async (event) => {
     saveCredentials(extractCredentials(state.board));
     persist();
     render();
-    flash("ok", `Imported ${file.name}.`);
+    flash("ok", `Imported ${source}.`);
+    return true;
   } catch (err) {
     flash("err", err.message || String(err));
+    return false;
+  }
+}
+
+const importMenu = document.getElementById("import-menu-list");
+const importButton = document.getElementById("btn-import");
+
+function setImportMenu(open) {
+  importMenu.hidden = !open;
+  importButton.setAttribute("aria-expanded", String(open));
+}
+
+importButton.addEventListener("click", () => setImportMenu(importMenu.hidden));
+document.addEventListener("click", (event) => {
+  if (!document.getElementById("import-menu").contains(event.target)) setImportMenu(false);
+});
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape") setImportMenu(false);
+});
+
+el.importFile.addEventListener("change", async (event) => {
+  const file = event.target.files?.[0];
+  event.target.value = "";
+  setImportMenu(false);
+  if (!file) return;
+  importText(await file.text(), file.name);
+});
+
+const pasteDialog = document.getElementById("paste-dialog");
+const pasteText = document.getElementById("paste-text");
+
+document.getElementById("btn-import-paste").addEventListener("click", () => {
+  setImportMenu(false);
+  pasteText.value = "";
+  pasteDialog.showModal();
+  pasteText.focus();
+});
+
+pasteDialog.addEventListener("close", () => {
+  if (pasteDialog.returnValue !== "import") return;
+  if (!pasteText.value.trim()) return;
+  if (!importText(pasteText.value, "the pasted YAML")) {
+    // Keep the text so a near miss can be fixed instead of pasted again.
+    pasteDialog.showModal();
   }
 });
 
@@ -611,7 +677,7 @@ function renderBlocks() {
     card.className = "row-card";
     const header = document.createElement("header");
     const title = document.createElement("h3");
-    title.textContent = block.name || `Block ${index + 1}`;
+    title.textContent = block.name || `Sensor ${index + 1}`;
     const actions = document.createElement("div");
     actions.className = "row-actions";
     const remove = document.createElement("button");
@@ -641,7 +707,7 @@ function renderBlocks() {
     fields.append(
       field("Name", block.name, (v) => {
         block.name = v;
-        title.textContent = v || `Block ${index + 1}`;
+        title.textContent = v || `Sensor ${index + 1}`;
         followName(block, "block", card);
         persist();
         updatePreview();
@@ -785,13 +851,13 @@ function renderPcaBoard(pcaBoard, b) {
   if (!count) {
     const empty = document.createElement("p");
     empty.className = "empty";
-    empty.textContent = "No points on this board yet.";
+    empty.textContent = "No turnouts on this board yet.";
     list.append(empty);
   }
   const add = document.createElement("button");
   add.type = "button";
   add.className = "primary";
-  add.textContent = "Add point";
+  add.textContent = "Add turnout";
   add.addEventListener("click", () => addPoint(b));
   list.append(add);
 
@@ -804,7 +870,7 @@ function renderPointCard(point, index) {
   card.className = "row-card";
   const header = document.createElement("header");
   const title = document.createElement("h3");
-  title.textContent = point.name || `Point ${index + 1}`;
+  title.textContent = point.name || `Turnout ${index + 1}`;
   const actions = document.createElement("div");
   actions.className = "row-actions";
   const remove = document.createElement("button");
@@ -839,7 +905,7 @@ function renderPointCard(point, index) {
   fields.append(
     field("Name", point.name, (v) => {
       point.name = v;
-      title.textContent = v || `Point ${index + 1}`;
+      title.textContent = v || `Turnout ${index + 1}`;
       followName(point, "point", card);
       persist();
       updatePreview();
@@ -894,7 +960,7 @@ function renderPointCard(point, index) {
         render();
       }, {
         select: state.pcaBoards.map((_, b) => ({ value: String(b), label: `PCA9685 ${b + 1}` })),
-        hint: "Which servo board this point is on.",
+        hint: "Which servo board this turnout is on.",
       }),
     ] : []),
     usesPca()
@@ -904,7 +970,7 @@ function renderPointCard(point, index) {
         updatePreview();
       }, {
         type: "number",
-        hint: "Which servo output this point uses.",
+        hint: "Which servo output this turnout uses.",
       })
       : field("Servo pin", point.servoPin, (v) => {
         point.servoPin = v;
@@ -970,7 +1036,7 @@ function renderPanel(point) {
       }, {
         select: CONTROL_KINDS.map((kind) =>
           kind.value === "switch" && otherSwitch
-            ? { ...kind, label: `${kind.label} (this point already has one)`, disabled: true }
+            ? { ...kind, label: `${kind.label} (this turnout already has one)`, disabled: true }
             : kind),
         full: true,
         hint: latched
@@ -986,7 +1052,7 @@ function renderPanel(point) {
           updatePreview();
         }, {
           checkbox: true,
-          hint: "Flip the switch and watch the point. If it goes the opposite way to what you expect, tick this box.",
+          hint: "Flip the switch and watch the turnout. If it goes the opposite way to what you expect, tick this box.",
         })
       );
     }
@@ -1008,7 +1074,7 @@ function renderPanel(point) {
         updatePreview();
       }, {
         select: lightOptions,
-        hint: "On when the point is closed.",
+        hint: "On when the turnout is closed.",
       }),
       field("Open light", control.openLight || "", (v) => {
         control.openLight = v;
@@ -1016,7 +1082,7 @@ function renderPanel(point) {
         updatePreview();
       }, {
         select: lightOptions,
-        hint: "On when the point is thrown.",
+        hint: "On when the turnout is thrown.",
       })
     );
     card.append(header, fields);
@@ -1066,61 +1132,60 @@ function swatchHex(color) {
   return `#${SIGNAL_COLORS[color]}`;
 }
 
-function colHead(text) {
-  const span = document.createElement("div");
-  span.className = "col-head";
-  span.textContent = text;
-  return span;
+// Which lamp each aspect's colour picker is editing. Not saved.
+const selectedLamp = new WeakMap();
+
+function lampCount(lamp) {
+  return Math.max(1, Number(lamp.count) || 1);
 }
 
-function labeledControl(labelText, control) {
-  const label = document.createElement("label");
-  label.className = "stack-label";
-  const title = document.createElement("span");
-  title.className = "col-head";
-  title.textContent = labelText;
-  label.append(title, control);
-  return label;
+function lampLabel(lamp, lampIndex) {
+  return String(lamp.name || "").trim() || `Lamp ${lampIndex + 1}`;
 }
 
-function renderLampEditor(mast, lamp, lampIndex, gpio) {
-  const editor = document.createElement("div");
-  editor.className = "lamp-editor";
-  const bindDrop = (cell) => {
-    cell.addEventListener("dragover", (event) => {
-      event.preventDefault();
-      event.dataTransfer.dropEffect = "move";
-    });
-    cell.addEventListener("drop", (event) => {
-      event.preventDefault();
-      const from = Number(event.dataTransfer.getData("text/plain"));
-      if (Number.isNaN(from)) return;
-      moveLamp(mast, from, lampIndex);
-    });
-  };
+// LEDs run from the base, so a lamp's LEDs start after every lamp below it.
+function ledRange(mast, lampIndex) {
+  let start = 0;
+  for (let index = 0; index < lampIndex; index += 1) start += lampCount(mast.lamps[index]);
+  const count = lampCount(mast.lamps[lampIndex]);
+  return count > 1 ? `LED ${start}–${start + count - 1}` : `LED ${start}`;
+}
 
-  const nameCell = document.createElement("div");
-  nameCell.className = "lamp-name";
-  const grip = document.createElement("span");
-  grip.className = "lamp-grip";
-  grip.draggable = true;
-  grip.title = "Drag to reorder";
-  grip.textContent = "⋮⋮";
-  grip.addEventListener("dragstart", (event) => {
-    event.dataTransfer.setData("text/plain", String(lampIndex));
-    event.dataTransfer.effectAllowed = "move";
-  });
+function miniButton(text, label, onClick, className = "mini") {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = className;
+  button.textContent = text;
+  button.title = label;
+  button.setAttribute("aria-label", label);
+  button.addEventListener("click", onClick);
+  return button;
+}
+
+function colorName(color, gpio) {
+  if (gpio) return color === "off" ? "Off" : "On";
+  return COLOR_LABELS[color] || color;
+}
+
+function renderLampRow(mast, lampIndex, gpio) {
+  const lamp = mast.lamps[lampIndex];
+  const row = document.createElement("div");
+  row.className = "lamp-row";
+
+  const where = document.createElement("span");
+  where.className = "lamp-where";
+  where.textContent = gpio ? "" : ledRange(mast, lampIndex);
+
   const name = document.createElement("input");
   name.type = "text";
   name.value = lamp.name;
-  name.placeholder = "Bottom";
+  name.placeholder = "Top";
   name.setAttribute("aria-label", "Lamp name");
   name.addEventListener("input", () => {
     lamp.name = name.value;
     persist();
     updatePreview();
   });
-  nameCell.append(grip, name);
 
   const detail = document.createElement("div");
   detail.className = "lamp-detail";
@@ -1141,129 +1206,204 @@ function renderLampEditor(mast, lamp, lampIndex, gpio) {
     });
     detail.append(pin);
   } else {
-    const pips = document.createElement("span");
-    pips.className = "led-pips";
-    const count = Math.max(1, Number(lamp.count) || 1);
-    for (let index = 0; index < count; index += 1) {
-      const pip = document.createElement("button");
-      pip.type = "button";
-      pip.className = "pip";
-      pip.title = count > 1 ? "Remove one LED from this lamp" : "One LED";
-      pip.setAttribute("aria-label", count > 1 ? "Remove one LED from this lamp" : "One LED");
-      pip.addEventListener("click", () => {
-        if (lamp.count <= 1) return;
-        lamp.count -= 1;
-        persist();
-        render();
-      });
-      pips.append(pip);
-    }
-    const addLed = document.createElement("button");
-    addLed.type = "button";
-    addLed.className = "mini";
-    addLed.textContent = "Add";
-    addLed.addEventListener("click", () => {
-      lamp.count = Math.min(32, (Number(lamp.count) || 1) + 1);
+    const count = lampCount(lamp);
+    const fewer = miniButton("−", "One LED fewer", () => {
+      lamp.count = Math.max(1, count - 1);
       persist();
       render();
     });
-    detail.append(pips, addLed);
+    fewer.disabled = count <= 1;
+    const shown = document.createElement("span");
+    shown.className = "lamp-count";
+    shown.textContent = `${count} LED${count === 1 ? "" : "s"}`;
+    const more = miniButton("+", "One LED more", () => {
+      lamp.count = Math.min(32, count + 1);
+      persist();
+      render();
+    });
+    detail.append(fewer, shown, more);
   }
 
   const order = document.createElement("div");
   order.className = "lamp-order";
-  const up = document.createElement("button");
-  up.type = "button";
-  up.className = "mini";
-  up.textContent = "Up";
-  up.addEventListener("click", () => moveLamp(mast, lampIndex, lampIndex - 1));
-  const down = document.createElement("button");
-  down.type = "button";
-  down.className = "mini";
-  down.textContent = "Down";
-  down.addEventListener("click", () => moveLamp(mast, lampIndex, lampIndex + 1));
-  const drop = document.createElement("button");
-  drop.type = "button";
-  drop.className = "mini remove";
-  drop.textContent = "Remove";
-  drop.addEventListener("click", () => {
+  const up = miniButton("↑", "Move up the mast", () => moveLamp(mast, lampIndex, lampIndex + 1));
+  up.disabled = lampIndex === mast.lamps.length - 1;
+  const down = miniButton("↓", "Move down the mast", () => moveLamp(mast, lampIndex, lampIndex - 1));
+  down.disabled = lampIndex === 0;
+  const remove = miniButton("Remove", "Remove this lamp", () => {
     mast.lamps.splice(lampIndex, 1);
     for (const aspect of mast.aspects) aspect.lamps.splice(lampIndex, 1);
     persist();
     render();
-  });
-  order.append(up, down, drop);
-  bindDrop(nameCell);
-  bindDrop(detail);
-  bindDrop(order);
-  editor.append(nameCell, detail, order);
-  return editor;
+  }, "mini remove");
+  order.append(up, down, remove);
+
+  if (gpio) row.classList.add("is-gpio");
+  else row.append(where);
+  row.append(name, detail, order);
+  return row;
 }
 
-function renderSignalCell(cell, gpio) {
-  const wrap = document.createElement("div");
-  wrap.className = "signal-cell";
-  const swatches = document.createElement("div");
-  swatches.className = "swatches";
-  const colors = gpio ? ["off", "white"] : SIGNAL_COLOR_ORDER;
-  for (const color of colors) {
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = "swatch";
-    const label = gpio && color === "white" ? "On" : COLOR_LABELS[color];
-    button.title = label;
-    button.setAttribute("aria-label", label);
-    button.style.background = swatchHex(color);
-    if (color === "white") button.classList.add("is-white");
-    const selected = gpio ? (color === "off" ? cell.color === "off" : cell.color !== "off") : cell.color === color;
-    if (selected) {
-      button.classList.add("is-selected");
-      if (cell.mode === "blink") button.classList.add("is-blink");
-      if (cell.mode === "pulse") button.classList.add("is-pulse");
-    }
-    button.addEventListener("click", () => {
-      cell.color = color;
-      if (color === "off") cell.mode = "steady";
-      persist();
+// JMRI sends "<aspect>; Lit; Unheld" for a lit, unheld mast, so show just the name.
+function friendlyState(state) {
+  return String(state || "").trim().replace(/; Lit; Unheld$/, "");
+}
+
+function renderAspectCard(mast, aspect, aspectIndex, gpio) {
+  const card = document.createElement("div");
+  card.className = "aspect-card";
+
+  // The picture: lamps top of the mast first. Click one to edit it.
+  const picture = document.createElement("div");
+  picture.className = "mini-mast";
+  let selected = selectedLamp.get(aspect);
+  if (!Number.isInteger(selected) || selected >= mast.lamps.length) selected = mast.lamps.length - 1;
+  for (let index = mast.lamps.length - 1; index >= 0; index -= 1) {
+    const cell = aspect.lamps[index];
+    const lamp = mast.lamps[index];
+    const label = `${lampLabel(lamp, index)}: ${colorName(cell.color, gpio)}${cell.color === "off" ? "" : `, ${cell.mode}`}`;
+    const button = miniButton("", label, () => {
+      selectedLamp.set(aspect, index);
       render();
-    });
-    swatches.append(button);
+    }, "mini-lamp");
+    button.style.background = cell.color === "off" ? "" : swatchHex(gpio ? "white" : cell.color);
+    if (cell.color === "off") button.classList.add("is-off");
+    else if (cell.mode !== "steady") button.classList.add(`is-${cell.mode}`);
+    if (index === selected) button.classList.add("is-selected");
+    if (!gpio && lampCount(lamp) > 1) button.style.width = `${0.75 + 0.42 * lampCount(lamp)}rem`;
+    picture.append(button);
   }
-  wrap.append(swatches);
-  if (cell.color !== "off") {
-    const modes = document.createElement("div");
-    modes.className = "modes";
-    for (const mode of ["steady", "blink", "pulse"]) {
-      const button = document.createElement("button");
-      button.type = "button";
-      button.className = "mode";
-      if (cell.mode === mode) button.classList.add("is-selected");
-      button.textContent = mode.charAt(0).toUpperCase() + mode.slice(1);
-      button.addEventListener("click", () => {
-        cell.mode = mode;
+
+  const body = document.createElement("div");
+  body.className = "aspect-body";
+
+  const top = document.createElement("div");
+  top.className = "aspect-top";
+  const name = document.createElement("input");
+  name.type = "text";
+  name.value = aspect.label;
+  name.placeholder = "Stop";
+  name.setAttribute("aria-label", "Aspect name");
+  name.addEventListener("input", () => {
+    aspect.label = name.value;
+    persist();
+    updatePreview();
+  });
+  const startup = document.createElement("label");
+  startup.className = "check";
+  const box = document.createElement("input");
+  box.type = "checkbox";
+  box.checked = aspect.startup === true;
+  box.addEventListener("change", () => {
+    const on = box.checked;
+    for (const other of mast.aspects) other.startup = false;
+    aspect.startup = on;
+    persist();
+    render();
+  });
+  const startupText = document.createElement("span");
+  startupText.textContent = "Show at startup";
+  startup.append(box, startupText);
+  const remove = miniButton("Remove", "Remove this aspect", () => {
+    mast.aspects.splice(aspectIndex, 1);
+    persist();
+    render();
+  }, "mini remove");
+  top.append(name, startup, remove);
+  body.append(top);
+
+  // Colour and effect for the lamp picked in the picture.
+  if (mast.lamps.length) {
+    const cell = aspect.lamps[selected];
+    const picker = document.createElement("div");
+    picker.className = "lamp-picker";
+    const which = document.createElement("span");
+    which.className = "lamp-picker-name";
+    which.textContent = lampLabel(mast.lamps[selected], selected);
+    const swatches = document.createElement("div");
+    swatches.className = "swatches";
+    for (const color of gpio ? ["off", "white"] : SIGNAL_COLOR_ORDER) {
+      const isOn = gpio ? (color === "off") === (cell.color === "off") : cell.color === color;
+      const button = miniButton("", colorName(color, gpio), () => {
+        cell.color = color;
+        if (color === "off") cell.mode = "steady";
         persist();
         render();
-      });
-      modes.append(button);
+      }, "swatch-btn");
+      const dot = document.createElement("span");
+      dot.className = "swatch";
+      dot.style.background = swatchHex(color);
+      if (color === "white") dot.classList.add("is-white");
+      button.append(dot, colorName(color, gpio));
+      if (isOn) button.classList.add("is-selected");
+      swatches.append(button);
     }
-    wrap.append(modes);
+    picker.append(which, swatches);
+    if (cell.color !== "off") {
+      const modes = document.createElement("div");
+      modes.className = "modes";
+      for (const mode of ["steady", "blink", "pulse"]) {
+        const button = miniButton(mode.charAt(0).toUpperCase() + mode.slice(1), `${mode} lamp`, () => {
+          cell.mode = mode;
+          persist();
+          render();
+        }, "mode");
+        if (cell.mode === mode) button.classList.add("is-selected");
+        modes.append(button);
+      }
+      picker.append(modes);
+    }
+    body.append(picker);
   }
-  return wrap;
+
+  // Which JMRI messages show this aspect. Tucked away unless it needs filling in.
+  const match = document.createElement("details");
+  match.className = "jmri-match";
+  const filled = aspect.states.map(friendlyState).filter(Boolean);
+  match.open = filled.length === 0;
+  const summary = document.createElement("summary");
+  summary.textContent = filled.length ? `JMRI aspect: ${filled.join(", ")}` : "JMRI aspect: not set";
+  match.append(summary);
+  const hint = document.createElement("p");
+  hint.className = "hint";
+  hint.textContent = "JMRI sends the aspect name, then Lit or Unlit, then Held or Unheld, e.g. R292; Lit; Unheld. The mast shows this aspect when a message matches one of these.";
+  match.append(hint);
+  aspect.states.forEach((state, stateIndex) => {
+    const row = document.createElement("div");
+    row.className = "match-row";
+    const input = document.createElement("input");
+    input.type = "text";
+    input.value = state;
+    input.placeholder = "R292; Lit; Unheld";
+    input.setAttribute("aria-label", stateIndex === 0 ? "JMRI aspect" : "Also match");
+    input.addEventListener("input", () => {
+      aspect.states[stateIndex] = input.value;
+      persist();
+      updatePreview();
+    });
+    row.append(input);
+    if (stateIndex > 0) {
+      row.append(miniButton("Remove", "Stop matching this", () => {
+        aspect.states.splice(stateIndex, 1);
+        persist();
+        render();
+      }, "mini remove"));
+    }
+    match.append(row);
+  });
+  match.append(miniButton("Also match…", "Match another JMRI message", () => {
+    aspect.states.push("");
+    persist();
+    render();
+  }, "mini text"));
+  body.append(match);
+
+  card.append(picture, body);
+  return card;
 }
 
 function renderSignals() {
   const signals = state.signals;
-  const anyStrip = signals.masts.some((mast) => mast.mode !== "gpio");
-  const showStripHelp = signals.masts.length === 0 || anyStrip;
-  document.getElementById("signal-sample").hidden = !showStripHelp;
-  const catsStates = new Set(CATS_ASPECTS.map((name) => catsAspectState(name)));
-  const usesCats = signals.masts.some((mast) =>
-    (mast.aspects || []).some((aspect) =>
-      (aspect.states || []).some((state) => catsStates.has(String(state).trim()))
-    )
-  );
-  document.getElementById("cats-template-note").hidden = !usesCats;
-
   el.signalsList.replaceChildren();
   signals.masts.forEach((mast, mastIndex) => {
     const gpio = mast.mode === "gpio";
@@ -1328,7 +1468,7 @@ function renderSignals() {
         ],
         hint: gpio
           ? "Each lamp is one GPIO. The LED’s colour is whatever you wired."
-          : "This mast has its own WS2812B strip. The first lamp is LED 0.",
+          : "This mast has its own WS2812B strip. The lowest lamp is LED 0.",
       })
     );
     if (!gpio) {
@@ -1346,152 +1486,52 @@ function renderSignals() {
 
     const aspects = document.createElement("div");
     aspects.className = "aspects";
+
+    // Lamps, top of the mast first. LED 0 (or the first lamp) is at the base.
+    const lampsHead = document.createElement("h4");
+    lampsHead.textContent = "Lamps";
     const lampHint = document.createElement("p");
     lampHint.className = "hint";
     lampHint.textContent = gpio
-      ? "Each row is one lamp. Each column is an aspect."
-      : "Each row is one lamp, wired from the base. The first row is LED 0. Each column is an aspect.";
-    aspects.append(lampHint);
-    syncAspectCells(mast);
-
-    const board = document.createElement("div");
-    board.className = "mast-board";
-    const detailWidth = gpio ? "minmax(6.2rem, 8rem)" : "minmax(4.5rem, 6.5rem)";
-    const lampsPane = document.createElement("div");
-    lampsPane.className = "mast-lamps";
-    lampsPane.style.gridTemplateColumns = `minmax(7.5rem, 9rem) ${detailWidth} max-content`;
-    const scroll = document.createElement("div");
-    scroll.className = "mast-scroll";
-    if (mast.aspects.length) {
-      scroll.style.gridTemplateColumns = `repeat(${mast.aspects.length}, minmax(12rem, 14rem))`;
+      ? "Top of the mast first. Each lamp has its own pin."
+      : "Top of the mast first. The strip starts at the lowest lamp, LED 0. A lamp can be several LEDs, such as a three-LED route indicator.";
+    const addLamp = document.createElement("button");
+    addLamp.type = "button";
+    addLamp.textContent = mast.lamps.length ? "Add lamp at the top" : "Add lamp";
+    addLamp.addEventListener("click", () => {
+      const used = new Set(mast.lamps.map((lamp) => lamp.name));
+      let number = mast.lamps.length + 1;
+      while (used.has(`Lamp ${number}`)) number += 1;
+      mast.lamps.push({
+        name: `Lamp ${number}`,
+        count: 1,
+        pin: gpio ? nextServoPin() : "",
+      });
+      syncAspectCells(mast);
+      persist();
+      render();
+    });
+    const lampList = document.createElement("div");
+    lampList.className = "lamp-list";
+    for (let index = mast.lamps.length - 1; index >= 0; index -= 1) {
+      lampList.append(renderLampRow(mast, index, gpio));
     }
-    board.style.gridTemplateRows = `repeat(${mast.lamps.length + 1}, auto)`;
-    const heads = document.createElement("div");
-    heads.className = "lamp-editor lamp-head";
-    heads.append(
-      colHead("Lamp"),
-      colHead(gpio ? "Pin" : "LEDs"),
-      colHead("Order"),
-    );
-    lampsPane.append(heads);
+    aspects.append(lampsHead, lampHint, addLamp, lampList);
+
+    const aspectsHead = document.createElement("h4");
+    aspectsHead.textContent = "Aspects";
+    const aspectHint = document.createElement("p");
+    aspectHint.className = "hint";
+    aspectHint.textContent = mast.lamps.length
+      ? "What the mast shows for each aspect. Click a lamp in the picture to set its colour."
+      : "Add the lamps first, then set what each aspect shows.";
+    aspects.append(aspectsHead, aspectHint);
+    const aspectList = document.createElement("div");
+    aspectList.className = "aspect-list";
     mast.aspects.forEach((aspect, aspectIndex) => {
-      const head = document.createElement("div");
-      head.className = "aspect-head";
-      const label = document.createElement("input");
-      label.type = "text";
-      label.value = aspect.label;
-      label.placeholder = "Stop";
-      label.setAttribute("aria-label", "Aspect name");
-      label.addEventListener("input", () => {
-        aspect.label = label.value;
-        persist();
-        updatePreview();
-      });
-      const dropAspect = document.createElement("button");
-      dropAspect.type = "button";
-      dropAspect.className = "mini remove";
-      dropAspect.textContent = "Remove";
-      dropAspect.addEventListener("click", () => {
-        mast.aspects.splice(aspectIndex, 1);
-        persist();
-        render();
-      });
-      const nameRow = document.createElement("div");
-      nameRow.className = "match-row";
-      nameRow.append(label, dropAspect);
-      head.append(labeledControl("Aspect", nameRow));
-      const startup = document.createElement("label");
-      startup.className = "check";
-      const box = document.createElement("input");
-      box.type = "checkbox";
-      box.checked = aspect.startup === true;
-      box.addEventListener("change", () => {
-        const on = box.checked;
-        for (const other of mast.aspects) other.startup = false;
-        aspect.startup = on;
-        persist();
-        render();
-      });
-      const startupText = document.createElement("span");
-      startupText.className = "check-copy";
-      startupText.textContent = "Show at startup";
-      startup.append(box, startupText);
-      head.append(startup);
-      aspect.states.forEach((state, stateIndex) => {
-        const row = document.createElement("div");
-        row.className = "match-row";
-        const input = document.createElement("input");
-        input.type = "text";
-        input.value = state;
-        input.placeholder = "R292; Lit; Unheld";
-        input.setAttribute("aria-label", stateIndex === 0 ? "JMRI aspect" : "Also match");
-        input.addEventListener("input", () => {
-          aspect.states[stateIndex] = input.value;
-          persist();
-          updatePreview();
-        });
-        row.append(input);
-        if (stateIndex > 0) {
-          const removeMatch = document.createElement("button");
-          removeMatch.type = "button";
-          removeMatch.className = "mini remove";
-          removeMatch.textContent = "Remove";
-          removeMatch.addEventListener("click", () => {
-            aspect.states.splice(stateIndex, 1);
-            persist();
-            render();
-          });
-          row.append(removeMatch);
-        }
-        head.append(labeledControl(stateIndex === 0 ? "JMRI aspect" : "Also match", row));
-      });
-      const also = document.createElement("button");
-      also.type = "button";
-      also.className = "mini text";
-      also.textContent = "Also match";
-      also.addEventListener("click", () => {
-        aspect.states.push("");
-        persist();
-        render();
-      });
-      head.append(also, colHead("Colour"));
-      scroll.append(head);
+      aspectList.append(renderAspectCard(mast, aspect, aspectIndex, gpio));
     });
-
-    if (!mast.lamps.length) {
-      const starters = document.createElement("div");
-      starters.className = "starters";
-      starters.style.gridColumn = "1 / -1";
-      for (const starter of LAMP_STARTERS) {
-        const button = document.createElement("button");
-        button.type = "button";
-        button.textContent = starter.label;
-        button.addEventListener("click", () => {
-          mast.lamps = [];
-          for (const lamp of starter.lamps) {
-            mast.lamps.push({
-              name: lamp.name,
-              count: gpio ? 1 : lamp.count,
-              pin: gpio ? nextServoPin() : "",
-            });
-          }
-          syncAspectCells(mast);
-          persist();
-          render();
-        });
-        starters.append(button);
-      }
-      board.append(starters);
-    }
-
-    mast.lamps.forEach((lamp, lampIndex) => {
-      lampsPane.append(renderLampEditor(mast, lamp, lampIndex, gpio));
-      mast.aspects.forEach((aspect) => {
-        scroll.append(renderSignalCell(aspect.lamps[lampIndex], gpio));
-      });
-    });
-    if (mast.lamps.length || mast.aspects.length) board.append(lampsPane, scroll);
-    aspects.append(board);
+    aspects.append(aspectList);
 
     const usedStates = new Set();
     for (const aspect of mast.aspects) {
@@ -1560,23 +1600,11 @@ function renderSignals() {
       persist();
       render();
     });
-    const addLamp = document.createElement("button");
-    addLamp.type = "button";
-    addLamp.textContent = "Add lamp";
-    addLamp.addEventListener("click", () => {
-      const used = new Set(mast.lamps.map((lamp) => lamp.name));
-      let number = mast.lamps.length + 1;
-      while (used.has(`Lamp ${number}`)) number += 1;
-      mast.lamps.push({
-        name: `Lamp ${number}`,
-        count: 1,
-        pin: gpio ? nextServoPin() : "",
-      });
-      syncAspectCells(mast);
-      persist();
-      render();
-    });
-    picker.append(addLamp, cats, addCats, addAll, addAspect);
+    // An aspect needs lamps to light, so adding one waits for the first lamp.
+    if (!mast.lamps.length) {
+      for (const control of [cats, addCats, addAll, addAspect]) control.disabled = true;
+    }
+    picker.append(cats, addCats, addAll, addAspect);
     aspects.append(picker);
 
     card.append(header, fields, aspects);
@@ -1608,6 +1636,7 @@ function updatePreview() {
   el.countBlocks.textContent = String(state.blocks.length);
   el.countPoints.textContent = String(state.points.length);
   el.countSignals.textContent = String(state.signals.masts.length);
+  renderJmriSummary();
   el.blocksEmpty.hidden = state.blocks.length > 0;
   el.pointsEmpty.hidden = state.points.length > 0;
   el.signalsEmpty.hidden = state.signals.masts.length > 0;
@@ -1615,6 +1644,26 @@ function updatePreview() {
   el.pointsEmpty.hidden = usesPca() || state.points.length > 0;
   el.directPwmNote.hidden = state.points.length === 0 || usesPca();
   renderMessages();
+}
+
+function renderJmriSummary() {
+  const { counts, skipped } = generateJmriXml(state);
+  const total = counts.sensors + counts.turnouts + counts.masts;
+  const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
+  const summary = document.getElementById("jmri-summary");
+  if (state.board.mqttEnabled === false) {
+    summary.textContent = "MQTT is off for this board, so nothing here talks to JMRI.";
+  } else {
+    summary.textContent = `${plural(counts.sensors, "sensor")}, ${plural(counts.turnouts, "turnout")}, and ${plural(counts.masts, "signal mast")}.`;
+  }
+  const list = document.getElementById("jmri-skipped");
+  list.replaceChildren(...skipped.map((text) => {
+    const item = document.createElement("li");
+    item.textContent = `Left out: ${text}.`;
+    return item;
+  }));
+  list.hidden = skipped.length === 0;
+  document.getElementById("btn-download-jmri").disabled = total === 0;
 }
 
 function render() {

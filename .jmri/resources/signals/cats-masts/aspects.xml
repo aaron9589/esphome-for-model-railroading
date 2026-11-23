@@ -3,96 +3,209 @@
 <aspecttable xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://jmri.org/xml/schema/aspecttable.xsd">
   <name>CATS Virtual Signals</name>
   <reference>Mapping the Default CATS Signal Template into Masts</reference>
+  <copyright xmlns="http://docbook.org/ns/docbook">
+    <year>2026</year>
+    <holder>ESPHome for Model Railroading</holder>
+  </copyright>
+  <authorgroup xmlns="http://docbook.org/ns/docbook">
+    <author>
+      <orgname>ESPHome for Model Railroading</orgname>
+    </author>
+  </authorgroup>
+  <revhistory xmlns="http://docbook.org/ns/docbook">
+    <revision>
+      <revnumber>1</revnumber>
+      <date>2026-11-14</date>
+      <authorinitials>EMR</authorinitials>
+      <revremark>Initial version: the 30 aspects of the default CATS signal template</revremark>
+    </revision>
+    <revision>
+      <revnumber>2</revnumber>
+      <date>2026-11-23</date>
+      <authorinitials>EMR</authorinitials>
+      <revremark>Add the copyright, author, and revision history JMRI's schema requires. Add each aspect's CATS title and its speed and speed2, from CATS AspectMap.Speed</revremark>
+    </revision>
+  </revhistory>
   <aspects>
     <aspect>
       <name>R288</name>
+      <title>ARA 288 - Slow Approach</title>
+      <speed>Slow</speed>
+      <speed2>Stop</speed2>
     </aspect>
     <aspect>
       <name>RES_LIM</name>
+      <title>Restricting Limited</title>
+      <speed>Restricted</speed>
+      <speed2>Restricted</speed2>
     </aspect>
     <aspect>
       <name>C424</name>
+      <title>CROR 424 - Slow Approach Slow</title>
+      <speed>Slow</speed>
+      <speed2>Slow</speed2>
     </aspect>
     <aspect>
       <name>ADV_SLO</name>
+      <title>Advance Slow Approach</title>
+      <speed>Normal</speed>
+      <speed2>Slow</speed2>
     </aspect>
     <aspect>
       <name>C423</name>
+      <title>CROR 423 - Slow Approach Medium</title>
+      <speed>Slow</speed>
+      <speed2>Medium</speed2>
     </aspect>
     <aspect>
       <name>C422</name>
+      <title>CROR 422 - Slow Approach Limited</title>
+      <speed>Slow</speed>
+      <speed2>Limited</speed2>
     </aspect>
     <aspect>
       <name>R281D</name>
+      <title>ARA 281D - Limited Approach</title>
+      <speed>Limited</speed>
+      <speed2>Stop</speed2>
     </aspect>
     <aspect>
       <name>R281C</name>
+      <title>ARA 281C - Limited Clear</title>
+      <speed>Limited</speed>
+      <speed2>Normal</speed2>
     </aspect>
     <aspect>
       <name>R281B</name>
+      <title>ARA 281B - Normal Approach Limited</title>
+      <speed>Normal</speed>
+      <speed2>Limited</speed2>
     </aspect>
     <aspect>
       <name>RES_MED</name>
+      <title>Restricting Medium</title>
+      <speed>Restricted</speed>
+      <speed2>Restricted</speed2>
     </aspect>
     <aspect>
       <name>ADV_NORM</name>
+      <title>Advance Approach</title>
+      <speed>Normal</speed>
+      <speed2>Medium</speed2>
     </aspect>
     <aspect>
       <name>R283B</name>
+      <title>ARA 283B - Medium Approach Slow</title>
+      <speed>Medium</speed>
+      <speed2>Slow</speed2>
     </aspect>
     <aspect>
       <name>R283A</name>
+      <title>ARA 283A - Medium Approach Medium</title>
+      <speed>Medium</speed>
+      <speed2>Medium</speed2>
     </aspect>
     <aspect>
       <name>R291</name>
+      <title>R291 - Stop and Proceed</title>
+      <speed>Stop</speed>
+      <speed2>Stop</speed2>
     </aspect>
     <aspect>
       <name>R292</name>
+      <title>ARA 292 - Stop</title>
+      <speed>Stop</speed>
+      <speed2>Stop</speed2>
     </aspect>
     <aspect>
       <name>ADV_LIM</name>
+      <title>Advance Limited Approach</title>
+      <speed>Normal</speed>
+      <speed2>Limited</speed2>
     </aspect>
     <aspect>
       <name>ADV_MED</name>
+      <title>Advance Medium Approach</title>
+      <speed>Normal</speed>
+      <speed2>Medium</speed2>
     </aspect>
     <aspect>
       <name>C417</name>
+      <title>CROR 417 - Medium Approach Limited</title>
+      <speed>Medium</speed>
+      <speed2>Limited</speed2>
     </aspect>
     <aspect>
       <name>C414</name>
+      <title>CROR 414 - Limited Approach Slow</title>
+      <speed>Limited</speed>
+      <speed2>Slow</speed2>
     </aspect>
     <aspect>
       <name>C413</name>
+      <title>CROR 413 - Limited Approach Medium</title>
+      <speed>Limited</speed>
+      <speed2>Medium</speed2>
     </aspect>
     <aspect>
       <name>RES_SLO</name>
+      <title>Restricting Slow</title>
+      <speed>Restricted</speed>
+      <speed2>Restricted</speed2>
     </aspect>
     <aspect>
       <name>C412</name>
+      <title>CROR 412 - Limited Approach Limited</title>
+      <speed>Limited</speed>
+      <speed2>Limited</speed2>
     </aspect>
     <aspect>
       <name>RES_NORM</name>
+      <title>Restricting Normal</title>
+      <speed>Restricted</speed>
+      <speed2>Restricted</speed2>
     </aspect>
     <aspect>
       <name>R286</name>
+      <title>ARA 286 - Medium Approach</title>
+      <speed>Medium</speed>
+      <speed2>Stop</speed2>
     </aspect>
     <aspect>
       <name>R287</name>
+      <title>ARA 287 - Slow Clear</title>
+      <speed>Slow</speed>
+      <speed2>Normal</speed2>
     </aspect>
     <aspect>
       <name>R284</name>
+      <title>ARA 284 - Normal Approach Slow</title>
+      <speed>Normal</speed>
+      <speed2>Slow</speed2>
     </aspect>
     <aspect>
       <name>R285</name>
+      <title>ARA 285 - Approach</title>
+      <speed>Medium</speed>
+      <speed2>Stop</speed2>
     </aspect>
     <aspect>
       <name>R282</name>
+      <title>ARA 282 - Normal Approach Medium</title>
+      <speed>Normal</speed>
+      <speed2>Medium</speed2>
     </aspect>
     <aspect>
       <name>R283</name>
+      <title>ARA 283 - Medium Clear</title>
+      <speed>Medium</speed>
+      <speed2>Normal</speed2>
     </aspect>
     <aspect>
       <name>R281</name>
+      <title>ARA 281 - Clear</title>
+      <speed>Normal</speed>
+      <speed2>Normal</speed2>
     </aspect>
   </aspects>
   <appearancefiles>
