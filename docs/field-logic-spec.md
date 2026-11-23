@@ -151,7 +151,7 @@ There is no expiry, because a timed-out hold would also drop a real one.
 Each resource has a manual release, so a stuck hold (a failed detector, a stalled train) can be cleared by hand. It frees the resource, puts its masts to Stop, unlocks its turnouts, clears the CATS hold copy (above), and re-checks waiting rules. It logs at `WARN`. Releasing with a train still in the section is the operator's call.
 
 - **ESPHome:** a template `button` named `Release <resource>`.
-- **MQTT** (when MQTT is on): `trains/track/turnout/logic/<board>/<resource>/Release`, a **JMRI turnout** (`MTlogic/<board>/<resource>/Release`). `THROWN` releases. The board then publishes `CLOSED`, retained, to the same topic and ignores `CLOSED`. That snaps the JMRI turnout back like a push button. It also replaces any retained `THROWN` (JMRI publishes retained), so a release cannot fire again when the board reconnects.
+- **MQTT** (when MQTT is on): `trains/track/turnout/logic/<board>/<resource>/Release`, a **JMRI turnout** (`MTlogic/<board>/<resource>/Release`). `THROWN` releases. The board then publishes `CLOSED`, retained, to the same topic and ignores `CLOSED`. JMRI reads turnout feedback on the turnout's receive topic, which by default is the command topic, so it hears that `CLOSED` and the turnout snaps back like a push button. (This turnout has no `/Thrown` sensor.) The `CLOSED` also replaces any retained `THROWN` (JMRI publishes retained), so a release cannot fire again when the board reconnects.
 
 ## Remote inputs
 
@@ -170,7 +170,8 @@ Every board with MQTT on publishes these, field logic or not, so others can read
 |---|---|---|
 | Board online | `trains/track/sensor/board/<board>/Online`, a JMRI sensor `MSboard/<board>/Online` | `ACTIVE` as the MQTT birth message; `INACTIVE` as the will and shutdown message. Retained. `topic_prefix` is `null`, so `birth_message`, `will_message` and `shutdown_message` are set explicitly |
 | Sensor state | `<sensor-topic>/State`, retained | `ACTIVE` / `INACTIVE`, on every change and on connect. The detector topic itself stays `retain: false`, so JMRI never sees a stale OCCUPIED |
-| Turnout position | `trains/track/sensor/<turnout>/Thrown`, retained (the turnout position report) | `ACTIVE` thrown, `INACTIVE` closed |
+| Turnout position | `trains/track/sensor/<turnout>/Thrown`, retained. Already ships as the turnout's JMRI feedback | `ACTIVE` thrown, `INACTIVE` closed. Sent on connect and when a commanded or button throw has finished, about 2s after it started |
+| Turnout moving | `trains/track/sensor/<turnout>/Moving`, retained | `ACTIVE` when a throw script starts, `INACTIVE` when it finishes, and `INACTIVE` on connect |
 | Mast aspect | `<mast-topic>/State`, retained | The aspect name the mast shows |
 
 ### Unknown inputs
@@ -180,6 +181,8 @@ A remote input is **unknown** until its first message arrives. It also becomes u
 - a sensor counts as occupied
 - a turnout matches neither position
 - a mast counts as `stop`.
+
+A remote turnout also matches neither position while its `/Moving` is `ACTIVE`. `/Thrown` only changes once the servo has finished, so without `/Moving` another board would see the old position for the whole move.
 
 With **Disable MQTT** ticked, remote inputs are a validation error.
 
@@ -194,11 +197,17 @@ JMRI builds every MQTT topic as Channel + type topic (`track/turnout/`, `track/l
 | Resource held | Sensor `MSlogic/<board>/<resource>/Held` | `trains/track/sensor/logic/<board>/<resource>/Held` | `ACTIVE` / `INACTIVE`, retained |
 | Board online | Sensor `MSboard/<board>/Online` | `trains/track/sensor/board/<board>/Online` | `ACTIVE` / `INACTIVE`, retained |
 
-Two topics are for watching in MQTTX only; JMRI does not read them:
-- `trains/track/logic/<board>/<resource>/State`: `IDLE`, `ACTIVE` or `PASSED`, retained
-- `<mast-topic>/State`.
+JMRI does not read these two topics:
+- `trains/track/logic/<board>/<resource>/State`: `IDLE`, `ACTIVE` or `PASSED`, retained. For watching in MQTTX.
+- `<mast-topic>/State`. Other boards read it as a remote input.
 
-- **Download JMRI XML** adds the logic and board items above, built the same way as the board's own items (system name from the part of the topic after the type topic). Field-controlled masts stay in the XML, because JMRI/CATS drive them whenever field logic is off. With MQTT off, none of these are added.
+- **Download JMRI XML** builds these items the same way as the board's own (system name from the part of the topic after the type topic). Each goes with a tick box:
+  - **Sensors:** the board Online sensor.
+  - **Turnouts:** each rule-locked turnout's `/Locked` sensor.
+  - **Signal Masts:** field-controlled masts, because JMRI/CATS drive them whenever field logic is off.
+  - **Field logic** (a new box, shown when the board has rules): the switch light, each Release turnout and each Held sensor.
+
+  CATS users can leave Field logic unticked, the same as Sensors and Turnouts: CATS makes the items its IOSpecs name. `/Moving` is for boards and is not added. With MQTT off, none of these are added.
 - **Disable MQTT:** field logic still runs on local inputs. The topics are left out; the release buttons and the switch entity stay. There is no JMRI hold without MQTT.
 
 ## Aspect tags
@@ -219,11 +228,16 @@ Each field-controlled mast has a **stop aspect**: what it shows when the rules s
 
 ## Turnout locks
 
-Re-syncing toggle switches on unlock, and the `trains/track/sensor/<turnout>/Locked` report, already ship with remote Lock. Field logic adds a second flag:
+Two things already ship with remote Lock:
+- the `trains/track/sensor/<turnout>/Locked` report
+- the toggle switch re-sync. When `UNLOCKED` clears a lock that was set, the `${id}_latch_<n>` script moves the point to match the switch. A repeated or retained `UNLOCKED` does nothing.
+
+Field logic adds a second flag:
 
 - `<id>_locked` stays the **remote lock**, set by `<turnout-topic>/Lock`.
 - Rules lock through their own `<id>_field_locked` (`restore_value: false`).
-- The turnout is locked while **either** flag is set. The lock report, the re-sync on unlock, and the ignored fascia buttons and `CLOSED` / `THROWN` all follow the combined state.
+- The turnout is locked while **either** flag is set. Fascia buttons and `CLOSED` / `THROWN` are ignored while it is locked.
+- The re-sync and the lock report follow the combined state. The re-sync runs only when the turnout goes from locked to unlocked. One flag clearing while the other is still set does nothing.
 - So JMRI's `UNLOCKED` cannot free a turnout with a train on it, and a train clearing cannot drop a dispatcher's lock.
 - A turnout a rule locks gets the lock report even without Remote lock on.
 
@@ -333,7 +347,7 @@ The rule engine is one JS module (for example `configurator/logic.js`), used by 
 - Each chosen aspect exists on its mast, and aspect labels on a field-controlled mast are unique.
 - Two layers giving different aspects with the same tag on one mast: warning.
 - A *when* trigger with no CANCEL: warning.
-- Sensor and turnout names cannot start with `logic/` or `board/`. No sensor may be named `<sensor>/State`, `<turnout>/Thrown` or `<turnout>/Locked`.
+- Sensor and turnout names cannot start with `logic/` or `board/`. No sensor may be named `<sensor>/State`, `<turnout>/Thrown`, `<turnout>/Locked` or `<turnout>/Moving`. Today's configurator already rejects `/Thrown` and `/Locked`.
 
 ## Generated YAML (shape)
 
@@ -354,7 +368,8 @@ The rules go into the YAML as data (a table), run by one fixed interpreter. The 
 - `mqtt`:
   - `birth_message`, `will_message` and `shutdown_message` on the Online topic
   - `on_message` for the release and switch topics
-  - retained publishes of the Held, State and switch topics.
+  - retained publishes of the Held, State and switch topics
+  - `/Moving` from each throw script, `ACTIVE` at the start and `INACTIVE` after the back-off.
 - `on_boot`: the [boot steps](#boot-and-switching-on), after the existing startup aspect step (priority below -150).
 
 ## Stored format
@@ -396,9 +411,9 @@ In `configurator/test/`, run through `configurator/package.json`:
 - **Generator:**
   - YAML for a two-entrance and a four-entrance section, MQTT on and off
   - field-controlled masts still subscribing
-  - the release, switch, Held and Online topics, and the sensor `/State` mirror
+  - the release, switch, Held and Online topics, the sensor `/State` mirror, and turnout `/Moving`
   - remote input subscriptions.
-- **JMRI XML:** adds `MLlogic/<board>`, `MTlogic/<board>/<resource>/Release`, `MSlogic/<board>/<resource>/Held` and `MSboard/<board>/Online`, validating against JMRI's `layout-4-19-2.xsd`. None with MQTT off.
+- **JMRI XML:** adds `MLlogic/<board>`, `MTlogic/<board>/<resource>/Release`, `MSlogic/<board>/<resource>/Held` and `MSboard/<board>/Online`, validating against JMRI's `layout-4-19-2.xsd`. Each follows its tick box. The Release turnout has no `/Thrown` feedback. None with MQTT off.
 - **Engine** (against `logic.js`):
   - simultaneous triggers: one grant, chosen by list order
   - a waiting rule is granted after release, and waiting order with three entrances
@@ -413,7 +428,8 @@ In `configurator/test/`, run through `configurator/package.json`:
   - a stale hold stays at Stop until released
   - who wins a mast: first active rule within a layer, most restrictive across layers
   - remote inputs: unknown before the first message and while the board is offline counts as occupied / Stop
-  - the two lock flags.
+  - the two lock flags: the re-sync runs only when both are clear, not when one of two clears
+  - a remote turnout matches neither position while `/Moving` is `ACTIVE`.
 - **Checker:** finds a deliberate deadlock, and passes the one-train section starter.
 - **Import:** round-trip of a config with `logic` through `parseConfigFromYaml`.
 
@@ -423,4 +439,4 @@ In `configurator/test/`, run through `configurator/package.json`:
 - **Boot with the leaving guard.** At boot, the board cannot tell whether a train in such a block is waiting or has just left. The draft treats it as waiting, so its mast may clear. Treating it as leaving instead would strand a train that really is waiting.
 - **Shipping the interpreter.** It could be inlined into `board.yaml` (still one file, but long), or be an ESPHome `external_components` entry pulled from this repo at compile time (short YAML, but the build needs GitHub).
 - **Checker limits.** How many sensors and rules a board can have before the full check gives up.
-- **Sensor `/State` mirror.** It is a change for every board, with or without field logic, so it could ship on its own first.
+- **Board publishes.** The Online sensor, the sensor `/State` mirror and turnout `/Moving` are changes for every board, with or without field logic. They could ship on their own first, as remote Lock did.
