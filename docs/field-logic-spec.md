@@ -1,217 +1,211 @@
 # Field Logic — Feature Spec (draft)
 
-Status: draft, not built. This is the agreed design for v1 of field logic in the Board Configurator.
+Status: draft, not built. What ships first is decided in the implementation plan, not here.
 
 ## Why
 
-Today every signal mast on a board waits for JMRI/CATS to send an aspect over MQTT. Field logic lets the board run simple signalling rules itself, using the sensors, turnouts and masts already configured on that board. It keeps working when JMRI is closed or the broker is down. That is the main reason to do it on the board.
+Today every signal mast waits for JMRI/CATS to send an aspect over MQTT. Field logic lets a board run signalling rules itself. Rules read sensors, turnouts and masts on this board, and on other boards over MQTT. Rules that read only this board keep working when JMRI is closed or the broker is down. Rules that read another board fail safe to Stop while they cannot hear it.
 
-Beginners do not write rules by hand. They pick a **pattern** (a named template, such as "One-train section") and fill in its slots from dropdowns. Every pattern turns into the same rule model underneath, so the board only needs one rule engine.
+Rules are built in the configurator from cards, not written as code. **Starters** (such as "One-train section") fill in a set of cards to edit; after that they are ordinary rules.
 
 ## Terms
 
 | Term | Meaning |
 |---|---|
-| Block | A stretch of track. Each block has one sensor |
-| Sensor | A block's detector, set up on the Sensors page (stored as `blocks`) |
-| Turnout | A point, set up on the Turnouts page (stored as `points`) |
-| Rule | One trigger, its checks, its action, and its release |
-| Pattern | A configurator template that writes one or more rules |
-| Trigger block | The block a train enters to ask for a rule |
-| Hold | Something a rule reserves while it is active, such as a section of track |
-| Release | The event that ends a rule and frees its hold |
-| Field-controlled mast | A mast in a pattern whose field logic is on. It follows the pattern's rules, and JMRI/CATS can only hold it at Stop |
-| Field logic switch | A per-pattern switch on the board that turns the pattern's field logic on or off at runtime |
+| Block | A stretch of track with one sensor |
+| Sensor | A block's detector, on the Sensors page (stored as `blocks`) |
+| Turnout | A point, on the Turnouts page (stored as `points`) |
+| Input | Anything a rule reads: a sensor, a turnout's position, a mast's aspect, a button |
+| Remote input | An input that belongs to another board, read over MQTT |
+| Resource | Track that only one rule may reserve at a time, such as a single-line section. It has blocks, a release, and a waiting queue |
+| Rule | A trigger, checks and actions (see [Rules](#rules)) |
+| Layer | A named group of rules, usually what one starter wrote. Layers are how the Logic page shows who controls what |
+| Starter | A configurator template that writes a layer of editable rules |
+| Field-controlled mast | A mast that at least one rule sets. Other masts on the board stay with JMRI/CATS exactly as today |
+| Field logic switch | One runtime switch per board that turns all of its rules on or off |
 
-## Rule model
+## Language
 
-Every rule has four parts:
+Every part of a rule uses the same four words:
 
-1. **Trigger:** a block becomes occupied.
-2. **Checks:** a chain of conditions that must all be true. These are blocks clear, turnout positions (later patterns), and *no other rule holding what this rule needs*.
-3. **Action:** set a mast's aspect, and optionally lock turnouts (later patterns).
-4. **Hold and release:** what the action reserves, and the event that frees it.
+| Word | Meaning | Example |
+|---|---|---|
+| **while** | a state, true for as long as it holds | while Left occupied |
+| **when** | a moment (a change) | when Release is pressed |
+| **for** | how long a *while* must hold before it counts | while Bridge clear for 3s |
+| **then** | moments in order | when Far occupied, then clear |
 
-### Lifecycle
+States can be negated and combined with **all of** or **any of**. A *for* on a trigger also stops a detector flicker from cancelling a request.
+
+## Rules
+
+A rule card reads top to bottom:
+
+| Part | Form | Example |
+|---|---|---|
+| Trigger | **WHILE** or **WHEN** | while Left occupied for 0.5s |
+| Checks | **IF**: *while* states, all must be true | if Right clear |
+| Actions | **THEN**: show an aspect, lock turnouts, reserve a resource | Left mast shows Clear; reserve Bridge |
+| Cancel | **CANCEL**: only for a *when* trigger | when the button is pressed again |
+
+### Plain rules
+
+A rule that does not reserve a resource is active while its trigger and checks are true. While it is active, its actions apply: its mast aspect counts and its turnouts are locked. When it stops being active, they stop applying. A plain rule has no lifecycle and no release. Block signals and turnout locks are plain rules.
+
+### Reserving rules
+
+A rule that reserves a resource has a lifecycle:
 
 ```
-            trigger + checks pass
-   IDLE ─────────────────────────────▶ ACTIVE
-    ▲                                    │  action applied, hold taken
-    │                                    │
-    │          train passes the mast     ▼
-    │   (first checked block occupied)  PASSED
-    │                                    │  mast back to Stop, still holding
-    │            release event           │
-    └────────────────────────────────────┘  hold freed, turnouts unlocked,
-                                            waiting triggers re-checked
+         trigger + checks true, resource free, first in queue
+   IDLE ──────────────────────────────────────────────────▶ ACTIVE
+    ▲                                                         │ aspect shown, resource held,
+    │                                                         │ turnouts locked
+    │             when a resource block becomes occupied      ▼
+    │                                                       PASSED
+    │                                                         │ mast back to Stop, still holding
+    │               resource's release                        │
+    └─────────────────────────────────────────────────────────┘ resource freed, turnouts unlocked,
+                                                                waiting rules re-checked
 
-   ACTIVE ── trigger block clears before the train passes ──▶ IDLE (backed off)
+   ACTIVE ── cancel (trigger no longer true) ──▶ IDLE
 ```
 
-### Trigger events
-
-- v1: **block becomes occupied.**
-- If the checks fail, the train waits. The request stays queued for as long as the trigger block stays occupied, and it is re-checked whenever something it depends on changes.
-- Later: a fascia button, a turnout changing, an MQTT message.
-
-### Release events
-
-- v1:
-  - **block clear for N seconds** (the usual one)
-  - **block occupied, then clear** (the train reached the far side and has moved on)
-- More than one can be combined with **all of** or **any of**.
+- **Waiting.** If a rule's trigger is true but it cannot be granted, it waits. It is re-checked whenever something it reads changes.
+- **Free** means no rule holds the resource and all its blocks are clear.
+- **Waiting order.** When a resource is freed, the rule that has waited longest goes next. If two have waited equally long, the one listed first goes. Two rules cannot take turns starving a third.
+- **Passed.** The train has gone past the mast. The mast goes back to Stop, as a real signal does. The resource stays held.
+- **Cancel.** A *while* trigger cancels itself when it stops being true, honouring its *for*. Example: Left's mast clears, then the train backs out of Left before reaching Bridge. Without cancel, the mast would stay at Proceed and Bridge would stay held for a train that has gone, because the release only starts once the train has passed. A *when* trigger latches its request until it is granted. It cancels only through its CANCEL part, if it has one. Once granted, only the release or a manual release ends it.
+- **Release** belongs to the resource, so every rule that reserves it shares one release. The release is a *while* (usually "all blocks clear for 3s") or a *then* sequence. It is only armed once the rule is PASSED. Moments are counted from the grant onwards.
 - There is **no release timeout.** A timer that fires while a train is stalled on dirty track would free the section under it. Stuck holds are cleared by hand (see [Manual release](#manual-release)).
 
-### Built in, not configured
+### Who wins a mast
 
-- **Mast to Stop when the train passes it.** This is the "first checked block occupied" step in the lifecycle. Real signals always do this.
-- **Back-off cancel.** If the trigger block clears before the train passes, the rule goes back to IDLE.
-- **Boot.** Every rule starts IDLE with its masts at Stop. Holds are not saved (`restore_value: false`). A train already in a section fails the checks until it leaves.
+More than one rule, and more than one layer, can set the same mast. Every mast aspect has a tag: `stop`, `caution` or `clear` (see [Aspect tags](#aspect-tags)).
 
-## Pattern 1: One-train section
+- **Within a layer**, the first active rule in list order sets the mast. If no rule in the layer is active, the layer says Stop.
+- **Across layers**, the mast shows the most restrictive answer. If two layers give different aspects with the same tag, the first layer wins and the configurator warns.
+- A CATS hold acts as one more layer that says Stop (see [CATS hold](#cats-hold)).
 
-A stretch of track that only one train may be on at a time, with a protected entrance at each end. This covers gauntlet track, single-line bridges and tunnels, diamond crossings, two lines merging onto one, and staging throats.
+Each layer is a set of conditions that must all agree before a mast clears. For example, a gauntlet's entrance mast that is also the last block signal only clears when both layers allow it.
 
-### Slots
+Turnout locks combine with **any of**: a turnout is locked if any active rule locks it.
 
-| Slot | Notes |
-|---|---|
-| Name | Used for the rule's topic and entity names |
-| Section | One or more blocks on this board |
-| Entrances | 2 to 4 |
-| Release | Prefilled as "all section blocks clear for 3s"; editable |
+### Sharing inputs
 
-Each entrance has:
+Any number of rules and layers can read the same block. Only outputs (masts, locks) and resources can conflict. A block may belong to only one resource, and that resource lives on one board.
 
-| Field | Notes |
-|---|---|
-| Trigger block | The approach block for this entrance |
-| Mast | The mast protecting this entrance; becomes field-controlled |
-| Proceed aspect | Chosen from the mast's aspects |
-| Stop aspect | Chosen from the mast's aspects |
-| Trains also leave through here | Off by default. See below |
+## Boot and switching on
 
-### Rules it writes
+On boot the board reads the field and puts the rules into the state the field implies, instead of starting blank:
 
-One rule per entrance. All of them share a single hold on the section.
+1. Wait until the detectors have settled, after the existing startup aspect step. Remote inputs stay unknown until their first message arrives (see [Remote inputs](#remote-inputs)).
+2. A resource with an occupied block is held and PASSED, with no holding rule. It releases through its normal release. This keeps the release delay when the train leaves.
+3. A resource with all blocks clear is free.
+4. Plain rules (block signals, turnout locks) are worked out from the current inputs.
+5. Rules whose trigger is already true join the waiting queue in list order.
+6. Field-controlled masts start at Stop, then show what the rules give.
 
-| Part | Each entrance |
-|---|---|
-| Trigger | Its trigger block occupied |
-| Checks | Every section block clear; section not held. Plus every *other* entrance's trigger block clear, if that entrance has "trains also leave through here" ticked |
-| Action | Its mast shows Proceed; take the section hold |
-| Passed | First section block occupied → mast shows Stop |
-| Release | The pattern's release event → free the hold |
+Holds are not saved (`restore_value: false`). Turning the field logic switch on follows the same steps.
 
-### Waiting order
+## Field logic switch
 
-If more than one entrance is waiting when the section is released, the one that has waited longest goes next. Ties on the same loop go to the entrance listed first. This means two entrances cannot take turns starving a third.
-
-### "Trains also leave through here"
-
-From occupancy alone, the board cannot tell a train waiting in a trigger block from a train leaving the section through it. Each entrance therefore says which it is.
-
-- **Off (double-track gauntlet).** Trains come off the section onto other track, so a train that pulls into this block is always a train waiting its turn. It queues normally, even while the section is held.
-- **On (single-line bridge or tunnel).** Trains leave the section through this block. When ticked:
-  - This block is added to the other entrances' checks. An entrance can only clear if this block is clear, so a train waiting here goes first.
-  - A train arriving here while the section is held counts as a train leaving. It cannot ask for the section until the block has cleared once.
-
-### Worked example: gauntlet over a bridge
-
-Blocks Left, Bridge and Right. A mast at Left/Bridge and one at Right/Bridge. Trains leave the bridge onto the other track.
-
-| | Left entrance | Right entrance |
-|---|---|---|
-| Trigger | Left occupied | Right occupied |
-| Checks | Bridge clear, bridge not held | Bridge clear, bridge not held |
-| Action | Left mast Proceed, hold bridge | Right mast Proceed, hold bridge |
-| Passed | Bridge occupied → Left mast Stop | Bridge occupied → Right mast Stop |
-| Release | Bridge clear for 3s | Bridge clear for 3s |
-| Trains also leave through here | Off | Off |
-
-For a single-line bridge with the same blocks, tick "trains also leave through here" on both entrances.
-
-## Manual release
-
-Each pattern gets a manual release so a stuck hold (a failed detector, a stalled train) can be cleared by hand.
-
-- **ESPHome:** a template `button` entity named `Release <pattern>`. Pressing it frees the hold, puts the mast to Stop, unlocks any route turnouts, clears any CATS hold on the pattern's masts (see [Stale holds](#stale-holds)), and re-checks waiting trains. It logs at `WARN`. Releasing with a train still in the section is the operator's call.
-- **MQTT** (when MQTT is on): the board subscribes to `trains/track/turnout/logic/<pattern>/Release`, so it is a **JMRI turnout** (`MTlogic/<pattern>/Release`). `THROWN` releases. The board then publishes `CLOSED`, retained, to the same topic and ignores `CLOSED`. That snaps the JMRI turnout back like a push button, and replaces any retained `THROWN` (JMRI publishes retained), so a Release cannot fire again when the board reconnects.
-
-## Field logic on and off
-
-Each pattern has a **field logic switch**, so the same board can run its masts locally or leave them to JMRI/CATS. It is a runtime switch: flipping it does not need a new YAML file.
+One switch per board, so the same board can run its field-controlled masts locally or leave them to JMRI/CATS. Flipping it does not need a new YAML file. Masts that no rule sets are never affected.
 
 | | Field logic **on** | Field logic **off** |
 |---|---|---|
-| Who sets the aspect | The pattern's rules | JMRI/CATS, exactly as today |
-| JMRI/CATS messages on the mast topic | Only `Held` / `Unheld` is read. `Held` shows the mast's Stop aspect; the aspect name and `Lit` / `Unlit` are ignored | Read in full (exact match, then `Unlit` dark, `Held` Stop, then aspect name) |
-| Rules | Running | IDLE, holds freed |
+| Who sets a field-controlled mast | The rules | JMRI/CATS, exactly as today |
+| JMRI/CATS messages on its topic | Only `Held` / `Unheld` is read. The aspect name and `Lit` / `Unlit` are ignored | Read in full (exact match, then `Unlit` dark, `Held` Stop, then aspect name) |
+| Rules | Running | Stopped, resources freed, locks from rules dropped |
 
-### The switch
+- **ESPHome:** a template `switch` named `Field logic`, saved across reboots. Its starting value ("Starts on" / "Starts off") comes from the configurator and is used until the switch is first changed.
+- **MQTT** (when MQTT is on): `trains/track/light/logic/<board>`, a **JMRI light** (`MLlogic/<board>`). `ON` / `OFF` switch it. The board publishes its state to the same topic, retained, so JMRI shows the real state after a reboot or a change on the board. The echo of its own message changes nothing. A retained command on reconnect is applied the same way.
+- **Switching on:** as at boot.
+- **Switching off:** each field-controlled mast shows the last aspect JMRI/CATS sent it, or Stop if nothing has arrived.
 
-- **ESPHome:** a template `switch` named `Field logic - <pattern>`, saved across reboots. The configurator picks its starting value ("Starts on" / "Starts off"), used until it is first changed.
-- **MQTT** (when MQTT is on): `trains/track/light/logic/<pattern>`, so it is a **JMRI light** (`MLlogic/<pattern>`). `ON` / `OFF` switch it. The board publishes its own state to the same topic, retained, so the JMRI light shows the real state after a reboot or a change on the board. It then receives its own message back, which changes nothing; a retained command on reconnect is applied the same way.
-- **Switching on:** like boot. Rules start IDLE, the masts go to Stop, then the rules are evaluated.
-- **Switching off:** rules go IDLE and their holds are freed. Each mast shows the last aspect JMRI/CATS sent it, or Stop if nothing has arrived.
+The board subscribes to every field-controlled mast's topic in both modes. That way it can switch either way and always knows JMRI's last aspect and hold.
 
-The board always subscribes to a field-controlled mast's topic, in both modes, so it can switch either way and remembers JMRI's last aspect and hold.
+## CATS hold
 
-### CATS hold
-
-This is what CATS's **Hold Only** option on a signal template is for. CATS's own description: it "should only 'hold' the signal mast (toggle between STOP and whatever the SignalMast Logic wants)". With field logic on, the pattern's rules are the "whatever it wants" part.
+This is what CATS's **Hold Only** option on a signal template is for. CATS's own description: it "should only 'hold' the signal mast (toggle between STOP and whatever the SignalMast Logic wants)". With field logic on, the rules are the "whatever it wants" part.
 
 - CATS calls `setHeld(true)` when its logic says Stop and `setHeld(false)` otherwise (`PhysicalSignal.setAspect`). JMRI publishes `<aspect>; Lit; Held` or `…; Unheld`.
-- CATS still sends a real aspect on `refresh()` (when a signal's history is cleared), even in Hold Only mode, and a mast that never got an aspect publishes `null; Lit; Held`. That is why only the Held part is read.
-- A **held entrance is not granted** the section. Its request stays queued and is re-checked when it is unheld.
-- **Held after the grant, before the train passes:** the rule backs off (as if its trigger had cleared), the mast shows Stop, the section hold is freed, and the request stays queued. Another entrance can go meanwhile.
+- CATS still sends a real aspect on `refresh()` (when a signal's history is cleared), even in Hold Only mode. A mast that never got an aspect publishes `null; Lit; Held`. That is why only the Held part is read.
+- A held mast shows Stop, whatever the rules say.
+- A reserving rule that sets a held mast is **not granted**. Its request keeps waiting and is re-checked when the mast is unheld.
+- **Held after the grant, before the train passes:** the rule is cancelled back to waiting, and the resource is freed for another rule.
 - **Held after the train has passed:** nothing changes; the mast is already at Stop.
 
 ### Stale holds
 
-JMRI publishes retained, and it does not reliably say when it has gone: its last will (`track/$state` = `lost`) only fires on an unclean disconnect, and it publishes nothing on reconnect. So a `Held` left on the broker when JMRI closes **keeps the mast at Stop**. That is the fail-safe choice and matches a real dispatcher's hold. To clear it:
+JMRI publishes retained, and it does not reliably say when it has gone. Its last will (`track/$state` = `lost`) only fires on an unclean disconnect, and it publishes nothing on reconnect. So a `Held` left on the broker when JMRI closes **keeps the mast at Stop**. That is the fail-safe choice, and it matches a real dispatcher's hold. To clear it:
 
 - unhold the signal in CATS or JMRI, or
-- press `Release <pattern>` (it also clears the board's copy of the hold until JMRI sends again), or
+- press the resource's manual release (it also clears the board's copy of the hold on the masts its rules set, until JMRI sends again), or
 - wipe the retained message: `mosquitto_pub -h layout-mqtt.local -t '<mast-topic>' -r -n`.
 
-There is no expiry; a timed-out hold would also drop a real one.
+There is no expiry, because a timed-out hold would also drop a real one.
+
+## Manual release
+
+Each resource has a manual release, so a stuck hold (a failed detector, a stalled train) can be cleared by hand. It frees the resource, puts its masts to Stop, unlocks its turnouts, clears the CATS hold copy (above), and re-checks waiting rules. It logs at `WARN`. Releasing with a train still in the section is the operator's call.
+
+- **ESPHome:** a template `button` named `Release <resource>`.
+- **MQTT** (when MQTT is on): `trains/track/turnout/logic/<board>/<resource>/Release`, a **JMRI turnout** (`MTlogic/<board>/<resource>/Release`). `THROWN` releases. The board then publishes `CLOSED`, retained, to the same topic and ignores `CLOSED`. That snaps the JMRI turnout back like a push button. It also replaces any retained `THROWN` (JMRI publishes retained), so a release cannot fire again when the board reconnects.
+
+## Remote inputs
+
+Rules can read sensors, turnouts and masts on other boards. Rules can only set masts, lock turnouts and reserve resources on **their own board**. Two boards granting the same track at once over MQTT is a race, so there is no shared reservation.
+
+### Choosing them
+
+- **Import a board as a reference:** load another board's `board.yaml`. Its sensors, turnouts and masts, with their aspects and tags, appear in the dropdowns under that board's name. The reference is stored in this board's config (see [Stored format](#stored-format)).
+- **Type a name:** a sensor or turnout can also be typed. Its topic follows the standard syntax. A remote mast needs an imported board, because rules compare its aspect by tag.
+
+### What each board publishes
+
+Every board with MQTT on publishes these, field logic or not, so others can read it:
+
+| What | Topic | Payload |
+|---|---|---|
+| Board online | `trains/track/sensor/board/<board>/Online`, a JMRI sensor `MSboard/<board>/Online` | `ACTIVE` as the MQTT birth message; `INACTIVE` as the will and shutdown message. Retained. `topic_prefix` is `null`, so `birth_message`, `will_message` and `shutdown_message` are set explicitly |
+| Sensor state | `<sensor-topic>/State`, retained | `ACTIVE` / `INACTIVE`, on every change and on connect. The detector topic itself stays `retain: false`, so JMRI never sees a stale OCCUPIED |
+| Turnout position | `trains/track/sensor/<turnout>/Thrown`, retained (the turnout position report) | `ACTIVE` thrown, `INACTIVE` closed |
+| Mast aspect | `<mast-topic>/State`, retained | The aspect name the mast shows |
+
+### Unknown inputs
+
+A remote input is **unknown** until its first message arrives. It also becomes unknown while its board's Online sensor is `INACTIVE`, and while this board is disconnected from the broker. Unknown is restrictive:
+
+- a sensor counts as occupied
+- a turnout matches neither position
+- a mast counts as `stop`.
+
+With **Disable MQTT** ticked, remote inputs are a validation error.
 
 ## MQTT and JMRI
 
-- A field-controlled mast keeps its signalmast topic subscription (see [Field logic on and off](#field-logic-on-and-off)). With field logic on, JMRI/CATS can only hold it.
-- Field-controlled masts stay in the **JMRI XML**, because JMRI/CATS drive them whenever field logic is off.
-- It publishes its current aspect to `<mast-topic>/State`, retained. This matches turnout feedback (`<turnout-topic>/State`).
-- Each pattern publishes **section held** to `trains/track/sensor/logic/<pattern>/Held`, retained: `ACTIVE` while a train holds the section, `INACTIVE` when it is free. That is a **JMRI sensor** (`MSlogic/<pattern>/Held`) for a panel indicator or a CATS input.
-- Each pattern also publishes `trains/track/logic/<pattern>/State` (`IDLE`, `ACTIVE` or `PASSED`), retained, and each field-controlled mast publishes its current aspect to `<mast-topic>/State`, retained. JMRI cannot read these; they are for watching in MQTTX.
-
-### Why the topics sit under JMRI's type topics
-
-JMRI builds every MQTT topic as Channel + type topic (`track/turnout/`, `track/light/`, `track/sensor/`) + hardware address, so a JMRI item can only reach topics under its type topic. CATS goes further: it only ever talks to JMRI items, through an `IOSpec` (a JMRI device name plus `throw` / `close`), never to raw MQTT. Putting the three controls where a JMRI turnout, light and sensor can reach them makes them usable from JMRI panels, LogixNG, and CATS. The `logic/` prefix in the address keeps them apart from the board's own turnouts and sensors.
+JMRI builds every MQTT topic as Channel + type topic (`track/turnout/`, `track/light/`, `track/sensor/`) + hardware address, so a JMRI item can only reach topics under its type topic. CATS only ever talks to JMRI items, through an `IOSpec` (a JMRI device name plus `throw` / `close`), never to raw MQTT. So the controls sit where a JMRI turnout, light or sensor can reach them, which makes them usable from panels, LogixNG and CATS. The `logic/` and `board/` prefixes keep them apart from the board's own items, and the board name keeps boards apart.
 
 | Control | JMRI item | Topic (channel `trains/`) | Payloads |
 |---|---|---|---|
-| Field logic switch | Light `MLlogic/<pattern>` | `trains/track/light/logic/<pattern>` | `ON` / `OFF`, board echoes its state |
-| Release | Turnout `MTlogic/<pattern>/Release` | `trains/track/turnout/logic/<pattern>/Release` | `THROWN` releases, board resets to `CLOSED` |
-| Section held | Sensor `MSlogic/<pattern>/Held` | `trains/track/sensor/logic/<pattern>/Held` | `ACTIVE` / `INACTIVE` |
+| Field logic switch | Light `MLlogic/<board>` | `trains/track/light/logic/<board>` | `ON` / `OFF`, board echoes its state |
+| Release | Turnout `MTlogic/<board>/<resource>/Release` | `trains/track/turnout/logic/<board>/<resource>/Release` | `THROWN` releases, board resets to `CLOSED` |
+| Resource held | Sensor `MSlogic/<board>/<resource>/Held` | `trains/track/sensor/logic/<board>/<resource>/Held` | `ACTIVE` / `INACTIVE`, retained |
+| Board online | Sensor `MSboard/<board>/Online` | `trains/track/sensor/board/<board>/Online` | `ACTIVE` / `INACTIVE`, retained |
 
-### JMRI XML
+Two topics are for watching in MQTTX only; JMRI does not read them:
+- `trains/track/logic/<board>/<resource>/State`: `IDLE`, `ACTIVE` or `PASSED`, retained
+- `<mast-topic>/State`.
 
-The configurator's **Download JMRI XML** adds these three items for each pattern, next to the board's sensors, turnouts and masts, built the same way (system name from the part of the topic after the type topic). With MQTT off they are left out.
-- Masts not used by a pattern behave exactly as they do today.
-- With **Disable MQTT** ticked, field logic still runs. Only the topics above are left out; the Release button and the field logic switch entities stay. There is no JMRI hold without MQTT.
+- **Download JMRI XML** adds the logic and board items above, built the same way as the board's own items (system name from the part of the topic after the type topic). Field-controlled masts stay in the XML, because JMRI/CATS drive them whenever field logic is off. With MQTT off, none of these are added.
+- **Disable MQTT:** field logic still runs on local inputs. The topics are left out; the release buttons and the switch entity stay. There is no JMRI hold without MQTT.
 
 ## Aspect tags
 
-Patterns will overlap later. For example, a gauntlet entrance signal could also be the last signal in a run of block signals. To make that possible without a format change:
+Each mast aspect has a tag: `stop`, `caution` or `clear`. Tags drive [who wins a mast](#who-wins-a-mast) and let rules read a mast by meaning, for example "while North mast is not stop".
 
-- Each mast aspect gets a tag: `stop`, `caution` or `clear`.
-- Each pattern decides the most a mast is **allowed** to show, and the mast shows the most restrictive answer it receives.
-
-v1 allows only one pattern per mast, but it stores the tags from the start.
-
-**Filling the tags in.** CATS aspects get their tag automatically from the speeds in the CATS signal template (`speed` is the speed past the signal, `speed2` the speed at the next one):
+CATS aspects get their tag automatically from the speeds in the CATS signal template (`speed` is the speed past the signal, `speed2` the speed at the next one):
 
 | Template speeds | Tag | CATS aspects |
 |---|---|---|
@@ -221,148 +215,212 @@ v1 allows only one pattern per mast, but it stores the tags from the start.
 
 The configurator needs those speeds next to `CATS_ASPECTS`. They come from the same CATS table as the template (`AspectMap.Speed`), so keep the two in step. The tag stays editable. A custom aspect has no speeds, so it starts as `stop`: an untagged aspect is treated as the most restrictive.
 
-## Generated YAML (shape)
+Each field-controlled mast has a **stop aspect**: what it shows when the rules say Stop. It defaults to the aspect named `R292` or `Stop`, else the first `stop`-tagged aspect, matching how `Held` is handled today.
 
-`<s>` is the section rule's sanitized id and `<m>` a mast id. Existing pieces (`<m>_aspect`, `<m>_show`, `<block>_sensor`) are reused; no new lamp code is needed. `<m>_aspect` holds an aspect index, `-1` for nothing shown yet, or `-2` for dark.
+## Turnout locks
 
-- `globals`, all `restore_value: false`:
-  - `<s>_holder` int, `-1` when free, otherwise the holding entrance's index.
-  - `<s>_phase` int: IDLE, ACTIVE or PASSED.
-  - Per entrance: `<s>_e<i>_waiting_since` uint32 (`millis()` when its trigger became occupied, `0` when clear), and `<s>_e<i>_leaving` bool.
-  - Per field-controlled mast: `<m>_held` bool (the Held flag from the last JMRI message) and `<m>_remote` int (the aspect JMRI last picked, `-1` if none), so switching field logic off can show it straight away.
-- `script`:
-  - `<s>_evaluate`, `mode: queued`. One lambda that reads the sensors and globals, moves the lifecycle on, sets each mast's `<m>_aspect`, then runs `<m>_show` for any mast whose aspect changed and publishes the State topics.
-  - `<s>_release_timer`, `mode: restart`. It waits the release delay, then re-checks the release condition and releases. It is started when the release condition becomes true and stopped (`script.stop`) when it stops being true.
-  - `<s>_release`. Frees the hold and runs `<s>_evaluate`. Used by the timer, the button and the MQTT topic.
-- `binary_sensor`: each involved sensor adds `script.execute: <s>_evaluate` to its existing `on_press` and `on_release`.
-- `button`: the template `Release <pattern>` entity.
-- `switch`: the template `Field logic - <pattern>` entity, `restore_mode` from the configurator's starting value (`RESTORE_DEFAULT_ON` or `RESTORE_DEFAULT_OFF`). `turn_on_action` / `turn_off_action` run the switch-on and switch-off steps.
-- `mqtt: on_message`: the Release turnout topic and the field logic light topic, when MQTT is on.
-- `mqtt.publish` (retained): `CLOSED` to the Release topic after a release, the switch state to the light topic, and `ACTIVE` / `INACTIVE` to the Held sensor topic whenever the hold changes.
-- `text_sensor`: field-controlled masts keep their `mqtt_subscribe`. The handler always records `<m>_held` and `<m>_remote`. With field logic off it also shows `<m>_remote` as today; with it on, a change to `<m>_held` runs `<s>_evaluate`.
-- `on_boot`: run `<s>_evaluate` once after the existing startup aspect step (priority below -150), so detectors have settled.
+Re-syncing toggle switches on unlock, and the `trains/track/sensor/<turnout>/Locked` report, already ship with remote Lock. Field logic adds a second flag:
+
+- `<id>_locked` stays the **remote lock**, set by `<turnout-topic>/Lock`.
+- Rules lock through their own `<id>_field_locked` (`restore_value: false`).
+- The turnout is locked while **either** flag is set. The lock report, the re-sync on unlock, and the ignored fascia buttons and `CLOSED` / `THROWN` all follow the combined state.
+- So JMRI's `UNLOCKED` cannot free a turnout with a train on it, and a train clearing cannot drop a dispatcher's lock.
+- A turnout a rule locks gets the lock report even without Remote lock on.
+
+## Starters
+
+Each starter writes one layer. These rules can be edited like any others afterwards.
+
+### One-train section
+
+A stretch of track that only one train may be on at a time, with a protected entrance at each end. This covers gauntlet track, single-line bridges and tunnels, diamond crossings, two lines merging onto one, and staging throats.
+
+It asks for:
+- a name
+- the section's blocks
+- the release (prefilled as "while all section blocks clear for 3s")
+- 2 to 4 entrances, each with:
+  - a trigger block
+  - a mast
+  - a proceed aspect
+  - **trains also leave through here** (off by default).
+
+It writes one resource for the section, and one reserving rule per entrance:
+
+| Part | Each entrance |
+|---|---|
+| Trigger | while its trigger block occupied for 0.5s |
+| Checks | the trigger block of every *other* entrance that has "trains also leave through here" ticked is clear |
+| Actions | its mast shows the proceed aspect; reserve the section |
+
+**"Trains also leave through here."** From occupancy alone, the board cannot tell a train waiting in a trigger block from a train leaving the section through it, so each entrance says which it is.
+
+- **Off (double-track gauntlet).** Trains come off the section onto other track. A train that pulls into this block is always waiting its turn, so it queues normally, even while the section is held.
+- **On (single-line bridge or tunnel).** Trains leave the section through this block:
+  - This block is added to the other entrances' checks. Another entrance can only clear if this block is clear, so a train waiting here goes first.
+  - A train arriving here while the section is held counts as a train leaving. It cannot ask for the section until the block has cleared once. This is the trigger's **leaving guard** option.
+
+**Worked example: gauntlet over a bridge.** Blocks Left, Bridge and Right. A mast at Left/Bridge and one at Right/Bridge. Trains leave the bridge onto the other track.
+
+| | Left entrance | Right entrance |
+|---|---|---|
+| Trigger | while Left occupied for 0.5s | while Right occupied for 0.5s |
+| Checks | none | none |
+| Actions | Left mast Clear; reserve Bridge | Right mast Clear; reserve Bridge |
+
+The Bridge resource holds the Bridge block, with the release "while Bridge clear for 3s". For a single-line bridge with the same blocks, tick "trains also leave through here" on both entrances. Each then checks that the other's trigger block is clear, with the leaving guard on.
+
+### Lock turnouts under a train
+
+One plain rule per turnout: while its block is occupied, lock the turnout.
+
+### Block signals
+
+An ordered list of blocks and masts in one direction. For each mast, the layer has two rules in this order:
+1. while the next two blocks are clear → Clear
+2. while the next block is clear → Caution
+
+Neither active means Stop.
+
+### Route signal
+
+A trigger block, a mast and a route table. Each row is one rule in the layer, in table order:
+- checks: the turnout positions and the blocks that must be clear
+- action: the aspect to show.
+
+The first active row wins; none means Stop. A turnout that is still moving (its throw script is running) matches neither position. Optional route locking makes each row a reserving rule over the route's blocks that also locks its turnouts.
+
+### Platform dwell
+
+Hold the signal at Stop for N seconds after a train arrives, then clear: "while Platform occupied for 30s, if Next clear → Clear".
+
+### Level crossing
+
+Alternating flashing lights, optionally a gate servo, from either approach until the crossing block clears. Needs a new output type, so it is not just rules.
+
+### Approach lighting
+
+This is a per-mast option, not a starter: the mast is dark unless a chosen block is occupied. The board already has a dark state for this. Setting `<m>_aspect` to `-2` runs the show script's dark branch, which turns every lamp off. That branch was added so JMRI's `Unlit` (CATS approach lighting) goes dark, so approach lighting needs no new lamp code.
 
 ## Configurator
 
 - A new **Logic** page between Signal Masts and Download.
-- Dropdowns list only the sensors and masts on this board.
-- Sensors, masts and aspects are referenced by name or label. Renaming one updates every pattern that uses it. Deleting one marks the pattern invalid until it is fixed.
-- Each aspect card on the Signal Masts page gets a Stop / Caution / Clear control for its tag (see [Aspect tags](#aspect-tags)).
-- Each pattern has **Field logic starts on / off**, the switch's starting value.
-- **Try it** panel: tick blocks on and off and watch the masts and the rule state change in the browser before flashing. The state machine lives in one JS module (for example `configurator/logic.js`) used by both the panel and the tests. The generated C++ lambda mirrors it, so keep it small.
+  - The board-wide **Field logic starts on / off**.
+  - Resources, each with its blocks and release.
+  - Layers, each a list of rule cards.
+  - **Add from starter** writes a new layer.
+- A **layers view** shows, for each mast, turnout and block, which layers read it and which set it. Overlaps are visible at a glance: masts shared across layers, locks, and blocks used by several layers.
+- Dropdowns list this board's items and those of imported boards.
+- Items and aspects are referenced by name. Renaming one updates every rule that uses it. Deleting one marks the rule invalid until it is fixed.
+- Each aspect card on the Signal Masts page gets a Stop / Caution / Clear control for its tag. Each field-controlled mast also gets its stop aspect.
+
+### Checking in the browser
+
+The rule engine is one JS module (for example `configurator/logic.js`), used by the Try it panel, the checker and the tests.
+
+- **Try it:** tick inputs on and off (remote ones too, including unknown), let timers run or skip them, and watch the masts, locks, rule states and resources.
+- **Checker:** explores every reachable state of the board's rules. Each timer is treated as an "elapsed" event that can happen at any point. It reports:
+  - a waiting rule that can never be granted (deadlock), or that can be passed over forever (starvation)
+  - a rule that can never become active
+  - a mast that can never leave Stop.
+- If a board has too many states to explore fully, the checker says so and falls back to random runs. It only proves what the model expresses. Resources make "only one train on this track" true by construction. They cannot tell whether two masts lead onto the same track unless a resource says so.
 
 ### Validation
 
-- A sensor is in at most one slot across all patterns, apart from the section sensors being shared by that section's own rules.
-- Sensor and turnout names cannot start with `logic/`, so they cannot collide with the logic topics.
-- A mast is in at most one pattern (v1).
-- The masts on one section are all different.
-- Each chosen Proceed and Stop aspect exists on its mast, and aspect labels on a field-controlled mast are unique.
-- Every referenced sensor and mast exists.
+- Every referenced item, aspect and resource exists. Remote inputs need MQTT on.
+- A block is in at most one resource. Across imported boards, it is in resources on only one board.
+- No cycles: a rule cannot read, directly or through other rules, a mast it sets.
+- Each chosen aspect exists on its mast, and aspect labels on a field-controlled mast are unique.
+- Two layers giving different aspects with the same tag on one mast: warning.
+- A *when* trigger with no CANCEL: warning.
+- Sensor and turnout names cannot start with `logic/` or `board/`. No sensor may be named `<sensor>/State`, `<turnout>/Thrown` or `<turnout>/Locked`.
 
-### Stored format
+## Generated YAML (shape)
 
-A new optional `logic` key in the existing `esphome-mr-config:1` blob. No new file format and no version bump: an older configurator ignores the key. `normalizeConfig` fills in defaults.
+The rules go into the YAML as data (a table), run by one fixed interpreter. The C++ interpreter mirrors `configurator/logic.js`, so what the browser checks is what the board runs. Existing pieces (`<m>_aspect`, `<m>_show`, `<block>_sensor`) are reused, and no new lamp code is needed. `<m>_aspect` holds an aspect index, `-1` for nothing shown yet, or `-2` for dark.
+
+- `globals`, all `restore_value: false`:
+  - per resource: holder, phase, and per reserving rule its waiting-since time
+  - per field-controlled mast: `<m>_held` (the Held flag from the last JMRI message) and `<m>_remote` (the aspect JMRI last picked, `-1` if none)
+  - per remote input: its value and whether it is known
+  - per locked turnout: `<id>_field_locked`.
+- `script: logic_evaluate`, `mode: queued`: runs the interpreter, sets `<m>_aspect` and runs `<m>_show` for masts that changed, applies locks, and publishes what changed.
+- *for* timers are deadlines checked by an `interval` that runs `logic_evaluate` only while a timer is pending.
+- `binary_sensor`: each sensor a rule reads adds `script.execute: logic_evaluate` to its existing `on_press` and `on_release`.
+- `text_sensor` (`mqtt_subscribe`):
+  - one per remote input, and one per board Online topic
+  - field-controlled masts keep theirs. The handler always records `<m>_held` and `<m>_remote`. With field logic off it shows `<m>_remote` as today; with it on, a change to `<m>_held` runs `logic_evaluate`.
+- `button`: `Release <resource>` per resource. `switch`: `Field logic`, `restore_mode` `RESTORE_DEFAULT_ON` or `RESTORE_DEFAULT_OFF`.
+- `mqtt`:
+  - `birth_message`, `will_message` and `shutdown_message` on the Online topic
+  - `on_message` for the release and switch topics
+  - retained publishes of the Held, State and switch topics.
+- `on_boot`: the [boot steps](#boot-and-switching-on), after the existing startup aspect step (priority below -150).
+
+## Stored format
+
+A new optional `logic` key in the existing `esphome-mr-config:1` blob. There is no new file format and no version bump: an older configurator ignores the key. `normalizeConfig` fills in defaults.
 
 ```json
-"logic": [
-  {
-    "type": "one-train-section",
-    "name": "Bridge",
-    "enabled": true,
-    "section": ["Bridge"],
-    "release": {
-      "match": "all",
-      "events": [{ "kind": "clear-for", "block": "Bridge", "time": "3s" }]
-    },
-    "entrances": [
-      { "trigger": "Left",  "mast": "Left Bridge",  "proceed": "Clear", "stop": "Stop", "exitsHere": false },
-      { "trigger": "Right", "mast": "Right Bridge", "proceed": "Clear", "stop": "Stop", "exitsHere": false }
-    ]
-  }
-]
+"logic": {
+  "startsOn": true,
+  "remoteBoards": [
+    { "name": "kiama-north", "blocks": [...], "points": [...], "signals": [...] }
+  ],
+  "resources": [
+    { "name": "Bridge", "blocks": ["Bridge"],
+      "release": { "while": { "all": [{ "block": "Bridge", "is": "clear" }] }, "for": "3s" } }
+  ],
+  "layers": [
+    { "name": "Bridge gauntlet", "starter": "one-train-section",
+      "rules": [
+        { "trigger": { "while": { "block": "Left", "is": "occupied" }, "for": "0.5s" },
+          "checks": [],
+          "then": { "mast": "Left Bridge", "aspect": "Clear", "reserve": "Bridge" } },
+        { "trigger": { "while": { "block": "Right", "is": "occupied" }, "for": "0.5s" },
+          "checks": [],
+          "then": { "mast": "Right Bridge", "aspect": "Clear", "reserve": "Bridge" } }
+      ] }
+  ]
+}
 ```
 
-Release event kinds: `clear-for` (`block`, `time`) and `occupied-then-clear` (`block`). `enabled` is the field logic switch's starting value; missing means `true`.
+- A remote item is referenced as `{ "board": "kiama-north", "block": "Up Main" }`.
+- `remoteBoards` keeps just what the dropdowns and checks need: names and topics, plus each mast's aspects and tags.
+- A mast's stop aspect and its aspects' tags are stored on the mast in `signals`.
 
 ## Tests
 
 In `configurator/test/`, run through `configurator/package.json`:
 
-- **Generator:** YAML structure for a two-entrance and a four-entrance section, MQTT on and off, field-controlled masts still subscribing, and the Release / light / Held topics.
-- **JMRI XML:** each pattern adds `MLlogic/<pattern>`, `MTlogic/<pattern>/Release` and `MSlogic/<pattern>/Held`, and they validate against JMRI's `layout-4-19-2.xsd`; none with MQTT off.
-- **State machine** (against the JS module):
+- **Generator:**
+  - YAML for a two-entrance and a four-entrance section, MQTT on and off
+  - field-controlled masts still subscribing
+  - the release, switch, Held and Online topics, and the sensor `/State` mirror
+  - remote input subscriptions.
+- **JMRI XML:** adds `MLlogic/<board>`, `MTlogic/<board>/<resource>/Release`, `MSlogic/<board>/<resource>/Held` and `MSboard/<board>/Online`, validating against JMRI's `layout-4-19-2.xsd`. None with MQTT off.
+- **Engine** (against `logic.js`):
   - simultaneous triggers: one grant, chosen by list order
-  - a train waiting while the section is held is granted after release
-  - waiting order with three entrances
-  - back-off before passing
+  - a waiting rule is granted after release, and waiting order with three entrances
+  - cancel before passing, and a trigger flicker shorter than its *for* does not cancel
   - a detector dropout shorter than the release delay does not release
-  - "trains also leave through here": a departing train does not clear its own mast
+  - the leaving guard: a departing train does not clear its own mast
   - manual release
-  - boot with a train in the section
-  - a held entrance is not granted; it is granted once unheld
-  - held after the grant, before passing: backs off and another entrance can go
-  - a JMRI message's aspect name is ignored with field logic on (`refresh()`, `null; Lit; Held`)
-  - switching off shows JMRI's last aspect; switching on starts IDLE at Stop
+  - boot: with a train in the section (held, PASSED, releases after the delay), and with all clear
+  - a held mast is not granted until unheld; held after the grant, before passing, cancels it so another rule can go
+  - with field logic on, a JMRI message's aspect name is ignored (`refresh()`, `null; Lit; Held`)
+  - switching off shows JMRI's last aspect; switching on follows the boot steps
   - a stale hold stays at Stop until released
+  - who wins a mast: first active rule within a layer, most restrictive across layers
+  - remote inputs: unknown before the first message and while the board is offline counts as occupied / Stop
+  - the two lock flags.
+- **Checker:** finds a deliberate deadlock, and passes the one-train section starter.
 - **Import:** round-trip of a config with `logic` through `parseConfigFromYaml`.
-
-## v1 scope
-
-In:
-- the rule engine
-- the One-train section pattern
-- manual release
-- the field logic switch and CATS hold
-- aspect tags
-- the Logic page and Try it panel
-
-Out:
-- sensors, turnouts or masts on other boards (that would depend on the broker)
-- more than one pattern per mast
-- triggers other than a block becoming occupied
-- approach lighting
-- a raw rule editor
-
-## Turnout locks
-
-These decisions are for the "Lock turnouts under a train" pattern. Two of them (re-sync and the lock report) also change how today's remote Lock works, so they can ship before field logic.
-
-### Two lock flags
-
-- `<id>_locked` stays the **remote lock**, set by `<turnout-topic>/Lock` (`LOCKED` / `UNLOCKED`), as today.
-- Field logic gets its own `<id>_field_locked` (`restore_value: false`).
-- The turnout is locked while **either** is set. Fascia buttons, toggle switches and `CLOSED` / `THROWN` are ignored while locked, as today.
-- So JMRI's `UNLOCKED` cannot free a turnout with a train on it, and a train clearing cannot drop a dispatcher's lock.
-
-### Toggle switches follow on unlock
-
-A toggle switch moved while its turnout was locked disagrees with the point. **When the turnout unlocks** (both flags clear, whether a train cleared or a remote `UNLOCKED` arrived), the point moves to match the switch straight away, through the existing queued `<id>_latch_<n>` script. The switch never lies about where the point is. Push buttons are unaffected.
-
-This replaces today's behaviour, where unlocking does not re-sync and the point only catches up when the switch is next flipped.
-
-### Lock report
-
-Each turnout that can be locked (Remote lock on, or used by a locking pattern) reports its lock state:
-
-- `trains/track/sensor/<turnout>/Locked`, retained: `ACTIVE` while either flag is set, `INACTIVE` otherwise. It is published whenever either flag changes and when MQTT connects.
-- That is a **JMRI sensor** `MS<turnout>/Locked`, added to the JMRI XML.
-- **CATS:** use it as the turnout's *Turnout Locked Report*. CATS then keeps the signals over those points at Stop and ignores local requests to move them (`SwitchPoints.LockReceiver`). In a CATS `IOSpec`, a sensor listened for with `close` means `ACTIVE`.
-- Validation: no sensor may be named `<turnout>/Locked`.
-
-## Later patterns
-
-In rough priority order:
-
-1. **Lock turnouts under a train.** A turnout is locked while its block is occupied. See [Turnout locks](#turnout-locks) for how this sits with the remote Lock topic and toggle switches.
-2. **Block signals.** An ordered list of blocks and masts in one direction. A mast shows Stop if the next block is occupied, Caution if the one after is, and Clear otherwise. Rules with no hold.
-3. **Route signal.** A trigger block, a mast and a route table. Each row lists turnout positions, the blocks that must be clear, and the aspect to show. The first matching row wins; no match means Stop. A turnout that is still moving (its throw script is running) counts as unknown. Optional route locking holds that row's turnouts until the release event.
-4. **Level crossing.** Alternating flashing lights, optionally a gate servo, from either approach until the crossing block clears. Needs a new output type.
-5. **Platform dwell.** Hold the signal at Stop for N seconds after a train arrives, then clear.
-
-Approach lighting (mast dark unless a train is in its approach block) fits better as an option on any field-controlled mast than as a pattern of its own. The board already has a dark state for this: setting `<m>_aspect` to `-2` runs the show script's dark branch, which turns every lamp off. It was added so JMRI's `Unlit` (CATS approach lighting) goes dark, so approach lighting needs no new lamp code.
 
 ## Open questions
 
 - **Gauntlet exits.** Confirm that trains leave the gauntlet onto the other track rather than through the Left and Right blocks. This sets the default for "trains also leave through here".
-- **Boot with "trains also leave through here".** At boot, the board cannot tell whether a train sitting in such a block is waiting or has just left. v1 treats it as waiting, so its mast may clear. Treating it as leaving instead would strand a train that really is waiting.
+- **Boot with the leaving guard.** At boot, the board cannot tell whether a train in such a block is waiting or has just left. The draft treats it as waiting, so its mast may clear. Treating it as leaving instead would strand a train that really is waiting.
+- **Shipping the interpreter.** It could be inlined into `board.yaml` (still one file, but long), or be an ESPHome `external_components` entry pulled from this repo at compile time (short YAML, but the build needs GitHub).
+- **Checker limits.** How many sensors and rules a board can have before the full check gives up.
+- **Sensor `/State` mirror.** It is a change for every board, with or without field logic, so it could ship on its own first.

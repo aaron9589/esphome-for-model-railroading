@@ -25,7 +25,7 @@ This repo is a beginner path for model-railroad ESP32 boards that talk to JMRI/C
 | `docs/first-board-setup-guide.md` | Paste Configurator YAML, USB flash, MQTT smoke test, failure checks |
 | `docs/jmri-mqtt-verification-guide.md` | JMRI sensor/turnout topics and panel checks |
 | `docs/README.md` | Detector wiring, point calibration, layout notes |
-| `docs/field-logic-spec.md` | Draft spec for configurator field logic (patterns, rule engine); not built yet |
+| `docs/field-logic-spec.md` | Draft spec for configurator field logic (rules, layers, starters, remote inputs); not built yet |
 | `configurator/` | Static GitHub Pages Board Configurator |
 | `advanced-samples/` | Non-Configurator patterns for interest only |
 | `_img/` | Architecture diagrams and photos used by the README |
