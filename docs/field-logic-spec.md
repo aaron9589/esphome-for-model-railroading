@@ -82,7 +82,11 @@ A rule that reserves a resource has a lifecycle:
     └─────────────────────────────────────────────────────────┘ resource freed, turnouts unlocked,
                                                                 waiting rules re-checked
 
-   ACTIVE ── cancel (trigger no longer true) ──▶ IDLE
+   ACTIVE ── cancel (trigger no longer true) ──▶ IDLE              approach locking off
+
+   ACTIVE ── cancel ──▶ CANCELLING ── time up, no block occupied ──▶ IDLE
+                            │                                       approach locking on
+                            └── a resource block occupied ──▶ PASSED
 ```
 
 - **Waiting.** If a rule's trigger is true but it cannot be granted, it waits. It is re-checked every scan.
@@ -90,6 +94,12 @@ A rule that reserves a resource has a lifecycle:
 - **Waiting order.** When a resource is freed, the rule that has waited longest goes next (measured from the scan that first saw its trigger true). If two have waited equally long, the one listed first goes. Two rules cannot take turns starving a third.
 - **Passed.** The train has gone past the mast. The mast goes back to Stop, as a real signal does. The resource stays held.
 - **Cancel.** A *while* trigger cancels itself when it stops being true, honouring its *for*. Example: Left's mast clears, then the train backs out of Left before reaching Bridge. Without cancel, the mast would stay at Proceed and Bridge would stay held for a train that has gone, because the release only starts once the train has passed. A *when* trigger latches its request until it is granted. It cancels only through its CANCEL part, if it has one. Once granted, only the release or a manual release ends it.
+- **Approach locking** is optional per resource, and off by default. A train already approaching a mast that has just gone back to Stop may not be able to stop in time.
+  - **On:** a cancel puts the mast to Stop at once, but the resource stays held and the rule's turnouts stay locked for a set time (CANCELLING).
+  - If a resource block becomes occupied during that time, the train ran past the mast. The rule goes to PASSED and releases normally.
+  - Otherwise the resource is freed when the time is up.
+  - A manual release ends it at once.
+  - **Off:** a cancel frees the resource at once.
 - **Release** belongs to the resource, so every rule that reserves it shares one release. The release is a *while* (usually "all blocks clear for 3s") or a *then* sequence. It is only armed once the rule is PASSED. Moments are counted from the grant onwards.
 - There is **no release timeout.** A timer that fires while a train is stalled on dirty track would free the section under it. Stuck holds are cleared by hand (see [Manual release](#manual-release)).
 
@@ -168,7 +178,7 @@ This is what CATS's **Hold Only** option on a signal template is for. CATS's own
 - CATS still sends a real aspect on `refresh()` (when a signal's history is cleared), even in Hold Only mode. A mast that never got an aspect publishes `null; Lit; Held`. That is why only the Held part is read.
 - A held mast shows Stop, whatever the rules say.
 - A reserving rule that sets a held mast is **not granted**. Its request keeps waiting and is re-checked when the mast is unheld.
-- **Held after the grant, before the train passes:** the rule is cancelled back to waiting, and the resource is freed for another rule.
+- **Held after the grant, before the train passes:** the rule is cancelled back to waiting, and the resource is freed for another rule (after the approach locking time, if that is on).
 - **Held after the train has passed:** nothing changes; the mast is already at Stop.
 
 ### Stale holds
@@ -233,7 +243,7 @@ JMRI builds every MQTT topic as Channel + type topic (`track/turnout/`, `track/l
 | Board online | Sensor `MSboard/<board>/Online` | `trains/track/sensor/board/<board>/Online` | `ACTIVE` / `INACTIVE`, retained |
 
 JMRI does not read these topics:
-- `trains/track/logic/<board>/<resource>/State`: `IDLE`, `ACTIVE` or `PASSED`, retained. For watching in MQTTX.
+- `trains/track/logic/<board>/<resource>/State`: `IDLE`, `ACTIVE`, `CANCELLING` or `PASSED`, retained. For watching in MQTTX.
 - `trains/track/logic/<board>/Version`: the version code of the rules the board is running, retained.
 - `<mast-topic>/State`. Other boards read it as a remote input.
 
@@ -289,6 +299,7 @@ It asks for:
 - a name
 - the section's blocks
 - the release (prefilled as "while all section blocks clear for 3s")
+- approach locking (off by default)
 - 2 to 4 entrances, each with:
   - a trigger block
   - a mast
@@ -356,11 +367,11 @@ This is a per-mast option, not a starter: the mast is dark unless a chosen block
 
 - A new **Logic** page between Signal Masts and Download.
   - The board-wide **Field logic starts on / off**.
-  - Resources, each with its blocks and release.
+  - Resources, each with its blocks, its release and approach locking (off, or a time).
   - Layers, each a list of rule cards.
   - **Add from starter** writes a new layer.
 - A **layers view** shows, for each mast, turnout and block, which layers read it and which set it. Overlaps are visible at a glance: masts shared across layers, locks, and blocks used by several layers.
-- A **control table** view shows the same rules the way signal engineers write them: one row per mast and aspect. Its columns are the trigger, the blocks that must be clear, the turnout positions, the resource reserved, its release and the locks. It is read-only. Edits happen on the cards.
+- A **control table** view shows the same rules the way signal engineers write them: one row per mast and aspect. Its columns are the trigger, the blocks that must be clear, the turnout positions, the resource reserved, its release, approach locking and the locks. It is read-only. Edits happen on the cards.
 - Dropdowns list this board's items and those of imported boards.
 - Items and aspects are referenced by name. Renaming one updates every rule that uses it. Deleting one marks the rule invalid until it is fixed.
 - Each aspect card on the Signal Masts page gets a Stop / Caution / Clear control for its tag. Each field-controlled mast also gets its stop aspect.
@@ -420,7 +431,7 @@ A new optional `logic` key in the existing `esphome-mr-config:1` blob. There is 
     { "name": "kiama-north", "blocks": [...], "points": [...], "signals": [...] }
   ],
   "resources": [
-    { "name": "Bridge", "blocks": ["Bridge"],
+    { "name": "Bridge", "blocks": ["Bridge"], "approachLock": "10s",
       "release": { "while": { "all": [{ "block": "Bridge", "is": "clear" }] }, "for": "3s" } }
   ],
   "layers": [
@@ -437,6 +448,7 @@ A new optional `logic` key in the existing `esphome-mr-config:1` blob. There is 
 }
 ```
 
+- `approachLock` is the approach locking time. Missing means off.
 - A remote item is referenced as `{ "board": "kiama-north", "block": "Up Main" }`.
 - `remoteBoards` keeps just what the dropdowns and checks need: names and topics, plus each mast's aspects and tags.
 - A mast's stop aspect and its aspects' tags are stored on the mast in `signals`.
@@ -455,6 +467,7 @@ In `configurator/test/`, run through `configurator/package.json`:
   - simultaneous triggers: one grant, chosen by list order
   - a waiting rule is granted after release, and waiting order with three entrances
   - cancel before passing, and a trigger flicker shorter than its *for* does not cancel
+  - approach locking: off frees at once; on holds for the time, then frees; a block occupied during that time goes to PASSED; manual release ends it
   - a detector dropout shorter than the release delay does not release
   - the leaving guard: a departing train does not clear its own mast
   - manual release
@@ -480,7 +493,6 @@ In `configurator/test/`, run through `configurator/package.json`:
 - **Gauntlet exits.** Confirm that trains leave the gauntlet onto the other track rather than through the Left and Right blocks. This sets the default for "trains also leave through here".
 - **Boot with the leaving guard.** At boot, the board cannot tell whether a train in such a block is waiting or has just left. The draft treats it as waiting, so its mast may clear. Treating it as leaving instead would strand a train that really is waiting.
 - **Shipping the interpreter.** It could be inlined into `board.yaml` (still one file, but long), or be an ESPHome `external_components` entry pulled from this repo at compile time (short YAML, but the build needs GitHub).
-- **Approach locking.** A real interlocking keeps a route locked for a while after its signal is put back in front of an approaching train. Here, cancel frees the resource as soon as the trigger has been clear for its *for*. That is probably enough on a model, where a stopped train is usually lifted or reversed by hand.
 - **Proving the C++ matches the JS.** Recorded input sequences, with the expected outputs scan by scan, kept as data. The JS tests replay them now, and an on-board test could replay the same files later.
 - **Checker limits.** How many sensors and rules a board can have before the full check gives up.
 - **Board publishes.** The Online sensor, the sensor `/State` mirror and turnout `/Moving` are changes for every board, with or without field logic. They could ship on their own first, as remote Lock did.
