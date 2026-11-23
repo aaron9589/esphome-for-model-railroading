@@ -177,8 +177,22 @@
             <pre id="yaml-preview"></pre>
             <div class="card" id="jmri-card">
               <h3>JMRI</h3>
+              <div class="jmri-step" id="jmri-connection">
+                <h4>1 · MQTT connection</h4>
+                <p class="card-copy">
+                  Once per JMRI profile. In <strong>Edit → Preferences → Connections</strong>, add a connection with
+                  <em>System manufacturer</em> <strong>MQTT</strong> and <em>System connection</em> <strong>MQTT Connection</strong>.
+                </p>
+                <ul class="jmri-settings">
+                  <li><em>IP Address/Host Name</em>: the broker from this board's settings, usually <code>layout-mqtt.local</code>. <em>TCP/UDP Port</em>: <code>1883</code>.</li>
+                  <li><em>Connection Prefix</em>: <code>M</code>. The file below names everything <code>MS…</code>, <code>MT…</code>, and <code>IF$mqm…</code>, which needs that prefix.</li>
+                  <li>Tick <em>Additional Connection Settings</em>. <em>Channel</em> is put in front of every topic JMRI uses. Set it to <code>trains/</code> to match the board's topics. New JMRI versions leave it blank, and older ones used <code>/trains/</code>, with a leading slash. Both miss the board.</li>
+                  <li>Leave the turnout, sensor, and signal mast topics as they are (<code>track/turnout/{0}</code> and so on). <code>{0}</code> is the hardware address, the part of the system name after <code>MT</code> or <code>MS</code>.</li>
+                </ul>
+                <p class="card-copy">Save, then restart JMRI.</p>
+              </div>
               <div class="jmri-step" id="cats-template">
-                <h4>1 · CATS signal template</h4>
+                <h4>2 · CATS signal template</h4>
                 <p class="card-copy">
                   Signal masts need this once per JMRI profile. Unzip it into your JMRI profile folder so you get
                   <code>resources/signals/cats-masts</code>, then restart JMRI. Skip it if this board has no signal masts.
@@ -186,11 +200,17 @@
                 <a class="btn" href="cats-signal-template.zip" download>Download CATS signal template</a>
               </div>
               <div class="jmri-step">
-                <h4>2 · JMRI tables</h4>
+                <h4>3 · JMRI tables</h4>
                 <p class="card-copy">
                   Adds this board's sensors, turnouts, and signal masts to JMRI as MQTT items. In PanelPro, use
                   <strong>File → Load table content and panels</strong>, then <strong>File → Store table content and panels</strong> to keep them.
                 </p>
+                <div class="jmri-include" id="jmri-include">
+                  <label class="check"><input type="checkbox" data-jmri="sensors" checked /><span class="check-copy"><span class="field-label">Sensors</span><span class="hint" data-jmri-hint="sensors"></span></span></label>
+                  <label class="check"><input type="checkbox" data-jmri="turnouts" checked /><span class="check-copy"><span class="field-label">Turnouts</span><span class="hint" data-jmri-hint="turnouts"></span></span></label>
+                  <label class="check"><input type="checkbox" data-jmri="masts" checked /><span class="check-copy"><span class="field-label">Signal Masts</span><span class="hint" data-jmri-hint="masts"></span></span></label>
+                </div>
+                <p class="hint">Using CATS? It sets up the sensors and turnouts itself, so tick only Signal Masts.</p>
                 <p class="card-copy" id="jmri-summary"></p>
                 <ul class="jmri-skipped" id="jmri-skipped" hidden></ul>
                 <button type="button" id="btn-download-jmri">Download JMRI XML</button>

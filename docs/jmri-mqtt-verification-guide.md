@@ -15,10 +15,15 @@ Goal:
 - Your config must include at least one block detector and one point (Configurator **My First Board** preset, or modules enabled — see [first-board-setup-guide.md](first-board-setup-guide.md)).
 - JMRI must be running with an MQTT connection configured.
 - Open JMRI **Edit → Preferences → Connections → MQTT** and confirm:
-  - The broker address matches `mqtt:` → `broker:` in your board YAML. A new board uses `layout-mqtt.local`.
-  - Note the **MQTT Channel**, **Sensor receive topic**, and **Turnout send topic** fields — you will use these to build the correct System Names below.
+  - **IP Address/Host Name** matches `mqtt:` → `broker:` in your board YAML. A new board uses `layout-mqtt.local`. **TCP/UDP Port** is `1883`.
+  - **Connection Prefix** is `M`, so names come out as `MS…` and `MT…`.
+  - Tick **Additional Connection Settings**. **Channel** is `trains/`, the start of every topic the configurator writes.
+  - Leave the turnout, sensor, and signal mast topics at their defaults (`track/turnout/{0}`, `track/sensor/{0}`, `track/signalmast/{0}`). `{0}` is the hardware address.
+  - Save and restart JMRI after changing any of these.
 
-> **Screenshot placeholder:** JMRI Preferences → Connections → MQTT panel, showing the broker IP, MQTT Channel field (blank or `trains/`), Sensor receive topic, and Turnout send topic fields.
+The configurator's **Download** page shows the same settings under *JMRI → MQTT connection*.
+
+> **Screenshot placeholder:** JMRI Preferences → Connections → MQTT panel with Additional Connection Settings ticked, showing the host name, port 1883, Connection Prefix `M`, Channel `trains/`, and the default turnout, sensor, and signal mast topics.
 
 ---
 
@@ -30,7 +35,7 @@ JMRI constructs MQTT topics from three parts:
 [MQTT Channel] + [object type topic] + [hardware address]
 ```
 
-- **MQTT Channel** — a single prefix applied to every MQTT message JMRI sends or receives (e.g. `trains/` in older installs, blank since JMRI 5.1.2).
+- **MQTT Channel** — a single prefix applied to every MQTT message JMRI sends or receives. The configurator's topics need `trains/`.
 - **Object type topic** — a separate per-type field in JMRI Preferences (e.g. `Sensor receive topic`, `Turnout send topic`). Each table has its own value such as `track/sensor/` or `track/turnout/`.
 - **Hardware address** — the location/name you enter when adding an entry to the table.
 
@@ -48,13 +53,13 @@ When you add an entry, JMRI asks for the **Hardware Address** — just the locat
 
 **User Name** is an optional friendly label. With a descriptive Hardware Address that already encodes the location (e.g. `Kiama/Up XOver`), it's largely redundant — but useful if you want shorter names on JMRI panels.
 
-**Since JMRI 5.1.2, MQTT Channel defaults to blank.** If you have an older JMRI install, your channel may still be `trains/`. Check your own Preferences to confirm.
+**JMRI's default Channel does not match the board.** Since JMRI 5.1.2 it is blank, and before that it was `/trains/`, with a leading slash. Both miss topics that start `trains/`. Set it to `trains/`.
 
 ---
 
 ## Shortcut: Load the JMRI XML from the Configurator
 
-Instead of adding each entry by hand, open the Configurator's **Download** page and click **Download JMRI XML**. It lists this board's sensors, turnouts, and signal masts as MQTT items, with system names built from their topics (for example `MSKiama/Up XOver` and `MTKiama/Up Loop`).
+Instead of adding each entry by hand, open the Configurator's **Download** page and click **Download JMRI XML**. It lists this board's sensors, turnouts, and signal masts as MQTT items, with system names built from their topics (for example `MSKiama/Up XOver` and `MTKiama/Up Loop`). Each turnout comes with its position sensor (`MSKiama/Up Loop/Thrown`), already set as the turnout's feedback. Untick the tables you do not want. CATS sets up its own sensors and turnouts, so for CATS tick only **Signal Masts**.
 
 In PanelPro, use **File → Load table content and panels** and pick the file. Then use **File → Store table content and panels** so JMRI keeps them. Signal masts also need the CATS signal template loaded first. It is step 1 on the same page. The file assumes JMRI's usual type topics (`track/sensor/`, `track/turnout/`, `track/signalmast/`). It also notes which MQTT Channel the topics expect.
 
@@ -151,6 +156,17 @@ Kiama/Up Loop
 
 > **Screenshot placeholder:** JMRI Turnout Table showing the new entry with System Name and User Name filled in, State showing **Unknown** or **Closed**.
 
+### Give the Turnout Its Feedback Sensor
+
+The board reports where the point really is on a sensor beside it: `ACTIVE` when thrown, `INACTIVE` when closed. Without it, JMRI assumes every command worked and never sees a fascia button throw.
+
+1. In the **Sensor Table**, add the hardware address `Kiama/Up Loop/Thrown`. That is the sensor `MSKiama/Up Loop/Thrown`, on the topic `trains/track/sensor/Kiama/Up Loop/Thrown`.
+2. In the **Turnout Table**, click **Edit** on the turnout. On the feedback settings, set the mode to **ONESENSOR** and **Sensor 1** to `MSKiama/Up Loop/Thrown`.
+
+**Download JMRI XML** does both of these for you.
+
+> **Screenshot placeholder:** JMRI turnout edit window with feedback mode ONESENSOR and Sensor 1 set to `MSKiama/Up Loop/Thrown`.
+
 ### Verify It Works
 
 1. Open ESPHome Dashboard → **Logs** for your board.
@@ -161,8 +177,9 @@ Kiama/Up Loop
    [I][point_control:...] Kiama/Up Loop -> THROWN (reverse)
    ```
 
-4. The servo should move to the reverse (diverging) position.
+4. The servo should move to the reverse (diverging) position. A couple of seconds later, when the board reports back, the turnout's **State** in JMRI settles on **Thrown**.
 5. Toggle back to **Closed** in JMRI — the log should show `CLOSED (normal)` and the servo should return to normal.
+6. Press a fascia button on the point, if it has one. JMRI should follow the point.
 
 > **Screenshot placeholder:** ESPHome Dashboard Logs panel showing the `THROWN (reverse)` and `CLOSED (normal)` log lines as the JMRI turnout is toggled.
 
@@ -170,9 +187,9 @@ Kiama/Up Loop
 
 ---
 
-## Optional: Verify State Feedback in Mosquitto
+## Optional: Verify Turnout Feedback in Mosquitto
 
-When the ESP32 moves a turnout it publishes a confirmation back to `<topic>/State`. You can watch both messages with Mosquitto's command-line tools or [MQTTX](https://mqttx.app/).
+When the ESP32 moves a turnout it reports the new position on the turnout's Thrown sensor. You can watch both messages with Mosquitto's command-line tools or [MQTTX](https://mqttx.app/).
 
 1. Subscribe to every topic:
 
@@ -183,11 +200,11 @@ When the ESP32 moves a turnout it publishes a confirmation back to `<topic>/Stat
    Or connect MQTTX to `localhost` port `1883` and subscribe to `#`.
 2. Toggle the turnout in JMRI — you should see two messages arrive:
    - JMRI publishing `THROWN` to `trains/track/turnout/Kiama/Up Loop`
-   - The ESP32 replying `THROWN` to `trains/track/turnout/Kiama/Up Loop/State`
+   - The ESP32 replying `ACTIVE` to `trains/track/sensor/Kiama/Up Loop/Thrown`
 
-The `/State` reply is what JMRI reads back to confirm the move happened. This keeps the panel icon in sync even if the servo takes a few seconds to travel.
+That sensor is the turnout's feedback in JMRI, so it is what confirms the move happened. This keeps the panel icon in sync even if the servo takes a few seconds to travel.
 
-> **Screenshot placeholder:** MQTTX showing both MQTT messages — the `THROWN` command from JMRI and the `THROWN` state reply from the ESP32, with timestamps.
+> **Screenshot placeholder:** MQTTX showing both MQTT messages — the `THROWN` command from JMRI and the `ACTIVE` reply from the ESP32 on the Thrown sensor, with timestamps.
 
 ---
 
@@ -231,7 +248,8 @@ It is `ACTIVE` while locked and `INACTIVE` when not, and it is sent again whenev
 
 **State shows Unknown in JMRI after reboot:**
 - This is normal on first boot if no train is on the block. The board publishes its real state on startup — wait a few seconds and the state should update.
-- A turnout remembers `CLOSED` or `THROWN` on the ESP. After a reboot it moves the servo back and publishes `/State`. Mosquitto keeps that message. A turnout that has never moved starts at normal and publishes `CLOSED` a few seconds after the board connects.
+- A turnout remembers `CLOSED` or `THROWN` on the ESP. After a reboot it moves the servo back and publishes its Thrown sensor. Mosquitto keeps that message. A turnout that has never moved starts at normal and publishes `INACTIVE` a few seconds after the board connects.
+- If a turnout stays **Unknown** or shows **Inconsistent**, check its feedback is ONESENSOR with Sensor 1 `MS<turnout>/Thrown`, and that the Channel is `trains/`.
 
 ---
 
