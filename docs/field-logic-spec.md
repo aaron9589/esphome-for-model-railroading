@@ -6,7 +6,21 @@ Status: draft, not built. What ships first is decided in the implementation plan
 
 Today every signal mast waits for JMRI/CATS to send an aspect over MQTT. Field logic lets a board run signalling rules itself. Rules read sensors, turnouts and masts on this board, and on other boards over MQTT. Rules that read only this board keep working when JMRI is closed or the broker is down. Rules that read another board fail safe to Stop while they cannot hear it.
 
-Rules are built in the configurator from cards, not written as code. **Starters** (such as "One-train section") fill in a set of cards to edit; after that they are ordinary rules.
+Rules are built in the configurator from cards, not written as code. **Starters** (such as "One-train section") fill in a set of cards to edit; after that they are ordinary rules. The configurator simulates and checks the rules before anything is flashed.
+
+## Design principles
+
+Field logic follows the principles of railway interlockings. Vital interlocking processors (MicroLok, SSI and the like) are PLCs at heart: a small fixed executive runs each site's logic, kept as data, on a fixed cycle. Reliability and simplicity come first. A feature that would weaken either is left out.
+
+1. **Fail safe.** Stop is the default. A mast only clears on positive proof from known inputs. Anything unknown, lost or faulty counts as the restrictive answer. That includes a board offline, the broker gone, a turnout still moving, and a restart.
+2. **Scan, don't chase events.** The board evaluates every rule on a fixed cycle from a snapshot of its inputs (see [Scan cycle](#scan-cycle)). A missed message cannot leave it stuck, because the next scan puts it right.
+3. **Executive and data.** One fixed interpreter, the same on every board, is tested once. Each board's rules are data in a table. There is no user code, so the board cannot do anything the rule language cannot say.
+4. **Small vocabulary.** Four words (*while*, *when*, *for*, *then*), three actions, and resources. No variables, loops or arithmetic. If a layout needs something the vocabulary cannot say, the vocabulary grows on purpose, with tests. It is never opened up to code.
+5. **Clear authority.** How the writers of an output combine is fixed: the most restrictive mast answer wins, and any lock locks. With field logic on, JMRI and CATS can only make things more restrictive (hold a mast) or clear a stuck hold, which puts its masts to Stop first. They can never force a proceed.
+6. **Nothing hidden.** Every rule's phase, every resource, timer and input can be seen: in the Try it panel before flashing, and on the board through MQTT and the ESPHome log.
+7. **What you check is what runs.** The browser and the board run the same engine with the same scan. The configurator shows a version code for the rules, and the board reports the code it is running. You can see that a board has the logic you checked.
+8. **Intuitive first.** Rule cards read as sentences. The layers view and the control table show who controls what. A beginner starts from a starter and edits it, and never needs to see the table.
+9. **Check before you flash.** Simulate and check in the browser first. Checker errors block the download, like other validation errors.
 
 ## Terms
 
@@ -71,9 +85,9 @@ A rule that reserves a resource has a lifecycle:
    ACTIVE ── cancel (trigger no longer true) ──▶ IDLE
 ```
 
-- **Waiting.** If a rule's trigger is true but it cannot be granted, it waits. It is re-checked whenever something it reads changes.
+- **Waiting.** If a rule's trigger is true but it cannot be granted, it waits. It is re-checked every scan.
 - **Free** means no rule holds the resource and all its blocks are clear.
-- **Waiting order.** When a resource is freed, the rule that has waited longest goes next. If two have waited equally long, the one listed first goes. Two rules cannot take turns starving a third.
+- **Waiting order.** When a resource is freed, the rule that has waited longest goes next (measured from the scan that first saw its trigger true). If two have waited equally long, the one listed first goes. Two rules cannot take turns starving a third.
 - **Passed.** The train has gone past the mast. The mast goes back to Stop, as a real signal does. The resource stays held.
 - **Cancel.** A *while* trigger cancels itself when it stops being true, honouring its *for*. Example: Left's mast clears, then the train backs out of Left before reaching Bridge. Without cancel, the mast would stay at Proceed and Bridge would stay held for a train that has gone, because the release only starts once the train has passed. A *when* trigger latches its request until it is granted. It cancels only through its CANCEL part, if it has one. Once granted, only the release or a manual release ends it.
 - **Release** belongs to the resource, so every rule that reserves it shares one release. The release is a *while* (usually "all blocks clear for 3s") or a *then* sequence. It is only armed once the rule is PASSED. Moments are counted from the grant onwards.
@@ -95,6 +109,28 @@ Turnout locks combine with **any of**: a turnout is locked if any active rule lo
 
 Any number of rules and layers can read the same block. Only outputs (masts, locks) and resources can conflict. A block may belong to only one resource, and that resource lives on one board.
 
+## Scan cycle
+
+The board runs the rules the way a PLC or an interlocking processor does: on a fixed cycle, every 100 ms, whether anything changed or not. Each scan:
+
+1. **Read.** Take a snapshot of every input:
+   - sensors
+   - turnout positions and whether each is moving
+   - remote inputs and whether each is known
+   - mast holds
+   - buttons and the field logic switch.
+
+   The rules read only this snapshot, so an input cannot change halfway through a scan.
+2. **Evaluate.** Run every rule in order: layers in list order, rules in list order within each layer. Resources and rule phases update as each rule runs, so two rules cannot be granted the same resource in one scan. *for* timers are checked against the scan's time.
+3. **Write.** Work out each output from all the rules ([who wins a mast](#who-wins-a-mast), any lock locks). Apply only the outputs that changed: run `<m>_show` and set `<id>_field_locked`.
+4. **Publish.** Publish only what changed. Everything is published again on MQTT connect.
+
+Rules see other masts' aspects as of the previous scan. A chain of block signals settles over a few scans, which is still well under a second. The cycle check in [Validation](#validation) stops a mast feeding back into itself.
+
+**Short pulses are not lost.** Inputs record changes as they happen, between scans. Each input keeps its latest value and two latches: "went on since the last scan" and "went off since the last scan". *while* reads the value. *when* and *then* read the latches, which the scan clears once it has read them. If both latches are set, the input changed and changed back, and the current value says in which order. So a button press, or "occupied, then clear", shorter than one scan still counts.
+
+**Overruns and hangs.** A scan that takes longer than the cycle is logged at `WARN`, and the next scan starts straight away. If the board hangs, ESPHome's watchdog restarts it. Boot then puts every field-controlled mast at Stop.
+
 ## Boot and switching on
 
 On boot the board reads the field and puts the rules into the state the field implies, instead of starting blank:
@@ -102,11 +138,10 @@ On boot the board reads the field and puts the rules into the state the field im
 1. Wait until the detectors have settled, after the existing startup aspect step. Remote inputs stay unknown until their first message arrives (see [Remote inputs](#remote-inputs)).
 2. A resource with an occupied block is held and PASSED, with no holding rule. It releases through its normal release. This keeps the release delay when the train leaves.
 3. A resource with all blocks clear is free.
-4. Plain rules (block signals, turnout locks) are worked out from the current inputs.
-5. Rules whose trigger is already true join the waiting queue in list order.
-6. Field-controlled masts start at Stop, then show what the rules give.
+4. Rules whose trigger is already true join the waiting queue in list order.
+5. Field-controlled masts start at Stop. Scanning starts, and the first scan works out the plain rules (block signals, turnout locks) and grants what it can.
 
-Holds are not saved (`restore_value: false`). Turning the field logic switch on follows the same steps.
+Steps 2 to 4 are one special scan; after that the board only ever runs ordinary scans. Holds are not saved (`restore_value: false`). Turning the field logic switch on follows the same steps.
 
 ## Field logic switch
 
@@ -197,8 +232,9 @@ JMRI builds every MQTT topic as Channel + type topic (`track/turnout/`, `track/l
 | Resource held | Sensor `MSlogic/<board>/<resource>/Held` | `trains/track/sensor/logic/<board>/<resource>/Held` | `ACTIVE` / `INACTIVE`, retained |
 | Board online | Sensor `MSboard/<board>/Online` | `trains/track/sensor/board/<board>/Online` | `ACTIVE` / `INACTIVE`, retained |
 
-JMRI does not read these two topics:
+JMRI does not read these topics:
 - `trains/track/logic/<board>/<resource>/State`: `IDLE`, `ACTIVE` or `PASSED`, retained. For watching in MQTTX.
+- `trains/track/logic/<board>/Version`: the version code of the rules the board is running, retained.
 - `<mast-topic>/State`. Other boards read it as a remote input.
 
 - **Download JMRI XML** builds these items the same way as the board's own (system name from the part of the topic after the type topic). Each goes with a tick box:
@@ -324,6 +360,7 @@ This is a per-mast option, not a starter: the mast is dark unless a chosen block
   - Layers, each a list of rule cards.
   - **Add from starter** writes a new layer.
 - A **layers view** shows, for each mast, turnout and block, which layers read it and which set it. Overlaps are visible at a glance: masts shared across layers, locks, and blocks used by several layers.
+- A **control table** view shows the same rules the way signal engineers write them: one row per mast and aspect. Its columns are the trigger, the blocks that must be clear, the turnout positions, the resource reserved, its release and the locks. It is read-only. Edits happen on the cards.
 - Dropdowns list this board's items and those of imported boards.
 - Items and aspects are referenced by name. Renaming one updates every rule that uses it. Deleting one marks the rule invalid until it is fixed.
 - Each aspect card on the Signal Masts page gets a Stop / Caution / Clear control for its tag. Each field-controlled mast also gets its stop aspect.
@@ -332,11 +369,12 @@ This is a per-mast option, not a starter: the mast is dark unless a chosen block
 
 The rule engine is one JS module (for example `configurator/logic.js`), used by the Try it panel, the checker and the tests.
 
-- **Try it:** tick inputs on and off (remote ones too, including unknown), let timers run or skip them, and watch the masts, locks, rule states and resources.
+- **Try it:** tick inputs on and off (remote ones too, including unknown). Run it in real time, or one scan at a time with timers skipped forward. Watch the masts, locks, rule phases, resources, timers and latches.
 - **Checker:** explores every reachable state of the board's rules. Each timer is treated as an "elapsed" event that can happen at any point. It reports:
   - a waiting rule that can never be granted (deadlock), or that can be passed over forever (starvation)
   - a rule that can never become active
   - a mast that can never leave Stop.
+- Checker errors block the download, like other validation errors. Warnings are listed on the Download page, next to the version code of the rules being downloaded.
 - If a board has too many states to explore fully, the checker says so and falls back to random runs. It only proves what the model expresses. Resources make "only one train on this track" true by construction. They cannot tell whether two masts lead onto the same track unless a resource says so.
 
 ### Validation
@@ -353,22 +391,21 @@ The rule engine is one JS module (for example `configurator/logic.js`), used by 
 
 The rules go into the YAML as data (a table), run by one fixed interpreter. The C++ interpreter mirrors `configurator/logic.js`, so what the browser checks is what the board runs. Existing pieces (`<m>_aspect`, `<m>_show`, `<block>_sensor`) are reused, and no new lamp code is needed. `<m>_aspect` holds an aspect index, `-1` for nothing shown yet, or `-2` for dark.
 
+- `interval: 100ms`: the [scan](#scan-cycle). One lambda runs the interpreter over the rule table: read, evaluate, write, publish. It does nothing while field logic is off.
 - `globals`, all `restore_value: false`:
+  - per input a rule reads: its value, its two latches and, for a remote input, whether it is known
   - per resource: holder, phase, and per reserving rule its waiting-since time
   - per field-controlled mast: `<m>_held` (the Held flag from the last JMRI message) and `<m>_remote` (the aspect JMRI last picked, `-1` if none)
-  - per remote input: its value and whether it is known
   - per locked turnout: `<id>_field_locked`.
-- `script: logic_evaluate`, `mode: queued`: runs the interpreter, sets `<m>_aspect` and runs `<m>_show` for masts that changed, applies locks, and publishes what changed.
-- *for* timers are deadlines checked by an `interval` that runs `logic_evaluate` only while a timer is pending.
-- `binary_sensor`: each sensor a rule reads adds `script.execute: logic_evaluate` to its existing `on_press` and `on_release`.
+- Inputs only record; they never run rules. Each sensor a rule reads sets its value and latch from its existing `on_press` and `on_release`. The `mqtt_subscribe` handlers, the release buttons and the switch do the same.
 - `text_sensor` (`mqtt_subscribe`):
   - one per remote input, and one per board Online topic
-  - field-controlled masts keep theirs. The handler always records `<m>_held` and `<m>_remote`. With field logic off it shows `<m>_remote` as today; with it on, a change to `<m>_held` runs `logic_evaluate`.
-- `button`: `Release <resource>` per resource. `switch`: `Field logic`, `restore_mode` `RESTORE_DEFAULT_ON` or `RESTORE_DEFAULT_OFF`.
+  - field-controlled masts keep theirs. The handler always records `<m>_held` and `<m>_remote`. With field logic off it shows `<m>_remote` as today; with it on, the next scan reads `<m>_held`.
+- `button`: `Release <resource>` per resource. `switch`: `Field logic`, `restore_mode` `RESTORE_DEFAULT_ON` or `RESTORE_DEFAULT_OFF`. `text_sensor`: `Logic version`, the rules' version code, also logged at boot.
 - `mqtt`:
   - `birth_message`, `will_message` and `shutdown_message` on the Online topic
   - `on_message` for the release and switch topics
-  - retained publishes of the Held, State and switch topics
+  - retained publishes of the Held, State, Version and switch topics
   - `/Moving` from each throw script, `ACTIVE` at the start and `INACTIVE` after the back-off.
 - `on_boot`: the [boot steps](#boot-and-switching-on), after the existing startup aspect step (priority below -150).
 
@@ -430,6 +467,11 @@ In `configurator/test/`, run through `configurator/package.json`:
   - remote inputs: unknown before the first message and while the board is offline counts as occupied / Stop
   - the two lock flags: the re-sync runs only when both are clear, not when one of two clears
   - a remote turnout matches neither position while `/Moving` is `ACTIVE`.
+- **Scan:**
+  - a pulse shorter than a scan is still seen, including "occupied, then clear" inside one scan
+  - two rules wanting the same resource in one scan: one grant
+  - outputs and publishes happen only on change, and all again on connect
+  - the version code is stable for the same rules and changes when any rule changes.
 - **Checker:** finds a deliberate deadlock, and passes the one-train section starter.
 - **Import:** round-trip of a config with `logic` through `parseConfigFromYaml`.
 
@@ -438,5 +480,7 @@ In `configurator/test/`, run through `configurator/package.json`:
 - **Gauntlet exits.** Confirm that trains leave the gauntlet onto the other track rather than through the Left and Right blocks. This sets the default for "trains also leave through here".
 - **Boot with the leaving guard.** At boot, the board cannot tell whether a train in such a block is waiting or has just left. The draft treats it as waiting, so its mast may clear. Treating it as leaving instead would strand a train that really is waiting.
 - **Shipping the interpreter.** It could be inlined into `board.yaml` (still one file, but long), or be an ESPHome `external_components` entry pulled from this repo at compile time (short YAML, but the build needs GitHub).
+- **Approach locking.** A real interlocking keeps a route locked for a while after its signal is put back in front of an approaching train. Here, cancel frees the resource as soon as the trigger has been clear for its *for*. That is probably enough on a model, where a stopped train is usually lifted or reversed by hand.
+- **Proving the C++ matches the JS.** Recorded input sequences, with the expected outputs scan by scan, kept as data. The JS tests replay them now, and an on-board test could replay the same files later.
 - **Checker limits.** How many sensors and rules a board can have before the full check gives up.
 - **Board publishes.** The Online sensor, the sensor `/State` mirror and turnout `/Moving` are changes for every board, with or without field logic. They could ship on their own first, as remote Lock did.
