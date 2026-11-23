@@ -201,7 +201,7 @@ function normalizeConfig(config) {
     point.lockDefault = point.lockDefault === "locked" ? "locked" : "unlocked";
     if (!Array.isArray(point.controls)) point.controls = [];
     for (const control of point.controls) {
-      if (control.action !== "closed" && control.action !== "thrown") control.action = "toggle";
+      control.action = controlAction(control.action);
       if (!control.closedLight && !control.openLight && control.lightPin) {
         const pin = String(control.lightPin).toUpperCase();
         if (control.lightOn === "closed") control.closedLight = pin;
@@ -455,6 +455,10 @@ function validateConfig(config) {
         if (servoIssue) errors.push(`Point "${point.name}" ${servoIssue}.`);
         else notePin(servoPin, `${point.name} servo`);
       }
+      const latched = (point.controls || []).filter((control) => LATCH_ACTIONS.has(control.action));
+      if (latched.length > 1) {
+        errors.push(`Point "${point.name}" has ${latched.length} latched switches. Use one, or the switches fight over the point.`);
+      }
       for (const control of point.controls || []) {
         const button = String(control.buttonPin || "").toUpperCase();
         const closedLight = String(control.closedLight || "").toUpperCase();
@@ -596,10 +600,20 @@ function parseConfigFromYaml(text) {
   );
 }
 
+const LATCH_ACTIONS = new Set(["latch-thrown", "latch-closed"]);
+
+function controlAction(action) {
+  if (action === "closed" || action === "thrown" || LATCH_ACTIONS.has(action)) return action;
+  return "toggle";
+}
+
+function latchIndex(point) {
+  return (point.controls || []).findIndex((control) => LATCH_ACTIONS.has(control.action) && control.buttonPin);
+}
+
 function controlForBlob(control) {
-  const action = control.action === "closed" || control.action === "thrown" ? control.action : "toggle";
   return {
-    action,
+    action: controlAction(control.action),
     buttonPin: String(control.buttonPin || "").toUpperCase(),
     closedLight: String(control.closedLight || "").toUpperCase(),
     openLight: String(control.openLight || "").toUpperCase(),
@@ -695,6 +709,16 @@ function emitButton(lines, point, control, index, lock) {
   lines.push("    internal: true");
   lines.push("    filters:");
   lines.push("      - delayed_on_off: 50ms");
+  if (LATCH_ACTIONS.has(control.action)) {
+    // A latched switch is not ignored while the servo moves. Its script waits
+    // for the throw to finish, then makes the point match the switch.
+    lines.push("    on_state:");
+    lines.push("      then:");
+    lines.push("        - script.execute:");
+    lines.push(`            id: ${point.id}_latch_${index + 1}`);
+    lines.push("            force: false");
+    return;
+  }
   lines.push("    on_press:");
   lines.push("      then:");
   // A second press during the 2s wait starts the other throw while the first
@@ -719,6 +743,35 @@ function emitButton(lines, point, control, index, lock) {
   lines.push("                    - script.execute:");
   lines.push(`                        id: ${point.id}_throw_thrown`);
   lines.push("                        announce: true");
+}
+
+// The point follows a latched switch. Queued, so a flip while the servo is
+// moving waits its turn instead of starting the other throw early (the late
+// backoff write would leave the servo short). Each run reads the switch when it
+// starts, so the point ends up wherever the switch was left. force is the boot
+// call: it moves the servo even when the switch matches the saved position.
+function emitLatchScript(lines, point, index, lock) {
+  const control = point.controls[index];
+  const button = `${point.id}_button_${index + 1}`;
+  const onIsThrown = control.action === "latch-thrown";
+  lines.push(`  - id: ${point.id}_latch_${index + 1}`);
+  lines.push("    mode: queued");
+  lines.push("    parameters:");
+  lines.push("      force: bool");
+  lines.push("    then:");
+  lines.push("      - wait_until:");
+  lines.push("          condition:");
+  lines.push(`            lambda: 'return id(${button}).has_state() && !id(${point.id}_throw_closed).is_running() && !id(${point.id}_throw_thrown).is_running();'`);
+  lines.push("      - lambda: |-");
+  lines.push(`          bool want = ${onIsThrown ? "" : "!"}id(${button}).state;`);
+  if (lock) {
+    lines.push("          // A remote lock holds the point where it is.");
+    lines.push(`          if (id(${point.id}_locked)) want = id(${point.id}_thrown);`);
+  }
+  lines.push(`          bool moving = want != id(${point.id}_thrown);`);
+  lines.push("          if (!moving && !force) return;");
+  lines.push(`          if (want) id(${point.id}_throw_thrown).execute(moving);`);
+  lines.push(`          else id(${point.id}_throw_closed).execute(moving);`);
 }
 
 function signalColorHex(color) {
@@ -1318,6 +1371,14 @@ function generateYaml(config) {
         if (points.length > 1) {
           lines.push("        - delay: !lambda 'return 200 + (esphome::random_uint32() % 800);'");
         }
+        const latch = latchIndex(point);
+        if (latch >= 0) {
+          // A latched switch wins over the saved position.
+          lines.push("        - script.execute:");
+          lines.push(`            id: ${point.id}_latch_${latch + 1}`);
+          lines.push("            force: true");
+          continue;
+        }
         lines.push("        - if:");
         lines.push("            condition:");
         lines.push(`              lambda: 'return id(${point.id}_thrown);'`);
@@ -1593,6 +1654,8 @@ function generateYaml(config) {
     for (const point of points) {
       emitThrowScript(lines, point, false, mqtt);
       emitThrowScript(lines, point, true, mqtt);
+      const latch = latchIndex(point);
+      if (latch >= 0) emitLatchScript(lines, point, latch, lockActive(point, mqtt));
     }
     for (const mast of masts) {
       if (mastShows(mast)) emitShowScript(lines, mast);

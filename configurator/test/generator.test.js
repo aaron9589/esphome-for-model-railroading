@@ -384,6 +384,45 @@ test("panel buttons use pull-up pins, and GPIO34 is rejected", () => {
   assert.equal(restored.lightPin, undefined);
 });
 
+test("a latched switch sets the point from the pin, waits for a throw, and wins at boot", () => {
+  const config = withCreds(myFirstBoardPreset());
+  config.points[0].lockEnabled = true;
+  config.points[0].controls = [
+    { action: "latch-thrown", buttonPin: "GPIO4", closedLight: "GPIO16", openLight: "GPIO13" },
+  ];
+  const yaml = generateYaml(config);
+  const buttons = yaml.slice(yaml.indexOf("\nbinary_sensor:\n"), yaml.indexOf("\nnumber:\n"));
+  const button = buttons.slice(buttons.indexOf("number: GPIO4"));
+  assert.match(button, /pullup: true/);
+  assert.match(button, /on_state:\n\s+then:\n\s+- script.execute:\n\s+id: kiama_up_loop_latch_1\n\s+force: false/);
+  assert.doesNotMatch(button, /on_press/);
+
+  const scripts = yaml.slice(yaml.indexOf("\nscript:\n"));
+  const latch = scripts.slice(scripts.indexOf("\n  - id: kiama_up_loop_latch_1"));
+  assert.match(latch, /mode: queued/);
+  assert.match(latch, /has_state\(\) && !id\(kiama_up_loop_throw_closed\)\.is_running\(\) && !id\(kiama_up_loop_throw_thrown\)\.is_running\(\)/);
+  assert.match(latch, /bool want = id\(kiama_up_loop_button_1\)\.state;/);
+  assert.match(latch, /if \(id\(kiama_up_loop_locked\)\) want = id\(kiama_up_loop_thrown\);/);
+  assert.match(latch, /if \(want\) id\(kiama_up_loop_throw_thrown\)\.execute\(moving\);/);
+
+  const boot = yaml.slice(yaml.indexOf("priority: -200.0"), yaml.indexOf("\nwifi:"));
+  assert.match(boot, /id: kiama_up_loop_latch_1\n\s+force: true/);
+  assert.doesNotMatch(boot.split("\n    - priority")[0], /announce: false/);
+
+  config.points[0].controls[0].action = "latch-closed";
+  config.points[0].lockEnabled = false;
+  const closedYaml = generateYaml(config);
+  assert.match(closedYaml, /bool want = !id\(kiama_up_loop_button_1\)\.state;/);
+  assert.doesNotMatch(closedYaml, /_locked/);
+
+  const restored = JSON.parse(JSON.stringify(parseConfigFromYaml(closedYaml).points[0].controls[0]));
+  assert.equal(restored.action, "latch-closed");
+
+  config.points[0].controls.push({ action: "latch-thrown", buttonPin: "GPIO5", closedLight: "", openLight: "" });
+  const twice = validateConfig(config);
+  assert.ok(twice.errors.some((error) => /2 latched switches/.test(error)));
+});
+
 test("hotspot is always on, and generated passwords are three words", () => {
   const config = withCreds(myFirstBoardPreset());
   config.board.fallbackHotspot = false;

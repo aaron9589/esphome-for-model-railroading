@@ -39,11 +39,18 @@ const MODULES = [
   },
 ];
 
-const ACTIONS = [
-  { value: "toggle", label: "Toggle" },
-  { value: "closed", label: "Set closed" },
-  { value: "thrown", label: "Set thrown" },
+// What is wired to a point control. "switch" is the UI choice for a toggle
+// switch; its stored action is latch-thrown, or latch-closed when reversed.
+const CONTROL_KINDS = [
+  { value: "toggle", label: "Push button: each press swaps the point" },
+  { value: "closed", label: "Push button: always sets closed" },
+  { value: "thrown", label: "Push button: always sets thrown" },
+  { value: "switch", label: "Toggle switch: the point follows the switch" },
 ];
+
+function isLatched(control) {
+  return control.action === "latch-thrown" || control.action === "latch-closed";
+}
 
 const COLOR_LABELS = {
   off: "Off",
@@ -374,6 +381,7 @@ function field(labelText, value, onInput, opts = {}) {
       const o = document.createElement("option");
       o.value = optionValue;
       o.textContent = optionLabel;
+      if (option.disabled) o.disabled = true;
       if (optionValue === value) o.selected = true;
       input.appendChild(o);
     }
@@ -819,15 +827,16 @@ function renderPanel(point) {
   title.textContent = "Panel";
   const intro = document.createElement("p");
   intro.className = "hint";
-  intro.textContent = "Buttons and lights on the fascia.";
+  intro.textContent = "Buttons, switches, and lights on the fascia.";
   panel.append(title, intro);
 
   point.controls.forEach((control, index) => {
     const card = document.createElement("div");
     card.className = "control-card";
+    const latched = isLatched(control);
     const header = document.createElement("header");
     const label = document.createElement("h3");
-    label.textContent = `Button ${index + 1}`;
+    label.textContent = `${latched ? "Switch" : "Button"} ${index + 1}`;
     const remove = document.createElement("button");
     remove.type = "button";
     remove.className = "remove";
@@ -841,22 +850,45 @@ function renderPanel(point) {
 
     const fields = document.createElement("div");
     fields.className = "fields";
+    // One latched switch per point, so offer it only if no other control is one.
+    const otherSwitch = point.controls.some((other, i) => i !== index && isLatched(other));
     fields.append(
-      field("Action", control.action || "toggle", (v) => {
-        control.action = v;
+      field("What's wired here?", latched ? "switch" : control.action || "toggle", (v) => {
+        if (v !== "switch") control.action = v;
+        else if (!latched) control.action = "latch-thrown";
         persist();
-        updatePreview();
+        render();
       }, {
-        select: ACTIONS,
-        hint: "What this button does.",
-      }),
-      field("Button pin", control.buttonPin, (v) => {
+        select: CONTROL_KINDS.map((kind) =>
+          kind.value === "switch" && otherSwitch
+            ? { ...kind, label: `${kind.label} (this point already has one)`, disabled: true }
+            : kind),
+        full: true,
+        hint: latched
+          ? "A switch stays where you put it. The point moves whenever the switch does, and follows it on boot."
+          : "A push button springs back when you let go.",
+      })
+    );
+    if (latched) {
+      fields.append(
+        field("Reverse the switch", control.action === "latch-closed", (v) => {
+          control.action = v ? "latch-closed" : "latch-thrown";
+          persist();
+          updatePreview();
+        }, {
+          checkbox: true,
+          hint: "Flip the switch and watch the point. If it goes the opposite way to what you expect, tick this box.",
+        })
+      );
+    }
+    fields.append(
+      field(latched ? "Switch pin" : "Button pin", control.buttonPin, (v) => {
         control.buttonPin = v;
         persist();
         updatePreview();
       }, {
         select: pinChoices(),
-        hint: "Pin this button uses.",
+        hint: `Wire the ${latched ? "switch" : "button"} between this pin and GND.`,
       })
     );
     const lightOptions = [{ value: "", label: "None" }, ...pinChoices()];
@@ -884,7 +916,7 @@ function renderPanel(point) {
 
   const add = document.createElement("button");
   add.type = "button";
-  add.textContent = "Add button";
+  add.textContent = "Add button or switch";
   add.addEventListener("click", () => {
     point.controls.push({
       action: "toggle",
