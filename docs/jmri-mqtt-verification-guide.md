@@ -199,7 +199,7 @@ Tick **Remote lock** on that point in the configurator, and choose whether it st
 trains/track/turnout/Kiama/Up Loop/Lock
 ```
 
-Publish `LOCKED` to hold the turnout, or `UNLOCKED` to let it move. While locked, the fascia buttons do nothing, and `CLOSED` or `THROWN` on the turnout topic does nothing. The board still moves the servo back to its saved position when it boots. The default you picked is used until a lock message arrives. Publish with retain if the lock should still be there after a reboot.
+Publish `LOCKED` to hold the turnout, or `UNLOCKED` to let it move. While locked, the fascia buttons do nothing, and `CLOSED` or `THROWN` on the turnout topic does nothing. If the point has a toggle switch and someone flipped it while locked, the point moves to match the switch when `UNLOCKED` arrives. The board still moves the servo back to its saved position when it boots. The default you picked is used until a lock message arrives. Publish with retain if the lock should still be there after a reboot.
 
 ```bash
 mosquitto_pub -h localhost -t 'trains/track/turnout/Kiama/Up Loop/Lock' -m 'LOCKED' -r

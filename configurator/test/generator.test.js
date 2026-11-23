@@ -219,6 +219,9 @@ test("remote lock holds a turnout until UNLOCKED, and the default is only the bo
   assert.match(yaml, /state: 'LOCKED'/);
   assert.match(yaml, /state: 'UNLOCKED'/);
   assert.match(yaml, /Kiama\/Up Loop lock -> LOCKED/);
+  // Push buttons have nothing to catch up with.
+  assert.doesNotMatch(yaml, /was_locked/);
+  assert.match(yaml, /- lambda: 'id\(kiama_up_loop_locked\) = false;'/);
   assert.match(yaml, /name: "Kiama - Up Loop lock"/);
 
   const kiamaButton = yaml.slice(yaml.indexOf("number: GPIO4"), yaml.indexOf("number: GPIO18"));
@@ -404,6 +407,10 @@ test("a latched switch sets the point from the pin, waits for a throw, and wins 
   assert.match(latch, /bool want = id\(kiama_up_loop_button_1\)\.state;/);
   assert.match(latch, /if \(id\(kiama_up_loop_locked\)\) want = id\(kiama_up_loop_thrown\);/);
   assert.match(latch, /if \(want\) id\(kiama_up_loop_throw_thrown\)\.execute\(moving\);/);
+
+  // Unlocking makes the point catch up with a switch moved while locked.
+  const unlock = yaml.slice(yaml.indexOf("state: 'UNLOCKED'"));
+  assert.match(unlock, /bool was_locked = id\(kiama_up_loop_locked\);\n\s+id\(kiama_up_loop_locked\) = false;\n\s+if \(was_locked\) id\(kiama_up_loop_latch_1\)\.execute\(false\);/);
 
   const boot = yaml.slice(yaml.indexOf("priority: -200.0"), yaml.indexOf("\nwifi:"));
   assert.match(boot, /id: kiama_up_loop_latch_1\n\s+force: true/);

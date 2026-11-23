@@ -1459,7 +1459,18 @@ function emitLockSensor(lines, point) {
   lines.push(`              id: ${point.id}_lock`);
   lines.push("              state: 'UNLOCKED'");
   lines.push("          then:");
-  lines.push(`            - lambda: 'id(${point.id}_locked) = false;'`);
+  const latch = latchIndex(point);
+  if (latch >= 0) {
+    // A toggle switch moved while locked disagrees with the point. Catch up on
+    // unlock so the switch never lies. Only on a real unlock, so a repeated or
+    // retained UNLOCKED does not undo a JMRI command.
+    lines.push("            - lambda: |-");
+    lines.push(`                bool was_locked = id(${point.id}_locked);`);
+    lines.push(`                id(${point.id}_locked) = false;`);
+    lines.push(`                if (was_locked) id(${point.id}_latch_${latch + 1}).execute(false);`);
+  } else {
+    lines.push(`            - lambda: 'id(${point.id}_locked) = false;'`);
+  }
   lines.push("            - logger.log:");
   lines.push(`                format: ${yamlQuote(`${point.name} lock -> UNLOCKED`)}`);
   lines.push("                level: INFO");
