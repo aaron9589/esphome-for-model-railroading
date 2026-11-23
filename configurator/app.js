@@ -10,7 +10,7 @@ const {
   myFirstBoardPreset,
   normalizeConfig,
   parseConfigFromYaml,
-  stateTopic,
+  thrownTopic,
   lockTopic,
   lockedTopic,
   topicFor,
@@ -238,8 +238,17 @@ document.getElementById("btn-send-esphome").addEventListener("click", async () =
   steps.hidden = false;
 });
 
+// Which JMRI tables go in the XML. Not saved: every table is ticked on load.
+const jmriInclude = { sensors: true, turnouts: true, masts: true };
+for (const box of document.querySelectorAll("[data-jmri]")) {
+  box.addEventListener("change", () => {
+    jmriInclude[box.dataset.jmri] = box.checked;
+    renderJmriSummary();
+  });
+}
+
 document.getElementById("btn-download-jmri").addEventListener("click", () => {
-  const { xml } = generateJmriXml(state);
+  const { xml } = generateJmriXml(state, jmriInclude);
   const blob = new Blob([xml], { type: "application/xml;charset=utf-8" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
@@ -352,7 +361,7 @@ function followName(item, kind, card) {
     if (topicInput) topicInput.value = item.topic;
   }
   const stateInput = card.querySelector("[data-role=state-topic]");
-  if (stateInput) stateInput.value = stateTopic(item.topic);
+  if (stateInput) stateInput.value = thrownTopic(item.topic);
   const lockInput = card.querySelector("[data-role=lock-topic]");
   if (lockInput) lockInput.value = lockTopic(item.topic);
   const lockedInput = card.querySelector("[data-role=locked-topic]");
@@ -894,7 +903,7 @@ function renderPointCard(point, index) {
     point.topic = v;
     point.topicCustom = v !== topicFor("point", point.name);
     const stateInput = card.querySelector("[data-role=state-topic]");
-    if (stateInput) stateInput.value = stateTopic(point.topic);
+    if (stateInput) stateInput.value = thrownTopic(point.topic);
     const lockInput = card.querySelector("[data-role=lock-topic]");
     if (lockInput) lockInput.value = lockTopic(point.topic);
     const lockedInput = card.querySelector("[data-role=locked-topic]");
@@ -921,9 +930,9 @@ function renderPointCard(point, index) {
     }),
     topicField,
     linkedField(
-      "State topic",
-      stateTopic(point.topic),
-      "Where the board reports closed or thrown."
+      "Position report",
+      thrownTopic(point.topic),
+      "The board reports ACTIVE here when thrown, INACTIVE when closed. It is a JMRI sensor: the turnout's feedback sensor (One Sensor)."
     ),
     field("Remote lock", point.lockEnabled === true, (checked) => {
       point.lockEnabled = checked;
@@ -1658,14 +1667,33 @@ function updatePreview() {
 }
 
 function renderJmriSummary() {
-  const { counts, skipped } = generateJmriXml(state);
+  const { counts, skipped } = generateJmriXml(state, jmriInclude);
   const total = counts.sensors + counts.turnouts + counts.masts;
   const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
+  const only = (table) => generateJmriXml(state, {
+    sensors: table === "sensors",
+    turnouts: table === "turnouts",
+    masts: table === "masts",
+  }).counts;
+  const hints = {
+    sensors: `${plural(only("sensors").sensors, "block detector")}.`,
+    turnouts: (() => {
+      const c = only("turnouts");
+      if (!c.turnouts) return "0 turnouts.";
+      const locks = c.sensors - c.turnouts;
+      const each = c.turnouts === 1 ? "with its" : "each with its";
+      return `${plural(c.turnouts, "turnout")}, ${each} position sensor${locks ? `, plus ${plural(locks, "lock sensor")}` : ""}.`;
+    })(),
+    masts: `${plural(only("masts").masts, "signal mast")}.`,
+  };
+  for (const hint of document.querySelectorAll("[data-jmri-hint]")) {
+    hint.textContent = hints[hint.dataset.jmriHint];
+  }
   const summary = document.getElementById("jmri-summary");
   if (state.board.mqttEnabled === false) {
     summary.textContent = "MQTT is off for this board, so nothing here talks to JMRI.";
   } else {
-    summary.textContent = `${plural(counts.sensors, "sensor")}, ${plural(counts.turnouts, "turnout")}, and ${plural(counts.masts, "signal mast")}.`;
+    summary.textContent = `In the file: ${plural(counts.sensors, "sensor")}, ${plural(counts.turnouts, "turnout")}, and ${plural(counts.masts, "signal mast")}.`;
   }
   const list = document.getElementById("jmri-skipped");
   list.replaceChildren(...skipped.map((text) => {

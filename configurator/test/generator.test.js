@@ -22,7 +22,7 @@ const {
   normalizeConfig,
   parseConfigFromYaml,
   topicFor,
-  stateTopic,
+  thrownTopic,
   lockTopic,
   lockedTopic,
   STRAPPING_PINS,
@@ -183,7 +183,7 @@ test("entity names replace slashes, and MQTT topics keep them", () => {
   }
 });
 
-test("topic follows the name and state topic is the command topic plus /State", () => {
+test("topic follows the name and the position report is a sensor beside the turnout", () => {
   assert.equal(topicFor("point", "Kiama/Up Loop"), "trains/track/turnout/Kiama/Up Loop");
   assert.equal(topicFor("block", "Kiama/Up XOver"), "trains/track/sensor/Kiama/Up XOver");
   const config = myFirstBoardPreset();
@@ -192,8 +192,11 @@ test("topic follows the name and state topic is the command topic plus /State", 
   config.board.mqttBroker = "1.2.3.4";
   config.board.otaPassword = "z";
   const yaml = generateYaml(config);
-  assert.match(yaml, /topic: "trains\/track\/turnout\/Kiama\/Up Loop\/State"/);
-  assert.equal(stateTopic(config.points[0].topic), "trains/track/turnout/Kiama/Up Loop/State");
+  assert.match(yaml, /topic: "trains\/track\/sensor\/Kiama\/Up Loop\/Thrown"/);
+  assert.doesNotMatch(yaml, /\/State"/);
+  assert.equal(thrownTopic(config.points[0].topic), "trains/track/sensor/Kiama/Up Loop/Thrown");
+  assert.equal(thrownTopic("track/turnout/Yard/"), "track/sensor/Yard/Thrown");
+  assert.equal(thrownTopic("layout/custom/thing"), "layout/custom/thing/Thrown");
   assert.equal(lockTopic(config.points[0].topic), "trains/track/turnout/Kiama/Up Loop/Lock");
   assert.doesNotMatch(yaml, /\/Lock/);
 });
@@ -292,13 +295,18 @@ test("a locked turnout reports its lock as a JMRI sensor", () => {
   const { xml, counts } = generateJmriXml(config);
   assert.match(xml, /<systemName>MSKiama\/Up Loop\/Locked<\/systemName>/);
   assert.doesNotMatch(xml, /MSYard\/Locked/);
-  assert.equal(counts.sensors, 2);
+  // The block, both position reports, and the one lock report.
+  assert.equal(counts.sensors, 4);
 
   // A real sensor cannot sit on the report topic.
   config.blocks.push({ name: "Kiama/Up Loop/Locked", topic: topicFor("block", "Kiama/Up Loop/Locked"), gpio: "GPIO27" });
   assert.ok(validateConfig(config).errors.some((error) => /where turnout "Kiama\/Up Loop" reports its lock/.test(error)));
   config.points[0].lockEnabled = false;
   assert.ok(!validateConfig(config).errors.some((error) => /reports its lock/.test(error)));
+
+  // Nor on the position report.
+  config.blocks.push({ name: "Yard/Thrown", topic: topicFor("block", "Yard/Thrown"), gpio: "GPIO26" });
+  assert.ok(validateConfig(config).errors.some((error) => /where turnout "Yard" reports its position/.test(error)));
 });
 
 test("uniqueIds sanitizes names", () => {
@@ -517,9 +525,9 @@ test("the saved turnout position is written immediately and applied on boot", ()
   assert.match(mqtt, /on_connect:/);
   assert.match(mqtt, /return id\(kiama_up_xover_sensor\)\.state \? "ACTIVE" : "INACTIVE";/);
   assert.match(mqtt, /retain: false/);
-  assert.match(mqtt, /return id\(kiama_up_loop_thrown\) \? "THROWN" : "CLOSED";/);
-  assert.match(mqtt, /return id\(yard_thrown\) \? "THROWN" : "CLOSED";/);
-  assert.match(mqtt, /topic: "trains\/track\/turnout\/Kiama\/Up Loop\/State"\n        payload: !lambda \|-\n          return id\(kiama_up_loop_thrown\) \? "THROWN" : "CLOSED";\n        retain: true/);
+  assert.match(mqtt, /return id\(kiama_up_loop_thrown\) \? "ACTIVE" : "INACTIVE";/);
+  assert.match(mqtt, /return id\(yard_thrown\) \? "ACTIVE" : "INACTIVE";/);
+  assert.match(mqtt, /topic: "trains\/track\/sensor\/Kiama\/Up Loop\/Thrown"\n        payload: !lambda \|-\n          return id\(kiama_up_loop_thrown\) \? "ACTIVE" : "INACTIVE";\n        retain: true/);
 
   const thrown = yaml.slice(yaml.indexOf("id: kiama_up_loop_thrown"), yaml.indexOf("id: yard_thrown"));
   assert.match(thrown, /type: bool/);
@@ -531,12 +539,12 @@ test("the saved turnout position is written immediately and applied on boot", ()
   assert.match(closed, /id\(kiama_up_loop_thrown\) = false;/);
   assert.match(closed, /kiama_up_loop_thrown->update\(\);/);
   assert.match(closed, /global_preferences->sync\(\);/);
-  assert.match(closed, /payload: "CLOSED"/);
+  assert.match(closed, /topic: "trains\/track\/sensor\/Kiama\/Up Loop\/Thrown"\n\s+payload: "INACTIVE"/);
   assert.match(closed, /retain: true/);
   assert.match(closed, /qos: 2/);
   const thrownScript = scripts.slice(scripts.indexOf("\n  - id: kiama_up_loop_throw_thrown"), scripts.indexOf("\n  - id: yard_throw_closed"));
   assert.match(thrownScript, /id\(kiama_up_loop_thrown\) = true;/);
-  assert.match(thrownScript, /payload: "THROWN"/);
+  assert.match(thrownScript, /topic: "trains\/track\/sensor\/Kiama\/Up Loop\/Thrown"\n\s+payload: "ACTIVE"/);
   assert.match(thrownScript, /retain: true/);
 
   const blocksOnly = withCreds(myFirstBoardPreset());
@@ -975,11 +983,13 @@ test("JMRI XML lists sensors, turnouts, and signal masts as MQTT items", () => {
   assert.match(xml, /<systemName>MSKiama\/Up XOver<\/systemName>/);
   assert.match(xml, /<systemName>MSYard &amp; &lt;Loop&gt;<\/systemName>/);
   assert.match(xml, /<turnouts class="jmri.jmrix.mqtt.configurexml.MqttTurnoutManagerXml">/);
-  assert.match(xml, /<systemName>MTKiama\/Up Loop<\/systemName>/);
+  assert.match(xml, /<turnout feedback="ONESENSOR" sensor1="MSKiama\/Up Loop\/Thrown" inverted="false" automate="Default">\n      <systemName>MTKiama\/Up Loop<\/systemName>/);
+  assert.match(xml, /<systemName>MSKiama\/Up Loop\/Thrown<\/systemName>/);
+  assert.doesNotMatch(xml, /feedback="DIRECT"/);
   assert.match(xml, /<mqttsignalmast class="jmri.jmrix.mqtt.configurexml.MqttSignalMastXml">\n      <systemName>IF\$mqm:cats-masts:cats-virtual\(Kiama\/Up Home\)<\/systemName>\n      <userName>Kiama\/Up Home<\/userName>/);
   assert.match(xml, /MQTT Channel to be "trains\/"/);
   assert.doesNotMatch(xml, /Custom|Bad \(mast\)/);
-  assert.deepEqual(JSON.parse(JSON.stringify(counts)), { sensors: 2, turnouts: 1, masts: 1 });
+  assert.deepEqual(JSON.parse(JSON.stringify(counts)), { sensors: 3, turnouts: 1, masts: 1 });
   assert.equal(skipped.length, 2);
   assert.ok(skipped[0].includes("Custom"));
   assert.ok(skipped[1].includes("Bad (mast)"));
@@ -987,6 +997,19 @@ test("JMRI XML lists sensors, turnouts, and signal masts as MQTT items", () => {
   // An XML comment cannot hold "--".
   config.board.name = "my--board";
   assert.doesNotMatch(generateJmriXml(config).xml.split("\n")[2], /--.*--.*--/);
+
+  // Tick boxes. A turnout keeps its own position sensor without the Sensors table.
+  const mastsOnly = generateJmriXml(config, { sensors: false, turnouts: false });
+  assert.deepEqual(JSON.parse(JSON.stringify(mastsOnly.counts)), { sensors: 0, turnouts: 0, masts: 1 });
+  assert.doesNotMatch(mastsOnly.xml, /<sensors|<turnouts/);
+  assert.match(mastsOnly.xml, /<signalmasts/);
+  assert.deepEqual(JSON.parse(JSON.stringify(mastsOnly.skipped)), [skipped[1]]);
+  const turnoutsOnly = generateJmriXml(config, { sensors: false, masts: false });
+  assert.deepEqual(JSON.parse(JSON.stringify(turnoutsOnly.counts)), { sensors: 1, turnouts: 1, masts: 0 });
+  assert.match(turnoutsOnly.xml, /<systemName>MSKiama\/Up Loop\/Thrown<\/systemName>/);
+  assert.doesNotMatch(turnoutsOnly.xml, /MSKiama\/Up XOver|<signalmasts/);
+  const none = generateJmriXml(config, { sensors: false, turnouts: false, masts: false });
+  assert.deepEqual(JSON.parse(JSON.stringify(none.counts)), { sensors: 0, turnouts: 0, masts: 0 });
 
   config.board.mqttEnabled = false;
   const off = generateJmriXml(config);

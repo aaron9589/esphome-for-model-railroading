@@ -126,28 +126,32 @@ function blankSignalCell() {
   return { color: "off", mode: "steady" };
 }
 
-function stateTopic(topic) {
-  const base = String(topic || "").replace(/\/+$/, "");
-  if (!base) return "";
-  return `${base}/State`;
-}
-
 function lockTopic(topic) {
   const base = String(topic || "").replace(/\/+$/, "");
   if (!base) return "";
   return `${base}/Lock`;
 }
 
-// Lock report: a JMRI sensor beside the turnout, so CATS can use it as the
-// Turnout Locked Report. trains/track/turnout/X -> trains/track/sensor/X/Locked.
-// A topic without track/turnout/ (JMRI cannot reach it anyway) gets <topic>/Locked.
-function lockedTopic(topic) {
+// A JMRI sensor beside the turnout: trains/track/turnout/X -> trains/track/sensor/X/<leaf>.
+// A topic without track/turnout/ (JMRI cannot reach it anyway) gets <topic>/<leaf>.
+function turnoutSensorTopic(topic, leaf) {
   const base = String(topic || "").replace(/\/+$/, "");
   if (!base) return "";
   const typeTopic = "track/turnout/";
   const at = base.indexOf(typeTopic);
-  if (at < 0) return `${base}/Locked`;
-  return `${base.slice(0, at)}track/sensor/${base.slice(at + typeTopic.length)}/Locked`;
+  if (at < 0) return `${base}/${leaf}`;
+  return `${base.slice(0, at)}track/sensor/${base.slice(at + typeTopic.length)}/${leaf}`;
+}
+
+// Position report: ACTIVE when thrown, INACTIVE when closed. JMRI uses it as the
+// turnout's ONESENSOR feedback, so the panel shows where the point really is.
+function thrownTopic(topic) {
+  return turnoutSensorTopic(topic, "Thrown");
+}
+
+// Lock report, so CATS can use it as the Turnout Locked Report.
+function lockedTopic(topic) {
+  return turnoutSensorTopic(topic, "Locked");
 }
 
 function lockActive(point, mqtt) {
@@ -583,11 +587,13 @@ function validateConfig(config) {
 
   if (board.mqttEnabled !== false) {
     for (const point of config.points || []) {
-      if (point.lockEnabled !== true) continue;
-      const report = lockedTopic(point.topic);
-      for (const block of config.blocks || []) {
-        if (report && block.topic === report) {
-          errors.push(`Sensor "${block.name}" uses ${report}, where turnout "${point.name}" reports its lock. Rename the sensor.`);
+      const reports = [[thrownTopic(point.topic), "position"]];
+      if (point.lockEnabled === true) reports.push([lockedTopic(point.topic), "lock"]);
+      for (const [report, what] of reports) {
+        for (const block of config.blocks || []) {
+          if (report && block.topic === report) {
+            errors.push(`Sensor "${block.name}" uses ${report}, where turnout "${point.name}" reports its ${what}. Rename the sensor.`);
+          }
         }
       }
     }
@@ -663,8 +669,10 @@ function jmriAddress(topic, kind) {
  * MQTT items. Load it in PanelPro with File > Load table content and panels.
  * Masts use the CATS signal template the configurator ships
  * (resources/signals/cats-masts, appearance cats-virtual).
+ * `include` picks the tables: { sensors, turnouts, masts }, each on unless false.
+ * A turnout brings its own feedback and lock sensors, so CATS can take masts only.
  */
-function generateJmriXml(config) {
+function generateJmriXml(config, include = {}) {
   const sensors = [];
   const turnouts = [];
   const masts = [];
@@ -672,7 +680,7 @@ function generateJmriXml(config) {
   const channels = new Set();
   const mqtt = config.board?.mqttEnabled !== false;
 
-  if (mqtt) {
+  if (mqtt && include.sensors !== false) {
     for (const block of config.blocks || []) {
       const found = jmriAddress(block.topic, "sensor");
       if (!found) skipped.push(`Sensor "${block.name}": topic has no ${JMRI_TABLES.sensor.typeTopic}`);
@@ -681,16 +689,22 @@ function generateJmriXml(config) {
         sensors.push(found.address);
       }
     }
+  }
+  if (mqtt && include.turnouts !== false) {
     for (const point of config.points || []) {
       const found = jmriAddress(point.topic, "turnout");
       if (!found) skipped.push(`Turnout "${point.name}": topic has no ${JMRI_TABLES.turnout.typeTopic}`);
       else {
         channels.add(found.channel);
-        turnouts.push(found.address);
+        const feedback = jmriAddress(thrownTopic(point.topic), "sensor").address;
+        sensors.push(feedback);
+        turnouts.push({ address: found.address, feedback });
         // The lock report, for CATS's Turnout Locked Report.
         if (point.lockEnabled === true) sensors.push(jmriAddress(lockedTopic(point.topic), "sensor").address);
       }
     }
+  }
+  if (mqtt && include.masts !== false) {
     for (const mast of config.signals?.masts || []) {
       const found = jmriAddress(mast.topic, "signalmast");
       if (!found) {
@@ -726,9 +740,10 @@ function generateJmriXml(config) {
   }
   if (turnouts.length) {
     lines.push('  <turnouts class="jmri.jmrix.mqtt.configurexml.MqttTurnoutManagerXml">');
-    for (const address of turnouts) {
-      lines.push('    <turnout feedback="DIRECT" inverted="false" automate="Default">');
-      lines.push(`      <systemName>MT${xmlText(address)}</systemName>`);
+    for (const turnout of turnouts) {
+      // ONESENSOR: the board's /Thrown sensor is ACTIVE when thrown, INACTIVE when closed.
+      lines.push(`    <turnout feedback="ONESENSOR" sensor1="MS${xmlText(turnout.feedback)}" inverted="false" automate="Default">`);
+      lines.push(`      <systemName>MT${xmlText(turnout.address)}</systemName>`);
       lines.push("    </turnout>");
     }
     lines.push("  </turnouts>");
@@ -822,7 +837,8 @@ function emitThrowScript(lines, point, thrown, publish) {
   const which = thrown ? "thrown" : "closed";
   const position = thrown ? "reverse" : "normal";
   const label = thrown ? "THROWN (reverse)" : "CLOSED (normal)";
-  const payload = thrown ? "THROWN" : "CLOSED";
+  // The position report is a JMRI sensor: ACTIVE when thrown, INACTIVE when closed.
+  const payload = thrown ? "ACTIVE" : "INACTIVE";
   lines.push(`  - id: ${point.id}_throw_${which}`);
   lines.push("    mode: restart");
   lines.push("    parameters:");
@@ -852,7 +868,7 @@ function emitThrowScript(lines, point, thrown, publish) {
   lines.push("            lambda: 'return announce;'");
   lines.push("          then:");
   lines.push("            - mqtt.publish:");
-  lines.push(`                topic: ${yamlQuote(stateTopic(point.topic))}`);
+  lines.push(`                topic: ${yamlQuote(thrownTopic(point.topic))}`);
   lines.push(`                payload: "${payload}"`);
   lines.push("                retain: true");
   lines.push("                qos: 2");
@@ -1715,9 +1731,9 @@ function generateYaml(config) {
       }
       for (const point of points) {
         lines.push("    - mqtt.publish:");
-        lines.push(`        topic: ${yamlQuote(stateTopic(point.topic))}`);
+        lines.push(`        topic: ${yamlQuote(thrownTopic(point.topic))}`);
         lines.push("        payload: !lambda |-");
-        lines.push(`          return id(${point.id}_thrown) ? "THROWN" : "CLOSED";`);
+        lines.push(`          return id(${point.id}_thrown) ? "ACTIVE" : "INACTIVE";`);
         lines.push("        retain: true");
         lines.push("        qos: 2");
         if (point.lockEnabled === true) emitLockedPublish(lines, "    ", point);
@@ -1972,7 +1988,7 @@ function generateYaml(config) {
     myFirstBoardPreset,
     emptyConfig,
     topicFor,
-    stateTopic,
+    thrownTopic,
     lockTopic,
     lockedTopic,
     SIGNAL_COLORS,
