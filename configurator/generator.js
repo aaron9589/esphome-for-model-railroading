@@ -43,6 +43,23 @@ function sanitizeId(name) {
   return base || "item";
 }
 
+// A classic ESP32 has two I2C buses. Each PCA9685 gets its own pair of pins,
+// so two boards (32 servos) is the most one ESP32 can drive this way.
+const MAX_PCA_BOARDS = 2;
+
+// The PCA9685 boards in a config. Files from before multiple boards had one
+// `i2c` pin pair, which becomes board 1.
+function pcaBoardsOf(config) {
+  if (Array.isArray(config.pcaBoards) && config.pcaBoards.length) return config.pcaBoards;
+  return [config.i2c || { sda: "GPIO21", scl: "GPIO22" }];
+}
+
+// Which PCA9685 a point is on. Missing or out of range means board 1.
+function pcaBoardIndex(point, count) {
+  const n = Number(point.pcaBoard);
+  return Number.isInteger(n) && n >= 0 && n < count ? n : 0;
+}
+
 function uniqueIds(items, nameKey = "name") {
   const seen = new Map();
   return items.map((item, index) => {
@@ -165,7 +182,7 @@ function myFirstBoardPreset() {
         controls: [],
       },
     ],
-    i2c: { sda: "GPIO21", scl: "GPIO22" },
+    pcaBoards: [{ sda: "GPIO21", scl: "GPIO22" }],
     signals: signalDefaults(),
   };
 }
@@ -175,7 +192,7 @@ function emptyConfig() {
     board: boardDefaults(),
     blocks: [],
     points: [],
-    i2c: { sda: "GPIO21", scl: "GPIO22" },
+    pcaBoards: [{ sda: "GPIO21", scl: "GPIO22" }],
     signals: signalDefaults(),
   };
 }
@@ -191,12 +208,17 @@ function normalizeConfig(config) {
   delete board.otaPassword;
   if (typeof board.mqttEnabled !== "boolean") board.mqttEnabled = true;
   if (typeof config.pca9685 !== "boolean") config.pca9685 = true;
-  if (!config.i2c) config.i2c = { sda: "GPIO21", scl: "GPIO22" };
+  config.pcaBoards = pcaBoardsOf(config).map((pcaBoard) => ({
+    sda: String(pcaBoard?.sda || "GPIO21").toUpperCase(),
+    scl: String(pcaBoard?.scl || "GPIO22").toUpperCase(),
+  }));
+  delete config.i2c;
   for (const block of config.blocks || []) {
     if (block.gpio) block.gpio = String(block.gpio).toUpperCase();
   }
   for (const point of config.points || []) {
     if (point.servoPin) point.servoPin = String(point.servoPin).toUpperCase();
+    point.pcaBoard = pcaBoardIndex(point, config.pcaBoards.length);
     point.lockEnabled = point.lockEnabled === true;
     point.lockDefault = point.lockDefault === "locked" ? "locked" : "unlocked";
     if (!Array.isArray(point.controls)) point.controls = [];
@@ -348,11 +370,11 @@ function signalPinProblem(pin, role = "Signal data pin") {
   return "";
 }
 
-function outputPinProblem(pin, role) {
+function outputPinProblem(pin, role, drives = "a servo") {
   const name = String(pin || "").toUpperCase();
   if (!name) return `${role} pin is missing`;
   if (NO_PULLUP_PINS[name]) {
-    return `${role} pin ${name} (${NO_PULLUP_PINS[name]}) is input only and cannot drive a servo`;
+    return `${role} pin ${name} (${NO_PULLUP_PINS[name]}) is input only and cannot drive ${drives}`;
   }
   if (SERIAL_PINS[name]) return `${role} pin ${name} (${SERIAL_PINS[name]}) is the USB serial port`;
   if (FLASH_PINS.has(name)) return `${role} pin ${name} is part of the flash chip`;
@@ -432,22 +454,33 @@ function validateConfig(config) {
 
   if ((config.points || []).length) {
     const usePca = config.pca9685 !== false;
+    const pcaBoards = pcaBoardsOf(config);
+    const pcaLabel = (i) => (pcaBoards.length > 1 ? `PCA9685 ${i + 1}` : "PCA9685");
     if (usePca) {
-      const i2cPins = [config.i2c?.sda, config.i2c?.scl].filter(Boolean);
-      for (const pin of i2cPins) notePin(pin, "PCA9685 I2C");
+      if (pcaBoards.length > MAX_PCA_BOARDS) {
+        errors.push(`An ESP32 has ${MAX_PCA_BOARDS} I2C buses, so ${MAX_PCA_BOARDS} PCA9685 boards at most. This file has ${pcaBoards.length}.`);
+      }
+      pcaBoards.forEach((pcaBoard, i) => {
+        for (const [role, pin] of [["SDA", pcaBoard.sda], ["SCL", pcaBoard.scl]]) {
+          const issue = outputPinProblem(pin, `${pcaLabel(i)} ${role}`, "I2C");
+          if (issue) errors.push(`${issue}.`);
+          else notePin(pin, `${pcaLabel(i)} I2C`);
+        }
+      });
     } else if (config.points.length > 4) {
       warnings.push("More than 4 servos take power from the ESP. A PCA9685 with an external 5V supply is how this scales up.");
     }
-    const channels = new Map();
+    const channels = pcaBoards.map(() => new Map());
     for (const point of config.points) {
       if (usePca) {
         const ch = Number(point.channel);
+        const b = pcaBoardIndex(point, pcaBoards.length);
         if (Number.isNaN(ch) || ch < 0 || ch > 15) {
           errors.push(`Point "${point.name}" channel must be 0–15.`);
-        } else if (channels.has(ch)) {
-          warnings.push(`PCA9685 channel clash: ${ch} used by "${channels.get(ch)}" and "${point.name}".`);
+        } else if (channels[b].has(ch)) {
+          warnings.push(`${pcaLabel(b)} channel clash: ${ch} used by "${channels[b].get(ch)}" and "${point.name}".`);
         } else {
-          channels.set(ch, point.name);
+          channels[b].set(ch, point.name);
         }
       } else {
         const servoPin = String(point.servoPin || "").toUpperCase();
@@ -1286,7 +1319,7 @@ function generateYaml(config) {
   const blocks = uniqueIds(config.blocks || []);
   const points = uniqueIds(config.points || []);
   const masts = uniqueIds(config.signals?.masts || []);
-  const i2c = config.i2c || { sda: "GPIO21", scl: "GPIO22" };
+  const pcaBoards = pcaBoardsOf(config);
   const usePca = config.pca9685 !== false;
   const mqtt = board.mqttEnabled !== false;
   const stateForBlob = {
@@ -1308,10 +1341,11 @@ function generateYaml(config) {
       inverted: !!inverted,
       debounce,
     })),
-    points: (config.points || []).map(({ name, topic, topicCustom, channel, servoPin, travelTime, lockEnabled, lockDefault, controls }) => ({
+    points: (config.points || []).map(({ name, topic, topicCustom, pcaBoard, channel, servoPin, travelTime, lockEnabled, lockDefault, controls }) => ({
       name,
       topic,
       topicCustom: !!topicCustom,
+      pcaBoard: pcaBoardIndex({ pcaBoard }, pcaBoards.length),
       channel: Number(channel),
       servoPin: servoPin || "",
       travelTime,
@@ -1319,7 +1353,7 @@ function generateYaml(config) {
       lockDefault: lockDefault === "locked" ? "locked" : "unlocked",
       controls: (controls || []).map(controlForBlob),
     })),
-    i2c,
+    pcaBoards: pcaBoards.map(({ sda, scl }) => ({ sda, scl })),
     pca9685: config.pca9685 !== false,
     signals: signalsForBlob(config.signals),
   };
@@ -1488,15 +1522,32 @@ function generateYaml(config) {
     lines.push("  ota: false");
   }
   if (points.length) {
-    if (usePca) {
+    if (usePca && pcaBoards.length === 1) {
       lines.push("");
       lines.push("i2c:");
-      lines.push(`  sda: ${i2c.sda}`);
-      lines.push(`  scl: ${i2c.scl}`);
+      lines.push(`  sda: ${pcaBoards[0].sda}`);
+      lines.push(`  scl: ${pcaBoards[0].scl}`);
       lines.push("  scan: true");
       lines.push("");
       lines.push("pca9685:");
       lines.push("  frequency: 50Hz");
+    } else if (usePca) {
+      // Each PCA9685 is on its own pins, so each gets its own I2C bus.
+      lines.push("");
+      lines.push("i2c:");
+      pcaBoards.forEach((pcaBoard, i) => {
+        lines.push(`  - id: i2c_${i + 1}`);
+        lines.push(`    sda: ${pcaBoard.sda}`);
+        lines.push(`    scl: ${pcaBoard.scl}`);
+        lines.push("    scan: true");
+      });
+      lines.push("");
+      lines.push("pca9685:");
+      pcaBoards.forEach((_, i) => {
+        lines.push(`  - id: pca9685_${i + 1}`);
+        lines.push(`    i2c_id: i2c_${i + 1}`);
+        lines.push("    frequency: 50Hz");
+      });
     }
   }
   if (points.length || masts.some(mastShows)) {
@@ -1608,6 +1659,7 @@ function generateYaml(config) {
       lines.push(`  - platform: ${usePca ? "pca9685" : "ledc"}`);
       lines.push(`    id: ${point.id}_output`);
       if (usePca) {
+        if (pcaBoards.length > 1) lines.push(`    pca9685_id: pca9685_${pcaBoardIndex(point, pcaBoards.length) + 1}`);
         lines.push(`    channel: ${Number(point.channel)}`);
       } else {
         lines.push(`    pin: ${point.servoPin}`);
@@ -1698,6 +1750,7 @@ function generateYaml(config) {
     DEFAULT_MQTT_BROKER,
     PULLUP_PINS,
     STRAPPING_PINS,
+    MAX_PCA_BOARDS,
     NO_PULLUP_PINS,
     sanitizeId,
     uniqueIds,

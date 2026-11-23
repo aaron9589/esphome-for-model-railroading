@@ -2,6 +2,7 @@ const {
   PULLUP_PINS,
   STRAPPING_PINS,
   NO_PULLUP_PINS,
+  MAX_PCA_BOARDS,
   ensureSecrets,
   generatePassword,
   generateYaml,
@@ -99,9 +100,8 @@ const el = {
   boardIdentity: document.getElementById("board-identity"),
   boardNetwork: document.getElementById("board-network"),
   hotspotFields: document.getElementById("hotspot-fields"),
-  i2cFields: document.getElementById("i2c-fields"),
   driverFields: document.getElementById("driver-fields"),
-  driverTitle: document.getElementById("driver-title"),
+  addPoint: document.getElementById("btn-add-point"),
   directPwmNote: document.getElementById("direct-pwm-note"),
   blocksList: document.getElementById("blocks-list"),
   pointsList: document.getElementById("points-list"),
@@ -165,23 +165,33 @@ document.getElementById("btn-add-block").addEventListener("click", () => {
   render();
 });
 
-document.getElementById("btn-add-point").addEventListener("click", () => {
-  const used = new Set(state.points.map((p) => Number(p.channel)));
+// First free channel on a PCA9685, skipping `except` (a point being moved).
+function nextChannel(pcaBoard, except) {
+  const used = new Set(state.points
+    .filter((p) => p !== except && (p.pcaBoard || 0) === pcaBoard)
+    .map((p) => Number(p.channel)));
   let channel = 0;
   while (used.has(channel) && channel < 15) channel += 1;
+  return channel;
+}
+
+function addPoint(pcaBoard = 0) {
   const name = `Point ${state.points.length + 1}`;
   state.points.push({
     name,
     topic: topicFor("point", name),
     topicCustom: false,
-    channel,
+    pcaBoard,
+    channel: nextChannel(pcaBoard),
     servoPin: usesPca() ? "" : nextServoPin(),
     travelTime: "10s",
     controls: [],
   });
   persist();
   render();
-});
+}
+
+document.getElementById("btn-add-point").addEventListener("click", () => addPoint(0));
 
 document.getElementById("btn-add-mast").addEventListener("click", () => {
   const name = `Mast ${state.signals.masts.length + 1}`;
@@ -232,7 +242,6 @@ el.importFile.addEventListener("change", async (event) => {
   try {
     const text = await file.text();
     state = parseConfigFromYaml(text);
-    if (!state.i2c) state.i2c = { sda: "GPIO21", scl: "GPIO22" };
     normalizeTopics(state);
     // Prefer credentials from the imported file when present; otherwise keep browser-saved ones.
     normalizeConfig(state);
@@ -446,8 +455,10 @@ function usedPins() {
     if (block.gpio) used.add(String(block.gpio).toUpperCase());
   }
   if ((state.points || []).length && usesPca()) {
-    if (state.i2c?.sda) used.add(String(state.i2c.sda).toUpperCase());
-    if (state.i2c?.scl) used.add(String(state.i2c.scl).toUpperCase());
+    for (const pcaBoard of state.pcaBoards || []) {
+      if (pcaBoard.sda) used.add(String(pcaBoard.sda).toUpperCase());
+      if (pcaBoard.scl) used.add(String(pcaBoard.scl).toUpperCase());
+    }
   }
   for (const point of state.points || []) {
     if (!usesPca() && point.servoPin) used.add(String(point.servoPin).toUpperCase());
@@ -575,10 +586,9 @@ function renderBoard() {
   }));
 }
 
-function renderI2c() {
-  el.driverTitle.textContent = usesPca() ? "PCA9685 bus" : "ESP pins";
+function renderDriver() {
   el.driverFields.replaceChildren(
-    field("Use a PCA9685", usesPca(), (checked) => {
+    field("Use PCA9685 boards", usesPca(), (checked) => {
       state.pca9685 = checked;
       if (!checked) {
         for (const point of state.points) {
@@ -590,25 +600,6 @@ function renderI2c() {
     }, {
       checkbox: true,
       hint: "Off, each servo connects to an ESP pin with PWM and takes power from the board.",
-    })
-  );
-  el.i2cFields.replaceChildren();
-  if (!usesPca()) return;
-  if (!state.i2c) state.i2c = { sda: "GPIO21", scl: "GPIO22" };
-  el.i2cFields.append(
-    field("I2C SDA (PCA9685)", state.i2c.sda, (v) => {
-      state.i2c.sda = v.trim() || "GPIO21";
-      persist();
-      updatePreview();
-    }, {
-      hint: "Data pin for the servo board.",
-    }),
-    field("I2C SCL (PCA9685)", state.i2c.scl, (v) => {
-      state.i2c.scl = v.trim() || "GPIO22";
-      persist();
-      updatePreview();
-    }, {
-      hint: "Clock pin for the servo board.",
     })
   );
 }
@@ -702,121 +693,239 @@ function renderPoints() {
     if (assigned) persist();
   }
   el.pointsList.replaceChildren();
-  state.points.forEach((point, index) => {
-    const card = document.createElement("div");
-    card.className = "row-card";
-    const header = document.createElement("header");
-    const title = document.createElement("h3");
-    title.textContent = point.name || `Point ${index + 1}`;
-    const actions = document.createElement("div");
-    actions.className = "row-actions";
+  if (!usesPca()) {
+    state.points.forEach((point, index) => el.pointsList.append(renderPointCard(point, index)));
+    return;
+  }
+  state.pcaBoards.forEach((pcaBoard, b) => el.pointsList.append(renderPcaBoard(pcaBoard, b)));
+  const add = document.createElement("button");
+  add.type = "button";
+  add.textContent = "Add PCA9685";
+  add.disabled = state.pcaBoards.length >= MAX_PCA_BOARDS;
+  add.addEventListener("click", () => {
+    const pcaBoard = { sda: nextServoPin(), scl: "" };
+    state.pcaBoards.push(pcaBoard);
+    pcaBoard.scl = nextServoPin();
+    persist();
+    render();
+  });
+  const addRow = document.createElement("div");
+  addRow.className = "add-board";
+  addRow.append(add, hintEl(`Each PCA9685 has its own SDA and SCL pins. An ESP32 has ${MAX_PCA_BOARDS} I2C buses, so ${MAX_PCA_BOARDS} boards at most.`));
+  el.pointsList.append(addRow);
+}
+
+function i2cPinChoices(current) {
+  const choices = pinChoices();
+  const name = String(current || "").toUpperCase();
+  if (name && !choices.some((choice) => choice.value === name)) choices.push({ value: name, label: name });
+  return choices;
+}
+
+// One PCA9685: its I2C pins, then the points wired to it.
+function renderPcaBoard(pcaBoard, b) {
+  const card = document.createElement("div");
+  card.className = "card servo-board";
+  const header = document.createElement("header");
+  const title = document.createElement("h3");
+  title.textContent = `PCA9685 ${b + 1}`;
+  header.append(title);
+  if (b > 0) {
     const remove = document.createElement("button");
     remove.type = "button";
     remove.className = "remove";
-    remove.textContent = "Remove";
+    remove.textContent = "Remove board";
     remove.addEventListener("click", () => {
-      state.points.splice(index, 1);
+      // Its points move to PCA9685 1 rather than being deleted.
+      for (const point of state.points) {
+        const on = point.pcaBoard || 0;
+        if (on === b) {
+          point.pcaBoard = 0;
+          point.channel = nextChannel(0, point);
+        } else if (on > b) {
+          point.pcaBoard = on - 1;
+        }
+      }
+      state.pcaBoards.splice(b, 1);
       persist();
       render();
     });
-    actions.append(remove);
-    header.append(title, actions);
+    header.append(remove);
+  }
 
-    const fields = document.createElement("div");
-    fields.className = "fields";
-    const topicField = field("MQTT topic", point.topic, (v) => {
-      point.topic = v;
-      point.topicCustom = v !== topicFor("point", point.name);
-      const stateInput = card.querySelector("[data-role=state-topic]");
-      if (stateInput) stateInput.value = stateTopic(point.topic);
-      const lockInput = card.querySelector("[data-role=lock-topic]");
-      if (lockInput) lockInput.value = lockTopic(point.topic);
+  const fields = document.createElement("div");
+  fields.className = "fields";
+  fields.append(
+    field("SDA pin", String(pcaBoard.sda || "").toUpperCase(), (v) => {
+      pcaBoard.sda = v;
       persist();
       updatePreview();
     }, {
-      full: true,
-      hint: "Where JMRI sends closed or thrown.",
-    });
-    topicField.querySelector("input").dataset.role = "topic";
+      select: i2cPinChoices(pcaBoard.sda),
+      hint: "Data pin for this board.",
+    }),
+    field("SCL pin", String(pcaBoard.scl || "").toUpperCase(), (v) => {
+      pcaBoard.scl = v;
+      persist();
+      updatePreview();
+    }, {
+      select: i2cPinChoices(pcaBoard.scl),
+      hint: "Clock pin for this board.",
+    })
+  );
 
-    fields.append(
-      field("Name", point.name, (v) => {
-        point.name = v;
-        title.textContent = v || `Point ${index + 1}`;
-        followName(point, "point", card);
+  const list = document.createElement("div");
+  list.className = "board-points";
+  let count = 0;
+  state.points.forEach((point, index) => {
+    if ((point.pcaBoard || 0) !== b) return;
+    list.append(renderPointCard(point, index));
+    count += 1;
+  });
+  if (!count) {
+    const empty = document.createElement("p");
+    empty.className = "empty";
+    empty.textContent = "No points on this board yet.";
+    list.append(empty);
+  }
+  const add = document.createElement("button");
+  add.type = "button";
+  add.className = "primary";
+  add.textContent = "Add point";
+  add.addEventListener("click", () => addPoint(b));
+  list.append(add);
+
+  card.append(header, fields, list);
+  return card;
+}
+
+function renderPointCard(point, index) {
+  const card = document.createElement("div");
+  card.className = "row-card";
+  const header = document.createElement("header");
+  const title = document.createElement("h3");
+  title.textContent = point.name || `Point ${index + 1}`;
+  const actions = document.createElement("div");
+  actions.className = "row-actions";
+  const remove = document.createElement("button");
+  remove.type = "button";
+  remove.className = "remove";
+  remove.textContent = "Remove";
+  remove.addEventListener("click", () => {
+    state.points.splice(index, 1);
+    persist();
+    render();
+  });
+  actions.append(remove);
+  header.append(title, actions);
+
+  const fields = document.createElement("div");
+  fields.className = "fields";
+  const topicField = field("MQTT topic", point.topic, (v) => {
+    point.topic = v;
+    point.topicCustom = v !== topicFor("point", point.name);
+    const stateInput = card.querySelector("[data-role=state-topic]");
+    if (stateInput) stateInput.value = stateTopic(point.topic);
+    const lockInput = card.querySelector("[data-role=lock-topic]");
+    if (lockInput) lockInput.value = lockTopic(point.topic);
+    persist();
+    updatePreview();
+  }, {
+    full: true,
+    hint: "Where JMRI sends closed or thrown.",
+  });
+  topicField.querySelector("input").dataset.role = "topic";
+
+  fields.append(
+    field("Name", point.name, (v) => {
+      point.name = v;
+      title.textContent = v || `Point ${index + 1}`;
+      followName(point, "point", card);
+      persist();
+      updatePreview();
+    }, {
+      placeholder: "Kiama/Up Loop",
+      full: true,
+      hint: "Name on the calibration page.",
+    }),
+    topicField,
+    linkedField(
+      "State topic",
+      stateTopic(point.topic),
+      "Where the board reports closed or thrown."
+    ),
+    field("Remote lock", point.lockEnabled === true, (checked) => {
+      point.lockEnabled = checked;
+      if (point.lockDefault !== "locked") point.lockDefault = "unlocked";
+      persist();
+      render();
+    }, {
+      checkbox: true,
+      hint: state.board.mqttEnabled === false
+        ? "Saved until MQTT is turned back on. LOCKED holds this turnout. UNLOCKED lets it move."
+        : "Listen on the Lock topic. LOCKED holds this turnout. UNLOCKED lets it move.",
+    }),
+    ...(point.lockEnabled === true ? [
+      linkedField(
+        "Lock topic",
+        lockTopic(point.topic),
+        "Publish LOCKED or UNLOCKED here.",
+        "lock-topic"
+      ),
+      field("Default", point.lockDefault === "locked" ? "locked" : "unlocked", (v) => {
+        point.lockDefault = v === "locked" ? "locked" : "unlocked";
         persist();
         updatePreview();
       }, {
-        placeholder: "Kiama/Up Loop",
-        full: true,
-        hint: "Name on the calibration page.",
+        select: [
+          { value: "unlocked", label: "Unlocked" },
+          { value: "locked", label: "Locked" },
+        ],
+        hint: "How it starts after a reboot, until a lock message arrives.",
       }),
-      topicField,
-      linkedField(
-        "State topic",
-        stateTopic(point.topic),
-        "Where the board reports closed or thrown."
-      ),
-      field("Remote lock", point.lockEnabled === true, (checked) => {
-        point.lockEnabled = checked;
-        if (point.lockDefault !== "locked") point.lockDefault = "unlocked";
+    ] : []),
+    ...(usesPca() && state.pcaBoards.length > 1 ? [
+      field("PCA9685", String(point.pcaBoard || 0), (v) => {
+        point.pcaBoard = Number(v);
+        const clash = state.points.some((p) => p !== point
+          && (p.pcaBoard || 0) === point.pcaBoard && Number(p.channel) === Number(point.channel));
+        if (clash) point.channel = nextChannel(point.pcaBoard, point);
         persist();
         render();
       }, {
-        checkbox: true,
-        hint: state.board.mqttEnabled === false
-          ? "Saved until MQTT is turned back on. LOCKED holds this turnout. UNLOCKED lets it move."
-          : "Listen on the Lock topic. LOCKED holds this turnout. UNLOCKED lets it move.",
+        select: state.pcaBoards.map((_, b) => ({ value: String(b), label: `PCA9685 ${b + 1}` })),
+        hint: "Which servo board this point is on.",
       }),
-      ...(point.lockEnabled === true ? [
-        linkedField(
-          "Lock topic",
-          lockTopic(point.topic),
-          "Publish LOCKED or UNLOCKED here.",
-          "lock-topic"
-        ),
-        field("Default", point.lockDefault === "locked" ? "locked" : "unlocked", (v) => {
-          point.lockDefault = v === "locked" ? "locked" : "unlocked";
-          persist();
-          updatePreview();
-        }, {
-          select: [
-            { value: "unlocked", label: "Unlocked" },
-            { value: "locked", label: "Locked" },
-          ],
-          hint: "How it starts after a reboot, until a lock message arrives.",
-        }),
-      ] : []),
-      usesPca()
-        ? field("PCA9685 channel (0–15)", point.channel, (v) => {
-          point.channel = Number(v);
-          persist();
-          updatePreview();
-        }, {
-          type: "number",
-          hint: "Which servo output this point uses.",
-        })
-        : field("Servo pin", point.servoPin, (v) => {
-          point.servoPin = v;
-          persist();
-          updatePreview();
-        }, {
-          select: pinChoices(),
-          hint: "ESP pin that sends PWM to this servo.",
-        }),
-      field("Travel time", point.travelTime, (v) => {
-        point.travelTime = v.trim() || "10s";
+    ] : []),
+    usesPca()
+      ? field("PCA9685 channel (0–15)", point.channel, (v) => {
+        point.channel = Number(v);
         persist();
         updatePreview();
       }, {
-        placeholder: "10s",
-        hint: "How long the throw takes. Longer is slower, for a prototypical speed.",
+        type: "number",
+        hint: "Which servo output this point uses.",
       })
-    );
-    fields.append(renderPanel(point));
-    card.append(header, fields);
-    el.pointsList.append(card);
-  });
+      : field("Servo pin", point.servoPin, (v) => {
+        point.servoPin = v;
+        persist();
+        updatePreview();
+      }, {
+        select: pinChoices(),
+        hint: "ESP pin that sends PWM to this servo.",
+      }),
+    field("Travel time", point.travelTime, (v) => {
+      point.travelTime = v.trim() || "10s";
+      persist();
+      updatePreview();
+    }, {
+      placeholder: "10s",
+      hint: "How long the throw takes. Longer is slower, for a prototypical speed.",
+    })
+  );
+  fields.append(renderPanel(point));
+  card.append(header, fields);
+  return card;
 }
 
 function renderPanel(point) {
@@ -1502,14 +1611,15 @@ function updatePreview() {
   el.blocksEmpty.hidden = state.blocks.length > 0;
   el.pointsEmpty.hidden = state.points.length > 0;
   el.signalsEmpty.hidden = state.signals.masts.length > 0;
-  document.getElementById("i2c-card").hidden = state.points.length === 0;
+  el.addPoint.hidden = usesPca();
+  el.pointsEmpty.hidden = usesPca() || state.points.length > 0;
   el.directPwmNote.hidden = state.points.length === 0 || usesPca();
   renderMessages();
 }
 
 function render() {
   renderBoard();
-  renderI2c();
+  renderDriver();
   renderBlocks();
   renderPoints();
   renderSignals();
