@@ -60,6 +60,67 @@ function pcaBoardIndex(point, count) {
   return Number.isInteger(n) && n >= 0 && n < count ? n : 0;
 }
 
+// MCP23017 expanders: 16 more sensor pins over I2C each. An expander shares a
+// PCA9685 board's SDA and SCL (`bus`: that board's number, from 1) or has its
+// own pins (`sda`, `scl`). Sensors on one store `expander` (its name) and `pin`
+// (0-15: A0-A7 are 0-7, B0-B7 are 8-15) in place of `gpio`.
+const MCP_ADDRESSES = Object.freeze(["0x20", "0x21", "0x22", "0x23", "0x24", "0x25", "0x26", "0x27"]);
+const MAX_EXPANDERS_PER_BUS = 8;
+// I2C buses per chip. Every module the configurator offers has two.
+const I2C_BUS_LIMITS = Object.freeze({ esp32: 2, esp32s3: 2 });
+
+function expanderPinLabel(pin) {
+  const n = Number(pin);
+  return n < 8 ? `A${n}` : `B${n - 8}`;
+}
+
+function i2cBusLimit(moduleName) {
+  return I2C_BUS_LIMITS[variantFor(moduleName)] || 2;
+}
+
+// PCA9685 boards are driven only when there are turnouts on them.
+function pcaInUse(config) {
+  return config.pca9685 !== false && (config.points || []).length > 0;
+}
+
+/**
+ * The I2C buses this board drives, in order: each PCA9685 board in use, then
+ * each pair of expander pins not already a bus. Each bus lists its PCA9685
+ * board (`pca`, or null) and its expanders (indexes into config.expanders).
+ * An expander that shares a board with no turnouts uses that board's pins as
+ * its own bus. One that shares a board that does not exist is left off (a
+ * validation error).
+ */
+function i2cBuses(config) {
+  const buses = [];
+  const pcaBoards = pcaBoardsOf(config);
+  if (pcaInUse(config)) {
+    pcaBoards.forEach((pcaBoard, i) => {
+      buses.push({ sda: String(pcaBoard.sda || "").toUpperCase(), scl: String(pcaBoard.scl || "").toUpperCase(), pca: i, expanders: [] });
+    });
+  }
+  (config.expanders || []).forEach((expander, i) => {
+    let bus = expander.bus ? buses.find((b) => b.pca === expander.bus - 1) : null;
+    if (!bus) {
+      const pins = expander.bus ? pcaBoards[expander.bus - 1] : expander;
+      if (!pins) return;
+      const sda = String(pins.sda || "").toUpperCase();
+      const scl = String(pins.scl || "").toUpperCase();
+      bus = buses.find((b) => b.sda === sda && b.scl === scl);
+      if (!bus) {
+        bus = { sda, scl, pca: null, expanders: [] };
+        buses.push(bus);
+      }
+    }
+    bus.expanders.push(i);
+  });
+  return buses;
+}
+
+function expanderId(index) {
+  return `mcp23017_${index + 1}`;
+}
+
 function uniqueIds(items, nameKey = "name") {
   const seen = new Map();
   return items.map((item, index) => {
@@ -231,7 +292,42 @@ function normalizeConfig(config) {
     scl: String(pcaBoard?.scl || "GPIO22").toUpperCase(),
   }));
   delete config.i2c;
+  if (!Array.isArray(config.expanders)) config.expanders = [];
+  config.expanders.forEach((expander, i) => {
+    // Sensors follow the name as it is tidied, so a half-typed rename (empty,
+    // or ending in a space) does not take them off the expander.
+    const raw = expander.name;
+    expander.name = String(raw || "").trim() || `MCP ${i + 1}`;
+    if (raw !== expander.name) {
+      for (const block of config.blocks || []) {
+        if (block.expander !== undefined && block.expander === raw) block.expander = expander.name;
+      }
+    }
+    const address = String(expander.address || "0x20").trim().toLowerCase();
+    expander.address = /^0x[0-9a-f]{1,2}$/.test(address) ? `0x${address.slice(2).padStart(2, "0")}` : address;
+    const bus = Number(expander.bus);
+    if (Number.isInteger(bus) && bus >= 1) {
+      expander.bus = bus;
+      delete expander.sda;
+      delete expander.scl;
+    } else {
+      delete expander.bus;
+      expander.sda = String(expander.sda || "GPIO21").toUpperCase();
+      expander.scl = String(expander.scl || "GPIO22").toUpperCase();
+    }
+  });
   for (const block of config.blocks || []) {
+    if (block.expander) {
+      block.expander = String(block.expander);
+      // A pin that is not 0-15 is left out, so validation asks for one.
+      const pin = typeof block.pin === "string" && block.pin.trim() === "" ? NaN : Number(block.pin ?? NaN);
+      if (Number.isInteger(pin) && pin >= 0 && pin <= 15) block.pin = pin;
+      else delete block.pin;
+      delete block.gpio;
+    } else {
+      delete block.expander;
+      delete block.pin;
+    }
     if (block.gpio) block.gpio = String(block.gpio).toUpperCase();
   }
   for (const point of config.points || []) {
@@ -530,7 +626,26 @@ function validateConfig(config) {
     }
   }
 
+  const expanders = config.expanders || [];
+  const expanderPins = new Map();
   for (const block of config.blocks || []) {
+    if (block.expander) {
+      const expander = expanders.find((e) => e.name === block.expander);
+      const pin = Number(block.pin);
+      if (!expander) {
+        errors.push(`Sensor "${block.name}" is on expander "${block.expander}", which is not on the Sensors page. Pick another pin.`);
+      } else if (!Number.isInteger(pin) || pin < 0 || pin > 15) {
+        errors.push(`Sensor "${block.name}" needs an expander pin from A0 to B7.`);
+      } else {
+        const key = `${expander.name}\u0000${pin}`;
+        if (expanderPins.has(key)) {
+          errors.push(`${expander.name} pin ${expanderPinLabel(pin)} is used by "${expanderPins.get(key)}" and "${block.name}". Each expander pin takes one sensor.`);
+        } else {
+          expanderPins.set(key, block.name);
+        }
+      }
+      continue;
+    }
     const pin = String(block.gpio || "").toUpperCase();
     const issue = detectorPinProblem(pin);
     if (issue) {
@@ -538,6 +653,56 @@ function validateConfig(config) {
       continue;
     }
     notePin(pin, block.name);
+  }
+
+  if (expanders.length) {
+    const names = new Set();
+    const pcaBoards = pcaBoardsOf(config);
+    expanders.forEach((expander) => {
+      if (names.has(expander.name)) errors.push(`Two expanders are called "${expander.name}". Give each its own name.`);
+      names.add(expander.name);
+      if (!MCP_ADDRESSES.includes(expander.address)) {
+        errors.push(`${expander.name} address ${expander.address} is not 0x20 to 0x27. The A0-A2 links on the expander set it.`);
+      }
+      if (expander.bus && expander.bus > pcaBoards.length) {
+        errors.push(`${expander.name} shares PCA9685 ${expander.bus}'s I2C pins, but there is no PCA9685 ${expander.bus} on the Turnouts page. Give the expander its own SDA and SCL pins.`);
+      }
+    });
+    const buses = i2cBuses(config);
+    const limit = i2cBusLimit(board.module);
+    if (buses.length > limit) {
+      errors.push(`An ESP32 has ${limit} I2C buses, and this board needs ${buses.length}. Put an expander on a PCA9685 board's SDA and SCL pins, or give expanders the same pins.`);
+    }
+    const busPins = new Map();
+    buses.forEach((bus, b) => {
+      const who = bus.pca !== null ? `PCA9685 ${bus.pca + 1}` : expanders[bus.expanders[0]].name;
+      if (bus.expanders.length > MAX_EXPANDERS_PER_BUS) {
+        errors.push(`${bus.expanders.length} expanders share the I2C bus on ${bus.sda} and ${bus.scl}. One bus takes ${MAX_EXPANDERS_PER_BUS} at most.`);
+      }
+      const seen = new Map();
+      for (const i of bus.expanders) {
+        const expander = expanders[i];
+        if (seen.has(expander.address)) {
+          errors.push(`${seen.get(expander.address)} and ${expander.name} are both at ${expander.address} on the same I2C bus. Set different A0-A2 links on one of them.`);
+        } else {
+          seen.set(expander.address, expander.name);
+        }
+      }
+      for (const [role, pin] of [["SDA", bus.sda], ["SCL", bus.scl]]) {
+        const other = busPins.get(pin);
+        // Two PCA9685 boards on one pin is the turnouts' GPIO clash warning.
+        if (other && (other.pca === null || bus.pca === null)) {
+          errors.push(`${pin} is on two I2C buses (${other.who} and ${who}). An expander that shares a bus must use both of its pins.`);
+        } else if (!other) {
+          busPins.set(pin, { who, pca: bus.pca });
+        }
+        // PCA9685 pins are checked with the turnouts.
+        if (bus.pca !== null) continue;
+        const issue = outputPinProblem(pin, `${who} ${role}`, "I2C");
+        if (issue) errors.push(`${issue}.`);
+        else notePin(pin, `${who} I2C`);
+      }
+    });
   }
 
   if ((config.points || []).length) {
@@ -1636,11 +1801,11 @@ function generateYaml(config) {
       apPassword: board.apPassword || "",
       apiKey: board.apiKey || "",
     },
-    blocks: (config.blocks || []).map(({ name, topic, topicCustom, gpio, inverted, debounce }) => ({
+    blocks: (config.blocks || []).map(({ name, topic, topicCustom, gpio, expander, pin, inverted, debounce }) => ({
       name,
       topic,
       topicCustom: !!topicCustom,
-      gpio,
+      ...(expander ? { expander, pin } : { gpio }),
       inverted: !!inverted,
       debounce,
     })),
@@ -1658,6 +1823,11 @@ function generateYaml(config) {
     })),
     pcaBoards: pcaBoards.map(({ sda, scl }) => ({ sda, scl })),
     pca9685: config.pca9685 !== false,
+    // Only when there are some, so files without expanders are unchanged.
+    ...((config.expanders || []).length ? {
+      expanders: config.expanders.map(({ name, bus, sda, scl, address }) => (
+        bus ? { name, bus, address } : { name, sda, scl, address })),
+    } : {}),
     signals: signalsForBlob(config.signals),
   };
 
@@ -1825,34 +1995,50 @@ function generateYaml(config) {
     lines.push("  local: true");
     lines.push("  ota: false");
   }
-  if (points.length) {
-    if (usePca && pcaBoards.length === 1) {
-      lines.push("");
-      lines.push("i2c:");
-      lines.push(`  sda: ${pcaBoards[0].sda}`);
-      lines.push(`  scl: ${pcaBoards[0].scl}`);
-      lines.push("  scan: true");
+  const buses = i2cBuses(config);
+  if (buses.length === 1) {
+    // One bus needs no ids.
+    lines.push("");
+    lines.push("i2c:");
+    lines.push(`  sda: ${buses[0].sda}`);
+    lines.push(`  scl: ${buses[0].scl}`);
+    lines.push("  scan: true");
+    if (buses[0].pca !== null) {
       lines.push("");
       lines.push("pca9685:");
       lines.push("  frequency: 50Hz");
-    } else if (usePca) {
-      // Each PCA9685 is on its own pins, so each gets its own I2C bus.
-      lines.push("");
-      lines.push("i2c:");
-      pcaBoards.forEach((pcaBoard, i) => {
-        lines.push(`  - id: i2c_${i + 1}`);
-        lines.push(`    sda: ${pcaBoard.sda}`);
-        lines.push(`    scl: ${pcaBoard.scl}`);
-        lines.push("    scan: true");
-      });
+    }
+  } else if (buses.length > 1) {
+    // Each PCA9685 is on its own pins, so each gets its own I2C bus.
+    lines.push("");
+    lines.push("i2c:");
+    buses.forEach((bus, b) => {
+      lines.push(`  - id: i2c_${b + 1}`);
+      lines.push(`    sda: ${bus.sda}`);
+      lines.push(`    scl: ${bus.scl}`);
+      lines.push("    scan: true");
+    });
+    if (buses.some((bus) => bus.pca !== null)) {
       lines.push("");
       lines.push("pca9685:");
-      pcaBoards.forEach((_, i) => {
-        lines.push(`  - id: pca9685_${i + 1}`);
-        lines.push(`    i2c_id: i2c_${i + 1}`);
+      buses.forEach((bus, b) => {
+        if (bus.pca === null) return;
+        lines.push(`  - id: pca9685_${bus.pca + 1}`);
+        lines.push(`    i2c_id: i2c_${b + 1}`);
         lines.push("    frequency: 50Hz");
       });
     }
+  }
+  if (buses.some((bus) => bus.expanders.length)) {
+    lines.push("");
+    lines.push("mcp23017:");
+    buses.forEach((bus, b) => {
+      for (const i of bus.expanders) {
+        lines.push(`  - id: ${expanderId(i)}`);
+        lines.push(`    address: ${config.expanders[i].address}`);
+        if (buses.length > 1) lines.push(`    i2c_id: i2c_${b + 1}`);
+      }
+    });
   }
   if (points.length || masts.some(mastShows)) {
     lines.push("");
@@ -1888,10 +2074,21 @@ function generateYaml(config) {
       const debounce = block.debounce || "500ms";
       lines.push("  - platform: gpio");
       lines.push("    pin:");
-      lines.push(`      number: ${block.gpio}`);
-      lines.push(`      inverted: ${block.inverted !== false}`);
-      lines.push("      mode:");
-      lines.push("        input: true");
+      const expanderIndex = block.expander ? (config.expanders || []).findIndex((e) => e.name === block.expander) : -1;
+      if (expanderIndex >= 0) {
+        // The expander's own pull-up, so it wires like an ESP pin.
+        lines.push(`      mcp23xxx: ${expanderId(expanderIndex)}`);
+        lines.push(`      number: ${Number(block.pin)}`);
+        lines.push(`      inverted: ${block.inverted !== false}`);
+        lines.push("      mode:");
+        lines.push("        input: true");
+        lines.push("        pullup: true");
+      } else {
+        lines.push(`      number: ${block.gpio}`);
+        lines.push(`      inverted: ${block.inverted !== false}`);
+        lines.push("      mode:");
+        lines.push("        input: true");
+      }
       lines.push(`    id: ${block.id}_sensor`);
       lines.push(`    name: ${yamlQuote(entityName(block.name))}`);
       lines.push("    filters:");
@@ -2056,6 +2253,12 @@ function generateYaml(config) {
     STRAPPING_PINS,
     MAX_PCA_BOARDS,
     NO_PULLUP_PINS,
+    MCP_ADDRESSES,
+    MAX_EXPANDERS_PER_BUS,
+    expanderPinLabel,
+    i2cBusLimit,
+    i2cBuses,
+    pcaInUse,
     sanitizeId,
     uniqueIds,
     myFirstBoardPreset,

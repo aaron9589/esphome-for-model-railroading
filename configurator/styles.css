@@ -389,6 +389,23 @@ main {
   margin: 0 0 0.75rem;
 }
 
+.pin-budget {
+  margin: 0 0 0.75rem;
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
+.pin-budget.is-out {
+  color: var(--warn-ink);
+  background: var(--warn-bg);
+  border-radius: 8px;
+  padding: 0.5rem 0.75rem;
+}
+
+#expanders-card .row-card {
+  box-shadow: none;
+}
+
 .add-board {
   display: flex;
   align-items: center;
