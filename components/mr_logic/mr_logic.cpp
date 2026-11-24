@@ -1,5 +1,7 @@
 #include "mr_logic.h"
 
+#include <cstring>
+
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
@@ -37,27 +39,25 @@ void MrLogicComponent::add_turnout(const std::string &name, std::function<const 
 
 void MrLogicComponent::setup() {
   std::string error;
-  ::logic_core::Board board;
-  this->table_ok_ = ::logic_core::board_from_json(this->table_ ? this->table_ : "", &board, &error);
+  this->table_ok_ = ::logic_core::compile_table(this->table_, &this->table_data_, &error);
   if (!this->table_ok_) {
     ESP_LOGE(TAG, "The logic table cannot be read: %s. Logic stays off; download the YAML again.", error.c_str());
     this->mark_failed();
     return;
   }
+  const ::logic_core::Table &t = this->table_data_;
   for (auto &m : this->masts_) {
-    for (const auto &def : board.masts) {
-      if (def.name != m.name) continue;
-      const std::string stop = ::logic_core::stop_aspect(def);
-      for (const auto &a : def.aspects) {
-        if (a.first == stop) m.stop = static_cast<int>(m.aspects.size());
-        m.aspects.push_back(a.first);
-      }
+    for (const auto &def : t.masts) {
+      if (!t.names.equals(def.name, m.name)) continue;
+      m.stop = def.stop;
+      for (uint16_t a = 0; a < def.aspect_count; a++) m.aspects.push_back(t.names[t.aspects[def.aspect_first + a].name]);
     }
     if (m.aspects.empty()) ESP_LOGW(TAG, "Mast %s is bound but not in the logic table; logic will not set it.", m.name.c_str());
   }
-  for (const auto &l : board.layers) this->rule_count_ += l.rules.size();
-  this->group_count_ = board.layers.size();
-  this->board_ = std::move(board);
+  this->rule_count_ = t.rules.size();
+  this->group_count_ = t.layers.size();
+  ESP_LOGD(TAG, "Logic table: %u bytes of JSON compiled into about %u bytes", (unsigned) strlen(this->table_),
+           (unsigned) t.bytes());
   this->boot_ms_ = millis();
 }
 
@@ -75,10 +75,9 @@ void MrLogicComponent::start_() {
     t.last = t.position();
     start.turnouts[t.name] = t.last;
   }
-  // The engine keeps the board; this component no longer needs its own.
-  this->engine_.reset(new ::logic_core::Engine(std::move(this->board_), start));
-  this->board_ = ::logic_core::Board();
-  ESP_LOGI(TAG, "Start-up scan, %u ms after boot", (unsigned) (millis() - this->boot_ms_));
+  this->engine_.reset(new ::logic_core::Engine(this->table_data_, start));
+  ESP_LOGI(TAG, "Start-up scan, %u ms after boot; the engine holds about %u bytes", (unsigned) (millis() - this->boot_ms_),
+           (unsigned) this->engine_->bytes());
 }
 
 void MrLogicComponent::loop() {

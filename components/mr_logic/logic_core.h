@@ -35,8 +35,8 @@ struct Node {
   uint8_t logic_block = 0;  // BLOCK on this board: item is a logic block, not a sensor
   uint16_t board = NONE;  // another board's item: its remote board
   uint16_t item = NONE;  // by kind: sensor / logic block, turnout, mast, button; or remote item
+  uint8_t remote = 0;  // another board's item
   uint16_t first = 0, count = 0;  // kids
-  uint16_t name = NONE, board_name = NONE;  // names, while compiling
 };
 
 struct Trigger {
@@ -112,8 +112,30 @@ struct Rule {
   uint16_t cancel = NONE;  // a moment node
 };
 
+// Every name once, in one string: far smaller than a string each.
+struct NamePool {
+  std::string chars;
+  std::vector<uint16_t> starts;
+  size_t size() const { return starts.size(); }
+  std::string operator[](size_t i) const {
+    size_t a = starts[i], b = i + 1 < starts.size() ? starts[i + 1] : chars.size();
+    return chars.substr(a, b - a);
+  }
+  bool equals(size_t i, const std::string &s) const {
+    size_t a = starts[i], b = i + 1 < starts.size() ? starts[i + 1] : chars.size();
+    return b - a == s.size() && chars.compare(a, b - a, s) == 0;
+  }
+  uint16_t intern(const std::string &s) {
+    for (size_t i = 0; i < starts.size(); i++)
+      if (equals(i, s)) return static_cast<uint16_t>(i);
+    starts.push_back(static_cast<uint16_t>(chars.size()));
+    chars += s;
+    return static_cast<uint16_t>(starts.size() - 1);
+  }
+};
+
 struct Table {
-  std::vector<std::string> names;
+  NamePool names;
   std::vector<Node> nodes;
   std::vector<uint16_t> kids;  // node indices
   std::vector<uint16_t> seq;  // node indices
@@ -136,7 +158,7 @@ struct Table {
   std::vector<Rule> rules;  // layers in order, rules in order
   std::vector<uint16_t> layers;  // names
 
-  const std::string &name(uint16_t i) const { return names[i]; }
+  std::string name(uint16_t i) const { return names[i]; }
   std::string rule_ref(uint16_t r) const { return names[layers[rules[r].layer]] + "/" + std::to_string(rules[r].number); }
   size_t bytes() const;  // heap held, roughly
 };

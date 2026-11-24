@@ -222,12 +222,9 @@ class Compiler {
   std::vector<RawRule> raw_rules_;
   std::vector<uint16_t> resource_names_;
 
-  uint16_t intern(const std::string &s) {
-    for (size_t i = 0; i < t_.names.size(); i++)
-      if (t_.names[i].size() == s.size() && t_.names[i] == s) return static_cast<uint16_t>(i);
-    t_.names.push_back(s);
-    return static_cast<uint16_t>(t_.names.size() - 1);
-  }
+  uint16_t intern(const std::string &s) { return t_.names.intern(s); }
+  // Per node, while compiling: the item's name and its board's.
+  std::vector<std::pair<uint16_t, uint16_t>> node_names_;
   uint16_t read_name() { return intern(r_.text()); }
   void bad_time(const std::string &text, const std::string &where) {
     if (error_.empty()) error_ = where + ": a time the engine cannot read (" + text + ")";
@@ -574,6 +571,7 @@ class Compiler {
     uint16_t neg = NONE;
     bool has_all = false, has_any = false, has_not = false;
     uint16_t block = NONE, sensor = NONE, turnout = NONE, mast = NONE, button = NONE;
+    uint16_t board_name = NONE, item_name = NONE;
     std::vector<std::string> is;
     bool first = true;
     std::string key;
@@ -597,7 +595,7 @@ class Compiler {
       } else if (key == "button") {
         button = read_name();
       } else if (key == "board") {
-        n.board_name = read_name();
+        board_name = read_name();
       } else if (key == "is") {
         if (r_.peek() == '[') {
           bool f2 = true;
@@ -624,15 +622,15 @@ class Compiler {
       kids(Node::NOT, std::vector<uint16_t>(1, neg));
     } else if (block != NONE || sensor != NONE) {
       n.kind = Node::BLOCK;
-      n.name = block != NONE ? block : sensor;
+      item_name = block != NONE ? block : sensor;
       n.is = first_is == "clear" ? Node::IS_CLEAR : first_is == "occupied" ? Node::IS_OCCUPIED : Node::IS_OTHER;
     } else if (turnout != NONE) {
       n.kind = Node::TURNOUT;
-      n.name = turnout;
+      item_name = turnout;
       n.is = first_is == "closed" ? Node::IS_CLOSED : first_is == "thrown" ? Node::IS_THROWN : Node::IS_OTHER;
     } else if (mast != NONE) {
       n.kind = Node::MAST;
-      n.name = mast;
+      item_name = mast;
       if (first_is == "diverging") {
         n.is = Node::IS_DIVERGING;
       } else {
@@ -644,13 +642,15 @@ class Compiler {
       }
     } else if (button != NONE) {
       n.kind = Node::BUTTON;
-      n.name = button;
+      item_name = button;
       n.is = first_is == "pressed" ? Node::IS_PRESSED : Node::IS_OTHER;
     } else {
       // Nothing to read: an empty any, which is never true.
       kids(Node::ANY, {});
     }
+    n.remote = board_name != NONE ? 1 : 0;
     t_.nodes.push_back(n);
+    node_names_.emplace_back(item_name, board_name);
     return static_cast<uint16_t>(t_.nodes.size() - 1);
   }
 
@@ -716,24 +716,26 @@ class Compiler {
       }
       t_.blocks[i].count = static_cast<uint16_t>(t_.members.size() - t_.blocks[i].first);
     }
-    for (auto &n : t_.nodes) {
+    for (size_t ni = 0; ni < t_.nodes.size(); ni++) {
+      Node &n = t_.nodes[ni];
+      const uint16_t name = node_names_[ni].first, board_name = node_names_[ni].second;
       if (n.kind <= Node::NOT) continue;
-      if (n.board_name != NONE && n.kind != Node::BUTTON) {
-        n.board = remote_board(n.board_name);
+      if (board_name != NONE && n.kind != Node::BUTTON) {
+        n.board = remote_board(board_name);
         uint8_t kind = n.kind == Node::TURNOUT ? RemoteItem::TURNOUT : n.kind == Node::MAST ? RemoteItem::MAST : RemoteItem::SENSOR;
-        n.item = remote_item(n.board, kind, n.name);
+        n.item = remote_item(n.board, kind, name);
         continue;
       }
       switch (n.kind) {
         case Node::BLOCK: {
-          BlockRef ref = block_ref(n.name);
+          BlockRef ref = block_ref(name);
           n.item = ref.item;
           n.logic_block = ref.logic_block ? 1 : 0;
           break;
         }
-        case Node::TURNOUT: n.item = add_to(&t_.turnouts, n.name); break;
-        case Node::MAST: n.item = mast_index(n.name); break;
-        case Node::BUTTON: n.item = add_to(&t_.buttons, n.name); break;
+        case Node::TURNOUT: n.item = add_to(&t_.turnouts, name); break;
+        case Node::MAST: n.item = mast_index(name); break;
+        case Node::BUTTON: n.item = add_to(&t_.buttons, name); break;
         default: break;
       }
     }
@@ -767,7 +769,7 @@ class Compiler {
       for (uint16_t name : raw.locks) t_.locks.push_back(add_to(&t_.turnouts, name));
       rule.locks_count = static_cast<uint16_t>(t_.locks.size() - rule.locks_first);
     }
-    if (t_.nodes.size() >= NONE || t_.names.size() >= NONE || t_.rules.size() >= NONE)
+    if (t_.nodes.size() >= NONE || t_.names.size() >= NONE || t_.names.chars.size() >= NONE || t_.rules.size() >= NONE)
       error_ = "the table is too big";
   }
 };
@@ -807,7 +809,8 @@ bool compile_table(const char *json, Table *out, std::string *error) {
   error->clear();
   Table t;
   if (!Compiler(json ? json : "", &t, error).run()) return false;
-  fit(&t.names);
+  t.names.chars.shrink_to_fit();
+  fit(&t.names.starts);
   fit(&t.nodes);
   fit(&t.kids);
   fit(&t.seq);

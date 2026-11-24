@@ -37,12 +37,11 @@ Tag tag_from_name(const std::string &name) {
 const char *tag_name(Tag tag) { return tag == TAG_NONE ? "" : TAG_NAMES[tag]; }
 
 size_t Table::bytes() const {
-  size_t n = vec_bytes(names) + vec_bytes(nodes) + vec_bytes(kids) + vec_bytes(seq) + vec_bytes(aspects) +
+  size_t n = names.chars.capacity() + vec_bytes(names.starts) + vec_bytes(nodes) + vec_bytes(kids) + vec_bytes(seq) + vec_bytes(aspects) +
              vec_bytes(states) + vec_bytes(block_refs) + vec_bytes(members) + vec_bytes(locks) + vec_bytes(sensors) +
              vec_bytes(buttons) + vec_bytes(turnouts) + vec_bytes(masts) + vec_bytes(remote_boards) +
              vec_bytes(remote_masts) + vec_bytes(remote_items) + vec_bytes(blocks) + vec_bytes(resources) +
              vec_bytes(rules) + vec_bytes(layers);
-  for (const auto &s : names) n += s.capacity() > 15 ? s.capacity() + 1 : 0;
   for (const auto &s : states) n += s.text.capacity() > 15 ? s.text.capacity() + 1 : 0;
   return n;
 }
@@ -175,20 +174,20 @@ size_t Engine::bytes() const {
 
 int16_t Engine::find(const std::vector<uint16_t> &list, const std::string &name) const {
   for (size_t i = 0; i < list.size(); i++)
-    if (t_.names[list[i]] == name) return static_cast<int16_t>(i);
+    if (t_.names.equals(list[i], name)) return static_cast<int16_t>(i);
   return -1;
 }
 
 int16_t Engine::find_mast(const std::string &name) const {
   for (size_t i = 0; i < t_.masts.size(); i++)
-    if (t_.names[t_.masts[i].name] == name) return static_cast<int16_t>(i);
+    if (t_.names.equals(t_.masts[i].name, name)) return static_cast<int16_t>(i);
   return -1;
 }
 
 int16_t Engine::find_remote_item(uint16_t board, uint8_t kind, const std::string &name) const {
   for (size_t i = 0; i < t_.remote_items.size(); i++) {
     const RemoteItem &it = t_.remote_items[i];
-    if (it.board != board || t_.names[it.name] != name) continue;
+    if (it.board != board || !t_.names.equals(it.name, name)) continue;
     bool sensor_like = kind == RemoteItem::SENSOR || kind == RemoteItem::BLOCK;
     bool item_sensor_like = it.kind == RemoteItem::SENSOR || it.kind == RemoteItem::BLOCK;
     if (sensor_like ? item_sensor_like : it.kind == kind) return static_cast<int16_t>(i);
@@ -198,7 +197,7 @@ int16_t Engine::find_remote_item(uint16_t board, uint8_t kind, const std::string
 
 int16_t Engine::aspect_index(const Mast &m, const std::string &name) const {
   for (uint16_t i = 0; i < m.aspect_count; i++)
-    if (t_.names[t_.aspects[m.aspect_first + i].name] == name) return static_cast<int16_t>(i);
+    if (t_.names.equals(t_.aspects[m.aspect_first + i].name, name)) return static_cast<int16_t>(i);
   return -1;
 }
 
@@ -306,12 +305,12 @@ bool Engine::condition(uint16_t index) {
     case Node::NOT:
       return c.count == 0 ? true : !condition(t_.kids[c.first]);
     case Node::BLOCK: {
-      bool occ = c.board_name != NONE ? remote_occupied(c.item) : occupied_ref(c.item, c.logic_block);
+      bool occ = c.remote ? remote_occupied(c.item) : occupied_ref(c.item, c.logic_block);
       return c.is == Node::IS_CLEAR ? !occ : occ;
     }
     case Node::TURNOUT: {
       uint8_t want = c.is == Node::IS_CLOSED ? T_CLOSED : c.is == Node::IS_THROWN ? T_THROWN : 0xFF;
-      if (c.board_name == NONE) return c.item != NONE && turnouts_[c.item] == want;
+      if (!c.remote) return c.item != NONE && turnouts_[c.item] == want;
       if (c.item == NONE) return false;
       int16_t v = remote_values_[c.item];
       return known(t_.remote_items[c.item].board, v != R_UNSET) && v == want;
@@ -320,7 +319,7 @@ bool Engine::condition(uint16_t index) {
       // Rule 13: what the mast reads as, or nothing (stop).
       const Mast *def = nullptr;
       int16_t a = -1;
-      if (c.board_name != NONE) {
+      if (c.remote) {
         if (c.item != NONE) {
           const RemoteItem &it = t_.remote_items[c.item];
           def = it.mast == NONE ? nullptr : &t_.remote_masts[it.mast];
@@ -345,8 +344,8 @@ bool Engine::condition(uint16_t index) {
 
 bool Engine::moment(uint16_t index) {
   const Node &m = t_.nodes[index];
-  if (m.board_name == NONE && m.kind == Node::BUTTON) return m.is == Node::IS_PRESSED && m.item != NONE && buttons_[m.item].on;
-  if (m.board_name == NONE && m.kind == Node::BLOCK) return went(m.item, m.logic_block, m.is != Node::IS_CLEAR);
+  if (!m.remote && m.kind == Node::BUTTON) return m.is == Node::IS_PRESSED && m.item != NONE && buttons_[m.item].on;
+  if (!m.remote && m.kind == Node::BLOCK) return went(m.item, m.logic_block, m.is != Node::IS_CLEAR);
   return condition(index) && edges_[index] == 0;
 }
 
@@ -354,7 +353,7 @@ bool Engine::moment(uint16_t index) {
 bool Engine::same_input_in_order(uint16_t pi, uint16_t ni) {
   const Node &prev = t_.nodes[pi], &next = t_.nodes[ni];
   if (prev.kind != Node::BLOCK || next.kind != Node::BLOCK) return false;
-  if (prev.board_name != NONE || next.board_name != NONE) return false;
+  if (prev.remote || next.remote) return false;
   if (prev.item != next.item || prev.logic_block || next.logic_block || prev.item == NONE) return false;
   const Latch &s = sensors_[prev.item];
   if (prev.is == Node::IS_OCCUPIED && next.is == Node::IS_CLEAR) return s.on && s.off && !s.value;

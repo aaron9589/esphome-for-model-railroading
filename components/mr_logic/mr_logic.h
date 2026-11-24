@@ -54,7 +54,8 @@ class MrLogicComponent : public Component {
   void event_(const ::logic_core::Event &e);
 
   const char *table_{nullptr};
-  ::logic_core::Board board_;
+  // The compiled table. The engine refers to it, so it lives here, in place.
+  ::logic_core::Table table_data_;
   bool table_ok_{false};
   std::unique_ptr<::logic_core::Engine> engine_;
   std::vector<SensorBinding> sensors_;
