@@ -12,10 +12,12 @@
   const TAGS = Object.freeze(["stop", "restricting", "approach", "advance", "clear"]);
   const HELD_NAMES = ["R292", "Stop"];
 
-  // "0.5s" or "500ms" in milliseconds; anything else is 0.
+  // "0.5s" or "500ms" in milliseconds; none is 0. Anything else is NaN, so a
+  // typo is never read as "no delay".
   function ms(text) {
-    const m = /^(\d+(?:\.\d+)?)(ms|s)$/.exec(String(text || "").trim());
-    return m ? Math.round(parseFloat(m[1]) * (m[2] === "s" ? 1000 : 1)) : 0;
+    if (text === undefined || text === null || text === "") return 0;
+    const m = /^(\d+(?:\.\d+)?)(ms|s)$/.exec(String(text).trim());
+    return m ? Math.round(parseFloat(m[1]) * (m[2] === "s" ? 1000 : 1)) : NaN;
   }
 
   // --- Masts ---------------------------------------------------------------
@@ -117,6 +119,9 @@
       rule.resource = rule.then.reserve ? resourceByName.get(rule.then.reserve) || null : null;
       if (rule.resource) rule.resource.rules.push(rule);
     }
+    for (const [what, value] of [...rules.map((r) => [r.ref, r.forMs]), ...resources.flatMap((r) => [[r.name, r.lockMs], [r.name, r.releaseMs]])]) {
+      if (Number.isNaN(value)) throw new Error(`${what}: a time the engine cannot read. Use a time such as 0.5s or 500ms.`);
+    }
     const fieldMasts = mastOrder.filter((m) => rules.some((r) => r.then.mast === m));
     const isField = (m) => fieldMasts.includes(m);
 
@@ -165,6 +170,8 @@
     function known(b, value) {
       return broker && remote[b]?.online === true && value !== undefined;
     }
+    // Another board's sensor or block: its kind comes from that board's lists.
+    const remoteKind = (b, name) => ((remoteBoards[b]?.blocks || []).includes(name) ? "block" : "sensor");
     function remoteItem(b, kind, name) {
       return remote[b]?.items.get(`${kind}\u0000${name}`);
     }
@@ -172,8 +179,7 @@
     // Rule 14: occupied, and an item from another board that is not known reads occupied.
     function occupied(name, b) {
       if (b !== undefined) {
-        const kind = (remoteBoards[b]?.blocks || []).includes(name) ? "block" : "sensor";
-        const value = remoteItem(b, kind, name);
+        const value = remoteItem(b, remoteKind(b, name), name);
         return known(b, value) ? value === "occupied" : true;
       }
       if (logicBlocks.has(name)) {
@@ -183,10 +189,20 @@
       return input("sensor", name).value;
     }
 
-    // A local sensor's (or block's) latch: went occupied, or went clear.
+    // Went occupied, or went clear, since the last scan. A sensor: its latch.
+    // A block: its own value against the last scan's; a member's pulse counts
+    // only when the block was clear before and after (it went occupied, then
+    // clear). One member changing while another holds the block is no change.
+    const prevBlock = new Map();
+    const localMembers = (name) => logicBlocks.get(name)
+      .filter((m) => typeof m === "string" || m.board === undefined)
+      .map((m) => (typeof m === "string" ? m : m.sensor ?? m.block));
     function went(name, on) {
-      const members = logicBlocks.has(name) ? logicBlocks.get(name).filter((m) => typeof m === "string") : [name];
-      return members.some((s) => (on ? input("sensor", s).on : input("sensor", s).off));
+      if (!logicBlocks.has(name)) return on ? input("sensor", name).on : input("sensor", name).off;
+      const prev = prevBlock.get(name) === true;
+      const now = occupied(name);
+      const pulsed = localMembers(name).some((s) => input("sensor", s).on);
+      return on ? !prev && (now || pulsed) : !now && (prev || pulsed);
     }
 
     function turnoutState(name, b) {
@@ -236,11 +252,7 @@
     function moment(m) {
       const local = m.board === undefined && (m.block !== undefined || m.sensor !== undefined || m.button !== undefined);
       if (local && m.button !== undefined) return m.is === "pressed" && input("button", m.button).on;
-      if (local) {
-        const name = m.block ?? m.sensor;
-        if (went(name, m.is !== "clear")) return true;
-        if (!logicBlocks.has(name)) return false;
-      }
+      if (local) return went(m.block ?? m.sensor, m.is !== "clear");
       return condition(m) && edges.get(momentKey(m)) === false;
     }
     const trackedMoments = [];
@@ -414,8 +426,14 @@
       publishAll = false;
     }
 
-    function endScan() {
+    // What this scan read, for the next scan's moments. Taken before the
+    // field masts' new outputs become what rules read.
+    function recordEdges() {
       for (const m of trackedMoments) edges.set(momentKey(m), condition(m));
+      for (const name of logicBlocks.keys()) prevBlock.set(name, occupied(name));
+    }
+
+    function endScan() {
       for (const v of latched.values()) {
         v.on = false;
         v.off = false;
@@ -424,7 +442,7 @@
     }
 
     // Rule 17: the last scan before logic goes off.
-    function switchOff(out) {
+    function switchOff(out, echoes) {
       for (const res of resources) {
         if (heldRes(res)) {
           out.events.push({ release: res.name, by: "switch" });
@@ -435,7 +453,7 @@
       const newOut = new Map();
       for (const m of fieldMasts) newOut.set(m, jmriShown.get(m) ?? stopAspect(masts[m]));
       finish(out, newOut, new Map(turnoutOrder.map((t) => [t, false])));
-      publishResources(out, []);
+      publishResources(out, echoes);
       logicOn = false;
     }
 
@@ -447,15 +465,16 @@
       }
       const switchingOff = pendingLogic === "off" && logicOn;
       pendingLogic = null;
-      if (switchingOff) {
+      if (switchingOff || !logicOn) {
+        // No section to release while logic is off, but the press is answered.
+        const echoes = broker ? pendingReleases.map((p) => p.resource) : [];
         pendingReleases.length = 0;
-        switchOff(out);
-        endScan();
-        return out;
-      }
-      if (!logicOn) {
-        pendingReleases.length = 0;
-        finish(out, new Map(), new Map(turnoutOrder.map((t) => [t, false])));
+        if (switchingOff) switchOff(out, echoes);
+        else {
+          finish(out, new Map(), new Map(turnoutOrder.map((t) => [t, false])));
+          for (const name of echoes) out.publishes.push({ release: name, value: "CLOSED" });
+        }
+        recordEdges();
         endScan();
         return out;
       }
@@ -581,7 +600,8 @@
           const setters = layer.rules.filter((r) => r.then.mast === m);
           if (!setters.length) continue;
           const winner = setters.find(isActive);
-          answers.push(winner ? winner.then.aspect : stop);
+          // Fail safe: an aspect the mast does not have is its stop aspect.
+          answers.push(winner && tagOf(def, winner.then.aspect) ? winner.then.aspect : stop);
         }
         if (holds.get(m) || forceStop.has(m)) answers.push(stop);
         let pick = answers[0] ?? stop;
@@ -595,6 +615,7 @@
         for (const t of rule.then.lock || []) newLocks.set(t, true);
       }
       finish(out, newOut, newLocks);
+      recordEdges();
       prevOut = newOut;
       publishResources(out, echoes);
       endScan();
@@ -619,8 +640,9 @@
         if (e.online !== undefined) r.online = e.online;
         else if (e.mast !== undefined) r.items.set(`mast\u0000${e.mast}`, e.aspect);
         else {
-          const kind = e.turnout !== undefined ? "turnout" : e.block !== undefined ? "block" : "sensor";
-          r.items.set(`${kind}\u0000${e[kind]}`, e.is === "unknown" ? undefined : e.is);
+          const name = e.turnout ?? e.block ?? e.sensor;
+          const kind = e.turnout !== undefined ? "turnout" : remoteKind(e.board, name);
+          r.items.set(`${kind}\u0000${name}`, e.is === "unknown" ? undefined : e.is);
         }
         return;
       }
@@ -661,16 +683,13 @@
       const r = remote[b];
       if (!r) continue;
       if (s.online !== undefined) r.online = s.online;
-      for (const [name, v] of Object.entries(s.sensors || {})) {
-        const kind = (remoteBoards[b].blocks || []).includes(name) ? "block" : "sensor";
-        r.items.set(`${kind}\u0000${name}`, v);
-      }
+      for (const [name, v] of Object.entries(s.sensors || {})) r.items.set(`${remoteKind(b, name)}\u0000${name}`, v);
       for (const [name, v] of Object.entries(s.turnouts || {})) r.items.set(`turnout\u0000${name}`, v);
       for (const [name, v] of Object.entries(s.masts || {})) r.items.set(`mast\u0000${name}`, v);
     }
     for (const [m, message] of Object.entries(start.jmri || {})) jmriMessage(m, message);
     for (const t of turnoutOrder) prevLocked.set(t, remoteLocks.get(t));
-    for (const m of trackedMoments) edges.set(momentKey(m), condition(m));
+    recordEdges();
 
     function state() {
       const rulePhases = {};
@@ -705,6 +724,7 @@
 
   function duration(text) {
     const value = ms(text);
+    if (Number.isNaN(value)) return String(text);
     if (value === 500) return "half a second";
     if (value === 1000) return "a second";
     return `${value / 1000} seconds`;
@@ -714,8 +734,8 @@
   const orList = (words) => (words.length < 2 ? words.join("") : `${words.slice(0, -1).join(", ")} or ${words[words.length - 1]}`);
 
   function sayCondition(c, forText) {
-    if (c.all) return c.all.map((x) => sayCondition(x)).join(" and ");
-    if (c.any) return `either ${c.any.map((x) => sayCondition(x)).join(" or ")}`;
+    if (c.all) return sayAll(c.all);
+    if (c.any) return `either ${c.any.map((x) => sayCondition(x)).join(c.any.some((x) => x.all) ? ", or " : " or ")}`;
     if (c.not) {
       const inner = c.not;
       if (inner.mast !== undefined && inner.is !== "diverging") return `${where(inner.mast, inner.board)} does not show ${orList([].concat(inner.is).map((t) => TAG_WORDS[t]))}`;
@@ -740,6 +760,12 @@
 
   // A moment, said as having happened: a when trigger's request stays until
   // it is granted.
+  // "a and b", with commas when a part is an either-or, so the grouping is clear.
+  function sayAll(conds, extra = []) {
+    const parts = [...conds.map((x) => sayCondition(x)), ...extra].filter(Boolean);
+    return parts.join(conds.some((x) => x.any) ? ", and " : " and ");
+  }
+
   function sayMoment(m) {
     if (m.button !== undefined) return `${m.button} has been pressed`;
     if (m.block !== undefined || m.sensor !== undefined) {
@@ -752,17 +778,18 @@
   /** The conditions of one rule, as a phrase: "a train has been in Left for half a second and ...". */
   function explainRule(rule) {
     const t = rule.trigger || {};
-    const parts = [];
-    if (t.when) {
-      const steps = [t.when, ...(t.then || [])].map(sayMoment);
-      parts.push(steps.join(", then "));
-    } else if (t.while) {
-      parts.push(sayCondition(t.while, t.for));
-      if (t.leavingGuard) parts.push("that train did not arrive while the section was in use");
+    const lead = [];
+    const conds = [];
+    if (t.when) lead.push([t.when, ...(t.then || [])].map(sayMoment).join(", then "));
+    else if (t.while) {
+      lead.push(sayCondition(t.while, t.for));
+      conds.push(t.while);
+      if (t.leavingGuard) lead.push("that train did not arrive while the section was in use");
     }
-    for (const c of rule.checks || []) parts.push(sayCondition(c));
-    if (rule.then?.reserve) parts.push(`the ${rule.then.reserve} section is free`);
-    return parts.filter(Boolean).join(" and ");
+    const checks = rule.checks || [];
+    const tail = rule.then?.reserve ? [`the ${rule.then.reserve} section is free`] : [];
+    const parts = [...lead, ...checks.map((c) => sayCondition(c)), ...tail].filter(Boolean);
+    return parts.join([...conds, ...checks].some((c) => c.any) ? ", and " : " and ");
   }
 
   /** Explain one mast that rules set: a list of sentences. */

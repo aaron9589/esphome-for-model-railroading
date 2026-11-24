@@ -110,13 +110,101 @@ test("the runner reports a wrong expectation, and the same inputs always give th
 });
 
 test("durations and today's handler", () => {
-  assert.deepEqual([L.ms("0.5s"), L.ms("500ms"), L.ms("10s"), L.ms(""), L.ms("soon")], [500, 500, 10000, 0, 0]);
+  assert.deepEqual([L.ms("0.5s"), L.ms("500ms"), L.ms("10s"), L.ms(""), L.ms(undefined)], [500, 500, 10000, 0, 0]);
+  assert.ok(Number.isNaN(L.ms("soon")) && Number.isNaN(L.ms("10 s")), "a typo is not read as no delay");
   const mast = { aspects: { R292: "stop", R281: "clear" } };
   assert.equal(L.stopAspect(mast), "R292");
   assert.equal(L.stopAspect({ aspects: { Clear: "clear", Danger: "stop" } }), "Danger");
   assert.equal(L.pickAspect(mast, "R281; Lit; Unheld"), "R281");
   assert.equal(L.pickAspect(mast, "R281; Lit; Held"), "R292");
   assert.equal(L.pickAspect(mast, "Nope; Lit; Unheld"), undefined);
+});
+
+// --- review fixes (PR 81) ---
+
+const STOPCLEAR = { aspects: { R292: "stop", R281: "clear" } };
+const rule = (trigger, then, checks = []) => ({ trigger, checks, then });
+
+test("a when moment on this board's own mast fires once, the scan after it changes", () => {
+  const board = {
+    sensors: ["S"],
+    masts: { A: STOPCLEAR, B: STOPCLEAR },
+    logic: { buttons: [], resources: [{ name: "R", blocks: ["S"], release: { while: { block: "S", is: "clear" } } }],
+      layers: [{ name: "x", rules: [
+        rule({ while: { block: "S", is: "occupied" } }, { mast: "A", aspect: "R281" }),
+        rule({ when: { mast: "A", is: "clear" } }, { mast: "B", aspect: "R281", reserve: "R" }),
+      ] }] },
+  };
+  const engine = L.createEngine(board, {});
+  engine.scan();
+  engine.event({ sensor: "S", is: "occupied" });
+  engine.scan(); // A is written Clear
+  assert.equal(engine.state().masts.A, "R281");
+  engine.scan(); // x/2 reads A as Clear for the first time: its request is made
+  assert.equal(engine.state().rules["x/2"], "waiting", "S is occupied, so R is not free");
+});
+
+test("an aspect the mast does not have counts as Stop, and never beats a hold", () => {
+  const board = { sensors: ["S"], masts: { A: STOPCLEAR },
+    logic: { layers: [{ name: "x", rules: [rule({ while: { block: "S", is: "clear" } }, { mast: "A", aspect: "Typo" })] }] } };
+  const engine = L.createEngine(board, {});
+  engine.scan();
+  assert.equal(engine.state().masts.A, "R292");
+  engine.event({ jmri: "A", message: "R292; Lit; Held" });
+  engine.scan();
+  assert.equal(engine.state().masts.A, "R292");
+});
+
+test("a block's moment is the block's own change, not one member's", () => {
+  const board = {
+    sensors: ["S1", "S2"],
+    masts: { A: STOPCLEAR },
+    logic: { blocks: [{ name: "B", sensors: ["S1", { sensor: "S2" }] }],
+      layers: [{ name: "x", rules: [rule({ when: { block: "B", is: "clear" } }, { mast: "A", aspect: "R281" })] }] },
+  };
+  const engine = L.createEngine(board, { sensors: { S1: "occupied", S2: "occupied" } });
+  engine.scan();
+  engine.event({ sensor: "S1", is: "clear" });
+  assert.deepEqual(plain(engine.scan().writes), [], "S2 still holds B");
+  engine.event({ sensor: "S2", is: "clear" });
+  assert.deepEqual(plain(engine.scan().writes), [{ mast: "A", aspect: "R281" }], "B went clear");
+  engine.scan();
+  // A pulse on a member written as { sensor } with no board: B went occupied, then clear.
+  engine.event({ sensor: "S2", is: "occupied" });
+  engine.event({ sensor: "S2", is: "clear" });
+  assert.deepEqual(plain(engine.scan().writes), [{ mast: "A", aspect: "R281" }]);
+});
+
+test("another board's block is stored and read under one name, whichever key the event uses", () => {
+  const board = { masts: { A: STOPCLEAR }, remote: { south: { sensors: ["S"], blocks: ["B1"] } },
+    logic: { layers: [{ name: "x", rules: [rule({ while: { board: "south", block: "B1", is: "clear" } }, { mast: "A", aspect: "R281" })] }] } };
+  const engine = L.createEngine(board, { remote: { south: { online: true } } });
+  engine.event({ board: "south", sensor: "B1", is: "clear" });
+  engine.scan();
+  assert.equal(engine.state().masts.A, "R281");
+});
+
+test("a release press is answered CLOSED when logic is switching off or off", () => {
+  const data = loadCase("scan-next-scan");
+  const engine = L.createEngine(data.board, {});
+  engine.scan();
+  engine.event({ logic: "off" });
+  engine.event({ release: "Bridge", via: "mqtt" });
+  assert.ok(plain(engine.scan().publishes).some((p) => p.release === "Bridge" && p.value === "CLOSED"));
+  engine.event({ release: "Bridge", via: "button" });
+  assert.deepEqual(plain(engine.scan().publishes), [{ release: "Bridge", value: "CLOSED" }]);
+});
+
+test("a board with a time the engine cannot read is refused", () => {
+  const board = plain(loadCase("rules-approach-locking-time").board);
+  board.logic.resources[0].approachLock = "10 s";
+  assert.throws(() => L.createEngine(board, {}), /Bridge: a time the engine cannot read/);
+});
+
+test("Explain keeps an either-or inside its group", () => {
+  const sentence = L.explainRule(rule({ while: { block: "Left", is: "occupied" } }, { mast: "A", aspect: "R281" },
+    [{ any: [{ block: "X", is: "clear" }, { block: "Y", is: "clear" }] }, { block: "Z", is: "clear" }]));
+  assert.equal(sentence, "a train is in Left, and either X is clear or Y is clear, and Z is clear");
 });
 
 if (!process.exitCode) console.log("\nAll logic engine tests passed.");
