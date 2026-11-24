@@ -30,7 +30,7 @@
         about: "This board behaves like an MSS module: describe its tracks and signals, and it works the signals out with no rules to write.",
       }),
     }),
-    inProgress: "Work in progress: this version of the Logic page has sharing and blocks. Rules come in a later version.",
+    inProgress: "Work in progress: you can write rules from scratch now. The starters and Try it come in a later version.",
     settingsCard: "Settings",
     shareLabel: "Share with other boards",
     shareHint: "Publishes this board's sensors, turnouts and signals so other boards can read them. On by default in Field Logic. Tick it on a board with no logic too, so its neighbours can see it.",
@@ -47,7 +47,7 @@
     stepDone: "Done",
     stepNext: "Next",
     linkedCard: "Linked boards",
-    linkedIntro: "Other boards whose sensors and turnouts this board can read over MQTT. Link a board's board.yaml, or type its name. Those boards need Share with other boards ticked.",
+    linkedIntro: "Other boards whose sensors, turnouts and signals this board can read over MQTT. Link a board's board.yaml, or type its name. Those boards need Share with other boards ticked.",
     linkFile: "Link a board's file",
     linkTyped: "Type a board's name",
     linkedEmpty: "No linked boards.",
@@ -62,6 +62,8 @@
     typedSensorsHint: "One name per line, as on that board's Sensors page. Each is read from trains/track/sensor/<name>/State.",
     typedTurnoutsLabel: "Turnouts on that board",
     typedTurnoutsHint: "One name per line, as on that board's Turnouts page.",
+    typedMastsLabel: "Signals on that board",
+    typedMastsHint: "One name per line, as on that board's Signal Masts page. Until you link that board's file, each reads as Stop here, because this board cannot tell what its aspects mean. Link its file with Link a board's file to read them.",
     notSharing: "This board does not share, so nothing of it can be heard here. Tick Share with other boards on its Logic page, flash it, then Refresh.",
     linkedOwn: "That is this board's own file. Link a different board.",
     linkedAdded: (name) => `Linked ${name}.`,
@@ -86,10 +88,11 @@
     remoteBlock: (board, name) => `Block ${name} (from ${board})`,
     memberMissing: "not found",
     noSensorsYet: "Add sensors on the Sensors page, or link a board, then pick them here.",
-    linkedCounts: (sensors, turnouts, blocks) => [
+    linkedCounts: (sensors, turnouts, blocks, masts = 0) => [
       `${sensors} sensor${sensors === 1 ? "" : "s"}`,
       `${turnouts} turnout${turnouts === 1 ? "" : "s"}`,
       ...(blocks ? [`${blocks} block${blocks === 1 ? "" : "s"}`] : []),
+      `${masts} signal${masts === 1 ? "" : "s"}`,
     ].join(", "),
   });
 
@@ -101,8 +104,10 @@
   function checklistSteps(config, parts) {
     const mode = global.EsphomeMr.logicMode(config);
     const steps = [{ key: "mode", done: mode !== "none", target: "logic-mode" }];
+    // Blocks, and a group of rules that sets the signals.
     if (parts.blocks) {
-      steps.push({ key: "blocks", done: (config.logic?.blocks || []).length > 0, target: "logic-blocks" });
+      const done = (config.logic?.blocks || []).length > 0 && (config.logic?.layers || []).length > 0;
+      steps.push({ key: "blocks", done, target: "logic-blocks" });
     }
     if (FEATURES.tryIt) steps.push({ key: "tryIt", done: false, target: "logic-try" });
     steps.push({ key: "download", done: false, view: "yaml" });
@@ -267,11 +272,14 @@
   function renameLinkedRefs(config, board, from, to) {
     if (from === to) return;
     if ((config.logic?.remoteBoards || []).some((other) => other !== board && other.name === from)) return;
-    for (const block of config.logic?.blocks || []) {
-      for (const member of block.sensors || []) {
-        if (member && typeof member === "object" && member.board === from) member.board = to;
-      }
-    }
+    // Block members, and every { board, ... } in groups and sections.
+    const visit = (value) => {
+      if (Array.isArray(value)) return value.forEach(visit);
+      if (!isObject(value)) return;
+      if (value.board === from) value.board = to;
+      Object.values(value).forEach(visit);
+    };
+    visit([config.logic?.blocks, config.logic?.layers, config.logic?.resources]);
   }
 
   function namesFrom(text) {
@@ -316,7 +324,8 @@
     fields.className = "fields";
     const counts = document.createElement("p");
     counts.className = "card-copy full";
-    counts.textContent = TEXT.linkedCounts((board.blocks || []).length, (board.points || []).length, (board.logic?.blocks || []).length);
+    const mastCount = (Array.isArray(board.signals?.masts) ? board.signals.masts.length : 0) + (Array.isArray(board.logic?.masts) ? board.logic.masts.length : 0);
+    counts.textContent = TEXT.linkedCounts((board.blocks || []).length, (board.points || []).length, (board.logic?.blocks || []).length, mastCount);
     fields.append(counts);
     if (!board.share) {
       const warn = document.createElement("p");
@@ -339,9 +348,12 @@
         ctx.render();
       });
       fields.append(nameField);
-      for (const [key, kind, label, hint] of [
-        ["blocks", "sensor", TEXT.typedSensorsLabel, TEXT.typedSensorsHint],
-        ["points", "turnout", TEXT.typedTurnoutsLabel, TEXT.typedTurnoutsHint],
+      // A typed mast goes with the board's Signal Masts page masts.
+      const signals = (b) => (b.signals && typeof b.signals === "object" ? b.signals : (b.signals = {}));
+      for (const [get, set, kind, label, hint] of [
+        [(b) => b.blocks, (b, items) => { b.blocks = items; }, "sensor", TEXT.typedSensorsLabel, TEXT.typedSensorsHint],
+        [(b) => b.points, (b, items) => { b.points = items; }, "turnout", TEXT.typedTurnoutsLabel, TEXT.typedTurnoutsHint],
+        [(b) => b.signals?.masts, (b, items) => { signals(b).masts = items; }, "mast", TEXT.typedMastsLabel, TEXT.typedMastsHint],
       ]) {
         const wrap = document.createElement("label");
         wrap.className = "full";
@@ -351,9 +363,9 @@
         const area = document.createElement("textarea");
         area.rows = 3;
         area.spellcheck = false;
-        area.value = (board[key] || []).map((entry) => entry.name).join("\n");
+        area.value = (Array.isArray(get(board)) ? get(board) : []).map((entry) => entry.name).join("\n");
         area.addEventListener("change", () => {
-          board[key] = namesFrom(area.value).map((name) => L.typedItem(kind, name));
+          set(board, namesFrom(area.value).map((name) => L.typedItem(kind, name)));
           ctx.persist();
           ctx.render();
         });
@@ -590,22 +602,178 @@
     root.append(section);
   }
 
+  // ===== Parts ==============================================================
+  // Each part of the page is registered with an id (its card's element id,
+  // which validation links point at), its place on the page, the modes it
+  // shows in, and its own TEXT (linted like this file's). Parts in their own
+  // files (logic-ui-*.js, loaded after this one) register themselves:
+  //
+  //   EsphomeMrLogicUi.registerPart({ id: "logic-masts", order: 50, modes: ["field"],
+  //     text: TEXT_MASTS, render(root, config, ctx, ui) { ... } });
+  //
+  // Places, in the spec's order: checklist 0, mode 10, settings 20, linked
+  // boards 30, plant ends 35 (Release 3), blocks 40, masts 50, buttons 60,
+  // sections 70, groups 80, starters 85, layers view 90, control table 95.
+  const parts = [];
+
+  function registerPart(part) {
+    if (!part || typeof part.render !== "function" || typeof part.id !== "string") throw new Error("A part needs an id and a render function.");
+    if (parts.some((other) => other.id === part.id)) throw new Error(`Part ${part.id} is registered twice.`);
+    parts.push({ modes: ["field"], order: 100, text: {}, ...part });
+    parts.sort((a, b) => a.order - b.order);
+  }
+
+  // Every word a part can show, for the plain-words lint: [where, TEXT object].
+  function allText() {
+    return [["TEXT", TEXT], ...parts.map((part) => [part.id, part.text])];
+  }
+
+  // ===== Shared helpers for parts ===========================================
+
+  const isObject = (value) => value && typeof value === "object" && !Array.isArray(value);
+  const list = (value) => (Array.isArray(value) ? value : []);
+
+  // config.logic, made when first needed.
+  function logicOf(config) {
+    return config.logic || (config.logic = {});
+  }
+
+  // A blank rule and a blank group, as the stored format keeps them.
+  function newRule() {
+    return { trigger: { while: { block: "", is: "occupied" } }, checks: [], then: {} };
+  }
+
+  function newGroup(name) {
+    return { name, rules: [newRule()] };
+  }
+
+  /**
+   * What a dropdown can offer for one kind of item, grouped by board:
+   * [{ label, options: [{ value, text }] }]. A value on this board is its name;
+   * on a linked board it is { board, <kind>: name }.
+   *
+   * kind: "block" (Logic page blocks and sensors: a sensor is a block of one),
+   * "sensor", "turnout", "mast" (Signal Masts page and signals with no lights),
+   * "button", "section". `remote: true` adds linked boards' sensors, blocks,
+   * turnouts and masts.
+   */
+  function itemChoices(config, kind, { remote = false } = {}) {
+    const L = global.EsphomeMrLogicYaml;
+    const names = (items, key = "name") => list(items).filter(isObject).map((item) => String(item[key] ?? "")).filter(Boolean);
+    const logic = config.logic || {};
+    const own = {
+      block: [...names(logic.blocks), ...names(config.blocks)],
+      sensor: names(config.blocks),
+      turnout: names(config.points),
+      mast: [...names(config.signals?.masts), ...names(list(logic.masts).filter((m) => isObject(m) && m.virtual === true))],
+      button: names(logic.buttons),
+      section: names(logic.resources),
+    }[kind] || [];
+    const groups = [];
+    const unique = [...new Set(own)];
+    if (unique.length) groups.push({ label: TEXT.thisBoard, options: unique.map((name) => ({ value: name, text: name })) });
+    if (!remote) return groups;
+    for (const board of L.linkedBoards(config)) {
+      if (!board.name) continue;
+      const options = [];
+      const add = (key, items, text = (name) => name) => {
+        for (const name of names(items)) options.push({ value: { board: board.name, [key]: name }, text: text(name) });
+      };
+      if (kind === "block" || kind === "sensor") add("sensor", board.blocks);
+      if (kind === "block") add("block", board.logic?.blocks, (name) => TEXT.remoteBlock(board.name, name));
+      if (kind === "turnout") add("turnout", board.points);
+      if (kind === "mast") add("mast", [...list(board.signals?.masts), ...list(board.logic?.masts)]);
+      if (options.length) groups.push({ label: board.name, options });
+    }
+    return groups;
+  }
+
+  /**
+   * A <select> over itemChoices' groups. `current` is a stored value (a name,
+   * or { board, <kind>: name }); one no longer offered is kept, marked not
+   * found. onChange gets the chosen stored value.
+   */
+  function selectEl(groups, current, onChange, { prompt = "", label = "" } = {}) {
+    const select = document.createElement("select");
+    if (label) select.setAttribute("aria-label", label);
+    const key = (value) => JSON.stringify(value ?? "");
+    const have = new Set(groups.flatMap((group) => group.options.map((option) => key(option.value))));
+    const blank = document.createElement("option");
+    blank.value = key("");
+    blank.textContent = prompt;
+    select.append(blank);
+    if (current !== undefined && current !== "" && !have.has(key(current))) {
+      const missing = document.createElement("option");
+      missing.value = key(current);
+      const name = isObject(current) ? Object.entries(current).find(([k]) => k !== "board")?.[1] : current;
+      missing.textContent = `${name} (${TEXT.memberMissing})`;
+      select.append(missing);
+    }
+    for (const group of groups) {
+      const optgroup = document.createElement("optgroup");
+      optgroup.label = group.label;
+      for (const option of group.options) {
+        const o = document.createElement("option");
+        o.value = key(option.value);
+        o.textContent = option.text;
+        optgroup.append(o);
+      }
+      select.append(optgroup);
+    }
+    select.value = key(current ?? "");
+    select.addEventListener("change", () => onChange(JSON.parse(select.value)));
+    return select;
+  }
+
+  // A row card with a title and a Remove button, as Blocks draws them.
+  function rowCard(title, onRemove, className = "") {
+    const item = document.createElement("div");
+    item.className = `row-card ${className}`.trim();
+    const header = document.createElement("header");
+    const h3 = document.createElement("h3");
+    h3.textContent = title;
+    const actions = document.createElement("div");
+    actions.className = "row-actions";
+    if (onRemove) {
+      const remove = document.createElement("button");
+      remove.type = "button";
+      remove.className = "remove";
+      remove.textContent = TEXT.remove;
+      remove.addEventListener("click", onRemove);
+      actions.append(remove);
+    }
+    header.append(h3, actions);
+    item.append(header);
+    return { item, title: h3, actions };
+  }
+
+  function paragraph(text, className = "card-copy") {
+    const p = document.createElement("p");
+    p.className = className;
+    p.textContent = text;
+    return p;
+  }
+
+  // What parts get as `ui`.
+  const UI = Object.freeze({ TEXT, card, rerender, logicOf, newRule, newGroup, itemChoices, selectEl, rowCard, paragraph });
+
+  registerPart({ id: "logic-steps", order: 0, modes: ["none", "field", "mss"], render: (root, config, ctx) => renderChecklist(root, config, ctx, { blocks: global.EsphomeMr.logicMode(config) === "field" }) });
+  registerPart({ id: "logic-mode", order: 10, modes: ["none", "field", "mss"], render: renderMode });
+  registerPart({ id: "logic-settings", order: 20, modes: ["none", "field", "mss"], render: renderSettings });
+  registerPart({ id: "logic-linked", order: 30, render: renderLinkedBoards });
+  registerPart({ id: "logic-blocks", order: 40, render: renderBlocks });
+
   /**
    * Draw the Logic page into `root`. `ctx` carries the configurator's state and
-   * helpers: { config, field, hintEl, persist, render, showView, flash }.
+   * helpers: { config, field, hintEl, persist, render, showView, flash,
+   * pinChoices, blockPinChoices, mastPicture(mastName, aspectLabel) }.
    */
   function renderLogicPage(root, ctx) {
     const config = ctx.config;
-    // Parts of the checklist, each shown only when its part is on the page.
-    const field = global.EsphomeMr.logicMode(config) === "field";
-    const parts = { blocks: field };
+    const mode = global.EsphomeMr.logicMode(config);
     root.replaceChildren();
-    renderChecklist(root, config, ctx, parts);
-    renderMode(root, config, ctx);
-    renderSettings(root, config, ctx);
-    if (field) {
-      renderLinkedBoards(root, config, ctx);
-      renderBlocks(root, config, ctx);
+    for (const part of parts) {
+      if (part.modes.includes(mode)) part.render(root, config, ctx, UI);
     }
   }
 
@@ -614,5 +782,8 @@
     return TEXT.modes[global.EsphomeMr.logicMode(config)].label;
   }
 
-  global.EsphomeMrLogicUi = { FEATURES, TEXT, modeChoices, checklistSteps, renderLogicPage, logicNavHint };
+  global.EsphomeMrLogicUi = {
+    FEATURES, TEXT, modeChoices, checklistSteps, renderLogicPage, logicNavHint,
+    registerPart, allText, UI, itemChoices, newRule, newGroup,
+  };
 })(typeof globalThis !== "undefined" ? globalThis : window);

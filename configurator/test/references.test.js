@@ -148,4 +148,30 @@ test("deleting a block's only sensor leaves it with a missing sensor, not an emp
   assert.deepEqual(plain(L.blockLambda(config, config.logic.blocks[0])), ["return true;"]);
 });
 
+test("renaming an aspect moves its meaning, diverging tick, stop choice and the rules that show it", () => {
+  const config = {
+    signals: { masts: [{ name: "Home" }, { name: "Other" }] },
+    logic: {
+      mode: "field",
+      masts: [
+        { mast: "Home", tags: { R292: "stop", R281: "clear" }, diverging: ["R281"], stopAspect: "R292" },
+        { mast: "Other", tags: { R292: "stop" }, stopAspect: "R292" },
+      ],
+      layers: [{ name: "G", rules: [
+        { then: { mast: "Home", aspect: "R292" } },
+        { then: { mast: "Other", aspect: "R292" } },
+        { then: { mast: "Home", aspect: "R281" } },
+      ] }],
+    },
+  };
+  assert.equal(L.renameAspect(config, "Home", "R292", "Stop"), 3);
+  assert.deepEqual(plain(config.logic.masts[0]), { mast: "Home", tags: { Stop: "stop", R281: "clear" }, diverging: ["R281"], stopAspect: "Stop" });
+  // Another mast's aspect of the same name stays.
+  assert.deepEqual(plain(config.logic.masts[1]), { mast: "Other", tags: { R292: "stop" }, stopAspect: "R292" });
+  assert.deepEqual(plain(config.logic.layers[0].rules.map((r) => r.then.aspect)), ["Stop", "R292", "R281"]);
+  assert.equal(L.renameAspect(config, "Home", "R281", "Clear"), 3);
+  assert.deepEqual(plain(config.logic.masts[0].diverging), ["Clear"]);
+  assert.equal(L.renameAspect(config, "Home", "Clear", " "), 0);
+});
+
 if (!process.exitCode) console.log("\nAll reference tests passed.");

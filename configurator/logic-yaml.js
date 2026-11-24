@@ -294,9 +294,12 @@
     return { name: String(name || "").trim(), typed: true, share: true, blocks: [], points: [], signals: { masts: [] }, logic: { blocks: [] } };
   }
 
-  // A typed item's topic follows the standard syntax.
+  // A typed item's topic follows the standard syntax. A typed mast has no
+  // aspects: this board cannot know what they mean until that board's file
+  // is linked, so until then it reads as stop (spec, Remote inputs).
   function typedItem(kind, name) {
     const text = String(name || "").trim();
+    if (kind === "mast") return { name: text, topic: M().topicFor("signal", text), aspects: [], tags: {}, diverging: [] };
     return { name: text, topic: M().topicFor(kind === "turnout" ? "point" : "block", text) };
   }
 
@@ -316,6 +319,23 @@
     const nowBlocks = new Set((after?.logic?.blocks || []).map((item) => item.name));
     for (const name of nowBlocks) if (!wasBlocks.has(name)) changes.push(`new block "${name}"`);
     for (const name of wasBlocks) if (!nowBlocks.has(name)) changes.push(`block "${name}" is gone`);
+    // Masts: rules read them by meaning, so new aspects or meanings matter too.
+    const meaningOf = (mast) => JSON.stringify([
+      list(mast.aspects).map(String),
+      list(mast.aspects).map((name) => (isObject(mast.tags) && Object.hasOwn(mast.tags, name) ? mast.tags[name] : "stop")),
+      list(mast.diverging).map(String),
+    ]);
+    for (const [get, label] of [[(b) => b?.signals?.masts, "signal mast"], [(b) => b?.logic?.masts, "signal with no lights"]]) {
+      const was = new Map(list(get(before)).filter(isObject).map((mast) => [mast.name, mast]));
+      const now = new Map(list(get(after)).filter(isObject).map((mast) => [mast.name, mast]));
+      for (const [name, mast] of now) {
+        const old = was.get(name);
+        if (!old) changes.push(`new ${label} "${name}"`);
+        else if (old.topic !== mast.topic) changes.push(`${label} "${name}" has a new topic`);
+        else if (meaningOf(old) !== meaningOf(mast)) changes.push(`${label} "${name}" has different aspects or meanings`);
+      }
+      for (const name of was.keys()) if (!now.has(name)) changes.push(`${label} "${name}" is gone`);
+    }
     if (before && after && before.share !== after.share) changes.push(after.share ? "it now shares" : "it no longer shares");
     return changes;
   }
@@ -585,6 +605,39 @@
   // must be added here. (A mast's approachLight names a block, not a sensor.)
   const REFERENCE_KINDS = Object.freeze(["sensor", "turnout", "mast"]);
 
+  // An aspect renamed on the Signal Masts page: its meaning, diverging tick
+  // and stop choice under Masts move with it, and so do the rules that show
+  // it. Returns how many were moved. The caller leaves it when another aspect
+  // on that mast has the old or new name.
+  function renameAspect(config, mastName, from, to) {
+    if (from === to || !String(to || "").trim()) return 0;
+    let moved = 0;
+    for (const entry of list(config.logic?.masts)) {
+      if (!isObject(entry) || entry.virtual === true || entry.mast !== mastName) continue;
+      if (isObject(entry.tags) && Object.hasOwn(entry.tags, from)) {
+        entry.tags = Object.fromEntries(Object.entries(entry.tags).map(([k, v]) => [k === from ? to : k, v]));
+        moved += 1;
+      }
+      if (Array.isArray(entry.diverging) && entry.diverging.includes(from)) {
+        entry.diverging = entry.diverging.map((name) => (name === from ? to : name));
+        moved += 1;
+      }
+      if (entry.stopAspect === from) {
+        entry.stopAspect = to;
+        moved += 1;
+      }
+    }
+    for (const layer of layersOf(config)) {
+      for (const rule of list(layer.rules)) {
+        if (rule?.then?.mast === mastName && rule.then.aspect === from) {
+          rule.then.aspect = to;
+          moved += 1;
+        }
+      }
+    }
+    return moved;
+  }
+
   function renameReferences(config, kind, from, to) {
     if (!REFERENCE_KINDS.includes(kind) || !config?.logic || typeof from !== "string" || !from || from === to) return 0;
     // An empty name is never a reference: renaming to it would lose them all.
@@ -634,8 +687,8 @@
       names.add(board.name);
       if (!board.typed) continue;
       // Typed names become MQTT topics: + and # are wildcards there, and / adds a level.
-      for (const [key, label] of [["blocks", "Sensor"], ["points", "Turnout"]]) {
-        for (const item of board[key] || []) {
+      for (const [key, label] of [["blocks", "Sensor"], ["points", "Turnout"], ["masts", "Signal"]]) {
+        for (const item of (key === "masts" ? board.signals?.masts : board[key]) || []) {
           const name = String(item?.name || "");
           if (/[+#]/.test(name)) r.error(LINKED, `${label} "${name}" on linked board "${board.name}" has + or #, which MQTT topics cannot use. Type the name as that board shows it.`);
           else if (name.includes("/")) r.warn(LINKED, `${label} "${name}" on linked board "${board.name}" has a /. Check it matches that board's name exactly.`);
@@ -787,6 +840,10 @@
     }
   }
 
+  // A rule button on an expander: { name, expander, pin } with pin 0-15, as a
+  // sensor on one stores it. Its pin is checked with the sensors' expander pins.
+  const onExpander = (button) => typeof button.expander === "string" && button.expander !== "";
+
   function validateButtons(config, r) {
     if (!fieldMode(config)) return;
     const names = new Set();
@@ -796,16 +853,19 @@
       if (!name) r.error(BUTTONS, "A button has no name. Name it, or remove it.");
       else if (names.has(name)) r.error(BUTTONS, `Two buttons are called "${name}". Rename one.`);
       names.add(name);
-      if (!String(button.pin || "").trim()) r.error(BUTTONS, `Button "${name || "?"}" has no pin. Pick the pin it is wired to.`);
+      if (!onExpander(button) && !String(button.pin || "").trim()) r.error(BUTTONS, `Button "${name || "?"}" has no pin. Pick the pin it is wired to.`);
     }
   }
 
-  // Rule buttons' pins, for the pin check beside every other pin.
+  // Rule buttons' pins, for the pin check beside every other pin: an ESP pin
+  // as { name, pin: "GPIO.." }, an expander pin as { name, expander, pin }.
   function buttonPins(config) {
     if (!fieldMode(config)) return [];
     return list(config.logic?.buttons)
-      .filter((b) => isObject(b) && String(b.pin || "").trim())
-      .map((b) => ({ name: String(b.name || ""), pin: String(b.pin).trim().toUpperCase(), where: BUTTONS }));
+      .filter((b) => isObject(b) && (onExpander(b) || String(b.pin || "").trim()))
+      .map((b) => (onExpander(b)
+        ? { name: String(b.name || ""), expander: b.expander, pin: b.pin, where: BUTTONS }
+        : { name: String(b.name || ""), pin: String(b.pin).trim().toUpperCase(), where: BUTTONS }));
   }
 
   // A block's key across boards: (board, name). A sensor and a block on one
@@ -1850,6 +1910,8 @@
     blockMember,
     memberKey,
     renameReferences,
+    renameAspect,
+    mastNamesUsed,
     blockLambda,
     emitBlocks,
     remoteOccupiedExpr,

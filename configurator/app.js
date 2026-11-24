@@ -603,6 +603,9 @@ function usedExpanderPins(except) {
   for (const block of state.blocks) {
     if (block !== except && block.expander) used.add(`${block.expander}\u0000${block.pin}`);
   }
+  for (const button of window.EsphomeMrLogicYaml?.buttonPins(state) || []) {
+    if (button.expander) used.add(`${button.expander}\u0000${button.pin}`);
+  }
   return used;
 }
 
@@ -696,6 +699,10 @@ function usedPins() {
     } else if (mast.pin) {
       used.add(String(mast.pin).toUpperCase());
     }
+  }
+  // The Logic page's rule buttons.
+  for (const button of window.EsphomeMrLogicYaml?.buttonPins(state) || []) {
+    if (!button.expander) used.add(button.pin);
   }
   return used;
 }
@@ -1031,13 +1038,17 @@ function renderExpanders() {
 
     const fields = document.createElement("div");
     fields.className = "fields";
-    // Sensors follow a renamed expander. They are picked when the edit starts,
-    // so passing through another expander's name does not take its sensors.
+    // Sensors and the Logic page's buttons follow a renamed expander. They are
+    // picked when the edit starts, so passing through another expander's name
+    // does not take its sensors.
     let following = null;
     const nameField = field("Name", expander.name, (v) => {
-      if (!following) following = state.blocks.filter((block) => block.expander === expander.name);
+      if (!following) {
+        following = [...state.blocks, ...(state.logic?.buttons || [])]
+          .filter((item) => item && typeof item === "object" && item.expander === expander.name);
+      }
       expander.name = v;
-      for (const block of following) block.expander = v;
+      for (const item of following) item.expander = v;
       title.textContent = v || `Expander ${index + 1}`;
       persist();
       updatePreview();
@@ -1660,6 +1671,31 @@ function friendlyState(state) {
   return String(state || "").trim().replace(/; Lit; Unheld$/, "");
 }
 
+// A small picture of a Signal Masts page mast showing one aspect, lamps top
+// of the mast first, for the Logic page. Not clickable. Null when the mast or
+// aspect is not on the Signal Masts page (a signal with no lights has none).
+function mastPicture(mastName, aspectLabel) {
+  const mast = state.signals.masts.find((m) => m.name === mastName);
+  const aspect = mast?.aspects.find((a) => String(a.label ?? "") === aspectLabel);
+  if (!mast || !aspect) return null;
+  const gpio = mast.mode === "gpio";
+  const picture = document.createElement("span");
+  picture.className = "mini-mast is-static";
+  picture.setAttribute("role", "img");
+  picture.setAttribute("aria-label", `${mastName}: ${aspectLabel}`);
+  for (let index = mast.lamps.length - 1; index >= 0; index -= 1) {
+    const cell = aspect.lamps[index] || { color: "off", mode: "steady" };
+    const lamp = document.createElement("span");
+    lamp.className = "mini-lamp";
+    lamp.style.background = cell.color === "off" ? "" : swatchHex(gpio ? "white" : cell.color);
+    if (cell.color === "off") lamp.classList.add("is-off");
+    else if (cell.mode !== "steady") lamp.classList.add(`is-${cell.mode}`);
+    if (!gpio && lampCount(mast.lamps[index]) > 1) lamp.style.width = `${0.75 + 0.42 * lampCount(mast.lamps[index])}rem`;
+    picture.append(lamp);
+  }
+  return picture;
+}
+
 function renderAspectCard(mast, aspect, aspectIndex, gpio) {
   const card = document.createElement("div");
   card.className = "aspect-card";
@@ -1695,10 +1731,25 @@ function renderAspectCard(mast, aspect, aspectIndex, gpio) {
   name.value = aspect.label;
   name.placeholder = "Stop";
   name.setAttribute("aria-label", "Aspect name");
+  // The Logic page's meaning, stop choice and rules follow a renamed aspect
+  // once the name is finished, unless another aspect has the old or new name.
+  let labelBefore = null;
   name.addEventListener("input", () => {
+    if (labelBefore === null) labelBefore = String(aspect.label ?? "");
     aspect.label = name.value;
     persist();
     updatePreview();
+  });
+  name.addEventListener("change", () => {
+    const before = labelBefore;
+    labelBefore = null;
+    const after = String(aspect.label ?? "");
+    const taken = (label) => mast.aspects.some((other) => other !== aspect && String(other.label ?? "") === label);
+    if (before === null || before === after || !after.trim() || taken(before) || taken(after)) return;
+    if (window.EsphomeMrLogicYaml?.renameAspect(state, mast.name, before, after)) {
+      persist();
+      render();
+    }
   });
   const startup = document.createElement("label");
   startup.className = "check";
@@ -2031,6 +2082,38 @@ function renderMessages() {
   for (const err of errors) el.messages.append(messageEl("err", err, links?.get(err)));
   for (const warn of warnings) el.messages.append(messageEl("warn", warn, links?.get(warn)));
   document.getElementById("btn-download").disabled = errors.length > 0;
+  renderLogicDownload({ warnings, errors, links });
+}
+
+// The Download page's Logic version, with the warnings about the logic beside
+// it. Field Logic only. Errors stay in the box at the top of every page.
+function renderLogicDownload(validation) {
+  const box = document.getElementById("logic-download");
+  const info = globalThis.EsphomeMrLogicUiStart?.downloadLogic(state, validation);
+  box.hidden = !info;
+  box.replaceChildren();
+  if (!info) return;
+  const title = document.createElement("h3");
+  title.textContent = info.title;
+  const version = document.createElement("p");
+  version.className = "logic-version";
+  const code = document.createElement("code");
+  code.textContent = info.version;
+  version.append(code);
+  box.append(title, version, hintEl(info.hint));
+  if (info.errorsNote) box.append(messageEl("err", info.errorsNote));
+  const heading = document.createElement("h4");
+  heading.textContent = info.warningsTitle;
+  box.append(heading);
+  if (!info.warnings.length) {
+    const none = document.createElement("p");
+    none.className = "card-copy";
+    none.textContent = info.noWarnings;
+    box.append(none);
+    return;
+  }
+  for (const warning of info.warnings) box.append(messageEl("warn", warning.text, warning.link));
+  box.append(hintEl(info.warningsHint));
 }
 
 // One problem. With a link ({ view, part }), a Show link opens that page and
@@ -2147,7 +2230,7 @@ function renderJmriSummary() {
 }
 
 function renderLogic() {
-  renderLogicPage(el.logicPage, { config: state, field, hintEl, persist, render, showView, flash });
+  renderLogicPage(el.logicPage, { config: state, field, hintEl, persist, render, showView, flash, pinChoices, blockPinChoices, mastPicture });
 }
 
 function render() {
