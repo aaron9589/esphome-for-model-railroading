@@ -211,11 +211,7 @@ document.getElementById("btn-add-mast").addEventListener("click", () => {
 });
 
 document.getElementById("btn-download").addEventListener("click", () => {
-  const { errors } = validateConfig(state);
-  if (errors.length) {
-    flash("err", errors.join(" "));
-    return;
-  }
+  if (stoppedByErrors()) return;
   const yaml = generateYaml(state);
   const blob = new Blob([yaml], { type: "text/yaml;charset=utf-8" });
   const url = URL.createObjectURL(blob);
@@ -232,11 +228,7 @@ document.getElementById("btn-download").addEventListener("click", () => {
 const ESPHOME_URL = "http://localhost:6052/";
 
 document.getElementById("btn-send-esphome").addEventListener("click", async () => {
-  const { errors } = validateConfig(state);
-  if (errors.length) {
-    flash("err", errors.join(" "));
-    return;
-  }
+  if (stoppedByErrors()) return;
   let copied = true;
   try {
     // Copy before opening the tab: the clipboard needs this page in focus.
@@ -2034,20 +2026,44 @@ function renderSignals() {
 function renderMessages() {
   const structural = el.messages.querySelectorAll(".msg:not(.toast)");
   structural.forEach((n) => n.remove());
-  const { warnings, errors } = validateConfig(state);
-  for (const err of errors) {
-    const div = document.createElement("div");
-    div.className = "msg err";
-    div.textContent = err;
-    el.messages.append(div);
-  }
-  for (const warn of warnings) {
-    const div = document.createElement("div");
-    div.className = "msg warn";
-    div.textContent = warn;
-    el.messages.append(div);
-  }
+  // This box sits above every page, the Download page included.
+  const { warnings, errors, links } = validateConfig(state);
+  for (const err of errors) el.messages.append(messageEl("err", err, links?.get(err)));
+  for (const warn of warnings) el.messages.append(messageEl("warn", warn, links?.get(warn)));
   document.getElementById("btn-download").disabled = errors.length > 0;
+}
+
+// One problem. With a link ({ view, part }), a Show link opens that page and
+// scrolls to the part, if the page has it.
+function messageEl(kind, text, link) {
+  const div = document.createElement("div");
+  div.className = `msg ${kind}`;
+  div.textContent = text;
+  if (link?.view) {
+    const show = document.createElement("a");
+    show.className = "msg-link";
+    show.href = `#${link.part || link.view}`;
+    show.textContent = "Show";
+    show.addEventListener("click", (event) => {
+      event.preventDefault();
+      showView(link.view);
+      if (link.part) document.getElementById(link.part)?.scrollIntoView({ block: "start" });
+    });
+    div.append(" ", show);
+  }
+  return div;
+}
+
+// Download and Send to ESPHome stop on errors. The list at the top of the page
+// says what each one is and links to it.
+function stoppedByErrors() {
+  const { errors } = validateConfig(state);
+  if (!errors.length) return false;
+  flash("err", errors.length === 1
+    ? errors[0]
+    : `Fix ${errors.length} problems first. They are listed at the top of the page.`);
+  el.messages.scrollIntoView({ block: "start" });
+  return true;
 }
 
 function updatePreview() {

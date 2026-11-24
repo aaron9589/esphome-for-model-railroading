@@ -275,6 +275,11 @@
       },
       logic: {
         blocks: pick(other.logic?.blocks),
+        // Its sections' blocks, so a block is in sections on one board only.
+        resources: field ? list(other.logic?.resources).filter(isObject).map((res) => ({
+          name: String(res.name || ""),
+          blocks: list(res.blocks).filter((b) => typeof b === "string" || isObject(b)),
+        })) : [],
         // Signals with no lights: their /State is the aspect's own name.
         masts: field ? entries.filter((entry) => entry.virtual === true && entry.name).map((entry) => ({
           name: entry.name,
@@ -615,16 +620,16 @@
 
   // Linked boards show only in Field Logic, so they are checked only there: a
   // problem the person cannot see must not block the download.
-  function validateLinkedBoards(config, errors, warnings) {
+  function validateLinkedBoards(config, r) {
     if (M().logicMode(config) !== "field") return;
     const boards = linkedBoards(config);
     const names = new Set();
     for (const board of boards) {
-      if (!board.name) errors.push("A linked board has no name. Type its name, or remove it.");
-      else if (board.name === config.board?.name) errors.push(`Linked board "${board.name}" has this board's own name. Link a different board.`);
-      else if (names.has(board.name)) errors.push(`Board "${board.name}" is linked twice. Remove one.`);
+      if (!board.name) r.error(LINKED, "A linked board has no name. Type its name, or remove it.");
+      else if (board.name === config.board?.name) r.error(LINKED, `Linked board "${board.name}" has this board's own name. Link a different board.`);
+      else if (names.has(board.name)) r.error(LINKED, `Board "${board.name}" is linked twice. Remove one.`);
       else if (board.typed && !/^[a-z0-9-]+$/.test(board.name)) {
-        errors.push(`Linked board "${board.name}" is not a board name. Type it as that board shows it: lowercase letters, numbers, and dashes.`);
+        r.error(LINKED, `Linked board "${board.name}" is not a board name. Type it as that board shows it: lowercase letters, numbers, and dashes.`);
       }
       names.add(board.name);
       if (!board.typed) continue;
@@ -632,27 +637,418 @@
       for (const [key, label] of [["blocks", "Sensor"], ["points", "Turnout"]]) {
         for (const item of board[key] || []) {
           const name = String(item?.name || "");
-          if (/[+#]/.test(name)) errors.push(`${label} "${name}" on linked board "${board.name}" has + or #, which MQTT topics cannot use. Type the name as that board shows it.`);
-          else if (name.includes("/")) warnings.push(`${label} "${name}" on linked board "${board.name}" has a /. Check it matches that board's name exactly.`);
+          if (/[+#]/.test(name)) r.error(LINKED, `${label} "${name}" on linked board "${board.name}" has + or #, which MQTT topics cannot use. Type the name as that board shows it.`);
+          else if (name.includes("/")) r.warn(LINKED, `${label} "${name}" on linked board "${board.name}" has a /. Check it matches that board's name exactly.`);
         }
       }
     }
     const refs = remoteRefsUsed(config);
     if (refs.length && config.board?.mqttEnabled === false) {
-      errors.push("Items from other boards need MQTT. Turn MQTT back on under Board, or use only this board's sensors.");
+      r.error(LINKED, "Items from other boards need MQTT. Turn MQTT back on under Board, or use only this board's sensors.");
     }
     const notSharing = new Set();
     for (const ref of refs) {
       const found = resolveRemote(config, ref);
       const kind = remoteKind(ref);
       if (!found.item) {
-        errors.push(`The ${kind || "item"} "${ref[kind] ?? "?"}" from another board ${found.problem}.`);
+        r.error(LINKED, `The ${kind || "item"} "${ref[kind] ?? "?"}" from another board ${found.problem}.`);
       } else if (!found.board.share) {
         notSharing.add(found.board.name);
       }
     }
     for (const name of notSharing) {
-      errors.push(`Board "${name}" does not share with other boards, so this board cannot hear it. Tick Share on that board's Logic page, flash it, then Refresh it here.`);
+      r.error(LINKED, `Board "${name}" does not share with other boards, so this board cannot hear it. Tick Share on that board's Logic page, flash it, then Refresh it here.`);
+    }
+  }
+
+  // --- validation: where each problem is fixed, and a reporter that keeps
+  // the link beside the sentence (generator.js validateConfig's `links`).
+  const logicPart = (part) => Object.freeze({ view: "logic", part });
+  const SETTINGS = logicPart("logic-settings");
+  const LINKED = logicPart("logic-linked");
+  const BLOCKS = logicPart("logic-blocks");
+  const MASTS = logicPart("logic-masts");
+  const BUTTONS = logicPart("logic-buttons");
+  const SECTIONS = logicPart("logic-sections");
+  const GROUPS = logicPart("logic-groups");
+  const SIGNALS = Object.freeze({ view: "signals" });
+
+  function reporter(errors, warnings, links) {
+    const put = (into, where, text) => {
+      if (!into.includes(text)) into.push(text);
+      if (where && links && !links.has(text)) links.set(text, where);
+    };
+    return { error: (where, text) => put(errors, where, text), warn: (where, text) => put(warnings, where, text) };
+  }
+
+  // The plain word for each meaning (spec, Plain words on the page).
+  const MEANING_WORDS = Object.freeze({ stop: "Stop", restricting: "Restricting", approach: "Approach", advance: "Advance Approach", clear: "Clear" });
+
+  const quoted = (names) => names.map((name) => `"${name}"`).join(", ");
+
+  // "rule 2 in group "Gauntlet"": how the page names a rule.
+  function ruleLabel(layer, layerIndex, ruleIndex) {
+    const group = String(layer?.name || "").trim();
+    return `rule ${ruleIndex + 1} in group ${group ? `"${group}"` : layerIndex + 1}`;
+  }
+
+  // Every rule, with its label, in list order.
+  function rulesOf(config) {
+    const out = [];
+    layersOf(config).forEach((layer, li) => {
+      list(layer.rules).forEach((rule, ri) => {
+        if (isObject(rule)) out.push({ layer, li, ri, rule, label: ruleLabel(layer, li, ri) });
+      });
+    });
+    return out;
+  }
+
+  const capital = (text) => text.charAt(0).toUpperCase() + text.slice(1);
+
+  // This board's masts by name: { aspects, tags } for each, from the Signal
+  // Masts page and the signals with no lights.
+  function boardMasts(config) {
+    const masts = new Map();
+    for (const mast of config.signals?.masts || []) {
+      if (masts.has(mast.name)) continue;
+      const entry = mastEntry(config, mast.name);
+      const aspects = (mast.aspects || []).map((aspect) => String(aspect.label ?? ""));
+      masts.set(mast.name, { aspects, tag: (name) => aspectTag(entry, name) });
+    }
+    for (const entry of virtualMasts(config)) {
+      const name = String(entry.name);
+      if (masts.has(name)) continue;
+      masts.set(name, { aspects: list(entry.aspects).map(String), tag: (aspect) => aspectTag(entry, aspect), virtual: true });
+    }
+    return masts;
+  }
+
+  // What a block's name can be: a block on the Logic page, or a sensor (a
+  // block of one).
+  function blockNames(config) {
+    return new Set([...logicBlocks(config).map((b) => String(b.name || "")), ...(config.blocks || []).map((b) => String(b.name || ""))]);
+  }
+
+  const CONDITION_KINDS = ["block", "sensor", "turnout", "mast", "button", "end"];
+  const IS_WORDS = Object.freeze({
+    block: ["occupied", "clear"],
+    sensor: ["occupied", "clear"],
+    turnout: ["closed", "thrown"],
+    button: ["pressed"],
+  });
+
+  // Every condition or moment in a trigger, checks list, cancel or release.
+  function conditionsIn(value) {
+    const found = [];
+    walkObjects(value, (obj) => {
+      if (CONDITION_KINDS.some((kind) => obj[kind] !== undefined)) found.push(obj);
+    });
+    return found;
+  }
+
+  // One condition or moment on this board: does what it names exist, and is
+  // its `is` a word that item has? `who` starts the sentence.
+  function checkCondition(config, r, where, who, cond, masts) {
+    if (cond.board !== undefined) return; // another board's: Linked boards checks it.
+    const kind = CONDITION_KINDS.find((k) => cond[k] !== undefined);
+    if (kind === "end") return; // plant ends: Release 3.
+    const name = String(cond[kind] ?? "");
+    const is = cond.is;
+    if (kind === "block" || kind === "sensor") {
+      const there = kind === "block" ? blockNames(config).has(name) : (config.blocks || []).some((b) => b.name === name);
+      if (!there) {
+        r.error(where, `${who} reads ${kind} "${name}", which is not on this board. Add it${kind === "block" ? " under Blocks" : " on the Sensors page"}, or pick another.`);
+        return;
+      }
+    } else if (kind === "turnout") {
+      if (!(config.points || []).some((p) => p.name === name)) {
+        r.error(where, `${who} reads turnout "${name}", which is not on the Turnouts page. Add it, or pick another.`);
+        return;
+      }
+    } else if (kind === "button") {
+      if (!list(config.logic?.buttons).some((b) => isObject(b) && b.name === name)) {
+        r.error(where, `${who} uses button "${name}", which is not under Buttons. Add it, or pick another.`);
+        return;
+      }
+    } else if (kind === "mast") {
+      if (!masts.has(name)) {
+        r.error(where, `${who} reads signal "${name}", which is not on the Signal Masts page or a signal with no lights. Add it, or pick another.`);
+        return;
+      }
+      const words = Array.isArray(is) ? is : [is];
+      const bad = words.filter((word) => !(word === "diverging" || Object.hasOwn(MEANING_WORDS, word)));
+      if (!words.length || bad.length) {
+        r.error(where, `${who} asks whether "${name}" shows ${bad.length ? quoted(bad.map(String)) : "nothing"}, which is not a meaning. Pick from ${Object.values(MEANING_WORDS).join(", ")} or Diverging route.`);
+      }
+      return;
+    }
+    if (!IS_WORDS[kind].includes(is)) {
+      r.error(where, `${who} asks whether ${kind} "${name}" is ${is === undefined ? "anything" : `"${is}"`}. Pick ${IS_WORDS[kind].map((w) => `"${w}"`).join(" or ")}.`);
+    }
+  }
+
+  function validateButtons(config, r) {
+    if (!fieldMode(config)) return;
+    const names = new Set();
+    for (const button of list(config.logic?.buttons)) {
+      if (!isObject(button)) continue;
+      const name = String(button.name || "").trim();
+      if (!name) r.error(BUTTONS, "A button has no name. Name it, or remove it.");
+      else if (names.has(name)) r.error(BUTTONS, `Two buttons are called "${name}". Rename one.`);
+      names.add(name);
+      if (!String(button.pin || "").trim()) r.error(BUTTONS, `Button "${name || "?"}" has no pin. Pick the pin it is wired to.`);
+    }
+  }
+
+  // Rule buttons' pins, for the pin check beside every other pin.
+  function buttonPins(config) {
+    if (!fieldMode(config)) return [];
+    return list(config.logic?.buttons)
+      .filter((b) => isObject(b) && String(b.pin || "").trim())
+      .map((b) => ({ name: String(b.name || ""), pin: String(b.pin).trim().toUpperCase(), where: BUTTONS }));
+  }
+
+  // A block's key across boards: (board, name). A sensor and a block on one
+  // board never share a name (validateBlocks), so the kind is not needed.
+  function sectionBlockKey(boardName, ref) {
+    if (typeof ref === "string") return { key: `${boardName}\u0000${ref}`, name: ref, board: boardName };
+    if (isObject(ref) && ref.board) {
+      const kind = ["block", "sensor"].find((k) => ref[k] !== undefined);
+      if (kind) return { key: `${ref.board}\u0000${ref[kind]}`, name: String(ref[kind]), board: ref.board };
+    }
+    return null;
+  }
+
+  function validateSections(config, r) {
+    if (!fieldMode(config)) return;
+    const blocks = blockNames(config);
+    const masts = boardMasts(config);
+    const here = config.board?.name || "";
+    const names = new Set();
+    const owner = new Map();
+    for (const res of resourcesOf(config)) {
+      const name = String(res.name || "").trim();
+      const label = name ? `Section "${name}"` : "A section";
+      if (!name) r.error(SECTIONS, "A section has no name. Name it, or remove it.");
+      else if (names.has(name)) r.error(SECTIONS, `Two sections are called "${name}". Rename one.`);
+      names.add(name);
+      const members = list(res.blocks);
+      if (!members.length) r.error(SECTIONS, `${label} has no blocks. Add the blocks only one train may be in at a time.`);
+      for (const member of members) {
+        const found = sectionBlockKey(here, member);
+        if (!found) continue;
+        if (typeof member === "string" && !blocks.has(member)) {
+          r.error(SECTIONS, `${label} has block "${member}", which is not on this board. Add it under Blocks, or remove it from the section.`);
+          continue;
+        }
+        const other = owner.get(found.key);
+        if (other && other !== name) {
+          r.error(SECTIONS, `Block "${found.name}" is in sections "${other}" and "${name}". A block can be in one section only, or two trains could be let into it: remove it from one.`);
+        } else owner.set(found.key, name);
+      }
+      if (!isObject(res.release)) {
+        r.error(SECTIONS, `${label} has nothing under "Free the section when", so it would never be freed. Add one, such as its blocks clear for 3s.`);
+      } else {
+        for (const cond of conditionsIn(res.release)) checkCondition(config, r, SECTIONS, label, cond, masts);
+      }
+    }
+    // Across linked boards: a block is in sections on one board only.
+    for (const board of linkedBoards(config)) {
+      for (const res of list(board.logic?.resources)) {
+        if (!isObject(res)) continue;
+        for (const member of list(res.blocks)) {
+          const found = sectionBlockKey(board.name, member);
+          const mine = found && owner.get(found.key);
+          if (mine) {
+            const where = found.board === here ? "" : ` on ${found.board}`;
+            r.error(SECTIONS, `Block "${found.name}"${where} is in section "${mine}" here and in section "${res.name}" on ${board.name}. A block can be in sections on one board only, or both boards could let a train into it: remove it from one.`);
+          }
+        }
+      }
+    }
+  }
+
+  function validateMastEntries(config, r) {
+    if (!fieldMode(config)) return;
+    const masts = boardMasts(config);
+    const blocks = blockNames(config);
+    for (const entry of mastEntries(config)) {
+      const name = entry.virtual === true ? String(entry.name || "") : String(entry.mast || "");
+      if (entry.virtual !== true && !(config.signals?.masts || []).some((m) => m.name === name)) {
+        r.error(MASTS, `Signal "${name}" under Masts is not on the Signal Masts page. Add it there, or remove it here.`);
+        continue;
+      }
+      const mast = masts.get(name);
+      if (!mast) continue;
+      const aspectsNamed = [
+        ...Object.keys(isObject(entry.tags) ? entry.tags : {}),
+        ...list(entry.diverging).map(String),
+        ...(typeof entry.stopAspect === "string" && entry.stopAspect ? [entry.stopAspect] : []),
+      ];
+      const missing = [...new Set(aspectsNamed.filter((aspect) => !mast.aspects.includes(aspect)))];
+      if (missing.length) {
+        r.error(MASTS, `Signal "${name}" has no aspect called ${quoted(missing)}, but Masts gives it a meaning. Pick from ${quoted(mast.aspects)}, or remove it.`);
+      }
+      if (typeof entry.approachLight === "string" && entry.approachLight && !blocks.has(entry.approachLight)) {
+        r.error(MASTS, `Signal "${name}" lights up for block "${entry.approachLight}", which is not on this board. Pick another block.`);
+      }
+    }
+  }
+
+  function validateRules(config, r) {
+    if (!fieldMode(config)) return;
+    const masts = boardMasts(config);
+    const sections = new Set(resourcesOf(config).map((res) => String(res.name || "")));
+    const turnouts = new Set((config.points || []).map((p) => p.name));
+    // For the meaning warning: mast -> meaning -> [{ group, aspect }].
+    const given = new Map();
+    for (const { layer, li, rule, label } of rulesOf(config)) {
+      const who = capital(label);
+      const trigger = rule.trigger;
+      const when = isObject(trigger) && trigger.when !== undefined;
+      if (!isObject(trigger) || (trigger.while === undefined && trigger.when === undefined)) {
+        r.error(GROUPS, `${who} has nothing under When, so it never starts. Pick what starts it.`);
+      }
+      for (const cond of conditionsIn([trigger, rule.checks, rule.cancel])) checkCondition(config, r, GROUPS, who, cond, masts);
+      if (when && !isObject(rule.cancel)) {
+        r.warn(GROUPS, `${capital(label)} starts when something happens and has no Cancel, so once it asks, only getting what it asks for ends it. Add a Cancel if the train might not come.`);
+      }
+      const then = isObject(rule.then) ? rule.then : {};
+      const mastName = typeof then.mast === "string" && then.mast ? then.mast : "";
+      if (mastName) {
+        const mast = masts.get(mastName);
+        if (!mast) {
+          r.error(GROUPS, `${who} sets signal "${mastName}", which is not on the Signal Masts page or a signal with no lights. Add it, or pick another.`);
+        } else if (typeof then.aspect !== "string" || !then.aspect) {
+          r.error(GROUPS, `${who} sets signal "${mastName}" but not what it shows. Pick an aspect.`);
+        } else if (!mast.aspects.includes(then.aspect)) {
+          r.error(GROUPS, `${who} shows "${then.aspect}" on "${mastName}", which has no aspect called that. Pick from ${quoted(mast.aspects)}.`);
+        } else {
+          const meaning = mast.tag(then.aspect);
+          if (!given.has(mastName)) given.set(mastName, new Map());
+          const byMeaning = given.get(mastName);
+          if (!byMeaning.has(meaning)) byMeaning.set(meaning, []);
+          byMeaning.get(meaning).push({ li, group: String(layer.name || li + 1), aspect: then.aspect });
+        }
+      } else if (typeof then.aspect === "string" && then.aspect) {
+        r.error(GROUPS, `${who} shows "${then.aspect}" but names no signal. Pick the signal it sets.`);
+      }
+      if (then.reserve !== undefined && !sections.has(String(then.reserve))) {
+        r.error(GROUPS, `${who} takes section "${then.reserve}", which is not under Sections. Add the section, or pick another.`);
+      }
+      for (const name of list(then.lock)) {
+        if (!turnouts.has(name)) r.error(GROUPS, `${who} locks turnout "${name}", which is not on the Turnouts page. Pick another, or remove it.`);
+      }
+    }
+    // Two groups giving different aspects with one meaning on a mast: the
+    // first group's wins, which may not be what was meant.
+    for (const [mastName, byMeaning] of given) {
+      for (const [meaning, uses] of byMeaning) {
+        const first = uses[0];
+        const other = uses.find((use) => use.li !== first.li && use.aspect !== first.aspect);
+        if (!other) continue;
+        r.warn(GROUPS, `Signal "${mastName}" is set to "${first.aspect}" by group "${first.group}" and to "${other.aspect}" by group "${other.group}", which both mean ${MEANING_WORDS[meaning] || meaning}. When both allow it, group "${first.group}" wins. Use one aspect for each meaning if you meant the other.`);
+      }
+    }
+  }
+
+  // No cycles (spec, Validation): a rule cannot read, directly or through
+  // other rules, a mast it sets. A rule that sets X reads the masts in its
+  // trigger, checks and cancel, and in the release of the section it takes.
+  // Another board's masts are left out: they are not set here.
+  function mastReadsBySetter(config) {
+    const releases = new Map(resourcesOf(config).map((res) => [String(res.name || ""), res.release]));
+    const edges = new Map(); // set mast -> Map(read mast -> rule label)
+    for (const { rule, label } of rulesOf(config)) {
+      const set = rule?.then?.mast;
+      if (typeof set !== "string" || !set) continue;
+      const parts = [rule.trigger, rule.checks, rule.cancel];
+      if (rule.then.reserve !== undefined) parts.push(releases.get(String(rule.then.reserve)));
+      for (const cond of conditionsIn(parts)) {
+        if (cond.board !== undefined || typeof cond.mast !== "string" || !cond.mast) continue;
+        if (!edges.has(set)) edges.set(set, new Map());
+        if (!edges.get(set).has(cond.mast)) edges.get(set).set(cond.mast, label);
+      }
+    }
+    return edges;
+  }
+
+  // Each loop once, as the masts in it in the order they read each other.
+  function mastCycles(config) {
+    const edges = mastReadsBySetter(config);
+    const cycles = [];
+    const done = new Set();
+    const seen = new Set();
+    for (const start of edges.keys()) {
+      if (done.has(start)) continue;
+      // Depth first from start; a mast on the current path seen again is a loop.
+      const path = [];
+      const onPath = new Map();
+      const visit = (mast) => {
+        if (onPath.has(mast)) {
+          const loop = path.slice(onPath.get(mast));
+          const key = [...loop].sort().join("\u0000");
+          if (!seen.has(key)) {
+            seen.add(key);
+            cycles.push(loop);
+          }
+          return;
+        }
+        if (done.has(mast)) return;
+        onPath.set(mast, path.length);
+        path.push(mast);
+        for (const read of edges.get(mast)?.keys() || []) visit(read);
+        path.pop();
+        onPath.delete(mast);
+        done.add(mast);
+      };
+      visit(start);
+    }
+    return cycles.map((loop) => loop.map((mast, i) => ({ mast, reads: loop[(i + 1) % loop.length], rule: edges.get(mast).get(loop[(i + 1) % loop.length]) })));
+  }
+
+  function validateCycles(config, r) {
+    if (!fieldMode(config)) return;
+    for (const loop of mastCycles(config)) {
+      if (loop.length === 1) {
+        const [{ mast, rule }] = loop;
+        r.error(GROUPS, `${capital(rule)} sets signal "${mast}" and also reads it, so it waits on itself and may never change. Read the signal ahead instead.`);
+        continue;
+      }
+      const steps = loop.map(({ mast, reads, rule }) => `${rule} sets "${mast}" and reads "${reads}"`).join("; ");
+      r.error(GROUPS, `Signals ${quoted(loop.map((step) => step.mast))} read each other in a loop (${steps}), so each waits on the next and none may ever clear. Change one of these rules so it does not read the next signal.`);
+    }
+  }
+
+  // Block signals (spec, Block signals): each mast checks its own block clear,
+  // in order along the line. Where a mast's block and the block before it
+  // share no sensor, no sensor holds both at the boundary, so the mast can
+  // clear while unpowered cars are still there.
+  function blockMembers(config, name) {
+    const block = logicBlocks(config).find((b) => b.name === name);
+    if (!block) return new Set([name]);
+    return new Set(list(block.sensors).map((member) => (typeof member === "string" ? member : memberKey(member))));
+  }
+
+  function validateBlockSignals(config, r) {
+    if (!fieldMode(config)) return;
+    for (const layer of layersOf(config)) {
+      if (layer.starter !== "block-signals") continue;
+      const order = [];
+      for (const rule of list(layer.rules)) {
+        const mast = rule?.then?.mast;
+        if (!isObject(rule) || typeof mast !== "string" || order.some((row) => row.mast === mast)) continue;
+        const own = list(rule.checks).find((c) => isObject(c) && c.board === undefined && c.is === "clear" && (typeof c.block === "string" || typeof c.sensor === "string"));
+        if (own) order.push({ mast, block: own.block ?? own.sensor });
+      }
+      for (let i = 1; i < order.length; i += 1) {
+        const before = order[i - 1].block;
+        const { mast, block } = order[i];
+        if (before === block) continue;
+        const a = blockMembers(config, before);
+        if ([...blockMembers(config, block)].some((member) => a.has(member))) continue;
+        r.warn(GROUPS, `Signal "${mast}" protects block "${block}", which shares no sensor with "${before}", the block before it. With no sensor in both at the boundary, the signal can clear while cars that draw no power are still there. Add the boundary sensor to both blocks.`);
+      }
     }
   }
 
@@ -666,7 +1062,7 @@
     return `${REMOTE_KINDS[kind]?.label || "item"} "${member?.[kind] ?? "?"}" from ${member?.board || "another board"}`;
   }
 
-  function validateBlocks(config, errors, warnings) {
+  function validateBlocks(config, r) {
     const blocks = logicBlocks(config);
     // ESPHome needs each binary_sensor's name to be its own, after entityName
     // turns "/" into " - ", and without regard to case.
@@ -678,6 +1074,7 @@
         if (control.buttonPin) entities.set(entity(`${point.name} button ${index + 1}`), `turnout "${point.name}"'s button ${index + 1}`);
       });
     }
+    for (const entry of virtualMasts(config)) entities.set(entity(String(entry.name)), `signal with no lights "${entry.name}"`);
     const sensorTopics = new Map((config.blocks || []).map((item) => [item.topic, `sensor "${item.name}"`]));
     for (const point of config.points || []) sensorTopics.set(point.topic, `turnout "${point.name}"`);
     for (const mast of config.signals?.masts || []) sensorTopics.set(mast.topic, `signal mast "${mast.name}"`);
@@ -692,25 +1089,25 @@
     for (const block of blocks) {
       const name = String(block.name || "").trim();
       const label = name ? `Block "${name}"` : "A block";
-      if (!name) errors.push("A block has no name. Give it one, or remove it.");
-      else if (names.has(entity(name))) errors.push(`Two blocks are called "${name}" (or nearly). Give each its own name.`);
-      else if (entities.has(entity(name))) errors.push(`Block "${name}" has the same name as ${entities.get(entity(name))}. Rename the block.`);
+      if (!name) r.error(BLOCKS, "A block has no name. Give it one, or remove it.");
+      else if (names.has(entity(name))) r.error(BLOCKS, `Two blocks are called "${name}" (or nearly). Give each its own name.`);
+      else if (entities.has(entity(name))) r.error(BLOCKS, `Block "${name}" has the same name as ${entities.get(entity(name))}. Rename the block.`);
       names.add(entity(name));
       const topic = String(block.topic || "").trim();
-      if (!topic) errors.push(`${label} has no MQTT topic. Fill one in.`);
-      else if (sensorTopics.has(topic)) errors.push(`${label} uses ${topic}, which ${sensorTopics.get(topic)} uses. Give the block its own topic.`);
-      else if (reports.has(topic)) errors.push(`${label} uses ${topic}, where ${reports.get(topic)}. Give the block its own topic.`);
-      else if (topics.has(topic)) errors.push(`${label} and block "${topics.get(topic)}" both use ${topic}. Give each its own topic.`);
+      if (!topic) r.error(BLOCKS, `${label} has no MQTT topic. Fill one in.`);
+      else if (sensorTopics.has(topic)) r.error(BLOCKS, `${label} uses ${topic}, which ${sensorTopics.get(topic)} uses. Give the block its own topic.`);
+      else if (reports.has(topic)) r.error(BLOCKS, `${label} uses ${topic}, where ${reports.get(topic)}. Give the block its own topic.`);
+      else if (topics.has(topic)) r.error(BLOCKS, `${label} and block "${topics.get(topic)}" both use ${topic}. Give each its own topic.`);
       else topics.set(topic, name);
       const members = (block.sensors || []).filter((member) => member !== null && member !== undefined);
-      if (!members.length) errors.push(`${label} has no sensors. Add the sensors that see a train in it.`);
+      if (!members.length) r.error(BLOCKS, `${label} has no sensors. Add the sensors that see a train in it.`);
       const seen = new Set();
       for (const member of members) {
         const key = memberKey(member);
         if (seen.has(key)) continue;
         seen.add(key);
         const found = blockMember(config, member);
-        if (found.problem) errors.push(`${label} ${found.problem}.`);
+        if (found.problem) r.error(BLOCKS, `${label} ${found.problem}.`);
         if (!uses.has(key)) uses.set(key, { member, blocks: [] });
         uses.get(key).blocks.push(name || "?");
       }
@@ -719,7 +1116,7 @@
     for (const { member, blocks: inBlocks } of uses.values()) {
       if (inBlocks.length > 2) {
         const what = memberLabel(member);
-        warnings.push(`${what[0].toUpperCase()}${what.slice(1)} is in ${inBlocks.length} blocks (${inBlocks.join(", ")}). A sensor at a boundary is in two: check the others.`);
+        r.warn(BLOCKS, `${what[0].toUpperCase()}${what.slice(1)} is in ${inBlocks.length} blocks (${inBlocks.join(", ")}). A sensor at a boundary is in two: check the others.`);
       }
     }
   }
@@ -730,17 +1127,17 @@
   // put those first.
   const NUMBER_NAME = /^(0|[1-9]\d*)$/;
 
-  function validateAspectNames(names, where, errors) {
+  function validateAspectNames(names, where, error) {
     const seen = new Set();
     for (const name of names) {
-      if (!name.trim()) errors.push(`${where} has an aspect with no name. Name it, or remove it.`);
-      else if (seen.has(name)) errors.push(`${where} has two aspects called "${name}". Logic needs each aspect named once: rename one.`);
-      else if (NUMBER_NAME.test(name)) errors.push(`${where} has an aspect called "${name}", only a number. Give it a name with a letter in it.`);
+      if (!name.trim()) error(`${where} has an aspect with no name. Name it, or remove it.`);
+      else if (seen.has(name)) error(`${where} has two aspects called "${name}". Logic needs each aspect named once: rename one.`);
+      else if (NUMBER_NAME.test(name)) error(`${where} has an aspect called "${name}", only a number. Give it a name with a letter in it.`);
       seen.add(name);
     }
   }
 
-  function validateLogicMasts(config, errors) {
+  function validateLogicMasts(config, r) {
     if (!fieldMode(config)) return;
     const used = mastNamesUsed(config);
     const real = new Set();
@@ -749,7 +1146,7 @@
       if (!used.has(mast.name)) continue;
       const where = `Signal mast "${mast.name}"`;
       // An aspect with no JMRI string is already an error on every mast.
-      validateAspectNames((mast.aspects || []).map((aspect) => String(aspect.label ?? "")), where, errors);
+      validateAspectNames((mast.aspects || []).map((aspect) => String(aspect.label ?? "")), where, (text) => r.error(SIGNALS, text));
     }
     const field = fieldMastNames(config);
     const names = new Set();
@@ -757,40 +1154,47 @@
       if (entry.virtual !== true) continue;
       const name = String(entry.name || "").trim();
       if (!name) {
-        errors.push("A signal with no lights has no name. Name it, or remove it.");
+        r.error(MASTS, "A signal with no lights has no name. Name it, or remove it.");
         continue;
       }
       const where = `Signal with no lights "${name}"`;
-      if (real.has(name)) errors.push(`${where} has the name of a signal mast on the Signal Masts page. Rename it.`);
-      else if (names.has(name)) errors.push(`Two signals with no lights are called "${name}". Rename one.`);
+      if (real.has(name)) r.error(MASTS, `${where} has the name of a signal mast on the Signal Masts page. Rename it.`);
+      else if (names.has(name)) r.error(MASTS, `Two signals with no lights are called "${name}". Rename one.`);
       names.add(name);
-      if (!list(entry.aspects).length) errors.push(`${where} has no aspects. Add the aspects rules show on it.`);
-      validateAspectNames(list(entry.aspects).map(String), where, errors);
-      if (!field.has(name)) errors.push(`${where} is not set by any rule, so it would always show Stop. Add a rule that sets it, or remove it.`);
+      if (!list(entry.aspects).length) r.error(MASTS, `${where} has no aspects. Add the aspects rules show on it.`);
+      validateAspectNames(list(entry.aspects).map(String), where, (text) => r.error(MASTS, text));
+      if (!field.has(name)) r.error(MASTS, `${where} is not set by any rule, so it would always show Stop. Add a rule that sets it, or remove it.`);
     }
   }
 
-  function validate(config, errors, warnings) {
-    validateLinkedBoards(config, errors, warnings);
-    validateBlocks(config, errors, warnings);
-    validateLogicMasts(config, errors);
+  function validate(config, errors, warnings, links) {
+    const r = reporter(errors, warnings, links);
+    validateLinkedBoards(config, r);
+    validateBlocks(config, r);
+    validateLogicMasts(config, r);
+    validateMastEntries(config, r);
+    validateButtons(config, r);
+    validateSections(config, r);
+    validateRules(config, r);
+    validateCycles(config, r);
+    validateBlockSignals(config, r);
     const shares = M().sharesWithOtherBoards(config);
     const active = shares || M().logicMode(config) !== "none";
     if (!active) return;
     if (shares && config.board?.mqttEnabled === false) {
-      errors.push("Share with other boards needs MQTT. Turn MQTT back on under Board, or untick Share on the Logic page.");
+      r.error(SETTINGS, "Share with other boards needs MQTT. Turn MQTT back on under Board, or untick Share on the Logic page.");
     }
     const named = [
-      ...(config.blocks || []).map((item) => ["Sensor", item]),
-      ...(config.points || []).map((item) => ["Turnout", item]),
-      ...logicBlocks(config).map((item) => ["Block", item]),
+      ...(config.blocks || []).map((item) => ["Sensor", item, { view: "blocks" }]),
+      ...(config.points || []).map((item) => ["Turnout", item, { view: "points" }]),
+      ...logicBlocks(config).map((item) => ["Block", item, BLOCKS]),
     ];
-    for (const [kind, item] of named) {
+    for (const [kind, item, where] of named) {
       const name = String(item.name || "").trim();
       const prefix = RESERVED_PREFIXES.find((p) => name.toLowerCase().startsWith(p));
-      if (prefix) errors.push(`${kind} "${name}" starts with ${prefix}, which board topics use. Rename it.`);
+      if (prefix) r.error(where, `${kind} "${name}" starts with ${prefix}, which board topics use. Rename it.`);
       const suffix = RESERVED_SUFFIXES.find((s) => name.toLowerCase().endsWith(s.toLowerCase()));
-      if (suffix) errors.push(`${kind} "${name}" ends with ${suffix}, which shared topics use. Rename it.`);
+      if (suffix) r.error(where, `${kind} "${name}" ends with ${suffix}, which shared topics use. Rename it.`);
     }
     if (!shares || config.board?.mqttEnabled === false) return;
     // A sensor must not sit on a topic this board now publishes.
@@ -803,15 +1207,15 @@
     for (const mast of masts) published.set(mastStateTopic(mast), `signal mast "${mast.name}"'s shared aspect`);
     for (const block of config.blocks || []) {
       const what = published.get(block.topic);
-      if (what) errors.push(`Sensor "${block.name}" uses ${block.topic}, where the board sends ${what}. Rename the sensor.`);
+      if (what) r.error({ view: "blocks" }, `Sensor "${block.name}" uses ${block.topic}, where the board sends ${what}. Rename the sensor.`);
     }
     for (const block of logicBlocks(config)) {
       const what = published.get(block.topic);
-      if (what) errors.push(`Block "${block.name}" uses ${block.topic}, where the board sends ${what}. Rename the block.`);
+      if (what) r.error(BLOCKS, `Block "${block.name}" uses ${block.topic}, where the board sends ${what}. Rename the block.`);
     }
     for (const mast of masts) {
       const what = published.get(mast.topic);
-      if (what) errors.push(`Signal mast "${mast.name}" uses ${mast.topic}, where the board sends ${what}. Rename the mast.`);
+      if (what) r.error(SIGNALS, `Signal mast "${mast.name}" uses ${mast.topic}, where the board sends ${what}. Rename the mast.`);
     }
   }
 
@@ -1422,6 +1826,8 @@
     emitLogicGlobals,
     hasComponent,
     emitLockReports,
+    buttonPins,
+    mastCycles,
     emitLogicScripts,
     emitLogicButtons,
     emitLogicSwitch,
