@@ -31,13 +31,13 @@ function twoTracks(mastName, extra = {}) {
 
 test("an end writes its Link text, state, Pair button, Pair pin, LED and component binding", () => {
   const { config, mastName } = board();
-  config.logic.ends = twoTracks(mastName, { pairPin: "gpio17", ledPin: "GPIO23" });
+  config.logic.ends = twoTracks(mastName, { pairPin: "gpio17", ledPin: "GPIO33" });
   const yaml = generateYaml(config);
   assert.match(yaml, /\ntext:\n  - platform: template\n    id: end_a_link\n    name: "End A link"\n    mode: text\n    max_length: 64\n    optimistic: true\n    restore_value: true\n/);
   assert.match(yaml, /  - platform: template\n    id: end_a_state\n    name: "End A state"\n/);
   assert.match(yaml, /  - platform: template\n    name: "Pair End A"\n    on_press:\n      - lambda: \|-\n          id\(logic\)\.pair\("A"\);\n/);
   assert.match(yaml, /  - platform: gpio\n    pin:\n      number: GPIO17\n      inverted: true\n      mode:\n        input: true\n        pullup: true\n    id: end_a_pair_pin\n/);
-  assert.match(yaml, /  - platform: gpio\n    pin: GPIO23\n    id: end_a_led\n    name: "End A LED"\n    internal: true\n/);
+  assert.match(yaml, /  - platform: gpio\n    pin: GPIO33\n    id: end_a_led\n    name: "End A LED"\n    internal: true\n/);
   assert.match(yaml, /  ends:\n    - name: A\n      link: end_a_link\n      led: end_a_led\n      state: end_a_state\n/);
   // The mast on the end's track is bound, though no rule uses it.
   assert.match(yaml, /  masts:\n    - name: /);
@@ -56,7 +56,7 @@ test("an end with no pins writes neither the Pair pin nor the LED", () => {
 test("the table holds each end's name and tracks, not its pins, and the version code covers them", () => {
   const { config, mastName } = board();
   const without = L.versionCode(config);
-  config.logic.ends = twoTracks(mastName, { pairPin: "GPIO17", ledPin: "GPIO23" });
+  config.logic.ends = twoTracks(mastName, { pairPin: "GPIO17", ledPin: "GPIO33" });
   const table = L.logicTable(config);
   assert.deepEqual(JSON.parse(JSON.stringify(table.logic.ends)), [{ name: "A", tracks: [{ mast: mastName, sensors: ["Home in"] }, { sensors: ["Siding"], through: { end: "A", track: 1 } }] }]);
   const withEnds = L.versionCode(config);
@@ -83,7 +83,7 @@ test("a board without ends writes none of it", () => {
 
 test("two ends have their own ids, in end order", () => {
   const { config, mastName } = board();
-  config.logic.ends = [...twoTracks(mastName, { ledPin: "GPIO23" }), { name: "B", tracks: [{ sensors: ["Siding"] }], pairPin: "GPIO17" }];
+  config.logic.ends = [...twoTracks(mastName, { ledPin: "GPIO33" }), { name: "B", tracks: [{ sensors: ["Siding"] }], pairPin: "GPIO17" }];
   const yaml = generateYaml(config);
   assert.match(yaml, /  ends:\n    - name: A\n      link: end_a_link\n      led: end_a_led\n      state: end_a_state\n    - name: B\n      link: end_b_link\n      state: end_b_state\n/);
   assert.match(yaml, /id\(logic\)\.pair\("B"\)/);
@@ -91,7 +91,7 @@ test("two ends have their own ids, in end order", () => {
 
 test("with MQTT disabled, an end still generates (3.3 reports it as an error) and validation does not fail", () => {
   const { config, mastName } = board({ mqtt: false });
-  config.logic.ends = twoTracks(mastName, { pairPin: "GPIO17", ledPin: "GPIO23" });
+  config.logic.ends = twoTracks(mastName, { pairPin: "GPIO17", ledPin: "GPIO33" });
   const yaml = generateYaml(config);
   assert.match(yaml, /  ends:\n/);
   assert.doesNotMatch(yaml, /^  board:/m);
