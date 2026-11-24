@@ -1,19 +1,18 @@
 // The rule table: a board in the engine cases' format (configurator/test/cases/
-// README.md, "board"), read from JSON. The configurator writes it into the
-// YAML; the component reads it once at boot. No ESPHome, no exceptions.
+// README.md, "board"), as JSON. The configurator writes it into the YAML; the
+// component compiles it once at boot into a compact Table. No ESPHome, no
+// exceptions, and no JSON tree: the text is read once, straight into the Table.
 #pragma once
 
 #include <string>
 
 #include "logic_core.h"
-#include "logic_json.h"
 
 namespace logic_core {
 
-// Reads a board. On a problem, returns false and says what in *error.
-bool board_from_json(const std::string &text, Board *out, std::string *error);
-// The same from a value already read; *error says what was wrong, or is empty.
-Board board_from_value(const json::Value &v, std::string *error);
+// Compiles a table. On a problem, returns false and says what in *error.
+bool compile_table(const char *json, Table *out, std::string *error);
+// "0.5s" or "500ms"; empty is 0. Anything else returns false, as logic.js.
 bool parse_ms(const std::string &text, uint32_t *out);
 
 }  // namespace logic_core

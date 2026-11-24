@@ -11,7 +11,7 @@
 #include <vector>
 
 #include "../components/mr_logic/logic_core.h"
-#include "../components/mr_logic/logic_json.h"
+#include "json.h"
 #include "../components/mr_logic/logic_table.h"
 
 using namespace logic_core;
@@ -141,9 +141,9 @@ std::vector<std::string> run_case(const Value &data) {
   const Value *steps = data.get("steps");
   if (!board || !steps) return {"the case has no board or no steps"};
   std::string table_error;
-  Board parsed = board_from_value(*board, &table_error);
-  if (!table_error.empty()) return {"the board cannot be read: " + table_error};
-  Engine engine(std::move(parsed), to_start(data.get("start")));
+  Table table;
+  if (!compile_table(json::dump(*board).c_str(), &table, &table_error)) return {"the board cannot be read: " + table_error};
+  Engine engine(table, to_start(data.get("start")));
   int64_t next = 0;
   for (const auto &step : steps->arr) {
     const Value *at_value = step.get("at");
@@ -230,12 +230,12 @@ int run_trace(const std::string &path) {
     return 2;
   }
   std::string table_error;
-  Board parsed = board_from_value(*data.get("board"), &table_error);
-  if (!table_error.empty()) {
+  Table table;
+  if (!compile_table(json::dump(*data.get("board")).c_str(), &table, &table_error)) {
     std::fprintf(stderr, "the board cannot be read: %s\n", table_error.c_str());
     return 2;
   }
-  Engine engine(std::move(parsed), to_start(data.get("start")));
+  Engine engine(table, to_start(data.get("start")));
   std::string out = "[";
   bool first = true;
   for (const auto &scan : data.get("scans")->arr) {

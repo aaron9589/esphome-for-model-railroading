@@ -1,7 +1,12 @@
 // The logic engine's core: plain C++17, no ESPHome, no exceptions, no RTTI.
-// It mirrors configurator/logic.js function for function, and both replay the
-// same cases (configurator/test/cases/*.json, see its README.md for the scan's
-// numbered rules). engine-tests/ builds this on a computer and runs them.
+// It behaves exactly as configurator/logic.js and both replay the same cases
+// (configurator/test/cases/*.json; the numbered rules are in its README.md).
+//
+// The rule table is compiled once (logic_table.cpp) into the compact,
+// index-based Table below, so a board with a few hundred rules fits in a few
+// tens of kilobytes. Names are kept once, for logs and outputs; everything the
+// scan touches is an index. The Engine refers to the Table: keep the Table
+// alive, and where it is, for as long as the Engine.
 #pragma once
 
 #include <cstdint>
@@ -17,91 +22,123 @@ enum Tag : int8_t { TAG_NONE = -1, TAG_STOP = 0, TAG_RESTRICTING, TAG_APPROACH, 
 Tag tag_from_name(const std::string &name);
 const char *tag_name(Tag tag);
 
-struct MastDef {
-  std::string name;
-  std::vector<std::pair<std::string, Tag>> aspects;  // in order
-  std::vector<std::string> diverging;
-  std::string stop;  // empty: R292 or Stop, else the first stop aspect
-  std::map<std::string, std::vector<std::string>> states;  // custom exact strings
-  std::string startup;  // empty: none
-  std::string approach_light;  // a block; empty: always lit
-};
+static constexpr uint16_t NONE = 0xFFFF;
 
-// A condition, or a moment (the same shapes).
-struct Cond {
+// A condition or a moment. ALL / ANY / NOT have kids, a range in Table::kids.
+struct Node {
   enum Kind : uint8_t { ALL, ANY, NOT, BLOCK, TURNOUT, MAST, BUTTON };
-  Kind kind = BLOCK;
-  std::string name;
-  bool remote = false;
-  std::string board;
-  std::vector<std::string> is;  // one value, or a mast's tags
-  std::vector<Cond> kids;
+  // What `is` asks for. A mast's tags are in `tags` (a bit per Tag).
+  enum Is : uint8_t { IS_OCCUPIED, IS_CLEAR, IS_CLOSED, IS_THROWN, IS_PRESSED, IS_DIVERGING, IS_TAGS, IS_OTHER };
+  uint8_t kind = BLOCK;
+  uint8_t is = IS_OTHER;
+  uint8_t tags = 0;
+  uint8_t logic_block = 0;  // BLOCK on this board: item is a logic block, not a sensor
+  uint16_t board = NONE;  // another board's item: its remote board
+  uint16_t item = NONE;  // by kind: sensor / logic block, turnout, mast, button; or remote item
+  uint16_t first = 0, count = 0;  // kids
+  uint16_t name = NONE, board_name = NONE;  // names, while compiling
 };
 
 struct Trigger {
   bool present = false;
   bool when = false;
-  Cond cond;  // while
-  std::vector<Cond> seq;  // when, then ...
-  uint32_t for_ms = 0;
   bool leaving_guard = false;
+  uint16_t cond = NONE;  // while
+  uint16_t seq_first = 0, seq_count = 0;  // when, then ...: a range in Table::seq
+  uint32_t for_ms = 0;
 };
 
-struct Then {
-  std::string mast;
-  std::string aspect;
-  std::string reserve;
-  std::vector<std::string> lock;
+struct Aspect {
+  uint16_t name;  // in Table::names
+  Tag tag;
+  bool diverging;
+  bool custom_states;  // its exact strings are in Table::states, not "<name>; Lit; Unheld"
 };
 
-struct RuleDef {
-  Trigger trigger;
-  std::vector<Cond> checks;
-  Then then;
-  bool has_cancel = false;
-  Cond cancel;
+struct Mast {
+  uint16_t name;
+  uint16_t aspect_first = 0, aspect_count = 0;  // a range in Table::aspects
+  int16_t stop = -1;  // index within the mast's aspects
+  int16_t startup = -1;
+  uint16_t approach_light = NONE;  // a block ref in Table::block_refs
+  uint16_t states_first = 0, states_count = 0;  // custom exact strings: a range in Table::states
 };
 
-struct LayerDef {
-  std::string name;
-  std::vector<RuleDef> rules;
+struct StateString {
+  int16_t aspect;  // index within the mast's aspects
+  std::string text;
 };
 
-struct ResourceDef {
-  std::string name;
-  std::vector<std::string> blocks;
+// A block named on this board: a logic block, or a sensor.
+struct BlockRef {
+  uint16_t item;
+  bool logic_block;
+};
+
+struct Member {
+  uint16_t item;  // a sensor, or a remote item
+  uint16_t board;  // NONE: this board
+};
+
+struct LogicBlock {
+  uint16_t name;
+  uint16_t first = 0, count = 0;  // a range in Table::members
+};
+
+struct RemoteItem {
+  enum Kind : uint8_t { SENSOR, BLOCK, TURNOUT, MAST };
+  uint16_t board;
+  uint16_t name;
+  uint8_t kind;
+  uint16_t mast = NONE;  // MAST: its definition in Table::remote_masts
+};
+
+struct Resource {
+  uint16_t name;
+  uint16_t blocks_first = 0, blocks_count = 0;  // a range in Table::block_refs
   Trigger release;
   uint32_t approach_lock_ms = 0;
 };
 
-struct Member {
-  std::string name;
-  bool remote = false;
-  std::string board;
+struct Rule {
+  uint16_t layer;
+  uint16_t number;  // from 1, within its layer
+  Trigger trigger;
+  uint16_t checks_first = 0, checks_count = 0;  // a range in Table::kids
+  uint16_t mast = NONE;  // a declared mast
+  int16_t aspect = -1;  // within that mast's aspects; -1: not one of them
+  uint16_t resource = NONE;
+  uint16_t locks_first = 0, locks_count = 0;  // a range in Table::locks
+  uint16_t cancel = NONE;  // a moment node
 };
 
-struct BlockDef {
-  std::string name;
+struct Table {
+  std::vector<std::string> names;
+  std::vector<Node> nodes;
+  std::vector<uint16_t> kids;  // node indices
+  std::vector<uint16_t> seq;  // node indices
+  std::vector<Aspect> aspects;
+  std::vector<StateString> states;
+  std::vector<BlockRef> block_refs;
   std::vector<Member> members;
-};
+  std::vector<uint16_t> locks;  // turnout indices
 
-struct RemoteBoardDef {
-  std::string name;
-  std::vector<std::string> sensors;
-  std::vector<std::string> blocks;
-  std::vector<std::string> turnouts;
-  std::vector<MastDef> masts;
-};
+  std::vector<uint16_t> sensors;  // names; declared first, then any only named
+  std::vector<uint16_t> buttons;
+  std::vector<uint16_t> turnouts;
+  uint16_t declared_turnouts = 0;
+  std::vector<Mast> masts;  // declared masts, in order
+  std::vector<uint16_t> remote_boards;  // names
+  std::vector<Mast> remote_masts;
+  std::vector<RemoteItem> remote_items;
+  std::vector<LogicBlock> blocks;
+  std::vector<Resource> resources;
+  std::vector<Rule> rules;  // layers in order, rules in order
+  std::vector<uint16_t> layers;  // names
 
-struct Board {
-  std::vector<std::string> sensors;
-  std::vector<std::string> turnouts;
-  std::vector<MastDef> masts;
-  std::vector<RemoteBoardDef> remote;
-  std::vector<BlockDef> blocks;
-  std::vector<std::string> buttons;
-  std::vector<ResourceDef> resources;
-  std::vector<LayerDef> layers;
+  const std::string &name(uint16_t i) const { return names[i]; }
+  std::string rule_ref(uint16_t r) const { return names[layers[rules[r].layer]] + "/" + std::to_string(rules[r].number); }
+  size_t bytes() const;  // heap held, roughly
 };
 
 struct RemoteStart {
@@ -128,8 +165,8 @@ struct Event {
     REMOTE_ONLINE, REMOTE_ITEM, REMOTE_MAST,
   };
   Kind kind = SENSOR;
-  std::string name;  // sensor, button, turnout, mast, resource, or remote item
-  std::string value;  // occupied, pressed, closed, the message, mqtt, on, connected, the aspect ...
+  std::string name;
+  std::string value;
   std::string board;
   std::string item_kind;  // REMOTE_ITEM: sensor, block or turnout
   bool flag = false;  // REMOTE_ONLINE
@@ -138,7 +175,7 @@ struct Event {
 struct LogEvent {
   enum Kind : uint8_t { STARTUP, GRANT, CANCEL, PASS, RELEASE, IGNORED, RESYNC };
   Kind kind;
-  std::string what;  // resource or turnout
+  std::string what;
   std::string rule;  // empty: none (a start-up pass)
   std::string by;
 };
@@ -173,30 +210,30 @@ struct State {
   std::vector<std::pair<std::string, bool>> locked;
 };
 
-// Today's handler (cases README rule 18): the aspect a JMRI message picks, or
-// "dark". Returns false when the message is ignored.
-bool pick_aspect(const MastDef &mast, const std::string &message, std::string *out);
-std::string stop_aspect(const MastDef &mast);
-
 class Engine {
  public:
-  // The engine keeps the board; move it in rather than copying it.
-  Engine(Board board, const Start &start);
-  // Rules and resources point into board_, so an Engine stays where it is made.
+  Engine(const Table &table, const Start &start);
   Engine(const Engine &) = delete;
   Engine &operator=(const Engine &) = delete;
   Engine(Engine &&) = delete;
   Engine &operator=(Engine &&) = delete;
+
   void event(const Event &e);
   ScanOut scan();
   State state() const;
   int64_t time_ms() const { return n_ * static_cast<int64_t>(SCAN_MS); }
+  size_t bytes() const;  // heap held, roughly
+
+  // Rules 18 and 13: today's handler for a mast (index in Table::masts).
+  static constexpr int16_t SHOWS_NOTHING = -1, SHOWS_DARK = -2, IGNORED = -3;
+  int16_t pick_aspect(uint16_t mast, const std::string &message) const;
 
   static constexpr uint32_t SCAN_MS = 100;
   static constexpr uint32_t RELEASE_WINDOW_MS = 5000;
 
  private:
   enum Phase : uint8_t { IDLE, ACTIVE, PASSED, CANCELLING };
+  enum Turnout : uint8_t { T_NONE, T_CLOSED, T_THROWN, T_MOVING, T_OTHER };
   struct Latch {
     bool value = false, on = false, off = false;
   };
@@ -204,49 +241,38 @@ class Engine {
     int64_t run_true = -1, run_false = -1, since = -1;
     bool eff = false, guard = false, request = false, fired = false;
     int8_t prev_raw = -1;
-    size_t seq_p = 0;
+    uint16_t seq_p = 0;
   };
-  struct Rule {
-    const RuleDef *def;
-    std::string ref;
-    int index;
-    int resource = -1;
+  struct RuleState {
     Phase phase = IDLE;
-    int64_t cancel_at = 0;
     bool true_now = false, checks_now = false;
+    int64_t cancel_at = 0;
     TrigState trig;
   };
-  struct Resource {
-    const ResourceDef *def;
-    std::vector<int> rules;
-    int holder = -1;
-    bool startup_held = false;
+  struct ResState {
+    uint16_t holder = NONE;
+    bool startup_held = false, rel_done = false, release_now = false;
     int64_t rel_run_true = -1;
-    size_t rel_seq_p = 0;
-    bool rel_done = false;
-    bool release_now = false;
-  };
-  struct Remote {
-    int8_t online = -1;
-    std::map<std::string, std::string> items;  // kind \0 name -> value; absent: not known
+    uint16_t rel_seq_p = 0;
   };
   struct Ctx {
     bool startup = false;
     std::vector<bool> held_at_start;
   };
 
-  Board board_;
-  std::vector<Rule> rules_;
-  std::vector<std::vector<int>> layer_rules_;
-  std::vector<Resource> resources_;
-  std::vector<std::string> field_masts_;
-  std::map<std::string, Latch> latched_;
-  std::map<std::string, std::string> turnouts_;
-  std::map<std::string, bool> remote_locks_;
-  std::map<std::string, Remote> remote_;
-  std::vector<const Cond *> tracked_;
-  std::map<const Cond *, bool> edges_;
-  std::map<std::string, bool> prev_block_;
+  const Table &t_;
+  std::vector<RuleState> rules_;
+  std::vector<ResState> res_;
+  std::vector<std::vector<uint16_t>> res_rules_;  // rules reserving each resource
+  std::vector<bool> field_;  // per mast: some rule sets it
+  std::vector<Latch> sensors_, buttons_;
+  std::vector<uint8_t> turnouts_;
+  std::vector<bool> remote_locks_, field_locks_, prev_locked_;
+  std::vector<int8_t> online_;  // per remote board
+  std::vector<int16_t> remote_values_;  // per remote item; see value_of
+  std::vector<uint8_t> edges_;  // per node: 0 false, 1 true, 2 not taken
+  std::vector<uint16_t> tracked_;
+  std::vector<bool> prev_block_;
 
   int64_t n_ = 0;
   bool broker_ = true;
@@ -254,56 +280,46 @@ class Engine {
   bool publish_all_ = true;
   bool logic_on_ = true;
   bool startup_next_ = true;
-  std::string pending_logic_;
-  std::vector<std::pair<std::string, bool>> pending_releases_;  // resource, ignored
+  int8_t pending_logic_ = -1;  // -1 none, 0 off, 1 on
+  std::vector<std::pair<std::string, bool>> pending_releases_;  // resource name, ignored
 
-  std::map<std::string, std::string> jmri_shown_;  // "" none
-  std::map<std::string, bool> holds_;
-  std::map<std::string, std::string> display_;  // "" nothing shown
-  std::map<std::string, std::string> prev_out_;
-  std::map<std::string, bool> field_locks_;
-  std::map<std::string, bool> prev_locked_;
-  std::map<std::string, std::string> published_;
+  std::vector<int16_t> jmri_shown_, display_, prev_out_;  // per mast: aspect, SHOWS_NOTHING or SHOWS_DARK
+  std::vector<bool> holds_;
+  std::vector<int8_t> published_;  // per resource: held, then state; -1 not yet
 
-  const MastDef *mast(const std::string &name) const;
-  const MastDef *remote_mast(const std::string &board, const std::string &name) const;
-  const RemoteBoardDef *remote_board(const std::string &name) const;
-  const BlockDef *logic_block(const std::string &name) const;
-  bool is_field(const std::string &name) const;
-  Latch &input(const char *kind, const std::string &name);
-  std::string remote_kind(const std::string &board, const std::string &name) const;
-  bool remote_value(const std::string &board, const std::string &kind, const std::string &name, std::string *out) const;
-  bool known(const std::string &board, bool has) const;
-  bool occupied(const std::string &name, bool remote, const std::string &board);
-  bool went(const std::string &name, bool on);
-  bool turnout_is(const std::string &name, bool remote, const std::string &board, const std::string &is);
-  void mast_reading(const std::string &name, bool remote, const std::string &board, const MastDef **def,
-                    std::string *aspect, Tag *tag);
-  bool condition(const Cond &c);
-  bool moment(const Cond &m);
-  bool same_input_in_order(const Cond &prev, const Cond &next);
-  bool advance(const std::vector<Cond> &seq, size_t *p);
-  void reset_trigger(Rule &rule);
-  void reset_release(Resource &res);
-  bool held(const Resource &res) const;
-  void eval_trigger(Rule &rule, const Ctx &ctx);
-  void eval_release(Resource &res);
-  void free_res(Resource &res);
-  bool block_occupied_or_went(const Resource &res);
-  bool blocks_clear(const Resource &res);
-  bool mast_held(const Rule &rule) const;
-  bool is_active(const Rule &rule) const;
-  bool locks_held(const Rule &rule) const;
-  std::string resource_state(const Resource &res) const;
-  void finish(ScanOut *out, const std::map<std::string, std::string> &new_out, const std::map<std::string, bool> &new_locks,
-              bool has_out);
+  int16_t find(const std::vector<uint16_t> &list, const std::string &name) const;
+  int16_t find_mast(const std::string &name) const;
+  int16_t find_remote_item(uint16_t board, uint8_t kind, const std::string &name) const;
+  int16_t aspect_index(const Mast &m, const std::string &name) const;
+  Tag aspect_tag(const Mast &m, int16_t a) const;
+  bool known(uint16_t board, bool has) const;
+  bool occupied_ref(uint16_t item, bool logic_block);
+  bool remote_occupied(uint16_t item);
+  bool went(uint16_t item, bool logic_block, bool on);
+  bool condition(uint16_t node);
+  bool moment(uint16_t node);
+  bool same_input_in_order(uint16_t prev, uint16_t next);
+  bool advance(uint16_t first, uint16_t count, uint16_t *p);
+  void reset_trigger(uint16_t r);
+  void reset_release(uint16_t i);
+  bool held(uint16_t i) const;
+  void eval_trigger(uint16_t r, const Ctx &ctx);
+  void eval_release(uint16_t i);
+  void free_res(uint16_t i);
+  bool block_occupied_or_went(uint16_t i);
+  bool blocks_clear(uint16_t i);
+  bool mast_held(uint16_t r) const;
+  bool is_active(uint16_t r) const;
+  bool locks_held(uint16_t r) const;
+  const char *resource_state(uint16_t i) const;
+  void finish(ScanOut *out, const std::vector<int16_t> *new_out, const std::vector<bool> &new_locks);
   void publish_resources(ScanOut *out, const std::vector<std::string> &echoes);
   void record_edges();
   void end_scan();
   void switch_off(ScanOut *out, const std::vector<std::string> &echoes);
-  void set_latched(const char *kind, const std::string &name, bool value);
-  void jmri_message(const std::string &mast_name, const std::string &message);
-  void track(const Cond &c);
+  void jmri_message(uint16_t mast, const std::string &message);
+  std::string aspect_text(uint16_t mast, int16_t a) const;
+  void track(uint16_t node);
 };
 
 }  // namespace logic_core
