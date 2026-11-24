@@ -239,6 +239,45 @@ const CATS_ASPECTS = Object.freeze([
   "RES_SLO", "C412", "RES_NORM", "R286", "R287", "R284", "R285",
   "R282", "R283", "R281",
 ]);
+// What each aspect means for a train, most restrictive first (field logic
+// spec, Aspect tags). Logic picks between rules by this order, and reads a
+// mast by meaning ("while North is not stop").
+const ASPECT_TAGS = Object.freeze(["stop", "restricting", "approach", "advance", "clear"]);
+// The CATS aspects' tags, from the speeds in the CATS signal template
+// (.jmri/resources/signals/cats-masts/aspects.xml: `speed` past this signal,
+// `speed2` at the next). The first rule that matches wins:
+//   speed Stop                 -> stop
+//   speed Restricted or Slow   -> restricting
+//   speed2 Stop                -> approach
+//   name starts ADV_           -> advance
+//   anything else              -> clear
+// test/aspect-tags.test.js applies those rules to the template, so keep the
+// two in step.
+const CATS_ASPECT_TAGS = Object.freeze({
+  R292: "stop", R291: "stop",
+  RES_NORM: "restricting", RES_LIM: "restricting", RES_MED: "restricting", RES_SLO: "restricting",
+  R287: "restricting", R288: "restricting", C422: "restricting", C423: "restricting", C424: "restricting",
+  R285: "approach", R281D: "approach", R286: "approach",
+  ADV_NORM: "advance", ADV_LIM: "advance", ADV_MED: "advance", ADV_SLO: "advance",
+  R281: "clear", R281B: "clear", R281C: "clear", R282: "clear", R283: "clear", R283A: "clear",
+  R283B: "clear", R284: "clear", C412: "clear", C413: "clear", C414: "clear", C417: "clear",
+});
+// CATS aspects that send a train on a diverging route, at Medium or Limited
+// speed: the Limited and Medium rows of CATS's AspectMap speed table, less
+// the Advance and Restricting aspects. The template's speed cannot be used:
+// it gives plain Approach (R285) speed Medium.
+const CATS_DIVERGING = Object.freeze(["R281C", "C412", "C413", "C414", "R281D", "R283", "C417", "R283A", "R283B", "R286"]);
+
+// An aspect's tag by its JMRI name. A CATS aspect tags itself; any other
+// starts as stop, because an untagged aspect counts as the most restrictive.
+function catsAspectTag(name) {
+  return CATS_ASPECT_TAGS[jmriAspectName(String(name || ""))] || "stop";
+}
+
+function catsAspectDiverging(name) {
+  return CATS_DIVERGING.includes(jmriAspectName(String(name || "")));
+}
+
 const SIGNAL_BRIGHTNESS = 44.6;
 const BLINK_BRIGHTNESS = 66.6;
 const PULSE_BRIGHTNESS = 88.5;
@@ -2411,6 +2450,11 @@ function generateYaml(config) {
     SIGNAL_COLORS,
     SIGNAL_COLOR_ORDER,
     CATS_ASPECTS,
+    ASPECT_TAGS,
+    CATS_ASPECT_TAGS,
+    CATS_DIVERGING,
+    catsAspectTag,
+    catsAspectDiverging,
     catsAspectState,
     variantFor,
     normalizeConfig,
