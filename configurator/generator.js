@@ -294,7 +294,15 @@ function normalizeConfig(config) {
   delete config.i2c;
   if (!Array.isArray(config.expanders)) config.expanders = [];
   config.expanders.forEach((expander, i) => {
-    expander.name = String(expander.name || "").trim() || `MCP ${i + 1}`;
+    // Sensors follow the name as it is tidied, so a half-typed rename (empty,
+    // or ending in a space) does not take them off the expander.
+    const raw = expander.name;
+    expander.name = String(raw || "").trim() || `MCP ${i + 1}`;
+    if (raw !== expander.name) {
+      for (const block of config.blocks || []) {
+        if (block.expander !== undefined && block.expander === raw) block.expander = expander.name;
+      }
+    }
     const address = String(expander.address || "0x20").trim().toLowerCase();
     expander.address = /^0x[0-9a-f]{1,2}$/.test(address) ? `0x${address.slice(2).padStart(2, "0")}` : address;
     const bus = Number(expander.bus);
@@ -311,7 +319,10 @@ function normalizeConfig(config) {
   for (const block of config.blocks || []) {
     if (block.expander) {
       block.expander = String(block.expander);
-      block.pin = Number(block.pin);
+      // A pin that is not 0-15 is left out, so validation asks for one.
+      const pin = typeof block.pin === "string" && block.pin.trim() === "" ? NaN : Number(block.pin ?? NaN);
+      if (Number.isInteger(pin) && pin >= 0 && pin <= 15) block.pin = pin;
+      else delete block.pin;
       delete block.gpio;
     } else {
       delete block.expander;
@@ -1794,7 +1805,7 @@ function generateYaml(config) {
       name,
       topic,
       topicCustom: !!topicCustom,
-      ...(expander ? { expander, pin: Number(pin) } : { gpio }),
+      ...(expander ? { expander, pin } : { gpio }),
       inverted: !!inverted,
       debounce,
     })),

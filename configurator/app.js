@@ -544,11 +544,12 @@ function blockPinChoices(current) {
   return choices;
 }
 
-// ESP pins a detector can use, in the order Add sensor tries them.
+// ESP pins Add sensor picks from, in order. Strapping pins are left out: a
+// detector holding one at power-up can stop the board booting. They stay in
+// each sensor's pin list for anyone who picks one on purpose.
 function sensorEspPins() {
   const pullup = PULLUP_PINS.filter((pin) => !STRAPPING_PINS.has(pin));
-  return ["GPIO14", ...pullup.filter((pin) => pin !== "GPIO14"), ...Object.keys(NO_PULLUP_PINS),
-    ...PULLUP_PINS.filter((pin) => STRAPPING_PINS.has(pin))];
+  return ["GPIO14", ...pullup.filter((pin) => pin !== "GPIO14"), ...Object.keys(NO_PULLUP_PINS)];
 }
 
 function usedExpanderPins(except) {
@@ -906,18 +907,24 @@ function renderBlocks() {
   });
 }
 
-// Where a new expander goes: a PCA9685 bus in use, else the pins another
-// expander already uses, else GPIO21/GPIO22 or the next free pair.
-function newExpanderBus() {
-  if (pcaInUse(state)) return { bus: 1 };
-  const own = (state.expanders || []).find((expander) => !expander.bus);
+// Own SDA and SCL for `expander`: the pins another expander already has to
+// itself, else GPIO21/GPIO22 if free, else the first free pair.
+function ownExpanderPins(expander) {
+  const own = (state.expanders || []).find((other) => other !== expander && !other.bus);
   if (own) return { sda: own.sda, scl: own.scl };
   const used = usedPins();
+  if (expander && !expander.bus) {
+    used.delete(String(expander.sda || "").toUpperCase());
+    used.delete(String(expander.scl || "").toUpperCase());
+  }
   if (!used.has("GPIO21") && !used.has("GPIO22")) return { sda: "GPIO21", scl: "GPIO22" };
-  const sda = nextServoPin();
-  used.add(sda);
-  const scl = PULLUP_PINS.find((pin) => !used.has(pin) && !STRAPPING_PINS.has(pin)) || "GPIO22";
-  return { sda, scl };
+  const free = PULLUP_PINS.filter((pin) => !used.has(pin) && !STRAPPING_PINS.has(pin));
+  return { sda: free[0] || "GPIO21", scl: free[1] || "GPIO22" };
+}
+
+// Where a new expander goes: PCA9685 1's bus when it is in use, else its own pins.
+function newExpanderBus() {
+  return pcaInUse(state) ? { bus: 1 } : ownExpanderPins(null);
 }
 
 // The other expanders on the same bus as `expander` (or as `where`).
@@ -992,10 +999,10 @@ function renderExpanders() {
     });
     const busField = field("I2C bus", expander.bus ? `pca:${expander.bus}` : "own", (v) => {
       if (v === "own") {
-        const own = newExpanderBus();
+        const own = ownExpanderPins(expander);
         delete expander.bus;
-        expander.sda = own.sda || "GPIO21";
-        expander.scl = own.scl || "GPIO22";
+        expander.sda = own.sda;
+        expander.scl = own.scl;
       } else {
         expander.bus = Number(v.slice(4));
         delete expander.sda;
@@ -1099,7 +1106,10 @@ function renderPoints() {
   const add = document.createElement("button");
   add.type = "button";
   add.textContent = "Add PCA9685";
-  add.disabled = state.pcaBoards.length >= MAX_PCA_BOARDS;
+  // Expanders on their own pins take an I2C bus too.
+  const expanderBuses = i2cBuses(state).filter((bus) => bus.pca === null).length;
+  const busLimit = i2cBusLimit(state.board.module);
+  add.disabled = state.pcaBoards.length >= MAX_PCA_BOARDS || state.pcaBoards.length + expanderBuses >= busLimit;
   add.addEventListener("click", () => {
     const pcaBoard = { sda: nextServoPin(), scl: "" };
     state.pcaBoards.push(pcaBoard);
@@ -1109,7 +1119,9 @@ function renderPoints() {
   });
   const addRow = document.createElement("div");
   addRow.className = "add-board";
-  addRow.append(add, hintEl(`Each PCA9685 has its own SDA and SCL pins. An ESP32 has ${MAX_PCA_BOARDS} I2C buses, so ${MAX_PCA_BOARDS} boards at most.`));
+  addRow.append(add, hintEl(expanderBuses && !(state.pcaBoards.length >= MAX_PCA_BOARDS)
+    ? `Each PCA9685 has its own SDA and SCL pins. An ESP32 has ${busLimit} I2C buses, and an expander on the Sensors page has its own. Put it on a PCA9685 board's pins to free a bus.`
+    : `Each PCA9685 has its own SDA and SCL pins. An ESP32 has ${MAX_PCA_BOARDS} I2C buses, so ${MAX_PCA_BOARDS} boards at most.`));
   el.pointsList.append(addRow);
 }
 
@@ -1167,7 +1179,7 @@ function renderPcaBoard(pcaBoard, b) {
     field("SDA pin", String(pcaBoard.sda || "").toUpperCase(), (v) => {
       pcaBoard.sda = v;
       persist();
-      updatePreview();
+      render();
     }, {
       select: i2cPinChoices(pcaBoard.sda),
       hint: "Data pin for this board.",
@@ -1175,7 +1187,7 @@ function renderPcaBoard(pcaBoard, b) {
     field("SCL pin", String(pcaBoard.scl || "").toUpperCase(), (v) => {
       pcaBoard.scl = v;
       persist();
-      updatePreview();
+      render();
     }, {
       select: i2cPinChoices(pcaBoard.scl),
       hint: "Clock pin for this board.",

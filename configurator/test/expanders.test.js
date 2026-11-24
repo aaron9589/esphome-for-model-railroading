@@ -174,6 +174,33 @@ test("each expander pin takes one sensor, and must exist", () => {
   assert.ok(errorsOf(config).some((e) => e.includes("Two expanders are called \"MCP 1\"")));
 });
 
+test("a half-typed expander name keeps its sensors", () => {
+  for (const typed of ["", "Yard ", "  Yard"]) {
+    const config = board({ expanders: [{ name: "MCP 1", bus: 1, address: "0x20" }] });
+    config.blocks.push(sensor("A", "MCP 1", 5));
+    config.expanders[0].name = typed;
+    config.blocks[1].expander = typed;
+    normalizeConfig(config);
+    assert.equal(config.blocks[1].expander, config.expanders[0].name, JSON.stringify(typed));
+    assert.equal(config.blocks[1].pin, 5);
+    assert.deepEqual(errorsOf(config), []);
+  }
+});
+
+test("a missing or bad expander pin is left out, not moved to A0", () => {
+  for (const pin of [null, "", undefined, 16, -1, 2.5, "x"]) {
+    const config = board({ expanders: [{ name: "MCP 1", bus: 1, address: "0x20" }] });
+    config.blocks.push(sensor("A", "MCP 1", pin));
+    normalizeConfig(config);
+    assert.equal(config.blocks[1].pin, undefined, JSON.stringify(pin));
+    assert.ok(errorsOf(config).some((e) => e.includes("needs an expander pin")), JSON.stringify(pin));
+  }
+  const config = normalizeConfig(board({ expanders: [{ name: "MCP 1", bus: 1, address: "0x20" }] }));
+  config.blocks.push(sensor("A", "MCP 1", "7"));
+  normalizeConfig(config);
+  assert.equal(config.blocks[1].pin, 7);
+});
+
 test("expanders and expander sensors survive download and import", () => {
   const config = board({ expanders: [{ name: "MCP 1", bus: 1, address: "0x20" }, { name: "Yard MCP", sda: "GPIO25", scl: "GPIO26", address: "0x27" }] });
   config.blocks.push(sensor("Int 2 East", "MCP 1", 11), sensor("Yard 3", "Yard MCP", 2));
