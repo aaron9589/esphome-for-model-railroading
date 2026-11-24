@@ -31,6 +31,7 @@ This repo is a beginner path for model-railroad ESP32 boards that talk to JMRI/C
 | `docs/mss-emulation-spec.md` | Draft spec for MSS Logic, the second logic mode on the same engine: MSS-style modules described, not programmed (tracks, junctions, paired plant ends); not built yet |
 | `configurator/` | Static GitHub Pages Board Configurator |
 | `components/mr_logic/` | ESPHome external component: `logic_core.{h,cpp}` (the engine, plain C++17 with no ESPHome includes, mirroring `configurator/logic.js`), the adapter `mr_logic.{h,cpp}` and `__init__.py`. ESPHome copies only a component's top-level sources, so the core sits beside the adapter |
+| `engine-tests/esphome/` | `gauntlet.yaml`, made by `make-gauntlet.mjs` from the generator plus an `mr_logic:` block, which `component.yml` compiles with ESPHome (pinned on PRs, latest weekly). Run the script and commit when the generator or component changes |
 | `engine-tests/` | CMake project: builds the core and replays `configurator/test/cases`; `--trace` mode for the JS cross-check (`test/engine-diff.test.js`) |
 | `.github/workflows/` | `test.yml` (configurator tests, golden files, JMRI XML schema check) and `pages.yml` (deploy after tests pass) |
 | `advanced-samples/` | Non-Configurator patterns for interest only |

@@ -1,0 +1,73 @@
+name: Component
+
+# The mr_logic ESPHome component, built for an ESP32 with esphome compile.
+# On pull requests that touch it, against the ESPHome version the configurator
+# is tested with; every week, against the latest ESPHome, to hear early when a
+# new release breaks it.
+
+on:
+  pull_request:
+    branches: [main, feature/logic, "logic/**"]
+    paths:
+      - "components/**"
+      - "engine-tests/esphome/**"
+      - "configurator/generator.js"
+      - "configurator/logic-yaml.js"
+      - ".github/workflows/component.yml"
+  schedule:
+    - cron: "17 4 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  # The version a pull request is checked against.
+  ESPHOME_PINNED: "2026.10.2"
+
+jobs:
+  compile:
+    name: esphome compile of the gauntlet board
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install ESPHome
+        run: |
+          if [ "${{ github.event_name }}" = "schedule" ]; then
+            pip install esphome
+          else
+            pip install "esphome==${ESPHOME_PINNED}"
+          fi
+          esphome version
+
+      # The fixture is made from the configurator's generator, so a generator
+      # change that breaks the component's bindings shows up here.
+      - name: Make the gauntlet board
+        run: |
+          node engine-tests/esphome/make-gauntlet.mjs
+          git diff --exit-code engine-tests/esphome/gauntlet.yaml || {
+            echo "::error::gauntlet.yaml is out of date: run node engine-tests/esphome/make-gauntlet.mjs and commit it."
+            exit 1
+          }
+
+      - name: Cache PlatformIO
+        uses: actions/cache@v4
+        with:
+          path: ~/.platformio
+          key: platformio-${{ runner.os }}-${{ github.event_name == 'schedule' && 'latest' || env.ESPHOME_PINNED }}
+
+      - name: esphome compile
+        working-directory: engine-tests/esphome
+        run: esphome compile gauntlet.yaml

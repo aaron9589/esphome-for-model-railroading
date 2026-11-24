@@ -899,6 +899,11 @@ void Engine::jmri_message(uint16_t m, const std::string &message) {
   }
 }
 
+std::string Engine::shows(const std::string &mast) const {
+  int16_t m = find_mast(mast);
+  return m < 0 ? std::string() : aspect_text(static_cast<uint16_t>(m), display_[m]);
+}
+
 State Engine::state() const {
   State s;
   s.logic_on = logic_on_;

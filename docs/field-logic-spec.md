@@ -784,6 +784,37 @@ An ESP32 with Wi-Fi, MQTT and the web server running typically has 100 to 150 KB
 
 **Flash and RAM on the ESP32** (ESPHome 2026.10.2, `esphome compile`): the gauntlet board without logic used 53,488 B of static RAM and 1,039,391 B of flash. With the component bound to its sensors, masts and turnout: 53,680 B (+192 B) and 1,081,075 B (+41.7 KB). A 200-rule table adds its JSON string to flash (+34.5 KB) and no static RAM.
 
+**The component's YAML** (work item 2.4). The generator (2.5) writes one `mr_logic:` block; every id it names already exists in today's YAML, apart from the field-lock globals, the switch and the Release buttons:
+
+```yaml
+mr_logic:
+  id: logic
+  board: kiama-north-k7m4x2       # this board, for the logic topics; none: no MQTT
+  version: 3f9a1c22               # the version code, published retained
+  table: '{"sensors":[...],"masts":{...},"logic":{...}}'
+  logic_switch: field_logic       # a template switch, restore_mode RESTORE_DEFAULT_ON or _OFF
+  sensors:
+    - { name: Left, sensor: left_sensor, expander: mcp23017_1 }   # expander: only on an MCP23017 pin
+  masts:
+    - { name: Left Bridge, aspect: left_bridge_aspect, show: left_bridge_show, jmri: left_bridge }
+  turnouts:
+    - { name: P1, thrown: p1_thrown, throw_closed: p1_throw_closed, throw_thrown: p1_throw_thrown,
+        field_locked: p1_field_locked, remote_locked: p1_locked, resync: p1_latch_1 }
+  remote:
+    - board: kiama-south-a3f9qp
+      online: linked_kiama_south_a3f9qp_online
+      sensors: [{ name: Approach, state: linked_kiama_south_a3f9qp_sensor_approach }]
+      turnouts: [{ name: P7, thrown: ..._thrown, moving: ..._moving }]
+      masts: [{ name: Home, state: ... }]
+```
+
+- The component does the logic topics itself: it subscribes to the switch's light (`ON` / `OFF`) and each resource's Release turnout (`THROWN`), and publishes the light's state, Held, State, Version and the Release answer `CLOSED`, all retained. With no `board`, or Disable MQTT, it does none of this, and remote inputs stay not known.
+- A Release button is a template `button` whose `on_press` is `id(logic).release("<resource>");`.
+- `id(logic).started()` is true once the start-up scan has run: the toggle switches' boot moves wait for it. `id(logic).logic_on()` is the switch (before the first scan too): the startup-aspect step at -150 runs only when it is false. At the start-up scan the component itself shows each field-controlled mast's stop aspect (logic on) or its startup aspect (logic off).
+- A field-controlled mast's `mqtt_subscribe` keeps its topic but no `on_value` handler: the component reads JMRI's messages, uses only the hold with logic on, and with logic off shows today's handler's pick at once.
+- `resync` runs the turnout's latch script with `force: false` when it goes from locked (either flag) to unlocked; the YAML's own `UNLOCKED` handler stops running it on a board with logic.
+- An expander that fails or warns makes its sensors read occupied, and the component logs an `ERROR` until it answers again.
+
 **Still to measure on a board** (the spike's hardware half): scan time on the ESP32, the 100 ms loop's jitter while MQTT connects, free heap with about 40 `mqtt_subscribe` text sensors, and the boot order on the bench. The boot order to try: the startup-aspect step (`on_boot` priority -150) runs only while the logic switch is off; the latch scripts (-200) wait until the component's start-up scan has run; the component's setup priority is `DATA`, after the sensors and scripts it reads.
 
 ## Stored format

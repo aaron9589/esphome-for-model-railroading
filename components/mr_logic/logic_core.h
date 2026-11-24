@@ -244,6 +244,10 @@ class Engine {
   void event(const Event &e);
   ScanOut scan();
   State state() const;
+  bool logic_on() const { return logic_on_; }
+  // What a mast shows now: an aspect, "dark", or "" for nothing. With logic
+  // off a JMRI message changes this at once, with no scan.
+  std::string shows(const std::string &mast) const;
   int64_t time_ms() const { return n_ * static_cast<int64_t>(SCAN_MS); }
   size_t bytes() const;  // heap held, roughly
 
