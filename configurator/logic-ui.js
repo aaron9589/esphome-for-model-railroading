@@ -46,6 +46,33 @@
     }),
     stepDone: "Done",
     stepNext: "Next",
+    linkedCard: "Linked boards",
+    linkedIntro: "Other boards whose sensors and turnouts this board can read over MQTT. Link a board's board.yaml, or type its name. Those boards need Share with other boards ticked.",
+    linkFile: "Link a board's file",
+    linkTyped: "Type a board's name",
+    linkedEmpty: "No linked boards.",
+    fromFile: "From its file",
+    typed: "Typed",
+    refresh: "Refresh",
+    refreshHint: "Pick the board's file again after it changes.",
+    remove: "Remove",
+    boardNameLabel: "Board name",
+    boardNameHint: "Exactly as that board is named, suffix included, such as kiama-north-k7m4x2.",
+    typedSensorsLabel: "Sensors on that board",
+    typedSensorsHint: "One name per line, as on that board's Sensors page. Each is read from trains/track/sensor/<name>/State.",
+    typedTurnoutsLabel: "Turnouts on that board",
+    typedTurnoutsHint: "One name per line, as on that board's Turnouts page.",
+    notSharing: "This board does not share, so nothing of it can be heard here. Tick Share with other boards on its Logic page, flash it, then Refresh.",
+    linkedOwn: "That is this board's own file. Link a different board.",
+    linkedAdded: (name) => `Linked ${name}.`,
+    refreshWrongBoard: (expected, got) => `That file is ${got}, not ${expected}. Pick ${expected}'s file to refresh it.`,
+    linkedNoChange: (name) => `${name}: no changes.`,
+    linkedChanged: (name, changes) => `${name} has changed: ${changes.join("; ")}.`,
+    linkedCounts: (sensors, turnouts, blocks) => [
+      `${sensors} sensor${sensors === 1 ? "" : "s"}`,
+      `${turnouts} turnout${turnouts === 1 ? "" : "s"}`,
+      ...(blocks ? [`${blocks} block${blocks === 1 ? "" : "s"}`] : []),
+    ].join(", "),
   });
 
   function modeChoices() {
@@ -172,9 +199,195 @@
     root.append(section);
   }
 
+  // Read a board.yaml the person picks, as a linked board snapshot.
+  function pickBoardFile(onBoard, ctx) {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = ".yaml,.yml,text/yaml,text/plain";
+    input.addEventListener("change", async () => {
+      const file = input.files?.[0];
+      if (!file) return;
+      try {
+        const other = global.EsphomeMr.parseConfigFromYaml(await file.text());
+        onBoard(global.EsphomeMrLogicYaml.linkedBoardFromConfig(other));
+      } catch (err) {
+        ctx.flash("err", err.message || String(err));
+      }
+    });
+    input.click();
+  }
+
+  // Add or refresh a linked board from its file, saying what changed.
+  // `expected` is the board being refreshed: a file for another board is refused.
+  function takeLinkedBoard(config, ctx, snapshot, expected) {
+    const L = global.EsphomeMrLogicYaml;
+    if (expected !== undefined && snapshot.name !== expected) {
+      ctx.flash("err", TEXT.refreshWrongBoard(expected, snapshot.name));
+      return;
+    }
+    if (snapshot.name === config.board.name) {
+      ctx.flash("err", TEXT.linkedOwn);
+      return;
+    }
+    const logic = config.logic || (config.logic = {});
+    const boards = logic.remoteBoards || (logic.remoteBoards = []);
+    const at = boards.findIndex((board) => board.name === snapshot.name);
+    if (at < 0) {
+      boards.push(snapshot);
+      ctx.flash("ok", TEXT.linkedAdded(snapshot.name));
+    } else {
+      const changes = L.linkedBoardChanges(boards[at], snapshot);
+      boards[at] = snapshot;
+      ctx.flash(changes.length ? "err" : "ok", changes.length ? TEXT.linkedChanged(snapshot.name, changes) : TEXT.linkedNoChange(snapshot.name));
+    }
+    ctx.persist();
+    ctx.render();
+  }
+
+  // Point references at a typed board's new name. Not when another linked
+  // board still has the old name: those references are that board's.
+  function renameLinkedRefs(config, board, from, to) {
+    if (from === to) return;
+    if ((config.logic?.remoteBoards || []).some((other) => other !== board && other.name === from)) return;
+    for (const block of config.logic?.blocks || []) {
+      for (const member of block.sensors || []) {
+        if (member && typeof member === "object" && member.board === from) member.board = to;
+      }
+    }
+  }
+
+  function namesFrom(text) {
+    return [...new Set(String(text).split("\n").map((line) => line.trim()).filter(Boolean))];
+  }
+
+  function renderLinkedBoard(list, board, index, config, ctx) {
+    const L = global.EsphomeMrLogicYaml;
+    const item = document.createElement("div");
+    item.className = "row-card";
+    const header = document.createElement("header");
+    const title = document.createElement("h3");
+    title.textContent = board.name || TEXT.typed;
+    const badge = document.createElement("span");
+    badge.className = "linked-source";
+    badge.textContent = board.typed ? TEXT.typed : TEXT.fromFile;
+    title.append(" ", badge);
+    const actions = document.createElement("div");
+    actions.className = "row-actions";
+    if (!board.typed) {
+      const refresh = document.createElement("button");
+      refresh.type = "button";
+      refresh.textContent = TEXT.refresh;
+      refresh.title = TEXT.refreshHint;
+      refresh.addEventListener("click", () => pickBoardFile((snapshot) => takeLinkedBoard(config, ctx, snapshot, board.name), ctx));
+      actions.append(refresh);
+    }
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.className = "remove";
+    remove.textContent = TEXT.remove;
+    remove.addEventListener("click", () => {
+      config.logic.remoteBoards.splice(index, 1);
+      ctx.persist();
+      ctx.render();
+    });
+    actions.append(remove);
+    header.append(title, actions);
+    item.append(header);
+
+    const fields = document.createElement("div");
+    fields.className = "fields";
+    const counts = document.createElement("p");
+    counts.className = "card-copy full";
+    counts.textContent = TEXT.linkedCounts((board.blocks || []).length, (board.points || []).length, (board.logic?.blocks || []).length);
+    fields.append(counts);
+    if (!board.share) {
+      const warn = document.createElement("p");
+      warn.className = "linked-warning full";
+      warn.textContent = TEXT.notSharing;
+      fields.append(warn);
+    }
+    if (board.typed) {
+      // References follow the name once it is finished (change), not on every
+      // key: a half-typed name can pass through another linked board's name.
+      const nameAtRender = board.name;
+      const nameField = ctx.field(TEXT.boardNameLabel, board.name, (value) => {
+        board.name = value.trim();
+        title.firstChild.textContent = board.name || TEXT.typed;
+        ctx.persist();
+      }, { hint: TEXT.boardNameHint, full: true, spellcheck: false });
+      nameField.querySelector("input").addEventListener("change", () => {
+        renameLinkedRefs(config, board, nameAtRender, board.name);
+        ctx.persist();
+        ctx.render();
+      });
+      fields.append(nameField);
+      for (const [key, kind, label, hint] of [
+        ["blocks", "sensor", TEXT.typedSensorsLabel, TEXT.typedSensorsHint],
+        ["points", "turnout", TEXT.typedTurnoutsLabel, TEXT.typedTurnoutsHint],
+      ]) {
+        const wrap = document.createElement("label");
+        wrap.className = "full";
+        const span = document.createElement("span");
+        span.className = "field-label";
+        span.textContent = label;
+        const area = document.createElement("textarea");
+        area.rows = 3;
+        area.spellcheck = false;
+        area.value = (board[key] || []).map((entry) => entry.name).join("\n");
+        area.addEventListener("change", () => {
+          board[key] = namesFrom(area.value).map((name) => L.typedItem(kind, name));
+          ctx.persist();
+          ctx.render();
+        });
+        wrap.append(span, area, ctx.hintEl(hint));
+        fields.append(wrap);
+      }
+    }
+    item.append(fields);
+    list.append(item);
+  }
+
+  function renderLinkedBoards(root, config, ctx) {
+    const L = global.EsphomeMrLogicYaml;
+    const section = card("logic-linked", TEXT.linkedCard);
+    const intro = document.createElement("p");
+    intro.className = "card-copy";
+    intro.textContent = TEXT.linkedIntro;
+    section.append(intro);
+    const list = document.createElement("div");
+    const boards = L.linkedBoards(config);
+    boards.forEach((board, index) => renderLinkedBoard(list, board, index, config, ctx));
+    if (!boards.length) {
+      const empty = document.createElement("p");
+      empty.className = "empty";
+      empty.textContent = TEXT.linkedEmpty;
+      list.append(empty);
+    }
+    const row = document.createElement("div");
+    row.className = "add-board";
+    const fromFile = document.createElement("button");
+    fromFile.type = "button";
+    fromFile.textContent = TEXT.linkFile;
+    fromFile.addEventListener("click", () => pickBoardFile((snapshot) => takeLinkedBoard(config, ctx, snapshot), ctx));
+    const typed = document.createElement("button");
+    typed.type = "button";
+    typed.textContent = TEXT.linkTyped;
+    typed.addEventListener("click", () => {
+      const logic = config.logic || (config.logic = {});
+      (logic.remoteBoards || (logic.remoteBoards = [])).push(L.typedLinkedBoard(""));
+      ctx.persist();
+      ctx.render();
+      const inputs = document.querySelectorAll("#logic-linked input[type=text]");
+      inputs[inputs.length - 1]?.focus();
+    });
+    row.append(fromFile, typed);
+    section.append(list, row);
+    root.append(section);
+  }
+
   /**
    * Draw the Logic page into `root`. `ctx` carries the configurator's state and
-   * helpers: { config, field, hintEl, persist, render, showView }.
+   * helpers: { config, field, hintEl, persist, render, showView, flash }.
    */
   function renderLogicPage(root, ctx) {
     const config = ctx.config;
@@ -184,6 +397,7 @@
     renderChecklist(root, config, ctx, parts);
     renderMode(root, config, ctx);
     renderSettings(root, config, ctx);
+    if (global.EsphomeMr.logicMode(config) === "field") renderLinkedBoards(root, config, ctx);
   }
 
   // The nav's one-line summary of this board's logic.

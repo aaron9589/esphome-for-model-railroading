@@ -1156,3 +1156,29 @@ button.mini {
   grid-column: 1 / -1;
   margin: 0;
 }
+
+.linked-source {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--muted);
+  margin-left: 0.35rem;
+}
+
+.linked-warning {
+  margin: 0;
+  color: var(--warn-ink);
+  background: var(--warn-bg);
+  border-radius: 8px;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.88rem;
+}
+
+#logic-linked .row-card {
+  box-shadow: none;
+}
+
+#logic-linked textarea {
+  font-family: var(--mono);
+  font-size: 0.85rem;
+  width: 100%;
+}

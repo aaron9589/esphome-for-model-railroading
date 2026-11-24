@@ -150,6 +150,18 @@ function normalizeLogic(config) {
   }
   if (typeof logic.mode !== "string" || !logic.mode || logic.mode === "none") delete logic.mode;
   if (logic.share !== undefined) logic.share = logic.share === true;
+  // A hand-edited file can hold anything: keep only linked boards that are objects.
+  const isObject = (value) => value && typeof value === "object" && !Array.isArray(value);
+  if (logic.remoteBoards !== undefined) {
+    logic.remoteBoards = Array.isArray(logic.remoteBoards) ? logic.remoteBoards.filter(isObject) : [];
+    for (const board of logic.remoteBoards) {
+      for (const key of ["blocks", "points"]) {
+        board[key] = Array.isArray(board[key]) ? board[key].filter(isObject) : [];
+      }
+      if (!isObject(board.logic)) board.logic = {};
+      board.logic.blocks = Array.isArray(board.logic.blocks) ? board.logic.blocks.filter(isObject) : [];
+    }
+  }
 }
 
 // What goes in the config blob: nothing for an empty Logic page. Share
@@ -2313,6 +2325,7 @@ function generateYaml(config) {
   if (masts.length) emitSignalLights(lines, masts);
   const sharedTextSensors = [];
   logicHooks(config).emitTextSensors(sharedTextSensors, config);
+  logicHooks(config).emitRemoteSubscriptions(sharedTextSensors, config);
   if (mqtt && (points.length || masts.length || sharedTextSensors.length)) {
     lines.push("");
     lines.push("text_sensor:");
