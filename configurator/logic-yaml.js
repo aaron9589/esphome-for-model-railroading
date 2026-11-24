@@ -217,8 +217,8 @@
   function jmriSensors(config) {
     if (config.board?.mqttEnabled === false) return [];
     const items = [];
-    if (M().sharesWithOtherBoards(config)) items.push({ label: "Online sensor", topic: onlineTopic(config) });
-    for (const block of logicBlocks(config)) items.push({ label: `Block "${block.name}"`, topic: block.topic });
+    if (M().sharesWithOtherBoards(config)) items.push({ kind: "online", label: "Online sensor", topic: onlineTopic(config) });
+    for (const block of logicBlocks(config)) items.push({ kind: "block", label: `Block "${block.name}"`, topic: block.topic });
     return items;
   }
 
