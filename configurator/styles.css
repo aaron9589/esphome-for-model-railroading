@@ -1790,3 +1790,190 @@ details.rule-more {
     width: 100%;
   }
 }
+
+/* Logic page: Try it */
+.try-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 0.75rem 0;
+}
+
+.try-banner {
+  margin: 0 0 0.75rem;
+  padding: 0.6rem 0.8rem;
+  border-radius: 8px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 0.85rem;
+}
+
+.try-heading {
+  margin: 1.1rem 0 0.4rem;
+}
+
+.try-inputs {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr));
+  gap: 0.75rem 1rem;
+}
+
+.try-inputs .try-heading {
+  grid-column: 1 / -1;
+  margin-bottom: 0;
+}
+
+.try-signals {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1.5rem;
+}
+
+.try-mast {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.try-mast-picture.is-none {
+  display: inline-block;
+  width: 1.3rem;
+  height: 2rem;
+  border: 2px dashed var(--line-strong);
+  border-radius: 999px;
+}
+
+.try-mast-words {
+  display: flex;
+  flex-direction: column;
+  font-size: 0.82rem;
+}
+
+.try-section,
+.try-turnout {
+  margin: 0.2rem 0;
+  font-size: 0.85rem;
+}
+
+.try-turnout.is-locked {
+  color: var(--warn-ink);
+}
+
+.try-shape-name {
+  margin: 0.6rem 0 0.2rem;
+  font-size: 0.85rem;
+}
+
+.try-strip-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  margin-bottom: 0.5rem;
+}
+
+.try-strip {
+  display: block;
+  max-width: none;
+  font-family: var(--sans);
+}
+
+.try-rail {
+  stroke: var(--line-strong);
+  stroke-width: 4;
+}
+
+.try-label {
+  fill: var(--ink);
+  font-size: 11px;
+}
+
+.try-block rect:first-child {
+  fill: var(--accent-soft);
+  stroke: var(--line-strong);
+  stroke-width: 1.5;
+}
+
+.try-block.is-occupied rect:first-child {
+  stroke: var(--danger);
+}
+
+.try-train-body {
+  fill: var(--danger);
+}
+
+.try-turnout-mark rect {
+  fill: var(--surface);
+  stroke: var(--line-strong);
+}
+
+.try-turnout-mark.is-off-route rect {
+  fill: var(--warn-bg);
+  stroke: var(--warn-ink);
+}
+
+.try-signal .try-post {
+  stroke: var(--muted);
+  stroke-width: 2;
+}
+
+.try-signal .try-arrow {
+  stroke: var(--muted);
+  stroke-width: 2;
+}
+
+.try-signal.is-external .try-post {
+  stroke-dasharray: 3 3;
+}
+
+.try-head {
+  fill: var(--line-strong);
+  stroke: #111827;
+  stroke-width: 1.5;
+}
+
+.tag-stop .try-head,
+.tag-restricting .try-head {
+  fill: #dc2626;
+}
+
+.tag-approach .try-head,
+.tag-advance .try-head {
+  fill: #f5b301;
+}
+
+.tag-clear .try-head {
+  fill: #16a34a;
+}
+
+.is-clickable {
+  cursor: pointer;
+}
+
+.is-clickable:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.try-train-fields {
+  margin: 0.5rem 0 0.75rem;
+}
+
+.try-train-table .try-mast {
+  min-width: 8rem;
+}
+
+.try-details {
+  margin-top: 1.1rem;
+}
+
+.try-details summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.try-list {
+  margin: 0.25rem 0 0;
+  padding-left: 1.2rem;
+  font-size: 0.82rem;
+}

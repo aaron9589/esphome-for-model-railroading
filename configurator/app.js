@@ -2129,8 +2129,14 @@ function messageEl(kind, text, link) {
     show.textContent = "Show";
     show.addEventListener("click", (event) => {
       event.preventDefault();
+      // A checker problem carries the steps that cause it: Try it plays them.
+      if (link.sequence) {
+        globalThis.EsphomeMrLogicUiTry?.showMe(link.sequence);
+        render();
+      }
       showView(link.view);
-      if (link.part) document.getElementById(link.part)?.scrollIntoView({ block: "start" });
+      const part = link.sequence ? "logic-try" : link.part;
+      if (part) document.getElementById(part)?.scrollIntoView({ block: "start" });
     });
     div.append(" ", show);
   }

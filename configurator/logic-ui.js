@@ -8,7 +8,7 @@
   // Hidden parts are not shown and their settings are not offered.
   const FEATURES = Object.freeze({
     startsOn: false, // Release 2: logic starts on / off
-    tryIt: false, // Release 2: the checklist's Try it step
+    tryIt: true, // Release 2: the Try it part and the checklist's Try it step
     mss: false, // Release 4: MSS Logic in the mode list
   });
 
@@ -109,7 +109,7 @@
       const done = (config.logic?.blocks || []).length > 0 && (config.logic?.layers || []).length > 0;
       steps.push({ key: "blocks", done, target: "logic-blocks" });
     }
-    if (FEATURES.tryIt) steps.push({ key: "tryIt", done: false, target: "logic-try" });
+    if (FEATURES.tryIt && parts.blocks) steps.push({ key: "tryIt", done: false, target: "logic-try" });
     steps.push({ key: "download", done: false, view: "yaml" });
     return steps;
   }
