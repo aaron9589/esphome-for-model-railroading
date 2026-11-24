@@ -65,6 +65,7 @@
     notSharing: "This board does not share, so nothing of it can be heard here. Tick Share with other boards on its Logic page, flash it, then Refresh.",
     linkedOwn: "That is this board's own file. Link a different board.",
     linkedAdded: (name) => `Linked ${name}.`,
+    refreshWrongBoard: (expected, got) => `That file is ${got}, not ${expected}. Pick ${expected}'s file to refresh it.`,
     linkedNoChange: (name) => `${name}: no changes.`,
     linkedChanged: (name, changes) => `${name} has changed: ${changes.join("; ")}.`,
     linkedCounts: (sensors, turnouts, blocks) => [
@@ -217,8 +218,13 @@
   }
 
   // Add or refresh a linked board from its file, saying what changed.
-  function takeLinkedBoard(config, ctx, snapshot) {
+  // `expected` is the board being refreshed: a file for another board is refused.
+  function takeLinkedBoard(config, ctx, snapshot, expected) {
     const L = global.EsphomeMrLogicYaml;
+    if (expected !== undefined && snapshot.name !== expected) {
+      ctx.flash("err", TEXT.refreshWrongBoard(expected, snapshot.name));
+      return;
+    }
     if (snapshot.name === config.board.name) {
       ctx.flash("err", TEXT.linkedOwn);
       return;
@@ -238,8 +244,11 @@
     ctx.render();
   }
 
-  // Point references at a typed board's new name.
-  function renameLinkedRefs(config, from, to) {
+  // Point references at a typed board's new name. Not when another linked
+  // board still has the old name: those references are that board's.
+  function renameLinkedRefs(config, board, from, to) {
+    if (from === to) return;
+    if ((config.logic?.remoteBoards || []).some((other) => other !== board && other.name === from)) return;
     for (const block of config.logic?.blocks || []) {
       for (const member of block.sensors || []) {
         if (member && typeof member === "object" && member.board === from) member.board = to;
@@ -269,7 +278,7 @@
       refresh.type = "button";
       refresh.textContent = TEXT.refresh;
       refresh.title = TEXT.refreshHint;
-      refresh.addEventListener("click", () => pickBoardFile((snapshot) => takeLinkedBoard(config, ctx, snapshot), ctx));
+      refresh.addEventListener("click", () => pickBoardFile((snapshot) => takeLinkedBoard(config, ctx, snapshot, board.name), ctx));
       actions.append(refresh);
     }
     const remove = document.createElement("button");
@@ -298,14 +307,19 @@
       fields.append(warn);
     }
     if (board.typed) {
+      // References follow the name once it is finished (change), not on every
+      // key: a half-typed name can pass through another linked board's name.
+      const nameAtRender = board.name;
       const nameField = ctx.field(TEXT.boardNameLabel, board.name, (value) => {
-        const name = value.trim();
-        renameLinkedRefs(config, board.name, name);
-        board.name = name;
-        title.firstChild.textContent = name || TEXT.typed;
+        board.name = value.trim();
+        title.firstChild.textContent = board.name || TEXT.typed;
         ctx.persist();
       }, { hint: TEXT.boardNameHint, full: true, spellcheck: false });
-      nameField.querySelector("input").addEventListener("change", () => ctx.render());
+      nameField.querySelector("input").addEventListener("change", () => {
+        renameLinkedRefs(config, board, nameAtRender, board.name);
+        ctx.persist();
+        ctx.render();
+      });
       fields.append(nameField);
       for (const [key, kind, label, hint] of [
         ["blocks", "sensor", TEXT.typedSensorsLabel, TEXT.typedSensorsHint],

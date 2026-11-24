@@ -174,5 +174,76 @@ test("linked boards survive download and import", () => {
   assert.equal(generateYaml(restored), yaml);
 });
 
+test("two remote items whose ids would be the same each get their own", () => {
+  const config = board([
+    { board: "kiama-north-k7m4x2", sensor: "Up Main" },
+    { board: "kiama-north-k7m4x2", sensor: "Up-Main" },
+    { board: "kiama-north-k7m4x2", sensor: "Junction Track" },
+  ]);
+  const north = config.logic.remoteBoards[0];
+  north.blocks.push({ name: "Up Main", topic: "trains/track/sensor/Up Main" }, { name: "Up-Main", topic: "trains/track/sensor/Up-Main" });
+  const subs = new Map(L.remoteSubscriptions(config));
+  assert.equal(subs.size, 4, "Online and three sensors");
+  assert.deepEqual([...subs.values()].slice(1).sort(), [
+    "trains/track/sensor/Junction Track/State",
+    "trains/track/sensor/Up Main/State",
+    "trains/track/sensor/Up-Main/State",
+  ]);
+  // Only the clashing pair is changed; the rest keep their readable ids.
+  assert.ok(subs.has("linked_kiama_north_k7m4x2_sensor_junction_track"));
+  assert.ok(!subs.has("linked_kiama_north_k7m4x2_sensor_up_main"));
+  const [a, b] = config.logic.blocks[0].sensors.map((ref) => L.resolveRemote(config, ref).id);
+  assert.notEqual(a, b);
+  assert.ok(subs.has(a) && subs.has(b));
+  assert.equal(L.resolveRemote(config, config.logic.blocks[0].sensors[0]).id, a, "the same every time");
+});
+
+test("boards whose names fold to one id keep separate Online subscriptions", () => {
+  const config = board([{ board: "a-b", sensor: "Up" }, { board: "a--b", sensor: "Up" }]);
+  config.logic.remoteBoards = ["a-b", "a--b"].map((name) => {
+    const typed = L.typedLinkedBoard(name);
+    typed.blocks = [L.typedItem("sensor", "Up")];
+    return typed;
+  });
+  assert.deepEqual(errorsOf(config), []);
+  const subs = new Map(L.remoteSubscriptions(config));
+  assert.equal(subs.size, 4);
+  assert.ok([...subs.values()].includes("trains/track/sensor/board/a-b/Online"));
+  assert.ok([...subs.values()].includes("trains/track/sensor/board/a--b/Online"));
+});
+
+test("linked boards are checked only in Field Logic, where they are shown", () => {
+  const config = board([]);
+  config.logic.remoteBoards.push(L.typedLinkedBoard(""));
+  assert.ok(errorsOf(config).some((e) => e.includes("A linked board has no name")));
+  config.logic.mode = "none";
+  assert.deepEqual(errorsOf(config), []);
+});
+
+test("typed names must work as MQTT topics", () => {
+  const config = board([]);
+  const typed = L.typedLinkedBoard("Kiama South");
+  typed.blocks = ["+", "Up#Main", "Up/Main", "Up Main"].map((name) => L.typedItem("sensor", name));
+  typed.points = [L.typedItem("turnout", "#")];
+  config.logic.remoteBoards.push(typed);
+  const { errors, warnings } = validateConfig(normalizeConfig(config));
+  assert.ok(errors.some((e) => e.includes('Linked board "Kiama South" is not a board name')));
+  assert.ok(errors.some((e) => e.includes('Sensor "+" on linked board')));
+  assert.ok(errors.some((e) => e.includes('Sensor "Up#Main" on linked board')));
+  assert.ok(errors.some((e) => e.includes('Turnout "#" on linked board')));
+  assert.ok(warnings.some((w) => w.includes('Sensor "Up/Main" on linked board "Kiama South" has a /')));
+  assert.ok(!errors.some((e) => e.includes('"Up Main"')));
+});
+
+test("a hand-edited file with a broken linked board imports without crashing", () => {
+  const config = board([]);
+  config.logic.remoteBoards = [null, "x", [], { name: "yard-ab12cd", typed: true, share: true, blocks: [null, { name: "Up", topic: "trains/track/sensor/Up" }], points: "no", logic: null }];
+  normalizeConfig(config);
+  assert.equal(config.logic.remoteBoards.length, 1);
+  assert.deepEqual(plain(config.logic.remoteBoards[0].blocks), [{ name: "Up", topic: "trains/track/sensor/Up" }]);
+  assert.deepEqual(plain(config.logic.remoteBoards[0].points), []);
+  assert.doesNotThrow(() => validateConfig(config));
+});
+
 if (yamlOut) fs.mkdirSync(yamlOut, { recursive: true });
 if (!process.exitCode) console.log("\nAll linked board tests passed.");

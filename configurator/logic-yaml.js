@@ -286,19 +286,68 @@
    * resolved against the linked boards. Returns null, with `problem` saying
    * why, when it cannot be.
    */
-  function resolveRemote(config, ref) {
+  function findRemote(config, ref) {
     const kind = remoteKind(ref);
     const board = linkedBoards(config).find((b) => b.name === ref?.board);
     if (!kind) return { problem: "is not a sensor, block or turnout" };
     if (!board) return { problem: `is on board "${ref.board}", which is not under Linked boards` };
     const item = (REMOTE_KINDS[kind].list(board) || []).find((i) => i.name === ref[kind]);
     if (!item) return { problem: `${REMOTE_KINDS[kind].label} "${ref[kind]}" is not on ${board.name}. Refresh the linked board, or pick another` };
-    const id = M().sanitizeId(`linked_${board.name}_${kind}_${item.name}`);
-    return { kind, board, item, id, onlineId: onlineSubscriptionId(board) };
+    return { kind, board, item };
   }
 
-  function onlineSubscriptionId(board) {
-    return M().sanitizeId(`linked_${board.name}_online`);
+  function resolveRemote(config, ref) {
+    const found = findRemote(config, ref);
+    if (!found.item) return found;
+    const ids = remoteIdTable(config);
+    const boardKey = onlineKey(found.board);
+    const itemKey = itemIdKey(found.board, found.kind, found.item);
+    return {
+      ...found,
+      id: ids.get(itemKey) || itemBaseId(found.board, found.kind, found.item),
+      onlineId: ids.get(boardKey) || onlineBaseId(found.board),
+    };
+  }
+
+  const onlineKey = (board) => `${board.name}\u0000online`;
+  const itemIdKey = (board, kind, item) => `${board.name}\u0000${kind}\u0000${item.name}`;
+  const onlineBaseId = (board) => M().sanitizeId(`linked_${board.name}_online`);
+  const itemBaseId = (board, kind, item) => M().sanitizeId(`linked_${board.name}_${kind}_${item.name}`);
+
+  function shortHash(text) {
+    let hash = 0x811c9dc5;
+    for (const ch of text) hash = Math.imul(hash ^ ch.codePointAt(0), 0x01000193) >>> 0;
+    return hash.toString(16).padStart(8, "0").slice(0, 6);
+  }
+
+  // ESPHome ids for the remote items in use. sanitizeId folds case and
+  // punctuation, so "Up Main" and "up-main" (or boards "a-b" and "a--b") would
+  // share an id and one subscription would be lost. Any id two items would
+  // share gets a short hash of each item's exact name instead.
+  function remoteIdTable(config) {
+    const bases = new Map();
+    for (const ref of remoteRefsUsed(config)) {
+      const { kind, board, item } = findRemote(config, ref);
+      if (!item) continue;
+      bases.set(onlineKey(board), { base: onlineBaseId(board), suffixes: [""] });
+      bases.set(itemIdKey(board, kind, item), {
+        base: itemBaseId(board, kind, item),
+        suffixes: kind === "turnout" ? ["_thrown", "_moving"] : [""],
+      });
+    }
+    const owners = new Map();
+    for (const [key, { base, suffixes }] of bases) {
+      for (const suffix of suffixes) {
+        const id = base + suffix;
+        if (!owners.has(id)) owners.set(id, new Set());
+        owners.get(id).add(key);
+      }
+    }
+    const clashing = new Set();
+    for (const keys of owners.values()) if (keys.size > 1) keys.forEach((key) => clashing.add(key));
+    const ids = new Map();
+    for (const [key, { base }] of bases) ids.set(key, clashing.has(key) ? `${base}_${shortHash(key)}` : base);
+    return ids;
   }
 
   // Every remote item this board's logic uses. Blocks use them now; rules will.
@@ -361,14 +410,29 @@
     return `(${knownExpr(`${id}_thrown`, onlineId)} && ${knownExpr(`${id}_moving`, onlineId)} && id(${id}_moving).state == "INACTIVE" && id(${id}_thrown).state == "${thrown ? "ACTIVE" : "INACTIVE"}")`;
   }
 
+  // Linked boards show only in Field Logic, so they are checked only there: a
+  // problem the person cannot see must not block the download.
   function validateLinkedBoards(config, errors, warnings) {
+    if (M().logicMode(config) !== "field") return;
     const boards = linkedBoards(config);
     const names = new Set();
     for (const board of boards) {
       if (!board.name) errors.push("A linked board has no name. Type its name, or remove it.");
       else if (board.name === config.board?.name) errors.push(`Linked board "${board.name}" has this board's own name. Link a different board.`);
       else if (names.has(board.name)) errors.push(`Board "${board.name}" is linked twice. Remove one.`);
+      else if (board.typed && !/^[a-z0-9-]+$/.test(board.name)) {
+        errors.push(`Linked board "${board.name}" is not a board name. Type it as that board shows it: lowercase letters, numbers, and dashes.`);
+      }
       names.add(board.name);
+      if (!board.typed) continue;
+      // Typed names become MQTT topics: + and # are wildcards there, and / adds a level.
+      for (const [key, label] of [["blocks", "Sensor"], ["points", "Turnout"]]) {
+        for (const item of board[key] || []) {
+          const name = String(item?.name || "");
+          if (/[+#]/.test(name)) errors.push(`${label} "${name}" on linked board "${board.name}" has + or #, which MQTT topics cannot use. Type the name as that board shows it.`);
+          else if (name.includes("/")) warnings.push(`${label} "${name}" on linked board "${board.name}" has a /. Check it matches that board's name exactly.`);
+        }
+      }
     }
     const refs = remoteRefsUsed(config);
     if (refs.length && config.board?.mqttEnabled === false) {
@@ -387,7 +451,6 @@
     for (const name of notSharing) {
       errors.push(`Board "${name}" does not share with other boards, so this board cannot hear it. Tick Share on that board's Logic page, flash it, then Refresh it here.`);
     }
-    void warnings;
   }
 
   // --- validation.
