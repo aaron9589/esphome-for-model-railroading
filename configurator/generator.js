@@ -162,6 +162,19 @@ function normalizeLogic(config) {
       board.logic.blocks = Array.isArray(board.logic.blocks) ? board.logic.blocks.filter(isObject) : [];
     }
   }
+  // Blocks: a name, a topic that follows the name until it is edited, and
+  // sensors, each a name on this board or { board, sensor | block }.
+  if (logic.blocks !== undefined) {
+    logic.blocks = Array.isArray(logic.blocks) ? logic.blocks.filter(isObject) : [];
+    for (const block of logic.blocks) {
+      block.name = typeof block.name === "string" ? block.name : "";
+      if (typeof block.topic !== "string") block.topic = topicFor("block", block.name);
+      if (typeof block.topicCustom !== "boolean") block.topicCustom = block.topic !== topicFor("block", block.name);
+      block.sensors = Array.isArray(block.sensors)
+        ? block.sensors.filter((member) => typeof member === "string" || isObject(member))
+        : [];
+    }
+  }
 }
 
 // What goes in the config blob: nothing for an empty Logic page. Share
@@ -190,17 +203,23 @@ function logicHooks(config) {
   return NO_LOGIC_HOOKS;
 }
 
+// Ids from names, numbered on a repeat. A number is skipped when another name
+// already gave that id ("X", "x", "X 2" are x, x_2, x_2_2... not x_2 twice).
 function uniqueIds(items, nameKey = "name") {
   const seen = new Map();
+  const used = new Set();
   return items.map((item, index) => {
-    let id = sanitizeId(item[nameKey]);
-    if (seen.has(id)) {
-      const n = seen.get(id) + 1;
-      seen.set(id, n);
-      id = `${id}_${n}`;
-    } else {
-      seen.set(id, 1);
+    const base = sanitizeId(item[nameKey]);
+    let id = base;
+    if (used.has(id)) {
+      let n = seen.get(base) || 1;
+      do {
+        n += 1;
+        id = `${base}_${n}`;
+      } while (used.has(id));
+      seen.set(base, n);
     }
+    used.add(id);
     return { ...item, id: item.id || id, _index: index };
   });
 }
@@ -1014,7 +1033,14 @@ function generateJmriXml(config, include = {}) {
     }
   }
   if (mqtt && include.logic !== false) {
-    for (const address of logicHooks(config).jmriSensors(config) || []) sensors.push(address);
+    for (const item of logicHooks(config).jmriSensors(config) || []) {
+      const found = jmriAddress(item.topic, "sensor");
+      if (!found) skipped.push(`${item.label}: topic has no ${JMRI_TABLES.sensor.typeTopic}`);
+      else {
+        channels.add(found.channel);
+        sensors.push(found.address);
+      }
+    }
   }
   if (mqtt && include.masts !== false) {
     for (const mast of config.signals?.masts || []) {
@@ -2154,7 +2180,9 @@ function generateYaml(config) {
   }
 
   const hasButtons = points.some((point) => (point.controls || []).some((control) => control.buttonPin));
-  if (blocks.length || hasButtons) {
+  const logicBlockSensors = [];
+  logicHooks(config).emitBlocks(logicBlockSensors, config);
+  if (blocks.length || hasButtons || logicBlockSensors.length) {
     lines.push("");
     lines.push("binary_sensor:");
     for (const block of blocks) {
@@ -2212,6 +2240,7 @@ function generateYaml(config) {
     for (const point of points) {
       (point.controls || []).forEach((control, index) => emitButton(lines, point, control, index, lockActive(point, mqtt)));
     }
+    lines.push(...logicBlockSensors);
   }
 
   if (points.length) {
@@ -2354,6 +2383,8 @@ function generateYaml(config) {
     pcaInUse,
     sanitizeId,
     uniqueIds,
+    entityName,
+    expanderId,
     myFirstBoardPreset,
     newBoardConfig,
     emptyConfig,

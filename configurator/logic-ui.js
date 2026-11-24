@@ -68,6 +68,24 @@
     refreshWrongBoard: (expected, got) => `That file is ${got}, not ${expected}. Pick ${expected}'s file to refresh it.`,
     linkedNoChange: (name) => `${name}: no changes.`,
     linkedChanged: (name, changes) => `${name} has changed: ${changes.join("; ")}.`,
+    blocksCard: "Blocks",
+    blocksIntro: "A block is a stretch of track, made of the sensors that see a train in it: usually its current sensor, plus the optical sensor at each end. It reads occupied while any of its sensors does. An optical sensor at a boundary goes in the blocks on both sides of it.",
+    blocksIntro2: "JMRI and CATS see each block as one more sensor. A sensor from another board counts as occupied until that board is heard from.",
+    blocksEmpty: "No blocks yet.",
+    addBlock: "Add a block",
+    newBlockName: (n) => `Block ${n}`,
+    blockNameLabel: "Name",
+    blockNameHint: "Name in JMRI and the logs. The topic is filled in from this.",
+    blockTopicLabel: "MQTT topic",
+    blockTopicHint: "Where this block reports occupied or clear, like a sensor.",
+    membersLabel: "Sensors in this block",
+    membersEmpty: "No sensors yet. Add the sensors that see a train in this block.",
+    addMember: "Add a sensor…",
+    thisBoard: "This board",
+    remoteSensor: (board, name) => `${name} (from ${board})`,
+    remoteBlock: (board, name) => `Block ${name} (from ${board})`,
+    memberMissing: "not found",
+    noSensorsYet: "Add sensors on the Sensors page, or link a board, then pick them here.",
     linkedCounts: (sensors, turnouts, blocks) => [
       `${sensors} sensor${sensors === 1 ? "" : "s"}`,
       `${turnouts} turnout${turnouts === 1 ? "" : "s"}`,
@@ -385,19 +403,210 @@
     root.append(section);
   }
 
+  // A block member in words, and whether it can be found.
+  function memberText(config, member) {
+    const L = global.EsphomeMrLogicYaml;
+    const found = !L.blockMember(config, member).problem && !(typeof member === "object" && L.resolveRemote(config, member).problem);
+    let text;
+    if (typeof member === "string") text = member;
+    else if (member.block !== undefined) text = TEXT.remoteBlock(member.board, member.block);
+    else text = TEXT.remoteSensor(member.board ?? "?", member.sensor ?? member.turnout ?? "?");
+    return { text, found };
+  }
+
+  // What can be added to a block: this board's sensors, then each linked
+  // board's sensors and blocks.
+  function memberChoices(config, block) {
+    const L = global.EsphomeMrLogicYaml;
+    const taken = new Set((block.sensors || []).map((member) => L.memberKey(member)));
+    const groups = [];
+    const own = (config.blocks || []).map((sensor) => sensor.name).filter((name) => name && !taken.has(L.memberKey(name)));
+    if (own.length) groups.push({ label: TEXT.thisBoard, options: own.map((name) => ({ value: name, text: name })) });
+    for (const board of L.linkedBoards(config)) {
+      if (!board.name) continue;
+      const options = [];
+      for (const sensor of board.blocks || []) {
+        const member = { board: board.name, sensor: sensor.name };
+        if (!taken.has(L.memberKey(member))) options.push({ value: member, text: sensor.name });
+      }
+      for (const other of board.logic?.blocks || []) {
+        const member = { board: board.name, block: other.name };
+        if (!taken.has(L.memberKey(member))) options.push({ value: member, text: TEXT.remoteBlock(board.name, other.name) });
+      }
+      if (options.length) groups.push({ label: board.name, options });
+    }
+    return groups;
+  }
+
+  function renderBlock(list, block, index, config, ctx) {
+    const { topicFor } = global.EsphomeMr;
+    const item = document.createElement("div");
+    item.className = "row-card logic-block";
+    const header = document.createElement("header");
+    const title = document.createElement("h3");
+    title.textContent = block.name || TEXT.newBlockName(index + 1);
+    const actions = document.createElement("div");
+    actions.className = "row-actions";
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.className = "remove";
+    remove.textContent = TEXT.remove;
+    remove.addEventListener("click", () => {
+      config.logic.blocks.splice(index, 1);
+      ctx.persist();
+      ctx.render();
+    });
+    actions.append(remove);
+    header.append(title, actions);
+    item.append(header);
+
+    const fields = document.createElement("div");
+    fields.className = "fields";
+    const topicField = ctx.field(TEXT.blockTopicLabel, block.topic, (value) => {
+      block.topic = value;
+      block.topicCustom = value !== topicFor("block", block.name);
+      ctx.persist();
+    }, { hint: TEXT.blockTopicHint, full: true, spellcheck: false });
+    const topicInput = topicField.querySelector("input");
+    fields.append(ctx.field(TEXT.blockNameLabel, block.name, (value) => {
+      block.name = value;
+      title.textContent = value || TEXT.newBlockName(index + 1);
+      if (!block.topicCustom) {
+        block.topic = topicFor("block", value);
+        topicInput.value = block.topic;
+      }
+      ctx.persist();
+    }, { hint: TEXT.blockNameHint, full: true }), topicField);
+
+    const wrap = document.createElement("div");
+    wrap.className = "block-members-field";
+    const label = document.createElement("span");
+    label.className = "field-label";
+    label.textContent = TEXT.membersLabel;
+    wrap.append(label);
+    const members = document.createElement("ul");
+    members.className = "block-members";
+    (block.sensors || []).forEach((member, at) => {
+      const { text, found } = memberText(config, member);
+      const row = document.createElement("li");
+      row.classList.toggle("is-missing", !found);
+      const name = document.createElement("span");
+      name.textContent = text;
+      row.append(name);
+      if (!found) {
+        const missing = document.createElement("span");
+        missing.className = "linked-warning";
+        missing.textContent = TEXT.memberMissing;
+        row.append(" ", missing);
+      }
+      const take = document.createElement("button");
+      take.type = "button";
+      take.className = "remove";
+      take.textContent = TEXT.remove;
+      take.addEventListener("click", () => {
+        block.sensors.splice(at, 1);
+        ctx.persist();
+        ctx.render();
+      });
+      row.append(take);
+      members.append(row);
+    });
+    if (!(block.sensors || []).length) {
+      const empty = document.createElement("li");
+      empty.className = "empty";
+      empty.textContent = TEXT.membersEmpty;
+      members.append(empty);
+    }
+    wrap.append(members);
+    const groups = memberChoices(config, block);
+    if (groups.length) {
+      const select = document.createElement("select");
+      select.className = "block-add-member";
+      select.setAttribute("aria-label", TEXT.addMember);
+      const prompt = document.createElement("option");
+      prompt.value = "";
+      prompt.textContent = TEXT.addMember;
+      select.append(prompt);
+      for (const group of groups) {
+        const optgroup = document.createElement("optgroup");
+        optgroup.label = group.label;
+        for (const option of group.options) {
+          const o = document.createElement("option");
+          o.value = JSON.stringify(option.value);
+          o.textContent = option.text;
+          optgroup.append(o);
+        }
+        select.append(optgroup);
+      }
+      select.addEventListener("change", () => {
+        if (!select.value) return;
+        (block.sensors || (block.sensors = [])).push(JSON.parse(select.value));
+        ctx.persist();
+        rerender(ctx, `#logic-blocks .logic-block:nth-of-type(${index + 1}) .block-add-member`);
+      });
+      wrap.append(select);
+    } else {
+      wrap.append(ctx.hintEl(TEXT.noSensorsYet));
+    }
+    fields.append(wrap);
+    item.append(fields);
+    list.append(item);
+  }
+
+  function renderBlocks(root, config, ctx) {
+    const section = card("logic-blocks", TEXT.blocksCard);
+    for (const words of [TEXT.blocksIntro, TEXT.blocksIntro2]) {
+      const intro = document.createElement("p");
+      intro.className = "card-copy";
+      intro.textContent = words;
+      section.append(intro);
+    }
+    const list = document.createElement("div");
+    const blocks = config.logic?.blocks || [];
+    blocks.forEach((block, index) => renderBlock(list, block, index, config, ctx));
+    if (!blocks.length) {
+      const empty = document.createElement("p");
+      empty.className = "empty";
+      empty.textContent = TEXT.blocksEmpty;
+      list.append(empty);
+    }
+    const add = document.createElement("button");
+    add.type = "button";
+    add.textContent = TEXT.addBlock;
+    add.addEventListener("click", () => {
+      const logic = config.logic || (config.logic = {});
+      const stored = logic.blocks || (logic.blocks = []);
+      const taken = new Set(stored.map((b) => b.name));
+      let n = stored.length + 1;
+      while (taken.has(TEXT.newBlockName(n))) n += 1;
+      const name = TEXT.newBlockName(n);
+      stored.push({ name, topic: global.EsphomeMr.topicFor("block", name), topicCustom: false, sensors: [] });
+      ctx.persist();
+      ctx.render();
+      const inputs = document.querySelectorAll("#logic-blocks .logic-block input[type=text]");
+      inputs[inputs.length - 2]?.select();
+    });
+    section.append(list, add);
+    root.append(section);
+  }
+
   /**
    * Draw the Logic page into `root`. `ctx` carries the configurator's state and
    * helpers: { config, field, hintEl, persist, render, showView, flash }.
    */
   function renderLogicPage(root, ctx) {
     const config = ctx.config;
-    // Parts later work items add. Each is drawn only when it exists.
-    const parts = { blocks: false };
+    // Parts of the checklist, each shown only when its part is on the page.
+    const field = global.EsphomeMr.logicMode(config) === "field";
+    const parts = { blocks: field };
     root.replaceChildren();
     renderChecklist(root, config, ctx, parts);
     renderMode(root, config, ctx);
     renderSettings(root, config, ctx);
-    if (global.EsphomeMr.logicMode(config) === "field") renderLinkedBoards(root, config, ctx);
+    if (field) {
+      renderLinkedBoards(root, config, ctx);
+      renderBlocks(root, config, ctx);
+    }
   }
 
   // The nav's one-line summary of this board's logic.
