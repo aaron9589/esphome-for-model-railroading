@@ -170,9 +170,10 @@ Board to_board(const Value &v) {
             rule.then.reserve = then->text("reserve");
             rule.then.lock = strings(then->get("lock"));
           }
-          if (const Value *cancel = r.get("cancel")) {
+          const Value *cancel = r.get("cancel");
+          if (const Value *when = cancel ? cancel->get("when") : nullptr) {
             rule.has_cancel = true;
-            rule.cancel = to_cond(*cancel->get("when"));
+            rule.cancel = to_cond(*when);
           }
           layer.rules.push_back(rule);
         }
@@ -301,10 +302,15 @@ Value list(const std::vector<T> &items) {
 
 std::vector<std::string> run_case(const Value &data) {
   std::vector<std::string> problems;
-  Engine engine(to_board(*data.get("board")), to_start(data.get("start")));
+  const Value *board = data.get("board");
+  const Value *steps = data.get("steps");
+  if (!board || !steps) return {"the case has no board or no steps"};
+  Engine engine(to_board(*board), to_start(data.get("start")));
   int64_t next = 0;
-  for (const auto &step : data.get("steps")->arr) {
-    int64_t at = static_cast<int64_t>(step.get("at")->num);
+  for (const auto &step : steps->arr) {
+    const Value *at_value = step.get("at");
+    if (!at_value) return {"a step has no at"};
+    int64_t at = static_cast<int64_t>(at_value->num);
     while (next < at) {
       engine.scan();
       next++;
@@ -379,6 +385,10 @@ int run_trace(const std::string &path) {
   std::string error;
   if (!json::Parser(text).parse(&data, &error)) {
     std::fprintf(stderr, "%s\n", error.c_str());
+    return 2;
+  }
+  if (!data.get("board") || !data.get("scans")) {
+    std::fprintf(stderr, "a trace needs board and scans\n");
     return 2;
   }
   Engine engine(to_board(*data.get("board")), to_start(data.get("start")));

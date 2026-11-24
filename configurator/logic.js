@@ -68,6 +68,9 @@
     return String(message).includes("; Held");
   }
 
+  // A condition's value: `is` may be a list (a mast's tags); elsewhere its first value counts.
+  const first = (c) => [].concat(c.is)[0];
+
   // --- The engine ----------------------------------------------------------
 
   /**
@@ -80,7 +83,9 @@
     const mastOrder = Object.keys(masts);
     const turnoutOrder = board.turnouts || [];
     const logic = board.logic || {};
-    const logicBlocks = new Map((logic.blocks || []).map((b) => [b.name, b.sensors || []]));
+    // Names are unique once validated; if not, the first one wins, as in the C++ core.
+    const logicBlocks = new Map();
+    for (const b of logic.blocks || []) if (!logicBlocks.has(b.name)) logicBlocks.set(b.name, b.sensors || []);
     const remoteBoards = board.remote || {};
 
     const rules = [];
@@ -114,7 +119,8 @@
       rel: null,
       releaseNow: false,
     }));
-    const resourceByName = new Map(resources.map((r) => [r.name, r]));
+    const resourceByName = new Map();
+    for (const r of resources) if (!resourceByName.has(r.name)) resourceByName.set(r.name, r);
     for (const rule of rules) {
       rule.resource = rule.then.reserve ? resourceByName.get(rule.then.reserve) || null : null;
       if (rule.resource) rule.resource.rules.push(rule);
@@ -183,8 +189,11 @@
         return known(b, value) ? value === "occupied" : true;
       }
       if (logicBlocks.has(name)) {
+        // A member on this board is one of its sensors; another board's is read there.
         return logicBlocks.get(name).some((member) =>
-          typeof member === "string" ? input("sensor", member).value : occupied(member.sensor ?? member.block, member.board));
+          typeof member === "string" || member.board === undefined
+            ? input("sensor", typeof member === "string" ? member : member.sensor ?? member.block).value
+            : occupied(member.sensor ?? member.block, member.board));
       }
       return input("sensor", name).value;
     }
@@ -234,12 +243,12 @@
       if (c.not) return !condition(c.not);
       if (c.block !== undefined || c.sensor !== undefined) {
         const occ = occupied(c.block ?? c.sensor, c.board);
-        return c.is === "clear" ? !occ : occ;
+        return first(c) === "clear" ? !occ : occ;
       }
-      if (c.turnout !== undefined) return turnoutState(c.turnout, c.board) === c.is;
+      if (c.turnout !== undefined) return turnoutState(c.turnout, c.board) === first(c);
       if (c.mast !== undefined) {
         const r = mastReading(c.mast, c.board);
-        if (c.is === "diverging") return r.aspect !== null && (r.def.diverging || []).includes(r.aspect);
+        if (first(c) === "diverging") return r.aspect !== null && (r.def.diverging || []).includes(r.aspect);
         return [].concat(c.is).includes(r.tag);
       }
       if (c.button !== undefined) return input("button", c.button).value;
@@ -251,8 +260,8 @@
     // else by its condition becoming true since the last scan.
     function moment(m) {
       const local = m.board === undefined && (m.block !== undefined || m.sensor !== undefined || m.button !== undefined);
-      if (local && m.button !== undefined) return m.is === "pressed" && input("button", m.button).on;
-      if (local) return went(m.block ?? m.sensor, m.is !== "clear");
+      if (local && m.button !== undefined) return first(m) === "pressed" && input("button", m.button).on;
+      if (local) return went(m.block ?? m.sensor, first(m) !== "clear");
       return condition(m) && edges.get(momentKey(m)) === false;
     }
     const trackedMoments = [];
@@ -261,15 +270,14 @@
     // Two moments on the same input in one scan, in the order the latches
     // and the value prove (rule 2). Moments on different inputs advance one
     // per scan, since their order within a scan cannot be known.
+    // { sensor: X } and { block: X } name the same input.
     function sameInputInOrder(prev, next) {
-      const input1 = { ...prev, is: undefined };
-      const input2 = { ...next, is: undefined };
-      if (JSON.stringify(input1) !== JSON.stringify(input2) || prev.board !== undefined) return false;
+      if (prev.board !== undefined || next.board !== undefined) return false;
       const name = prev.block ?? prev.sensor;
-      if (name === undefined || logicBlocks.has(name)) return false;
+      if (name === undefined || name !== (next.block ?? next.sensor) || logicBlocks.has(name)) return false;
       const s = input("sensor", name);
-      if (prev.is === "occupied" && next.is === "clear") return s.on && s.off && !s.value;
-      if (prev.is === "clear" && next.is === "occupied") return s.on && s.off && s.value;
+      if (first(prev) === "occupied" && first(next) === "clear") return s.on && s.off && !s.value;
+      if (first(prev) === "clear" && first(next) === "occupied") return s.on && s.off && s.value;
       return false;
     }
 

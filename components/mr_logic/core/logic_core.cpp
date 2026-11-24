@@ -127,9 +127,11 @@ Engine::Engine(const Board &board, const Start &start) : board_(board) {
     const std::string &reserve = rule.def->then.reserve;
     if (reserve.empty()) continue;
     for (size_t i = 0; i < resources_.size(); i++) {
+      // Names are unique once validated; if not, the first one wins, as in logic.js.
       if (resources_[i].def->name == reserve) {
         rule.resource = static_cast<int>(i);
         resources_[i].rules.push_back(rule.index);
+        break;
       }
     }
   }
@@ -261,7 +263,8 @@ bool Engine::occupied(const std::string &name, bool remote, const std::string &b
   }
   if (const BlockDef *block = logic_block(name)) {
     for (const auto &m : block->members) {
-      if (occupied(m.name, m.remote, m.board)) return true;
+      // A member on this board is one of its sensors; another board's is read there.
+      if (m.remote ? occupied(m.name, true, m.board) : input("sensor", m.name).value) return true;
     }
     return false;
   }
@@ -824,7 +827,7 @@ void Engine::event(const Event &e) {
         broker_ = true;
         connect_at_ = t;
         publish_all_ = true;
-      } else {
+      } else if (e.value == "disconnected") {
         broker_ = false;
       }
       return;

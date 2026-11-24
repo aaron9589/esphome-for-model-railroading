@@ -181,10 +181,15 @@ std::string stop_aspect(const MastDef &mast);
 class Engine {
  public:
   Engine(const Board &board, const Start &start);
+  // Rules and resources point into board_, so an Engine stays where it is made.
+  Engine(const Engine &) = delete;
+  Engine &operator=(const Engine &) = delete;
+  Engine(Engine &&) = delete;
+  Engine &operator=(Engine &&) = delete;
   void event(const Event &e);
   ScanOut scan();
   State state() const;
-  uint32_t time_ms() const { return static_cast<uint32_t>(n_) * SCAN_MS; }
+  int64_t time_ms() const { return n_ * static_cast<int64_t>(SCAN_MS); }
 
   static constexpr uint32_t SCAN_MS = 100;
   static constexpr uint32_t RELEASE_WINDOW_MS = 5000;

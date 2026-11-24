@@ -2,6 +2,7 @@
 // so the tests need nothing outside this repo. Objects keep their key order.
 #pragma once
 
+#include <cstdio>
 #include <cstdlib>
 #include <string>
 #include <utility>
@@ -197,23 +198,29 @@ inline bool equal(const Value &a, const Value &b) {
   return false;
 }
 
+inline std::string quote(const std::string &s) {
+  std::string out = "\"";
+  for (char c : s) {
+    if (c == '"' || c == '\\') {
+      out += '\\';
+      out += c;
+    } else if (static_cast<unsigned char>(c) < 0x20) {
+      char buf[8];
+      std::snprintf(buf, sizeof buf, "\\u%04x", static_cast<unsigned char>(c));
+      out += buf;
+    } else {
+      out += c;
+    }
+  }
+  return out + "\"";
+}
+
 inline std::string dump(const Value &v) {
   switch (v.type) {
     case Value::NUL: return "null";
     case Value::BOOL: return v.b ? "true" : "false";
     case Value::NUM: return std::to_string(v.num);
-    case Value::STR: {
-      std::string out = "\"";
-      for (char c : v.str) {
-        if (c == '"' || c == '\\') out += '\\';
-        if (c == '\n') {
-          out += "\\n";
-          continue;
-        }
-        out += c;
-      }
-      return out + "\"";
-    }
+    case Value::STR: return quote(v.str);
     case Value::ARR: {
       std::string out = "[";
       for (size_t i = 0; i < v.arr.size(); i++) out += (i ? "," : "") + dump(v.arr[i]);
@@ -221,7 +228,7 @@ inline std::string dump(const Value &v) {
     }
     case Value::OBJ: {
       std::string out = "{";
-      for (size_t i = 0; i < v.obj.size(); i++) out += (i ? "," : "") + ("\"" + v.obj[i].first + "\":") + dump(v.obj[i].second);
+      for (size_t i = 0; i < v.obj.size(); i++) out += (i ? "," : "") + quote(v.obj[i].first) + ":" + dump(v.obj[i].second);
       return out + "}";
     }
   }

@@ -74,6 +74,48 @@ function trace(board, seed) {
   return scans;
 }
 
+// Boards with shapes the cases do not use, so the two engines are compared on
+// them too: blocks of local, keyed and remote members, both keys for one
+// sensor in one sequence, is lists, a when trigger with a cancel, a button,
+// lock rules, approach lighting, and a resource no rule reserves.
+const S2 = { aspects: { R292: "stop", R285: "approach", R281: "clear", R283: "clear" }, diverging: ["R283"] };
+const EXTRA_BOARDS = {
+  "mixed shapes": {
+    board: {
+      sensors: ["A", "B", "C", "D", "Far"],
+      turnouts: ["P1", "P2"],
+      masts: { M1: S2, M2: { ...S2, approachLight: "D" }, M3: S2, JM: S2 },
+      remote: { south: { sensors: ["RS"], blocks: ["RB"], turnouts: ["RT"], masts: { RM: S2 } } },
+      logic: {
+        blocks: [
+          { name: "Inner", sensors: ["A"] },
+          { name: "Outer", sensors: ["Inner", { sensor: "B" }, { board: "south", sensor: "RS" }, { board: "south", block: "RB" }] },
+        ],
+        buttons: [{ name: "Go" }, { name: "Stop it" }],
+        resources: [
+          { name: "Main", blocks: ["Outer", "C"], release: { when: { sensor: "Far", is: "occupied" }, then: [{ block: "Far", is: "clear" }] }, approachLock: "1.5s" },
+          { name: "Spare", blocks: ["D"], release: { while: { block: "D", is: ["clear"] }, for: "300ms" } },
+        ],
+        layers: [
+          { name: "One", rules: [
+            { trigger: { when: { button: "Go", is: "pressed" } }, checks: [{ any: [{ block: "C", is: "clear" }, { turnout: "P1", is: ["closed"] }] }],
+              then: { mast: "M1", aspect: "R281", reserve: "Main", lock: ["P1"] }, cancel: { when: { button: "Stop it", is: "pressed" } } },
+            { trigger: { while: { block: "Outer", is: "occupied" }, for: "0.4s", leavingGuard: true }, checks: [{ not: { mast: "JM", is: ["stop", "restricting"] } }],
+              then: { mast: "M2", aspect: "R285", reserve: "Main" } },
+            { trigger: { while: { board: "south", mast: "RM", is: "diverging" } }, checks: [{ board: "south", turnout: "RT", is: "thrown" }],
+              then: { mast: "M3", aspect: "R283", lock: ["P2"] } },
+          ] },
+          { name: "Two", rules: [
+            { trigger: { while: { all: [{ block: "Inner", is: "clear" }, { mast: "M1", is: "clear" }] }, for: "200ms" }, checks: [], then: { mast: "M3", aspect: "R285" } },
+            { trigger: { while: { block: "D", is: "clear" } }, checks: [], then: { mast: "M2", aspect: "R283" } },
+          ] },
+        ],
+      },
+    },
+    start: { remote: { south: { online: true } } },
+  },
+};
+
 function runJs(board, start, scans) {
   const engine = L.createEngine(board, start);
   return scans.map((events) => {
@@ -87,13 +129,18 @@ if (!bin) {
 } else {
   assert.ok(fs.existsSync(bin), `ENGINE_TESTS_BIN ${bin} does not exist`);
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "engine-diff-"));
-  for (const file of fs.readdirSync(casesDir).filter((f) => f.endsWith(".json")).sort()) {
-    const { board, start = {} } = JSON.parse(fs.readFileSync(path.join(casesDir, file), "utf8"));
-    test(`JS and C++ agree on ${file}'s board, ${TRACES} random runs of ${SCANS} scans`, () => {
-      for (let run = 0; run < TRACES; run++) {
-        const seed = 1000 * run + file.length;
+  const boards = fs.readdirSync(casesDir).filter((f) => f.endsWith(".json")).sort()
+    .map((file) => [file, JSON.parse(fs.readFileSync(path.join(casesDir, file), "utf8"))]);
+  for (const [name, data] of Object.entries(EXTRA_BOARDS)) boards.push([name, data]);
+  for (const [file, { board, start = {} }] of boards) {
+    const runs = file in EXTRA_BOARDS ? TRACES * 10 : TRACES;
+    test(`JS and C++ agree on ${file}'s board, ${runs} random runs of ${SCANS} scans`, () => {
+      for (let run = 0; run < runs; run++) {
+        // A seed per file name and run, so every board gets its own events.
+        let seed = run * 7919;
+        for (const ch of file) seed = (Math.imul(seed, 31) + ch.charCodeAt(0)) >>> 0;
         const scans = trace(board, seed);
-        const tracePath = path.join(dir, `${file}-${run}.json`);
+        const tracePath = path.join(dir, `${file.replace(/\W+/g, "-")}-${run}.json`);
         fs.writeFileSync(tracePath, JSON.stringify({ board, start, scans }));
         const cpp = JSON.parse(execFileSync(bin, ["--trace", tracePath], { encoding: "utf8", maxBuffer: 64 << 20 }));
         const js = JSON.parse(JSON.stringify(runJs(board, start, scans)));
