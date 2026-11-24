@@ -36,10 +36,15 @@ jobs:
       - name: Setup Pages
         uses: actions/configure-pages@v5
 
+      # The site without its tests: the fixtures hold (fake) Wi-Fi passwords
+      # and API keys that should not look like a published board.yaml.
+      - name: Stage site
+        run: rsync -a --exclude /test/ --exclude /package.json configurator/ "$RUNNER_TEMP/site/"
+
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: configurator
+          path: ${{ runner.temp }}/site
 
       - name: Deploy to GitHub Pages
         id: deployment

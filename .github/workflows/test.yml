@@ -3,8 +3,9 @@ name: Tests
 on:
   pull_request:
     branches: [main, feature/logic]
+  # Pushes to main are tested by pages.yml, which calls this before it deploys.
   push:
-    branches: [main, feature/logic]
+    branches: [feature/logic]
   workflow_dispatch:
   # pages.yml runs this first and deploys only if it passes.
   workflow_call:
