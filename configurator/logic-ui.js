@@ -1,7 +1,7 @@
 // The Logic page (docs/field-logic-spec.md, The Logic page). Loaded after
 // generator.js and before app.js, which calls renderLogicPage on every render.
 //
-// Every word the page shows is in TEXT, so test/labels.test.js can check that
+// Every word the page shows is in TEXT, so test/logic-page.test.js can check that
 // none of the spec-only terms (scan, latch, layer, resource, ...) reach the page.
 (function (global) {
   // Parts of the page that later releases of the implementation plan switch on.
@@ -13,12 +13,9 @@
   });
 
   const TEXT = Object.freeze({
-    title: "Logic",
-    intro: "How this board decides what its signals show.",
-    navNone: "None",
     modeCard: "Logic",
     modeLabel: "Logic",
-    modeHint: "How this board decides what its signals show.",
+    modeHint: "You can change this at any time. Switching keeps what you have set up here.",
     modes: Object.freeze({
       none: Object.freeze({
         label: "None",
@@ -49,8 +46,6 @@
     }),
     stepDone: "Done",
     stepNext: "Next",
-    back: "Back: signal masts",
-    next: "Next: download",
   });
 
   function modeChoices() {
@@ -67,6 +62,12 @@
     if (FEATURES.tryIt) steps.push({ key: "tryIt", done: false, target: "logic-try" });
     steps.push({ key: "download", done: false, view: "yaml" });
     return steps;
+  }
+
+  // Draw the page again, keeping focus on the control that changed.
+  function rerender(ctx, selector) {
+    ctx.render();
+    document.querySelector(selector)?.focus();
   }
 
   function card(id, title) {
@@ -120,13 +121,10 @@
     if (!choices.includes(mode)) choices.push(mode);
     fields.append(ctx.field(TEXT.modeLabel, mode, (value) => {
       const logic = config.logic || (config.logic = {});
-      const was = global.EsphomeMr.logicMode(config);
       if (value === "none") delete logic.mode;
       else logic.mode = value;
-      // Share is on by default in Field Logic.
-      if (value === "field" && was === "none") logic.share = true;
       ctx.persist();
-      ctx.render();
+      rerender(ctx, "#logic-mode select");
     }, {
       select: choices.map((key) => ({ value: key, label: TEXT.modes[key].label })),
       hint: TEXT.modeHint,
@@ -154,12 +152,14 @@
     if (mode === "mss") {
       fields.append(ctx.hintEl(TEXT.shareAlwaysOn));
     } else {
-      fields.append(ctx.field(TEXT.shareLabel, config.logic?.share === true, (checked) => {
+      const share = ctx.field(TEXT.shareLabel, global.EsphomeMr.sharesWithOtherBoards(config), (checked) => {
         const logic = config.logic || (config.logic = {});
         logic.share = checked;
         ctx.persist();
-        ctx.render();
-      }, { checkbox: true, hint: TEXT.shareHint }));
+        rerender(ctx, "#logic-share");
+      }, { checkbox: true, hint: TEXT.shareHint });
+      share.querySelector("input").id = "logic-share";
+      fields.append(share);
     }
     if (FEATURES.startsOn && mode !== "none") {
       fields.append(ctx.field(TEXT.startsOnLabel, config.logic?.startsOn !== false, (checked) => {

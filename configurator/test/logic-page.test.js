@@ -51,7 +51,7 @@ test("the lint would catch a spec-only term", () => {
 
 test("logic mode None with Share unticked writes no logic key", () => {
   const plain = generateYaml(board());
-  for (const logic of [undefined, {}, { share: false }, { mode: "none" }, { mode: "bogus", share: "yes" }, []]) {
+  for (const logic of [undefined, {}, { share: false }, { mode: "none" }, { share: "yes" }, { mode: "" }, []]) {
     const config = board();
     if (logic !== undefined) config.logic = logic;
     assert.equal(generateYaml(config), plain, JSON.stringify(logic));
@@ -74,11 +74,38 @@ test("mode and Share are stored, and survive import", () => {
   assert.equal(logicMode(normalizeConfig(shareOnly)), "none");
 });
 
-test("keys a later configurator adds are kept on import", () => {
+test("Share follows the mode until it is ticked or unticked", () => {
+  const config = board();
+  config.logic = {};
+  assert.equal(sharesWithOtherBoards(config), false);
+  config.logic.mode = "field";
+  assert.equal(sharesWithOtherBoards(config), true, "on by default in Field Logic");
+  delete config.logic.mode;
+  assert.equal(sharesWithOtherBoards(config), false, "back to None: off again");
+  assert.equal(generateYaml(config), generateYaml(board()));
+
+  config.logic = { mode: "field", share: false };
+  delete config.logic.mode;
+  config.logic.mode = "field";
+  assert.equal(sharesWithOtherBoards(config), false, "an untick is kept across mode changes");
+  const blob = JSON.parse(generateYaml(config).split("\n")[1].slice(2));
+  assert.deepEqual(blob.logic, { mode: "field", share: false });
+
+  config.logic = { share: true };
+  assert.equal(sharesWithOtherBoards(config), true, "ticked with mode None");
+});
+
+test("keys and modes a later configurator adds are kept on import", () => {
   const config = board();
   config.logic = { mode: "field", share: true, layers: [{ name: "Bridge" }] };
   const restored = normalizeConfig(parseConfigFromYaml(generateYaml(config)));
   assert.equal(restored.logic.layers[0].name, "Bridge");
+
+  const newer = board();
+  newer.logic = { mode: "future-mode" };
+  const back = normalizeConfig(parseConfigFromYaml(generateYaml(newer)));
+  assert.equal(back.logic.mode, "future-mode");
+  assert.equal(logicMode(back), "none");
 });
 
 test("MSS Logic always shares, and is not offered yet", () => {

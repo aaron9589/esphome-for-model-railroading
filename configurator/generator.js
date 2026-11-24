@@ -126,14 +126,20 @@ function expanderId(index) {
 // exactly what it was before the Logic page existed.
 const LOGIC_MODE_NAMES = Object.freeze({ field: "Field Logic", mss: "MSS Logic" });
 
+// The mode this configurator runs. A mode from a newer configurator is kept in
+// the file but runs as None here.
 function logicMode(config) {
   const mode = config?.logic?.mode;
   return LOGIC_MODE_NAMES[mode] ? mode : "none";
 }
 
-// Share with other boards: ticked, or always on in MSS Logic.
+// Share with other boards. Until it is ticked or unticked, it follows the
+// mode: on in Field Logic, off with None. Always on in MSS Logic.
 function sharesWithOtherBoards(config) {
-  return config?.logic?.share === true || logicMode(config) === "mss";
+  const mode = logicMode(config);
+  if (mode === "mss") return true;
+  const share = config?.logic?.share;
+  return share === undefined ? mode === "field" : share === true;
 }
 
 function normalizeLogic(config) {
@@ -142,12 +148,14 @@ function normalizeLogic(config) {
     delete config.logic;
     return;
   }
-  if (!LOGIC_MODE_NAMES[logic.mode]) delete logic.mode;
-  logic.share = logic.share === true;
+  if (typeof logic.mode !== "string" || !logic.mode || logic.mode === "none") delete logic.mode;
+  if (logic.share !== undefined) logic.share = logic.share === true;
 }
 
-// What goes in the config blob: nothing for an empty Logic page. Keys this
-// configurator does not know yet are kept, so a newer file round-trips.
+// What goes in the config blob: nothing for an empty Logic page. Share
+// unticked with mode None is the same as never ticked, so it is not written.
+// Keys this configurator does not know yet are kept, so a newer file
+// round-trips.
 function logicForBlob(logic) {
   if (!logic || typeof logic !== "object") return undefined;
   const hasContent = Object.entries(logic).some(([key, value]) => {
