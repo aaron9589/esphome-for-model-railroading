@@ -62,3 +62,30 @@ jobs:
           XML_CATALOG_FILES="$RUNNER_TEMP/jmri-catalog.xml" xmllint --nonet --noout \
             --schema jmri/xml/schema/layout-4-19-2.xsd \
             configurator/test/golden/*.xml
+
+  engine:
+    name: Logic engine (C++ core) and the JS cross-check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      # The core with no ESPHome, as the board builds it (no exceptions, no RTTI).
+      - name: Build the C++ core and its case runner
+        run: |
+          cmake -S engine-tests -B engine-tests/build -DCMAKE_BUILD_TYPE=Release
+          cmake --build engine-tests/build
+
+      # Every case in configurator/test/cases, and proof that a wrong one fails.
+      - name: Replay the engine cases
+        run: ctest --test-dir engine-tests/build --output-on-failure
+
+      # The same random events into both engines, compared scan by scan.
+      - name: JS and C++ engines agree
+        working-directory: configurator
+        run: ENGINE_TESTS_BIN="$GITHUB_WORKSPACE/engine-tests/build/engine_tests" node test/run.js engine-diff

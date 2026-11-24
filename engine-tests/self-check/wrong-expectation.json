@@ -1,0 +1,13 @@
+{
+  "name": "self-check: this expectation is wrong on purpose",
+  "covers": [],
+  "about": "ctest expects engine_tests to fail on this directory, which proves a wrong expectation is reported.",
+  "board": {
+    "sensors": ["A"],
+    "masts": { "Home": { "aspects": { "R292": "stop", "R281": "clear" } } },
+    "logic": { "layers": [{ "name": "x", "rules": [
+      { "trigger": { "while": { "block": "A", "is": "clear" } }, "checks": [], "then": { "mast": "Home", "aspect": "R281" } }
+    ] }] }
+  },
+  "steps": [{ "at": 0, "expect": { "masts": { "Home": "R292" } } }]
+}
