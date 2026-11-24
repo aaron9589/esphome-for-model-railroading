@@ -36,3 +36,4 @@ Temporary Items
 
 # End of https://www.toptal.com/developers/gitignore/api/macos
 engine-tests/build/
+__pycache__/
