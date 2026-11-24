@@ -1080,6 +1080,19 @@
     }
   }
 
+  // The checker (logic-checker.js, work item 2.9), once nothing else is wrong:
+  // its deadlocks are errors, the rest warnings. A link carries the Show me
+  // sequence for Try it. Skipped where the checker is not loaded.
+  function validateChecker(config, r, errors) {
+    if (!fieldMode(config) || errors.length) return;
+    const result = global.EsphomeMrLogicChecker?.checkConfig(config);
+    for (const problem of list(result?.problems)) {
+      const where = { ...(problem.mast ? MASTS : GROUPS), ...(problem.sequence ? { sequence: problem.sequence } : {}) };
+      if (problem.level === "error") r.error(where, problem.text);
+      else r.warn(where, problem.text);
+    }
+  }
+
   // Block signals (spec, Block signals): each mast checks its own block clear,
   // in order along the line. Where a mast's block and the block before it
   // share no sensor, no sensor holds both at the boundary, so the mast can
@@ -1240,6 +1253,7 @@
     validateRules(config, r);
     validateCycles(config, r);
     validateBlockSignals(config, r);
+    validateChecker(config, r, errors);
     const shares = M().sharesWithOtherBoards(config);
     const active = shares || M().logicMode(config) !== "none";
     if (!active) return;

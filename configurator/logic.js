@@ -718,7 +718,18 @@
       };
     }
 
-    return { event, scan, state, time: () => n * SCAN_MS };
+    // For the checker (logic-checker.js) only, so it has no C++ counterpart:
+    // which rules are active (plain rules included, which state() reports as
+    // idle), and the requests in waiting order, so two states that differ only
+    // in who asked first are not taken for one.
+    function checkerView() {
+      return {
+        active: rules.filter((rule) => logicOn && isActive(rule)).map((rule) => rule.ref),
+        order: rules.filter((rule) => rule.trig.since !== null).sort((a, b) => a.trig.since - b.trig.since || a.index - b.index).map((rule) => rule.ref),
+      };
+    }
+
+    return { event, scan, state, checkerView, time: () => n * SCAN_MS };
   }
 
   // --- Explain (spec, Show, don't describe) -------------------------------
