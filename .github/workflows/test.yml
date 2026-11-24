@@ -89,3 +89,13 @@ jobs:
       - name: JS and C++ engines agree
         working-directory: configurator
         run: ENGINE_TESTS_BIN="$GITHUB_WORKSPACE/engine-tests/build/engine_tests" node test/run.js engine-diff
+
+      # Again with AddressSanitizer and UBSan: an out-of-bounds read on the board
+      # is a crash or a wrong aspect, so it must fail here first.
+      - name: Cases and cross-check under sanitizers
+        run: |
+          cmake -S engine-tests -B engine-tests/build-asan -DCMAKE_BUILD_TYPE=Debug \
+            -DCMAKE_CXX_FLAGS="-fsanitize=address,undefined -fno-sanitize-recover=all -fno-omit-frame-pointer"
+          cmake --build engine-tests/build-asan
+          ctest --test-dir engine-tests/build-asan --output-on-failure
+          cd configurator && ENGINE_TESTS_BIN="$GITHUB_WORKSPACE/engine-tests/build-asan/engine_tests" node test/run.js engine-diff

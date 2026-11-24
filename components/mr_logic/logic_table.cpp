@@ -32,6 +32,7 @@ class Reader {
   // Objects and arrays: call with first = true, then in a loop while it returns true.
   bool member(bool *first, std::string *key) {
     if (!ok()) return false;
+    if (*first && null_()) return false;
     if (*first) {
       if (!eat('{')) {
         fail("expected an object");
@@ -54,6 +55,7 @@ class Reader {
   }
   bool element(bool *first) {
     if (!ok()) return false;
+    if (*first && null_()) return false;
     if (*first) {
       if (!eat('[')) {
         fail("expected a list");
@@ -167,6 +169,13 @@ class Reader {
  private:
   void ws() {
     while (*p_ == ' ' || *p_ == '\n' || *p_ == '\r' || *p_ == '\t') p_++;
+  }
+  // null where an object or list belongs reads as empty, as logic.js treats it.
+  bool null_() {
+    ws();
+    if (std::strncmp(p_, "null", 4) != 0) return false;
+    p_ += 4;
+    return true;
   }
   bool eat(char c) {
     ws();
@@ -404,6 +413,7 @@ class Compiler {
 
   void read_block() {
     LogicBlock b;
+    b.name = intern("");
     std::vector<RawMember> members;
     bool first = true;
     std::string key;
@@ -444,6 +454,7 @@ class Compiler {
 
   void read_resource() {
     Resource res;
+    res.name = intern("");
     std::vector<uint16_t> blocks;
     bool first = true;
     std::string key;
@@ -627,7 +638,10 @@ class Compiler {
     } else if (turnout != NONE) {
       n.kind = Node::TURNOUT;
       item_name = turnout;
-      n.is = first_is == "closed" ? Node::IS_CLOSED : first_is == "thrown" ? Node::IS_THROWN : Node::IS_OTHER;
+      n.is = first_is == "closed"   ? Node::IS_CLOSED
+             : first_is == "thrown" ? Node::IS_THROWN
+             : first_is == "moving" ? Node::IS_MOVING
+                                    : Node::IS_OTHER;
     } else if (mast != NONE) {
       n.kind = Node::MAST;
       item_name = mast;
@@ -708,10 +722,11 @@ class Compiler {
       for (const auto &m : block_members_[i]) {
         if (m.board == NONE) {
           // A member on this board is one of its sensors.
-          t_.members.push_back({add_to(&t_.sensors, m.name), NONE});
+          t_.members.push_back({add_to(&t_.sensors, m.name), NONE, 0});
         } else {
+          // A board not listed gives no item, which reads occupied.
           uint16_t board = remote_board(m.board);
-          t_.members.push_back({remote_item(board, RemoteItem::SENSOR, m.name), board});
+          t_.members.push_back({remote_item(board, RemoteItem::SENSOR, m.name), board, 1});
         }
       }
       t_.blocks[i].count = static_cast<uint16_t>(t_.members.size() - t_.blocks[i].first);
@@ -769,8 +784,12 @@ class Compiler {
       for (uint16_t name : raw.locks) t_.locks.push_back(add_to(&t_.turnouts, name));
       rule.locks_count = static_cast<uint16_t>(t_.locks.size() - rule.locks_first);
     }
-    if (t_.nodes.size() >= NONE || t_.names.size() >= NONE || t_.names.chars.size() >= NONE || t_.rules.size() >= NONE)
-      error_ = "the table is too big";
+    const size_t sizes[] = {t_.nodes.size(), t_.names.size(), t_.names.chars.size(), t_.rules.size(), t_.kids.size(),
+                            t_.seq.size(), t_.aspects.size(), t_.states.size(), t_.block_refs.size(), t_.members.size(),
+                            t_.locks.size(), t_.remote_items.size(), t_.sensors.size(), t_.turnouts.size(),
+                            t_.buttons.size(), t_.masts.size(), t_.remote_masts.size(), t_.resources.size()};
+    for (size_t n : sizes)
+      if (n >= NONE) error_ = "the table is too big";
   }
 };
 

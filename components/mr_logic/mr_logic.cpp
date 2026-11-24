@@ -49,7 +49,7 @@ void MrLogicComponent::setup() {
   for (auto &m : this->masts_) {
     for (const auto &def : t.masts) {
       if (!t.names.equals(def.name, m.name)) continue;
-      m.stop = def.stop;
+      if (def.stop >= 0) m.stop = def.stop;  // a mast with no aspects keeps -2, dark
       for (uint16_t a = 0; a < def.aspect_count; a++) m.aspects.push_back(t.names[t.aspects[def.aspect_first + a].name]);
     }
     if (m.aspects.empty()) ESP_LOGW(TAG, "Mast %s is bound but not in the logic table; logic will not set it.", m.name.c_str());

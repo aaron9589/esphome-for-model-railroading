@@ -1,5 +1,9 @@
-// See logic_core.h. Each function here has a namesake in configurator/logic.js;
-// keep the two in step. Rule numbers refer to configurator/test/cases/README.md.
+// See logic_core.h. Rule numbers refer to configurator/test/cases/README.md.
+// Each function here has a counterpart in configurator/logic.js; keep the two
+// in step. Names are resolved once by the compiler (logic_table.cpp), so the
+// JS lookups by name live there: stopAspect, statesOf, tagOf, remoteKind and
+// remoteItem. Here, occupied() is occupied_ref() and remote_occupied(), and
+// mastReading() and turnoutState() are inside condition().
 #include "logic_core.h"
 
 #include <algorithm>
@@ -272,7 +276,7 @@ bool Engine::occupied_ref(uint16_t item, bool logic_block) {
   const LogicBlock &b = t_.blocks[item];
   for (uint16_t i = 0; i < b.count; i++) {
     const Member &m = t_.members[b.first + i];
-    if (m.board == NONE ? sensors_[m.item].value : remote_occupied(m.item)) return true;
+    if (m.remote ? remote_occupied(m.item) : sensors_[m.item].value) return true;
   }
   return false;
 }
@@ -286,7 +290,7 @@ bool Engine::went(uint16_t item, bool logic_block, bool on) {
   const LogicBlock &b = t_.blocks[item];
   for (uint16_t i = 0; i < b.count; i++) {
     const Member &m = t_.members[b.first + i];
-    if (m.board == NONE && sensors_[m.item].on) pulsed = true;
+    if (!m.remote && sensors_[m.item].on) pulsed = true;
   }
   return on ? (!prev && (now || pulsed)) : (!now && (prev || pulsed));
 }
@@ -309,7 +313,10 @@ bool Engine::condition(uint16_t index) {
       return c.is == Node::IS_CLEAR ? !occ : occ;
     }
     case Node::TURNOUT: {
-      uint8_t want = c.is == Node::IS_CLOSED ? T_CLOSED : c.is == Node::IS_THROWN ? T_THROWN : 0xFF;
+      uint8_t want = c.is == Node::IS_CLOSED   ? T_CLOSED
+                     : c.is == Node::IS_THROWN ? T_THROWN
+                     : c.is == Node::IS_MOVING ? T_MOVING
+                                               : 0xFF;
       if (!c.remote) return c.item != NONE && turnouts_[c.item] == want;
       if (c.item == NONE) return false;
       int16_t v = remote_values_[c.item];

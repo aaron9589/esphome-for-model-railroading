@@ -90,11 +90,13 @@ const EXTRA_BOARDS = {
         blocks: [
           { name: "Inner", sensors: ["A"] },
           { name: "Outer", sensors: ["Inner", { sensor: "B" }, { board: "south", sensor: "RS" }, { board: "south", block: "RB" }] },
+          { name: "Ghostly", sensors: ["C", { board: "nowhere", sensor: "Z" }] },
         ],
         buttons: [{ name: "Go" }, { name: "Stop it" }],
         resources: [
           { name: "Main", blocks: ["Outer", "C"], release: { when: { sensor: "Far", is: "occupied" }, then: [{ block: "Far", is: "clear" }] }, approachLock: "1.5s" },
           { name: "Spare", blocks: ["D"], release: { while: { block: "D", is: ["clear"] }, for: "300ms" } },
+          { name: "Nulls", blocks: ["Far"], release: null },
         ],
         layers: [
           { name: "One", rules: [
@@ -104,6 +106,13 @@ const EXTRA_BOARDS = {
               then: { mast: "M2", aspect: "R285", reserve: "Main" } },
             { trigger: { while: { board: "south", mast: "RM", is: "diverging" } }, checks: [{ board: "south", turnout: "RT", is: "thrown" }],
               then: { mast: "M3", aspect: "R283", lock: ["P2"] } },
+          ] },
+          { name: "Nulls", rules: [
+            { trigger: { while: { block: "Far", is: "occupied" } }, checks: null, then: { mast: "M1", aspect: "R285", reserve: "Nulls", lock: null }, cancel: null },
+          ] },
+          { name: "Three", rules: [
+            { trigger: { while: { turnout: "P1", is: "moving" } }, checks: [{ board: "south", turnout: "RT", is: ["moving"] }], then: { mast: "JM", aspect: "R285" } },
+            { trigger: { while: { block: "Ghostly", is: "clear" } }, checks: [], then: { mast: "JM", aspect: "R281" } },
           ] },
           { name: "Two", rules: [
             { trigger: { while: { all: [{ block: "Inner", is: "clear" }, { mast: "M1", is: "clear" }] }, for: "200ms" }, checks: [], then: { mast: "M3", aspect: "R285" } },

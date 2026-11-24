@@ -28,7 +28,7 @@ static constexpr uint16_t NONE = 0xFFFF;
 struct Node {
   enum Kind : uint8_t { ALL, ANY, NOT, BLOCK, TURNOUT, MAST, BUTTON };
   // What `is` asks for. A mast's tags are in `tags` (a bit per Tag).
-  enum Is : uint8_t { IS_OCCUPIED, IS_CLEAR, IS_CLOSED, IS_THROWN, IS_PRESSED, IS_DIVERGING, IS_TAGS, IS_OTHER };
+  enum Is : uint8_t { IS_OCCUPIED, IS_CLEAR, IS_CLOSED, IS_THROWN, IS_MOVING, IS_PRESSED, IS_DIVERGING, IS_TAGS, IS_OTHER };
   uint8_t kind = BLOCK;
   uint8_t is = IS_OTHER;
   uint8_t tags = 0;
@@ -76,12 +76,13 @@ struct BlockRef {
 };
 
 struct Member {
-  uint16_t item;  // a sensor, or a remote item
-  uint16_t board;  // NONE: this board
+  uint16_t item;  // a sensor, or a remote item (NONE: on a board not listed, read occupied)
+  uint16_t board;  // the remote board, NONE when not listed
+  uint8_t remote;  // another board's item
 };
 
 struct LogicBlock {
-  uint16_t name;
+  uint16_t name = 0;
   uint16_t first = 0, count = 0;  // a range in Table::members
 };
 
@@ -94,7 +95,7 @@ struct RemoteItem {
 };
 
 struct Resource {
-  uint16_t name;
+  uint16_t name = 0;
   uint16_t blocks_first = 0, blocks_count = 0;  // a range in Table::block_refs
   Trigger release;
   uint32_t approach_lock_ms = 0;
