@@ -166,6 +166,18 @@ function logicForBlob(logic) {
   return hasContent ? JSON.parse(JSON.stringify(logic)) : undefined;
 }
 
+// The logic emitters live in logic-yaml.js. A board that uses no logic needs
+// nothing from it; one that does gets a clear error if it is not loaded.
+const NO_LOGIC_HOOKS = new Proxy({}, { get: () => () => undefined });
+
+function logicHooks(config) {
+  if (global.EsphomeMrLogicYaml) return global.EsphomeMrLogicYaml;
+  if (config?.logic && (logicMode(config) !== "none" || sharesWithOtherBoards(config))) {
+    throw new Error("This board uses the Logic page, but logic-yaml.js is not loaded.");
+  }
+  return NO_LOGIC_HOOKS;
+}
+
 function uniqueIds(items, nameKey = "name") {
   const seen = new Map();
   return items.map((item, index) => {
@@ -882,6 +894,8 @@ function validateConfig(config) {
     }
   }
 
+  logicHooks(config).validate(config, errors, warnings);
+
   const ids = new Set();
   for (const block of uniqueIds(config.blocks || [])) {
     if (ids.has(block.id)) warnings.push(`Duplicate id after sanitize: ${block.id}`);
@@ -986,6 +1000,9 @@ function generateJmriXml(config, include = {}) {
         if (point.lockEnabled === true) sensors.push(jmriAddress(lockedTopic(point.topic), "sensor").address);
       }
     }
+  }
+  if (mqtt && include.logic !== false) {
+    for (const address of logicHooks(config).jmriSensors(config) || []) sensors.push(address);
   }
   if (mqtt && include.masts !== false) {
     for (const mast of config.signals?.masts || []) {
@@ -1116,7 +1133,7 @@ function emitLights(lines, indent, point, thrown) {
   });
 }
 
-function emitThrowScript(lines, point, thrown, publish) {
+function emitThrowScript(lines, point, thrown, publish, config) {
   const which = thrown ? "thrown" : "closed";
   const position = thrown ? "reverse" : "normal";
   const label = thrown ? "THROWN (reverse)" : "CLOSED (normal)";
@@ -1137,6 +1154,7 @@ function emitThrowScript(lines, point, thrown, publish) {
   lines.push(`          format: ${yamlQuote(`${point.name} -> ${label}`)}`);
   lines.push("          level: INFO");
   lines.push("          tag: point_control");
+  if (publish) logicHooks(config).emitThrowStart(lines, config, point);
   emitLights(lines, "      ", point, thrown);
   lines.push("      - servo.write:");
   lines.push(`          id: ${point.id}_servo`);
@@ -1155,6 +1173,7 @@ function emitThrowScript(lines, point, thrown, publish) {
   lines.push(`                payload: "${payload}"`);
   lines.push("                retain: true");
   lines.push("                qos: 2");
+  logicHooks(config).emitThrowEnd(lines, config, point, thrown);
 }
 
 function emitButtonAllowed(lines, point, lock) {
@@ -1600,13 +1619,14 @@ function cppString(value) {
   return `"${String(value).replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
 }
 
-function emitShowScript(lines, mast) {
+function emitShowScript(lines, mast, config) {
   const gpio = mast.mode === "gpio";
   lines.push(`  - id: ${mast.id}_show`);
   lines.push("    mode: restart");
   lines.push("    parameters:");
   lines.push("      restart_effects: bool");
   lines.push("    then:");
+  logicHooks(config).emitMastState(lines, config, mast);
   // Every lamp off: an Unlit message, or Held with no Stop aspect to show.
   lines.push("      - if:");
   lines.push("          condition:");
@@ -2010,7 +2030,10 @@ function generateYaml(config) {
     lines.push("  # Empty prefix: ESPHome will not publish or subscribe its own entity topics.");
     lines.push("  topic_prefix: null");
     lines.push("  reboot_timeout: 0s");
-    if (blocks.length || points.length) {
+    logicHooks(config).emitMqttMessages(lines, config);
+    const sharedOnConnect = [];
+    logicHooks(config).emitOnConnect(sharedOnConnect, config, { blocks, points, masts });
+    if (blocks.length || points.length || sharedOnConnect.length) {
       lines.push("  on_connect:");
       for (const block of blocks) {
         lines.push("    - mqtt.publish:");
@@ -2029,6 +2052,7 @@ function generateYaml(config) {
         lines.push("        qos: 2");
         if (point.lockEnabled === true) emitLockedPublish(lines, "    ", point);
       }
+      lines.push(...sharedOnConnect);
     }
     lines.push("");
   }
@@ -2037,7 +2061,7 @@ function generateYaml(config) {
   lines.push("    id: reboot_esp");
   lines.push('    name: "Restart Board"');
 
-  if (points.length || masts.length) {
+  if (points.length || masts.length || logicHooks(config).needsWebServer(config)) {
     lines.push("");
     lines.push("web_server:");
     lines.push("  local: true");
@@ -2088,7 +2112,9 @@ function generateYaml(config) {
       }
     });
   }
-  if (points.length || masts.some(mastShows)) {
+  const sharedGlobals = [];
+  logicHooks(config).emitGlobals(sharedGlobals, config);
+  if (points.length || masts.some(mastShows) || sharedGlobals.length) {
     lines.push("");
     lines.push("globals:");
     for (const point of points) {
@@ -2112,6 +2138,7 @@ function generateYaml(config) {
       lines.push("    restore_value: false");
       lines.push("    initial_value: '-1'");
     }
+    lines.push(...sharedGlobals);
   }
 
   const hasButtons = points.some((point) => (point.controls || []).some((control) => control.buttonPin));
@@ -2153,6 +2180,7 @@ function generateYaml(config) {
         lines.push("            payload: ACTIVE");
         lines.push("            retain: false");
         lines.push("            qos: 2");
+        logicHooks(config).emitSensorState(lines, "        ", config, block, true);
       }
       lines.push("    on_release:");
       lines.push("      then:");
@@ -2166,6 +2194,7 @@ function generateYaml(config) {
         lines.push("            payload: INACTIVE");
         lines.push("            retain: false");
         lines.push("            qos: 2");
+        logicHooks(config).emitSensorState(lines, "        ", config, block, false);
       }
     }
     for (const point of points) {
@@ -2253,13 +2282,13 @@ function generateYaml(config) {
     lines.push("");
     lines.push("script:");
     for (const point of points) {
-      emitThrowScript(lines, point, false, mqtt);
-      emitThrowScript(lines, point, true, mqtt);
+      emitThrowScript(lines, point, false, mqtt, config);
+      emitThrowScript(lines, point, true, mqtt, config);
       const latch = latchIndex(point);
       if (latch >= 0) emitLatchScript(lines, point, latch, lockActive(point, mqtt));
     }
     for (const mast of masts) {
-      if (mastShows(mast)) emitShowScript(lines, mast);
+      if (mastShows(mast)) emitShowScript(lines, mast, config);
     }
 
   } else if (masts.length) {
@@ -2270,7 +2299,7 @@ function generateYaml(config) {
       lines.push("");
       lines.push("script:");
       for (const mast of masts) {
-        if (mastShows(mast)) emitShowScript(lines, mast);
+        if (mastShows(mast)) emitShowScript(lines, mast, config);
       }
     }
   }
@@ -2282,11 +2311,14 @@ function generateYaml(config) {
     emitGpioOutputs(lines, gpioWithLamps);
   }
   if (masts.length) emitSignalLights(lines, masts);
-  if (mqtt && (points.length || masts.length)) {
+  const sharedTextSensors = [];
+  logicHooks(config).emitTextSensors(sharedTextSensors, config);
+  if (mqtt && (points.length || masts.length || sharedTextSensors.length)) {
     lines.push("");
     lines.push("text_sensor:");
     if (points.length) emitPointTextSensors(lines, points);
     if (masts.length) emitSignalTextSensors(lines, masts);
+    lines.push(...sharedTextSensors);
   }
 
   lines.push("");
@@ -2315,6 +2347,11 @@ function generateYaml(config) {
     LOGIC_MODE_NAMES,
     logicMode,
     sharesWithOtherBoards,
+    turnoutSensorTopic,
+    yamlQuote,
+    cppString,
+    jmriAspectName,
+    mastShows,
     NAME_SUFFIX_ALPHABET,
     MAX_TYPED_NAME,
     isNameSuffix,

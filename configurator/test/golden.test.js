@@ -10,7 +10,7 @@ import path from "node:path";
 import { configuratorDir, loadModules, test } from "./harness.js";
 
 const { generateYaml, generateJmriXml, parseConfigFromYaml, validateConfig, normalizeConfig } =
-  loadModules("generator.js").EsphomeMr;
+  loadModules("generator.js", "logic-yaml.js").EsphomeMr;
 
 const fixturesDir = path.join(configuratorDir, "test", "fixtures");
 const goldenDir = path.join(configuratorDir, "test", "golden");

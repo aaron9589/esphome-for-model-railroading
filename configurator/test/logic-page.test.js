@@ -5,7 +5,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { configuratorDir, loadModules, test } from "./harness.js";
 
-const context = loadModules("generator.js", "logic-ui.js");
+const context = loadModules("generator.js", "logic-yaml.js", "logic-ui.js");
 const { generateYaml, logicMode, myFirstBoardPreset, normalizeConfig, parseConfigFromYaml, sharesWithOtherBoards } =
   context.EsphomeMr;
 const { FEATURES, TEXT, checklistSteps, logicNavHint, modeChoices } = context.EsphomeMrLogicUi;

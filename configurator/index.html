@@ -233,8 +233,9 @@
                   <label class="check"><input type="checkbox" data-jmri="sensors" checked /><span class="check-copy"><span class="field-label">Sensors</span><span class="hint" data-jmri-hint="sensors"></span></span></label>
                   <label class="check"><input type="checkbox" data-jmri="turnouts" checked /><span class="check-copy"><span class="field-label">Turnouts</span><span class="hint" data-jmri-hint="turnouts"></span></span></label>
                   <label class="check"><input type="checkbox" data-jmri="masts" checked /><span class="check-copy"><span class="field-label">Signal Masts</span><span class="hint" data-jmri-hint="masts"></span></span></label>
+                  <label class="check" id="jmri-logic-box" hidden><input type="checkbox" data-jmri="logic" checked /><span class="check-copy"><span class="field-label">Logic</span><span class="hint" data-jmri-hint="logic"></span></span></label>
                 </div>
-                <p class="hint">Using CATS? It sets up the sensors and turnouts itself, so tick only Signal Masts.</p>
+                <p class="hint">Using CATS? It sets up the sensors and turnouts itself, so tick only Signal Masts. Logic is for panels; CATS can leave it unticked too.</p>
                 <p class="card-copy" id="jmri-summary"></p>
                 <ul class="jmri-skipped" id="jmri-skipped" hidden></ul>
                 <button type="button" id="btn-download-jmri">Download JMRI XML</button>
@@ -270,6 +271,7 @@
     <div id="board-fields" hidden></div>
 
     <script src="./generator.js"></script>
+    <script src="./logic-yaml.js"></script>
     <script src="./logic-ui.js"></script>
     <script src="./app.js"></script>
   </body>
