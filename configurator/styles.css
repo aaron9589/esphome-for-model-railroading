@@ -1182,3 +1182,50 @@ button.mini {
   font-size: 0.85rem;
   width: 100%;
 }
+
+#logic-blocks .row-card {
+  box-shadow: none;
+}
+
+.block-members {
+  list-style: none;
+  margin: 0.35rem 0 0.6rem;
+  padding: 0;
+  display: grid;
+  gap: 0.35rem;
+}
+
+.block-members li {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.35rem 0.6rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.block-members li > span:first-child {
+  flex: 1;
+}
+
+.block-members li.empty {
+  border-style: dashed;
+  color: var(--muted);
+}
+
+.block-members .linked-warning {
+  padding: 0.1rem 0.5rem;
+  font-size: 0.8rem;
+}
+
+.block-members .remove {
+  margin-left: auto;
+}
+
+.block-members-field {
+  grid-column: 1 / -1;
+}
+
+.block-add-member {
+  max-width: 100%;
+}
