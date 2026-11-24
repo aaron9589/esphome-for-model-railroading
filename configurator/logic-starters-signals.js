@@ -7,7 +7,9 @@
 //   { name: "Up",                      the direction; the group's name
 //     rows: [{ mast, noSignal, block, turnouts: [{ turnout, position }], aspects }],
 //     beyond: "mast" | "end",          past the last block: the next signal, or
-//     nextMast: name | { board, mast } end of signalled track (Ends: Release 3)
+//     nextMast: name | { board, mast } | { end, track }
+//                                      end of signalled track; { end, track } is
+//                                      what a plant end of this board hears
 //     useAdvance, useDiverging,        Advance Approach, Approach Diverging
 //     bothWays,                        a second group the other way, over the
 //     back: { name, rows: [{ mast, noSignal, aspects }], beyond, nextMast } }
@@ -59,7 +61,7 @@
     positions: Object.freeze({ closed: "Closed", thrown: "Thrown" }),
     beyondLabel: "After the last block",
     beyondChoices: Object.freeze({ mast: "The next signal", end: "End of signalled track" }),
-    beyondHint: "The next signal can be on this board, on a linked board, or one JMRI or CATS sets. Ends between boards come in a later version.",
+    beyondHint: "The next signal can be on this board, on a linked board, one JMRI or CATS sets, or the signal an end of this board hears from the board next door.",
     nextLabel: "Next signal",
     useAdvance: "Use Advance Approach",
     useAdvanceHint: "Two signals of warning: the signal before an Approach shows Advance Approach.",
@@ -129,11 +131,15 @@
 
   // ===== References and conditions ==========================================
 
-  const filled = (ref) => (typeof ref === "string" ? ref.trim() !== "" : isObject(ref) && !!ref.board);
-  const nameOf = (ref) => (typeof ref === "string" ? ref : String(ref?.mast ?? ref?.block ?? ref?.sensor ?? ref?.turnout ?? ""));
+  // A plant end's track, { end, track }: what that track hears.
+  const isEndRef = (ref) => isObject(ref) && typeof ref.end === "string" && ref.end !== "" && ref.board === undefined && Number.isInteger(ref.track);
+  const filled = (ref) => (typeof ref === "string" ? ref.trim() !== "" : isObject(ref) && (!!ref.board || isEndRef(ref)));
+  const nameOf = (ref) => (isEndRef(ref) ? `end ${ref.end} track ${ref.track}` : typeof ref === "string" ? ref : String(ref?.mast ?? ref?.block ?? ref?.sensor ?? ref?.turnout ?? ""));
   const sameRef = (a, b) => JSON.stringify(a) === JSON.stringify(b);
   const blockIs = (ref, is) => (typeof ref === "string" ? { block: ref, is } : { ...ref, is });
-  const mastIs = (ref, is) => (typeof ref === "string" ? { mast: ref, is } : { board: ref.board, mast: ref.mast, is });
+  const mastIs = (ref, is) => (typeof ref === "string" ? { mast: ref, is }
+    : isEndRef(ref) ? { end: ref.end, track: ref.track, hears: "mast", is }
+      : { board: ref.board, mast: ref.mast, is });
   const turnoutIs = (t) => (typeof t.turnout === "string" ? { turnout: t.turnout, is: t.position } : { ...t.turnout, is: t.position });
   const turnoutChecks = (turnouts) => list(turnouts).filter((t) => isObject(t) && filled(t.turnout)).map(turnoutIs);
 
@@ -224,12 +230,14 @@
     });
     if (!filled(next)) return [rule([], aspects.approach)];
     const n = (is) => mastIs(next, is);
-    return [
+    const rules = [
       rule([n("diverging"), { not: n(["stop", "restricting"]) }], useDiverging ? aspects.diverging : aspects.approach),
       rule([n(["advance", "clear"])], aspects.clear),
       rule([n("approach")], useAdvance ? aspects.advance : aspects.clear),
       rule([n(["stop", "restricting"])], aspects.approach),
     ];
+    // What an end hears is a meaning only, never a diverging route: that rule could not match.
+    return isEndRef(next) ? rules.slice(1) : rules;
   }
 
   // Signal names taken on this board: Signal Masts page and signals with no lights.
@@ -551,12 +559,16 @@
     return box;
   }
 
+  // The signals a next-signal pick can name: masts here and on linked boards,
+  // and what each end of this board hears.
+  const nextChoices = (ui, config) => [...ui.itemChoices(config, "mast", { remote: true }), ...ui.itemChoices(config, "endMast")];
+
   function beyondEl(ctx, ui, config, target, redraw) {
     const box = el("div", "starter-signals-list");
     const options = Object.entries(TEXT.beyondChoices).map(([value, label]) => ({ value, label }));
     box.append(ctx.field(TEXT.beyondLabel, target.beyond === "end" ? "end" : "mast", (value) => { target.beyond = value; redraw(); }, { select: options, hint: TEXT.beyondHint }));
     if (target.beyond !== "end") {
-      box.append(picker(ui, TEXT.nextLabel, ui.itemChoices(config, "mast", { remote: true }), target.nextMast, (value) => { target.nextMast = value; }, TEXT.pickSignal));
+      box.append(picker(ui, TEXT.nextLabel, nextChoices(ui, config), target.nextMast, (value) => { target.nextMast = value; }, TEXT.pickSignal));
     }
     return box;
   }
@@ -667,7 +679,7 @@
           card.item.append(ctx.field(TEXT.divergingRoute, !!row.diverging, (checked) => { row.diverging = checked; refill(row); redraw(); }, { checkbox: true, hint: TEXT.divergingRouteHint }));
           card.item.append(ctx.field(TEXT.follow, !!row.follow, (checked) => { row.follow = checked; redraw(); }, { checkbox: true, hint: TEXT.followHint }));
           if (row.follow) {
-            card.item.append(picker(ui, TEXT.nextLabel, ui.itemChoices(config, "mast", { remote: true }), row.next, (value) => { row.next = value; }, TEXT.pickSignal));
+            card.item.append(picker(ui, TEXT.nextLabel, nextChoices(ui, config), row.next, (value) => { row.next = value; }, TEXT.pickSignal));
             if (filled(a.mast)) card.item.append(aspectsFold(config, ctx, a, a.mast, row.aspects || (row.aspects = {}), redraw));
           } else if (filled(a.mast)) {
             card.item.append(aspectPicker(config, ctx, TEXT.showsLabel, a.mast, row.aspect || "", (value) => { row.aspect = value; redraw(); }));
