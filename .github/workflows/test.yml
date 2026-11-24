@@ -1,0 +1,64 @@
+name: Tests
+
+on:
+  # logic/** covers work items stacked on another item's branch.
+  pull_request:
+    branches: [main, feature/logic, "logic/**"]
+  # Pushes to main are tested by pages.yml, which calls this before it deploys.
+  push:
+    branches: [feature/logic]
+  workflow_dispatch:
+  # pages.yml runs this first and deploys only if it passes.
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  configurator:
+    name: Configurator tests and JMRI XML
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      # Unit tests, and the golden files: today's YAML and JMRI XML for every
+      # fixture, byte-for-byte.
+      - name: npm test
+        working-directory: configurator
+        run: npm test
+
+      # The JMRI 5.4 schema. Its includes are http://jmri.org/xml/... URLs, so an
+      # XML catalog points them at this checkout and xmllint never goes online.
+      - name: Checkout the JMRI 5.4 schema
+        uses: actions/checkout@v4
+        with:
+          repository: JMRI/JMRI
+          ref: v5.4
+          path: jmri
+          filter: blob:none
+          sparse-checkout: xml/schema
+
+      - name: Install xmllint
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libxml2-utils
+
+      # npm test has just proved test/golden/*.xml is what the generator writes.
+      - name: Validate the JMRI XML against layout-4-19-2.xsd
+        run: |
+          cat > "$RUNNER_TEMP/jmri-catalog.xml" <<CATALOG
+          <?xml version="1.0"?>
+          <catalog xmlns="urn:oasis:names:tc:entity:xmlns:xml:catalog">
+            <rewriteURI uriStartString="http://jmri.org/xml/" rewritePrefix="file://$GITHUB_WORKSPACE/jmri/xml/"/>
+            <rewriteSystem systemIdStartString="http://jmri.org/xml/" rewritePrefix="file://$GITHUB_WORKSPACE/jmri/xml/"/>
+            <rewriteURI uriStartString="http://www.jmri.org/xml/" rewritePrefix="file://$GITHUB_WORKSPACE/jmri/xml/"/>
+            <rewriteSystem systemIdStartString="http://www.jmri.org/xml/" rewritePrefix="file://$GITHUB_WORKSPACE/jmri/xml/"/>
+          </catalog>
+          CATALOG
+          XML_CATALOG_FILES="$RUNNER_TEMP/jmri-catalog.xml" xmllint --nonet --noout \
+            --schema jmri/xml/schema/layout-4-19-2.xsd \
+            configurator/test/golden/*.xml
