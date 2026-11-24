@@ -1790,3 +1790,8 @@ details.rule-more {
     width: 100%;
   }
 }
+
+/* Download: printable summary */
+.logic-summary-button {
+  margin: 0.5rem 0 0.75rem;
+}
