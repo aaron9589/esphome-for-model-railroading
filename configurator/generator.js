@@ -203,17 +203,23 @@ function logicHooks(config) {
   return NO_LOGIC_HOOKS;
 }
 
+// Ids from names, numbered on a repeat. A number is skipped when another name
+// already gave that id ("X", "x", "X 2" are x, x_2, x_2_2... not x_2 twice).
 function uniqueIds(items, nameKey = "name") {
   const seen = new Map();
+  const used = new Set();
   return items.map((item, index) => {
-    let id = sanitizeId(item[nameKey]);
-    if (seen.has(id)) {
-      const n = seen.get(id) + 1;
-      seen.set(id, n);
-      id = `${id}_${n}`;
-    } else {
-      seen.set(id, 1);
+    const base = sanitizeId(item[nameKey]);
+    let id = base;
+    if (used.has(id)) {
+      let n = seen.get(base) || 1;
+      do {
+        n += 1;
+        id = `${base}_${n}`;
+      } while (used.has(id));
+      seen.set(base, n);
     }
+    used.add(id);
     return { ...item, id: item.id || id, _index: index };
   });
 }

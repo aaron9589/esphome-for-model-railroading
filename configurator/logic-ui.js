@@ -410,7 +410,7 @@
     let text;
     if (typeof member === "string") text = member;
     else if (member.block !== undefined) text = TEXT.remoteBlock(member.board, member.block);
-    else text = TEXT.remoteSensor(member.board, member.sensor ?? member.turnout);
+    else text = TEXT.remoteSensor(member.board ?? "?", member.sensor ?? member.turnout ?? "?");
     return { text, found };
   }
 
@@ -418,20 +418,20 @@
   // board's sensors and blocks.
   function memberChoices(config, block) {
     const L = global.EsphomeMrLogicYaml;
-    const taken = new Set((block.sensors || []).map((member) => JSON.stringify(member)));
+    const taken = new Set((block.sensors || []).map((member) => L.memberKey(member)));
     const groups = [];
-    const own = (config.blocks || []).map((sensor) => sensor.name).filter((name) => name && !taken.has(JSON.stringify(name)));
+    const own = (config.blocks || []).map((sensor) => sensor.name).filter((name) => name && !taken.has(L.memberKey(name)));
     if (own.length) groups.push({ label: TEXT.thisBoard, options: own.map((name) => ({ value: name, text: name })) });
     for (const board of L.linkedBoards(config)) {
       if (!board.name) continue;
       const options = [];
       for (const sensor of board.blocks || []) {
         const member = { board: board.name, sensor: sensor.name };
-        if (!taken.has(JSON.stringify(member))) options.push({ value: member, text: sensor.name });
+        if (!taken.has(L.memberKey(member))) options.push({ value: member, text: sensor.name });
       }
       for (const other of board.logic?.blocks || []) {
         const member = { board: board.name, block: other.name };
-        if (!taken.has(JSON.stringify(member))) options.push({ value: member, text: TEXT.remoteBlock(board.name, other.name) });
+        if (!taken.has(L.memberKey(member))) options.push({ value: member, text: TEXT.remoteBlock(board.name, other.name) });
       }
       if (options.length) groups.push({ label: board.name, options });
     }

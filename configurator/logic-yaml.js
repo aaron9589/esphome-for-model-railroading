@@ -71,6 +71,18 @@
 
   // --- mqtt: on_connect. Everything shared is sent again on connect.
   function emitOnConnect(lines, config, { blocks, points, masts }) {
+    // Blocks, like detectors, send their state to JMRI on every connect: a
+    // change before the broker was up was never heard. A block with no state
+    // yet sends nothing; its first state publishes from on_press / on_release.
+    for (const block of blockIds(config)) {
+      lines.push("    - if:");
+      lines.push("        condition:");
+      lines.push(`          lambda: 'return id(${block.id}).has_state();'`);
+      lines.push("        then:");
+      const payload = [`return id(${block.id}).state ? "ACTIVE" : "INACTIVE";`];
+      publish(lines, "          ", block.topic, payload, false);
+      if (sharing(config)) publish(lines, "          ", sensorStateTopic(block), payload);
+    }
     if (!sharing(config)) return;
     // A sensor with no reading yet sends nothing: its first reading publishes
     // /State from on_press or on_release. A retained guess could read clear.
@@ -80,13 +92,6 @@
       lines.push(`          lambda: 'return id(${block.id}_sensor).has_state();'`);
       lines.push("        then:");
       publish(lines, "          ", sensorStateTopic(block), [`return id(${block.id}_sensor).state ? "ACTIVE" : "INACTIVE";`]);
-    }
-    for (const block of blockIds(config)) {
-      lines.push("    - if:");
-      lines.push("        condition:");
-      lines.push(`          lambda: 'return id(${block.id}).has_state();'`);
-      lines.push("        then:");
-      publish(lines, "          ", sensorStateTopic(block), [`return id(${block.id}).state ? "ACTIVE" : "INACTIVE";`]);
     }
     for (const point of points) {
       publish(lines, "    ", movingTopic(point), [
@@ -436,6 +441,13 @@
     return M().uniqueIds(logicBlocks(config)).map((block) => ({ ...block, id: `${block.id}_block` }));
   }
 
+  // One key per member, whatever order its keys were stored in.
+  function memberKey(member) {
+    if (typeof member === "string") return `\u0000${member}`;
+    const kind = remoteKind(member);
+    return `${member?.board ?? ""}\u0000${kind ?? "?"}\u0000${kind ? member[kind] : JSON.stringify(member)}`;
+  }
+
   // A block member: this board's sensor by name, or another board's sensor or
   // block. Returns what the YAML needs, or `problem` when it cannot be used.
   function blockMember(config, member) {
@@ -477,7 +489,9 @@
     }
     // Occupied while any sensor is. Another board's sensor reads occupied until
     // it is known: heard from, with its board online.
-    const exprs = [...new Set(members.map((member) => memberOccupiedExpr(config, member)))];
+    const seen = new Set();
+    const unique = members.filter((member) => !seen.has(memberKey(member)) && seen.add(memberKey(member)));
+    const exprs = [...new Set(unique.map((member) => memberOccupiedExpr(config, member)))];
     if (!exprs.length) exprs.push("true");
     rows.push(`return ${exprs[0]}${exprs.length > 1 ? "" : ";"}`);
     exprs.slice(1).forEach((expr, i) => rows.push(`    || ${expr}${i === exprs.length - 2 ? ";" : ""}`));
@@ -563,8 +577,19 @@
 
   function validateBlocks(config, errors, warnings) {
     const blocks = logicBlocks(config);
-    const sensorNames = new Set((config.blocks || []).map((item) => item.name));
-    const sensorTopics = new Map((config.blocks || []).map((item) => [item.topic, item.name]));
+    // ESPHome needs each binary_sensor's name to be its own, after entityName
+    // turns "/" into " - ", and without regard to case.
+    const entity = (name) => M().entityName(name).toLowerCase();
+    const entities = new Map();
+    for (const sensor of config.blocks || []) entities.set(entity(sensor.name), `sensor "${sensor.name}"`);
+    for (const point of config.points || []) {
+      (point.controls || []).forEach((control, index) => {
+        if (control.buttonPin) entities.set(entity(`${point.name} button ${index + 1}`), `turnout "${point.name}"'s button ${index + 1}`);
+      });
+    }
+    const sensorTopics = new Map((config.blocks || []).map((item) => [item.topic, `sensor "${item.name}"`]));
+    for (const point of config.points || []) sensorTopics.set(point.topic, `turnout "${point.name}"`);
+    for (const mast of config.signals?.masts || []) sensorTopics.set(mast.topic, `signal mast "${mast.name}"`);
     const reports = new Map();
     for (const point of config.points || []) {
       reports.set(M().thrownTopic(point.topic), `turnout "${point.name}" reports its position`);
@@ -577,12 +602,12 @@
       const name = String(block.name || "").trim();
       const label = name ? `Block "${name}"` : "A block";
       if (!name) errors.push("A block has no name. Give it one, or remove it.");
-      else if (names.has(name)) errors.push(`Two blocks are called "${name}". Give each its own name.`);
-      else if (sensorNames.has(name)) errors.push(`Block "${name}" has the same name as a sensor. Rename the block.`);
-      names.add(name);
+      else if (names.has(entity(name))) errors.push(`Two blocks are called "${name}" (or nearly). Give each its own name.`);
+      else if (entities.has(entity(name))) errors.push(`Block "${name}" has the same name as ${entities.get(entity(name))}. Rename the block.`);
+      names.add(entity(name));
       const topic = String(block.topic || "").trim();
       if (!topic) errors.push(`${label} has no MQTT topic. Fill one in.`);
-      else if (sensorTopics.has(topic)) errors.push(`${label} uses ${topic}, which sensor "${sensorTopics.get(topic)}" uses. Give the block its own topic.`);
+      else if (sensorTopics.has(topic)) errors.push(`${label} uses ${topic}, which ${sensorTopics.get(topic)} uses. Give the block its own topic.`);
       else if (reports.has(topic)) errors.push(`${label} uses ${topic}, where ${reports.get(topic)}. Give the block its own topic.`);
       else if (topics.has(topic)) errors.push(`${label} and block "${topics.get(topic)}" both use ${topic}. Give each its own topic.`);
       else topics.set(topic, name);
@@ -590,7 +615,7 @@
       if (!members.length) errors.push(`${label} has no sensors. Add the sensors that see a train in it.`);
       const seen = new Set();
       for (const member of members) {
-        const key = JSON.stringify(member);
+        const key = memberKey(member);
         if (seen.has(key)) continue;
         seen.add(key);
         const found = blockMember(config, member);
@@ -666,6 +691,7 @@
     emitRemoteSubscriptions,
     logicBlocks,
     blockMember,
+    memberKey,
     blockLambda,
     emitBlocks,
     remoteOccupiedExpr,

@@ -103,7 +103,38 @@ test("when sharing, a block also sends its retained /State, and again on connect
   const sensors = binarySensors(yaml);
   assert.match(sensors, /payload: ACTIVE\n            retain: false\n            qos: 2\n        - mqtt.publish:\n            topic: "trains\/track\/sensor\/Int 2\/State"\n            payload: ACTIVE\n            retain: true\n            qos: 2/);
   assert.match(sensors, /topic: "trains\/track\/sensor\/Int 2\/State"\n            payload: INACTIVE\n            retain: true/);
-  assert.match(yaml, /    - if:\n        condition:\n          lambda: 'return id\(int_2_block\).has_state\(\);'\n        then:\n          - mqtt.publish:\n              topic: "trains\/track\/sensor\/Int 2\/State"\n              payload: !lambda \|-\n                return id\(int_2_block\).state \? "ACTIVE" : "INACTIVE";/);
+  assert.ok(yaml.includes([
+    "    - if:",
+    "        condition:",
+    "          lambda: 'return id(int_2_block).has_state();'",
+    "        then:",
+    "          - mqtt.publish:",
+    '              topic: "trains/track/sensor/Int 2"',
+    "              payload: !lambda |-",
+    '                return id(int_2_block).state ? "ACTIVE" : "INACTIVE";',
+    "              retain: false",
+    "              qos: 2",
+    "          - mqtt.publish:",
+    '              topic: "trains/track/sensor/Int 2/State"',
+    "              payload: !lambda |-",
+    '                return id(int_2_block).state ? "ACTIVE" : "INACTIVE";',
+    "              retain: true",
+    "              qos: 2",
+  ].join("\n")));
+});
+
+test("like a detector, a block tells JMRI its state on every connect, sharing or not", () => {
+  // Only remote sensors, no local ones and no turnouts: on_connect is still written.
+  const config = fixture("mqtt-off");
+  config.board.mqttEnabled = true;
+  config.blocks = [];
+  config.points = [];
+  config.logic = { mode: "field", share: false, remoteBoards: [northSnapshot()], blocks: [block("Far", [{ board: "kiama-north-k7m4x2", sensor: "Yard Ladder" }])] };
+  assert.deepEqual(errorsOf(config), []);
+  const yaml = generateYaml(config);
+  const onConnect = yaml.slice(yaml.indexOf("  on_connect:"), yaml.indexOf("\n\n", yaml.indexOf("  on_connect:")));
+  assert.match(onConnect, /lambda: 'return id\(far_block\).has_state\(\);'\n        then:\n          - mqtt.publish:\n              topic: trains\/track\/sensor\/Far\n/);
+  assert.doesNotMatch(onConnect, /Far\/State/);
 });
 
 test("with MQTT off a block still runs, and only logs", () => {
@@ -143,6 +174,28 @@ test("a block with only remote sensors reports from the first loop", () => {
   const lambda = plain(L.blockLambda(config, config.logic.blocks[0]));
   assert.equal(lambda.length, 1);
   assert.match(lambda[0], /^return !\(.*\);$/);
+});
+
+test("a block cannot take a turnout button's name", () => {
+  const config = expanderBoard();
+  config.points[0].controls = [{ action: "toggle", buttonPin: "GPIO32" }];
+  config.logic.blocks = [block(`${config.points[0].name} button 1`, ["Int 2 East"])];
+  assert.ok(errorsOf(config).some((e) => e.includes("button 1. Rename the block") || e.includes("'s button 1")));
+});
+
+test("blocks whose names fold to one id still get their own", () => {
+  const config = expanderBoard({ share: false, blocks: ["X", "x", "X 2"].map((name, i) => block(name, ["Int 2 East"], { topic: `trains/track/sensor/b${i}` })) });
+  const ids = (generateYaml(config).match(/id: \w+_block\n/g) || []).map((line) => line.trim());
+  assert.equal(new Set(ids).size, 3, ids.join(", "));
+});
+
+test("a sensor listed twice is read once, whatever order its keys were saved in", () => {
+  const config = expanderBoard({
+    remoteBoards: [northSnapshot()],
+    blocks: [block("Far", [{ board: "kiama-north-k7m4x2", sensor: "Yard Ladder" }, { sensor: "Yard Ladder", board: "kiama-north-k7m4x2" }])],
+  });
+  assert.equal(L.memberKey(config.logic.blocks[0].sensors[0]), L.memberKey(config.logic.blocks[0].sensors[1]));
+  assert.equal(plain(L.blockLambda(config, config.logic.blocks[0])).length, 1);
 });
 
 test("a sensor listed twice is read once", () => {
@@ -188,8 +241,14 @@ test("a block needs a name, a topic of its own, and at least one sensor", () => 
   assert.ok(has(expanderBoard({ blocks: [block("", ["Int 2 East"])] }), "A block has no name"));
   assert.ok(has(expanderBoard({ blocks: [block("Int 2", [])] }), 'Block "Int 2" has no sensors'));
   assert.ok(has(expanderBoard({ blocks: [block("Int 2", ["Int 2 East"]), block("Int 2", ["Int 2 West"])] }), 'Two blocks are called "Int 2"'));
-  assert.ok(has(expanderBoard({ blocks: [block("Yard 3", ["Int 2 East"])] }), 'Block "Yard 3" has the same name as a sensor'));
+  assert.ok(has(expanderBoard({ blocks: [block("Yard", ["Int 2 East"]), block("yard", ["Int 2 West"])] }), 'Two blocks are called "yard" (or nearly)'));
+  assert.ok(has(expanderBoard({ blocks: [block("Yard 3", ["Int 2 East"])] }), 'Block "Yard 3" has the same name as sensor "Yard 3"'));
+  // ESPHome names: "/" becomes " - ", and case does not count.
+  assert.ok(has(expanderBoard({ blocks: [block("kiama - up xover", ["Int 2 East"])] }), 'has the same name as sensor "Kiama/Up XOver"'));
   assert.ok(has(expanderBoard({ blocks: [block("A", ["Int 2 East"], { topic: "trains/track/sensor/Yard 3" })] }), "which sensor \"Yard 3\" uses"));
+  const turnoutTopic = expanderBoard({ blocks: [block("A", ["Int 2 East"])] });
+  turnoutTopic.logic.blocks[0].topic = turnoutTopic.points[0].topic;
+  assert.ok(has(turnoutTopic, `which turnout "${turnoutTopic.points[0].name}" uses`));
   assert.ok(has(expanderBoard({ blocks: [block("A", ["Int 2 East"]), block("B", ["Int 2 West"], { topic: "trains/track/sensor/A" })] }), 'Block "B" and block "A" both use'));
   assert.ok(has(expanderBoard({ blocks: [block("A", ["Int 2 East"], { topic: "" })] }), 'Block "A" has no MQTT topic'));
   const thrown = expanderBoard({ blocks: [block("A", ["Int 2 East"])] });
