@@ -1378,7 +1378,23 @@
       if (typeof obj.mast === "string" && obj.mast && obj.board === undefined) names.add(obj.mast);
     });
     for (const entry of mastEntries(config)) if (entry.virtual !== true && typeof entry.mast === "string") names.add(entry.mast);
+    for (const end of endsOf(config)) {
+      for (const track of list(end.tracks)) if (isObject(track) && typeof track.mast === "string" && track.mast) names.add(track.mast);
+    }
     return names;
+  }
+
+  // Plant ends (spec, Plant ends): this board's own, as stored. An end with no name is skipped.
+  function endsOf(config) {
+    if (!fieldMode(config)) return [];
+    return list(config.logic?.ends).filter((end) => isObject(end) && typeof end.name === "string" && end.name.trim());
+  }
+
+  // Each end with its id: end_<name>, numbered if two names make the same id.
+  function endIds(config) {
+    const ends = endsOf(config);
+    const ids = M().uniqueIds(ends.map((end) => ({ name: `end ${end.name}` })));
+    return ends.map((end, i) => ({ ...end, id: ids[i].id }));
   }
 
   // Turnouts a rule locks: they get a field-lock global.
@@ -1491,6 +1507,9 @@
       }),
     }));
     if (layers.length) logic.layers = layers;
+    // The engine reads an end's name and tracks. Its pins are for the board.
+    const ends = endsOf(config).map((end) => ({ name: end.name, tracks: sorted(list(end.tracks)) }));
+    if (ends.length) logic.ends = ends;
     return logic;
   }
 
@@ -1748,6 +1767,7 @@
       lines.push("      - lambda: |-");
       lines.push(`          id(${LOGIC_ID}).release(${M().cppString(name)});`);
     }
+    emitEndButtons(lines, config);
   }
 
   // --- switch: Field logic on / off, saved across reboots. Its starting value
@@ -1759,6 +1779,7 @@
     lines.push('    name: "Field logic"');
     lines.push("    optimistic: true");
     lines.push(`    restore_mode: ${config.logic?.startsOn === false ? "RESTORE_DEFAULT_OFF" : "RESTORE_DEFAULT_ON"}`);
+    emitEndLeds(lines, config);
   }
 
   // --- text_sensor: the version code, on the board's web page.
@@ -1769,6 +1790,80 @@
     lines.push('    name: "Logic version"');
     lines.push("    entity_category: diagnostic");
     lines.push(`    lambda: 'return {"${versionCode(config)}"};'`);
+    emitEndTextSensors(lines, config);
+  }
+
+  // --- Plant ends: each end's Link text entity (saved across reboots), its
+  // Pair button on the web page and on an optional pin, its LED and its state.
+  // The component does everything else.
+  function emitEndTexts(lines, config) {
+    const ends = endIds(config);
+    if (!ends.length) return;
+    lines.push("");
+    lines.push("text:");
+    for (const end of ends) {
+      lines.push("  - platform: template");
+      lines.push(`    id: ${end.id}_link`);
+      lines.push(`    name: ${M().yamlQuote(M().entityName(`End ${end.name} link`))}`);
+      lines.push("    mode: text");
+      lines.push("    max_length: 64");
+      lines.push("    optimistic: true");
+      lines.push("    restore_value: true");
+    }
+  }
+
+  function emitEndTextSensors(lines, config) {
+    for (const end of endIds(config)) {
+      lines.push("  - platform: template");
+      lines.push(`    id: ${end.id}_state`);
+      lines.push(`    name: ${M().yamlQuote(M().entityName(`End ${end.name} state`))}`);
+    }
+  }
+
+  function emitEndButtons(lines, config) {
+    for (const end of endIds(config)) {
+      lines.push("  - platform: template");
+      lines.push(`    name: ${M().yamlQuote(M().entityName(`Pair End ${end.name}`))}`);
+      lines.push("    on_press:");
+      lines.push("      - lambda: |-");
+      lines.push(`          id(${LOGIC_ID}).pair(${M().cppString(end.name)});`);
+    }
+  }
+
+  // binary_sensor: the optional Pair push button, wired to GND like a turnout's.
+  function emitEndSensors(lines, config) {
+    for (const end of endIds(config)) {
+      const pin = String(end.pairPin || "").trim().toUpperCase();
+      if (!pin) continue;
+      lines.push("  - platform: gpio");
+      lines.push("    pin:");
+      lines.push(`      number: ${pin}`);
+      lines.push("      inverted: true");
+      lines.push("      mode:");
+      lines.push("        input: true");
+      lines.push("        pullup: true");
+      lines.push(`    id: ${end.id}_pair_pin`);
+      lines.push(`    name: ${M().yamlQuote(M().entityName(`End ${end.name} pair button`))}`);
+      lines.push("    internal: true");
+      lines.push("    filters:");
+      lines.push("      - delayed_on: 50ms");
+      lines.push("    on_press:");
+      lines.push("      - lambda: |-");
+      lines.push(`          id(${LOGIC_ID}).pair(${M().cppString(end.name)});`);
+    }
+  }
+
+  // switch: the optional LED, which the component drives.
+  function emitEndLeds(lines, config) {
+    for (const end of endIds(config)) {
+      const pin = String(end.ledPin || "").trim().toUpperCase();
+      if (!pin) continue;
+      lines.push("  - platform: gpio");
+      lines.push(`    pin: ${pin}`);
+      lines.push(`    id: ${end.id}_led`);
+      lines.push(`    name: ${M().yamlQuote(M().entityName(`End ${end.name} LED`))}`);
+      lines.push("    internal: true");
+    }
   }
 
   // --- external_components and mr_logic: the component and its bindings.
@@ -1839,6 +1934,16 @@
         if (remote) lines.push(`      remote_locked: ${point.id}_locked`);
         const latch = M().latchIndex(point);
         if (latch >= 0 && (remote || locked.has(point.name))) lines.push(`      resync: ${point.id}_latch_${latch + 1}`);
+      }
+    }
+    const ends = endIds(config);
+    if (ends.length) {
+      lines.push("  ends:");
+      for (const end of ends) {
+        lines.push(`    - name: ${yamlQuote(end.name)}`);
+        lines.push(`      link: ${end.id}_link`);
+        if (String(end.ledPin || "").trim()) lines.push(`      led: ${end.id}_led`);
+        lines.push(`      state: ${end.id}_state`);
       }
     }
     if (!mqtt) return;
@@ -1918,6 +2023,8 @@
     emitLogicButtons,
     emitLogicSwitch,
     emitLogicTextSensors,
+    emitEndTexts,
+    emitEndSensors,
     emitComponent,
     jmriLights,
     jmriTurnouts,

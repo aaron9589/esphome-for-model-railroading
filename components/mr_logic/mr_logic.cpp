@@ -29,6 +29,11 @@ int8_t active(text_sensor::TextSensor *ts) {
   const std::string &v = ts->get_state();
   return v == "ACTIVE" ? 1 : v == "INACTIVE" ? 0 : -1;
 }
+// A link as typed: without spaces round it.
+std::string trim_(const std::string &value) {
+  const size_t from = value.find_first_not_of(" \t"), to = value.find_last_not_of(" \t");
+  return from == std::string::npos ? "" : value.substr(from, to - from + 1);
+}
 Event remote_item(const std::string &board, const std::string &kind, const std::string &name, const std::string &value) {
   Event e;
   e.kind = Event::REMOTE_ITEM;
@@ -134,6 +139,206 @@ void MrLogicComponent::add_remote_mast(const std::string &board, const std::stri
   });
 }
 
+// --- plant ends (spec, Plant ends) --------------------------------------------
+//
+// Every change of an end's link goes through its Link text entity, which saves
+// it across reboots: the page, the Link topic and a pairing all set the text,
+// and its state callback tells the engine. The subscriptions follow the link:
+// the linked board's Online, the linked end's Link, and its Block and Mast for
+// each of this end's tracks. They are exact topics, and are dropped (the
+// client's unsubscribe) when the link moves on. The MQTT client walks its
+// subscriptions while it calls them, so a callback only records what it hears
+// and loop() changes subscriptions.
+
+void MrLogicComponent::add_end(const std::string &name, text::Text *link, switch_::Switch *led,
+                               text_sensor::TextSensor *state) {
+  EndBinding b;
+  b.name = name;
+  b.link = link;
+  b.led = led;
+  b.state = state;
+  this->ends_.push_back(std::move(b));
+  const size_t index = this->ends_.size() - 1;
+  link->add_on_state_callback([this, index](const std::string &value) {
+    if (this->engine_) this->end_link_changed_(this->ends_[index], value);
+  });
+}
+
+MrLogicComponent::EndBinding *MrLogicComponent::find_end_(const std::string &name) {
+  for (auto &b : this->ends_)
+    if (b.name == name) return &b;
+  return nullptr;
+}
+
+void MrLogicComponent::pair(const std::string &end) {
+  EndBinding *b = this->find_end_(end);
+  if (!this->engine_ || b == nullptr) return;
+  Event e;
+  e.kind = Event::END_PAIR;
+  e.name = end;
+  e.value = "pressed";
+  this->event_(e);
+  b->note.clear();
+  b->refused_until = 0;
+  ESP_LOGI(TAG, "End %s: pairing for 30 s; press Pair on the end it meets", end.c_str());
+  this->ends_refresh_ = true;
+}
+
+// A link changed, from any source: the engine learns it, and the end listens
+// to the new neighbour.
+void MrLogicComponent::end_link_changed_(EndBinding &b, const std::string &value) {
+  const std::string link = trim_(value);
+  Event e;
+  e.kind = Event::END_LINK;
+  e.name = b.name;
+  e.value = link;
+  this->event_(e);
+  if (link != b.linked) {
+    this->end_unlisten_(b);
+    b.linked = link;
+    b.note.clear();
+    this->end_listen_(b);
+    ESP_LOGI(TAG, "End %s: link is %s", b.name.c_str(), link.empty() ? "empty" : link.c_str());
+  }
+  this->ends_refresh_ = true;
+}
+
+// Set the link through its text entity, so it is saved and shown.
+void MrLogicComponent::end_set_link_(EndBinding &b, const std::string &link) {
+  if (b.link->state == link) return;
+  b.link->make_call().set_value(link).perform();
+}
+
+void MrLogicComponent::end_listen_(EndBinding &b) {
+#ifdef USE_MQTT
+  if (mqtt::global_mqtt_client == nullptr || this->board_.empty()) return;
+  const std::string &link = b.linked;
+  const size_t at = link.rfind('/');
+  if (at == std::string::npos || at == 0 || at == link.size() - 1 || link == this->board_ + "/" + b.name) return;
+  const std::string board = link.substr(0, at), end = link.substr(at + 1);
+  uint16_t tracks = 0;
+  const ::logic_core::Table &t = this->table_data_;
+  for (const auto &def : t.ends)
+    if (t.names.equals(def.name, b.name)) tracks = def.tracks_count;
+  b.listens.push_back({this->topic_("track/sensor/board/" + board + "/Online"), Event::END_ONLINE, 0});
+  b.listens.push_back({this->end_topic_(board, end, "/Link"), Event::END_THEIR_LINK, 0});
+  for (uint16_t j = 1; j <= tracks; j++) {
+    b.listens.push_back({this->end_topic_(board, end, "/" + std::to_string(j) + "/Block"), Event::END_BLOCK, j});
+    b.listens.push_back({this->end_topic_(board, end, "/" + std::to_string(j) + "/Mast"), Event::END_MAST, j});
+  }
+  for (const auto &l : b.listens) {
+    TopicUse &use = this->end_topics_[l.topic];
+    if (use.count++ == 0)
+      mqtt::global_mqtt_client->subscribe(
+          l.topic, [this](const std::string &topic, const std::string &payload) { this->end_heard_(topic, payload); }, 1);
+    // Another end may already hold this topic: its retained message will not come again.
+    if (use.has) this->end_dispatch_(b, l, use.payload);
+  }
+#endif
+}
+
+void MrLogicComponent::end_unlisten_(EndBinding &b) {
+#ifdef USE_MQTT
+  for (const auto &l : b.listens) {
+    auto it = this->end_topics_.find(l.topic);
+    if (it == this->end_topics_.end() || --it->second.count > 0) continue;
+    this->end_topics_.erase(it);
+    if (mqtt::global_mqtt_client != nullptr) mqtt::global_mqtt_client->unsubscribe(l.topic);
+  }
+#endif
+  b.listens.clear();
+}
+
+// A message on a topic an end listens to: keep it, and tell every end that wants it.
+void MrLogicComponent::end_heard_(const std::string &topic, const std::string &payload) {
+  auto it = this->end_topics_.find(topic);
+  if (it == this->end_topics_.end()) return;
+  it->second.has = true;
+  it->second.payload = payload;
+  if (!this->engine_) return;
+  for (auto &b : this->ends_)
+    for (const auto &l : b.listens)
+      if (l.topic == topic) this->end_dispatch_(b, l, payload);
+}
+
+void MrLogicComponent::end_dispatch_(EndBinding &b, const Listen &l, const std::string &payload) {
+  if (!this->engine_) return;
+  Event e;
+  e.kind = static_cast<Event::Kind>(l.kind);
+  e.name = b.name;
+  e.track = l.track;
+  switch (e.kind) {
+    case Event::END_ONLINE: e.flag = payload == "ACTIVE"; break;
+    case Event::END_THEIR_LINK: e.value = payload; break;
+    // Anything but ACTIVE or INACTIVE is not known, so it reads occupied.
+    case Event::END_BLOCK: e.value = payload == "ACTIVE" ? "occupied" : payload == "INACTIVE" ? "clear" : "unknown"; break;
+    default: e.value = payload; break;
+  }
+  this->event_(e);
+}
+
+// Each end's state in words, and the pattern its LED shows. Worked out about
+// once a second, and at once after a press or a link change.
+void MrLogicComponent::ends_refresh_state_() {
+  const ::logic_core::State s = this->engine_->state();
+  const uint32_t now = millis();
+  for (auto &b : this->ends_) {
+    std::string kind = "empty";
+    for (const auto &x : s.ends)
+      if (x.first == b.name) kind = x.second;
+    std::string text;
+    if (kind == "pairing") {
+      text = "Pairing: press Pair on the end it meets, within 30 seconds";
+      b.mode = 1;
+    } else if (kind == "empty") {
+      text = "Not paired";
+      b.mode = 0;
+    } else if (kind == "end") {
+      text = "End of the line";
+      b.mode = 2;
+    } else if (kind == "heard") {
+      text = "Paired with " + b.linked + ", heard";
+      b.mode = 2;
+    } else if (kind == "disagrees") {
+      text = "Paired with " + b.linked + ", but that end does not name this one, so it reads as empty";
+      b.mode = 3;
+    } else {
+      text = "Paired with " + b.linked + ", not heard";
+      b.mode = 3;
+    }
+    if (!b.note.empty()) text += ". Last pairing: " + b.note;
+    // A refused pairing also shows on the LED for a few seconds.
+    if (b.refused_until != 0 && b.mode != 1 && static_cast<int32_t>(b.refused_until - now) > 0) b.mode = 3;
+    if (b.state != nullptr && text != b.shown) {
+      b.shown = text;
+      b.state->publish_state(text);
+    }
+  }
+}
+
+// LED: off = not paired; slow blink = pairing; steady = paired and heard (or
+// the end of the line); fast blink = a problem (not heard, disagreeing, or a
+// pairing refused in the last 10 s).
+void MrLogicComponent::ends_led_() {
+  const uint32_t now = millis();
+  for (auto &b : this->ends_) {
+    if (b.led == nullptr) continue;
+    bool on = false;
+    switch (b.mode) {
+      case 1: on = (now / 500) % 2 == 0; break;
+      case 2: on = true; break;
+      case 3: on = (now / 125) % 2 == 0; break;
+      default: break;
+    }
+    if (on == b.led_on) continue;
+    b.led_on = on;
+    if (on)
+      b.led->turn_on();
+    else
+      b.led->turn_off();
+  }
+}
+
 void MrLogicComponent::release(const std::string &resource) {
   if (!this->engine_) return;
   Event e;
@@ -199,6 +404,7 @@ void MrLogicComponent::start_() {
   this->broker_ = mqtt::global_mqtt_client != nullptr && mqtt::global_mqtt_client->is_connected();
 #endif
   start.broker_connected = this->broker_;
+  for (const auto &b : this->ends_) start.links.emplace_back(b.name, trim_(b.link->state));  // the saved link
   for (auto &s : this->sensors_) {
     s.expander_bad = s.expander != nullptr && (s.expander->is_failed() || s.expander->status_has_warning());
     const bool occupied = s.expander_bad || !s.sensor->has_state() || s.sensor->state;
@@ -240,6 +446,11 @@ void MrLogicComponent::start_() {
   // From power-on a field-controlled mast shows its stop aspect with logic on,
   // and its startup aspect (or JMRI's last) with logic off.
   for (auto &m : this->masts_) this->show_(m, this->engine_->shows(m.name));
+  for (auto &b : this->ends_) {
+    b.linked = trim_(b.link->state);
+    this->end_listen_(b);
+  }
+  this->ends_refresh_ = true;
 }
 
 // --- the scan ----------------------------------------------------------------
@@ -247,6 +458,16 @@ void MrLogicComponent::start_() {
 void MrLogicComponent::loop() {
   if (!this->table_ok_) return;
   const uint32_t now = millis();
+  if (!this->ends_.empty()) {
+    // A link heard on its Link topic is applied here, not in the MQTT callback,
+    // which may not change subscriptions.
+    for (auto &b : this->ends_) {
+      if (!b.pending) continue;
+      b.pending = false;
+      this->end_set_link_(b, b.pending_link);
+    }
+    this->ends_led_();
+  }
   if (!this->engine_) {
     bool settled = true;
     for (const auto &s : this->sensors_) settled = settled && s.sensor->has_state();
@@ -267,6 +488,8 @@ void MrLogicComponent::scan_() {
   const bool connected = mqtt::global_mqtt_client != nullptr && mqtt::global_mqtt_client->is_connected();
   if (connected != this->broker_) {
     this->broker_ = connected;
+    for (auto &b : this->ends_) b.link_sent = false;
+    this->ends_refresh_ = true;
     Event e;
     e.kind = Event::BROKER;
     e.value = connected ? "connected" : "disconnected";
@@ -323,6 +546,10 @@ void MrLogicComponent::scan_() {
     this->switch_published_ = true;
   }
 #endif
+  if (!this->ends_.empty() && (this->ends_refresh_ || this->scans_ % 10 == 0)) {
+    this->ends_refresh_ = false;
+    this->ends_refresh_state_();
+  }
   this->scans_++;
   if (took > this->slowest_us_) {
     this->slowest_us_ = took;
@@ -379,16 +606,30 @@ void MrLogicComponent::apply_(const ::logic_core::ScanOut &out) {
           t.resync();
         }
         break;
-      // Plant ends (work item 3.2 adds their links, subscriptions and topics).
-      case LogEvent::PAIRING:
-        if (e.by == "paired")
+      // Plant ends.
+      case LogEvent::PAIRING: {
+        EndBinding *b = this->find_end_(e.what);
+        if (e.by == "paired") {
           ESP_LOGI(TAG, "End %s: paired with %s", e.what.c_str(), e.rule.c_str());
-        else
+          // The engine has set its link; the Link entity saves and shows it.
+          if (b != nullptr) this->end_set_link_(*b, e.rule);
+        } else {
           ESP_LOGW(TAG, "End %s: not paired (%s); press Pair again", e.what.c_str(), e.by.c_str());
+          if (b != nullptr) {
+            b->note = e.by == "alone"     ? "no other end pressed Pair in time"
+                      : e.by == "crowded" ? "more than two ends were pairing, so none paired"
+                                          : "the two ends have different numbers of tracks";
+            // Refused: fast blink on the LED for 10 s.
+            b->refused_until = millis() + 10000;
+          }
+        }
+        this->ends_refresh_ = true;
         break;
+      }
       case LogEvent::DISAGREES:
         ESP_LOGW(TAG, "End %s: %s names %s, not this end; reading it as empty", e.what.c_str(), e.rule.c_str(),
                  e.by.c_str());
+        this->ends_refresh_ = true;
         break;
     }
   }
@@ -404,11 +645,20 @@ void MrLogicComponent::apply_(const ::logic_core::ScanOut &out) {
       case Publish::RELEASE:
         this->mqtt_publish_(this->topic_("track/turnout/logic/" + this->board_ + "/" + p.resource + "/Release"), p.value);
         break;
-      // Plant ends: published by work item 3.2, with the subscriptions.
+      // Plant ends: what each end offers its neighbour, and its link, all
+      // retained. The pairing announcement is not.
       case Publish::PAIRING:
+        this->mqtt_publish_(this->topic_("track/end/pairing"), p.value, false);
+        break;
       case Publish::END_LINK:
+        this->mqtt_publish_(this->end_topic_(this->board_, p.resource, "/Link"), p.value);
+        if (EndBinding *b = this->find_end_(p.resource)) b->link_sent = true;
+        break;
       case Publish::END_BLOCK:
+        this->mqtt_publish_(this->end_topic_(this->board_, p.resource, "/" + std::to_string(p.track) + "/Block"), p.value);
+        break;
       case Publish::END_MAST:
+        this->mqtt_publish_(this->end_topic_(this->board_, p.resource, "/" + std::to_string(p.track) + "/Mast"), p.value);
         break;
     }
   }
@@ -432,6 +682,37 @@ void MrLogicComponent::mqtt_setup_() {
         if (payload == "OFF" && this->switch_->state) this->switch_->turn_off();
       },
       1);
+  // Plant ends: the pairing announcements, and each end's own retained Link,
+  // which takes a new value as the logic switch does. The neighbour's topics
+  // follow each end's link (end_listen_).
+  if (!this->ends_.empty()) {
+    mqtt::global_mqtt_client->subscribe(
+        this->topic_("track/end/pairing"),
+        [this](const std::string &, const std::string &payload) {
+          if (!this->engine_) return;
+          Event e;
+          e.kind = Event::PAIRING;
+          e.value = payload;
+          this->event_(e);
+        },
+        1);
+    for (size_t index = 0; index < this->ends_.size(); index++) {
+      mqtt::global_mqtt_client->subscribe(
+          this->end_topic_(this->board_, this->ends_[index].name, "/Link"),
+          [this, index](const std::string &, const std::string &payload) {
+            EndBinding &end = this->ends_[index];
+            // After a (re)connect the broker hands back the last retained
+            // Link, which may be older than a change made here meanwhile: wait
+            // until this board has published its own. Its own echo changes nothing.
+            if (!end.link_sent) return;
+            const std::string link = trim_(payload);
+            if (link == end.linked) return;
+            end.pending = true;
+            end.pending_link = link;
+          },
+          1);
+    }
+  }
   // Each Release turnout: THROWN presses it; the board answers CLOSED.
   const ::logic_core::Table &t = this->table_data_;
   for (const auto &res : t.resources) {
@@ -451,9 +732,9 @@ void MrLogicComponent::mqtt_setup_() {
 #endif
 }
 
-void MrLogicComponent::mqtt_publish_(const std::string &topic, const std::string &payload) {
+void MrLogicComponent::mqtt_publish_(const std::string &topic, const std::string &payload, bool retain) {
 #ifdef USE_MQTT
-  if (mqtt::global_mqtt_client != nullptr && this->broker_) mqtt::global_mqtt_client->publish(topic, payload, 2, true);
+  if (mqtt::global_mqtt_client != nullptr && this->broker_) mqtt::global_mqtt_client->publish(topic, payload, 2, retain);
 #endif
 }
 
@@ -463,6 +744,7 @@ void MrLogicComponent::dump_config() {
                 (unsigned) this->table_data_.rules.size(), (unsigned) this->table_data_.layers.size());
   if (!this->version_.empty()) ESP_LOGCONFIG(TAG, "  Logic version %s", this->version_.c_str());
   if (!this->board_.empty()) ESP_LOGCONFIG(TAG, "  Topics for board %s", this->board_.c_str());
+  for (const auto &b : this->ends_) ESP_LOGCONFIG(TAG, "  Plant end %s%s", b.name.c_str(), b.led != nullptr ? ", with an LED" : "");
   if (this->is_failed()) ESP_LOGCONFIG(TAG, "  The logic table could not be read.");
 }
 

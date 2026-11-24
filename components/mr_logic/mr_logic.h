@@ -5,12 +5,14 @@
 #pragma once
 
 #include <functional>
+#include <map>
 #include <memory>
 #include <string>
 #include <vector>
 
 #include "esphome/components/binary_sensor/binary_sensor.h"
 #include "esphome/components/switch/switch.h"
+#include "esphome/components/text/text.h"
 #include "esphome/components/text_sensor/text_sensor.h"
 #include "esphome/core/component.h"
 
@@ -43,6 +45,13 @@ class MrLogicComponent : public Component {
   void add_remote_turnout(const std::string &board, const std::string &name, text_sensor::TextSensor *thrown,
                           text_sensor::TextSensor *moving);
   void add_remote_mast(const std::string &board, const std::string &name, text_sensor::TextSensor *state);
+
+  // A plant end (spec, Plant ends). link: the Link text entity, saved across
+  // reboots; every change of link, from the page, the Link topic or pairing,
+  // goes through it. led and state: optional. All its MQTT topics are exact.
+  void add_end(const std::string &name, text::Text *link, switch_::Switch *led, text_sensor::TextSensor *state);
+  // A press of an end's Pair button or pin.
+  void pair(const std::string &end);
 
   // A press of a resource's Release button (spec, Manual release).
   void release(const std::string &resource);
@@ -98,6 +107,37 @@ class MrLogicComponent : public Component {
     std::string board, name;
     text_sensor::TextSensor *state;
   };
+  // A plant end's binding. listens: the topics its current link needs.
+  struct Listen {
+    std::string topic;
+    uint8_t kind;  // Event::END_ONLINE, END_THEIR_LINK, END_BLOCK or END_MAST
+    int32_t track;
+  };
+  struct EndBinding {
+    std::string name;
+    text::Text *link;
+    switch_::Switch *led;
+    text_sensor::TextSensor *state;
+    std::string linked;  // the link the subscriptions are for
+    std::vector<Listen> listens;
+    bool link_sent{false};  // this board's own Link has gone out since the broker connected
+    uint8_t mode{0};        // LED pattern, from the engine's end state
+    bool led_on{false};
+    uint32_t refused_until{0};
+    std::string note, shown;  // a refused pairing, and the state text last published
+    bool pending{false};      // a link heard on the Link topic, applied in loop()
+    std::string pending_link;
+  };
+  // A subscribed topic: how many ends listen, and the last payload heard, so
+  // an end that links to the same board again hears it without a new message.
+  struct TopicUse {
+    int count{0};
+    bool has{false};
+    std::string payload;
+  };
+  std::vector<EndBinding> ends_;
+  std::map<std::string, TopicUse> end_topics_;
+  bool ends_refresh_{false};
   std::vector<RemoteBoard> remote_boards_;
   std::vector<RemoteSensor> remote_sensors_;
   std::vector<RemoteMast> remote_masts_;
@@ -112,7 +152,20 @@ class MrLogicComponent : public Component {
   void feed_sensor_(SensorBinding &s, bool occupied);
   bool want_logic_() const { return this->switch_ == nullptr || this->switch_->state; }
   void mqtt_setup_();
-  void mqtt_publish_(const std::string &topic, const std::string &payload);
+  void mqtt_publish_(const std::string &topic, const std::string &payload, bool retain = true);
+  // Plant ends.
+  EndBinding *find_end_(const std::string &name);
+  std::string end_topic_(const std::string &board, const std::string &end, const std::string &rest) const {
+    return this->topic_("track/end/" + board + "/" + end + rest);
+  }
+  void end_link_changed_(EndBinding &b, const std::string &link);
+  void end_set_link_(EndBinding &b, const std::string &link);
+  void end_listen_(EndBinding &b);
+  void end_unlisten_(EndBinding &b);
+  void end_heard_(const std::string &topic, const std::string &payload);
+  void end_dispatch_(EndBinding &b, const Listen &l, const std::string &payload);
+  void ends_refresh_state_();
+  void ends_led_();
   std::string topic_(const std::string &rest) const { return this->prefix_ + rest; }
 
   const char *table_{nullptr};

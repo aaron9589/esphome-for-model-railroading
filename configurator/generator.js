@@ -2353,6 +2353,7 @@ function generateYaml(config) {
   const logicBlockSensors = [];
   logicHooks(config).emitBlocks(logicBlockSensors, config);
   logicHooks(config).emitLockReports(logicBlockSensors, config);
+  logicHooks(config).emitEndSensors(logicBlockSensors, config);
   if (blocks.length || hasButtons || logicBlockSensors.length) {
     lines.push("");
     lines.push("binary_sensor:");
@@ -2554,6 +2555,7 @@ function generateYaml(config) {
     }
     lines.push(...logicTextSensors);
   }
+  logicHooks(config).emitEndTexts(lines, config);
   logicHooks(config).emitComponent(lines, config);
 
   lines.push("");
