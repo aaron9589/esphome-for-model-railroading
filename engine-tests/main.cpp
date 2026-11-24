@@ -140,7 +140,10 @@ std::vector<std::string> run_case(const Value &data) {
   const Value *board = data.get("board");
   const Value *steps = data.get("steps");
   if (!board || !steps) return {"the case has no board or no steps"};
-  Engine engine(board_from_value(*board), to_start(data.get("start")));
+  std::string table_error;
+  Board parsed = board_from_value(*board, &table_error);
+  if (!table_error.empty()) return {"the board cannot be read: " + table_error};
+  Engine engine(std::move(parsed), to_start(data.get("start")));
   int64_t next = 0;
   for (const auto &step : steps->arr) {
     const Value *at_value = step.get("at");
@@ -226,7 +229,13 @@ int run_trace(const std::string &path) {
     std::fprintf(stderr, "a trace needs board and scans\n");
     return 2;
   }
-  Engine engine(board_from_value(*data.get("board")), to_start(data.get("start")));
+  std::string table_error;
+  Board parsed = board_from_value(*data.get("board"), &table_error);
+  if (!table_error.empty()) {
+    std::fprintf(stderr, "the board cannot be read: %s\n", table_error.c_str());
+    return 2;
+  }
+  Engine engine(std::move(parsed), to_start(data.get("start")));
   std::string out = "[";
   bool first = true;
   for (const auto &scan : data.get("scans")->arr) {
@@ -254,8 +263,25 @@ int run_trace(const std::string &path) {
 
 }  // namespace
 
+// Durations mode, for the cross-check: one time per line in, the milliseconds
+// (or "null" when it cannot be read) out, one per line.
+int run_durations() {
+  char line[256];
+  while (std::fgets(line, sizeof line, stdin)) {
+    std::string text(line);
+    if (!text.empty() && text.back() == '\n') text.pop_back();
+    uint32_t ms = 0;
+    if (parse_ms(text, &ms))
+      std::printf("%u\n", (unsigned) ms);
+    else
+      std::printf("null\n");
+  }
+  return 0;
+}
+
 int main(int argc, char **argv) {
   if (argc == 3 && std::string(argv[1]) == "--trace") return run_trace(argv[2]);
+  if (argc == 2 && std::string(argv[1]) == "--durations") return run_durations();
   if (argc < 2) {
     std::fprintf(stderr, "usage: engine_tests <cases dir> | engine_tests --trace <trace.json>\n");
     return 2;

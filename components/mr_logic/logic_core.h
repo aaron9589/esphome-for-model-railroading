@@ -180,7 +180,8 @@ std::string stop_aspect(const MastDef &mast);
 
 class Engine {
  public:
-  Engine(const Board &board, const Start &start);
+  // The engine keeps the board; move it in rather than copying it.
+  Engine(Board board, const Start &start);
   // Rules and resources point into board_, so an Engine stays where it is made.
   Engine(const Engine &) = delete;
   Engine &operator=(const Engine &) = delete;

@@ -37,18 +37,27 @@ void MrLogicComponent::add_turnout(const std::string &name, std::function<const 
 
 void MrLogicComponent::setup() {
   std::string error;
-  this->table_ok_ = ::logic_core::board_from_json(this->table_ ? this->table_ : "", &this->board_, &error);
+  ::logic_core::Board board;
+  this->table_ok_ = ::logic_core::board_from_json(this->table_ ? this->table_ : "", &board, &error);
   if (!this->table_ok_) {
     ESP_LOGE(TAG, "The logic table cannot be read: %s. Logic stays off; download the YAML again.", error.c_str());
     this->mark_failed();
     return;
   }
   for (auto &m : this->masts_) {
-    for (const auto &def : this->board_.masts) {
+    for (const auto &def : board.masts) {
       if (def.name != m.name) continue;
-      for (const auto &a : def.aspects) m.aspects.push_back(a.first);
+      const std::string stop = ::logic_core::stop_aspect(def);
+      for (const auto &a : def.aspects) {
+        if (a.first == stop) m.stop = static_cast<int>(m.aspects.size());
+        m.aspects.push_back(a.first);
+      }
     }
+    if (m.aspects.empty()) ESP_LOGW(TAG, "Mast %s is bound but not in the logic table; logic will not set it.", m.name.c_str());
   }
+  for (const auto &l : board.layers) this->rule_count_ += l.rules.size();
+  this->group_count_ = board.layers.size();
+  this->board_ = std::move(board);
   this->boot_ms_ = millis();
 }
 
@@ -61,11 +70,14 @@ void MrLogicComponent::start_() {
   start.broker_connected = false;
   for (const auto &s : this->sensors_)
     start.sensors_occupied[s.name] = !s.sensor->has_state() || s.sensor->state;
+  // Every reading, moving included: a servo can still be on its boot move.
   for (auto &t : this->turnouts_) {
     t.last = t.position();
-    if (t.last == "thrown") start.turnouts[t.name] = "thrown";
+    start.turnouts[t.name] = t.last;
   }
-  this->engine_.reset(new ::logic_core::Engine(this->board_, start));
+  // The engine keeps the board; this component no longer needs its own.
+  this->engine_.reset(new ::logic_core::Engine(std::move(this->board_), start));
+  this->board_ = ::logic_core::Board();
   ESP_LOGI(TAG, "Start-up scan, %u ms after boot", (unsigned) (millis() - this->boot_ms_));
 }
 
@@ -117,9 +129,15 @@ void MrLogicComponent::apply_(const ::logic_core::ScanOut &out) {
     }
     for (auto &m : this->masts_) {
       if (m.name != w.name) continue;
-      int index = -2;  // dark: the show script's every-lamp-off branch
+      int index = -3;
+      if (w.aspect == "dark") index = -2;  // the show script's every-lamp-off branch
       for (size_t i = 0; i < m.aspects.size(); i++)
         if (m.aspects[i] == w.aspect) index = static_cast<int>(i);
+      if (index == -3) {
+        // Fail safe: an aspect this mast does not have shows its stop aspect.
+        ESP_LOGW(TAG, "Mast %s has no aspect %s; showing its stop aspect.", m.name.c_str(), w.aspect.c_str());
+        index = m.stop;
+      }
       m.set(index);
     }
   }
@@ -146,12 +164,7 @@ void MrLogicComponent::apply_(const ::logic_core::ScanOut &out) {
 void MrLogicComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "Logic: %u sensors, %u masts, %u turnouts bound; %u rules in %u groups", (unsigned) this->sensors_.size(),
                 (unsigned) this->masts_.size(), (unsigned) this->turnouts_.size(),
-                (unsigned) [this] {
-                  size_t n = 0;
-                  for (const auto &l : this->board_.layers) n += l.rules.size();
-                  return n;
-                }(),
-                (unsigned) this->board_.layers.size());
+                (unsigned) this->rule_count_, (unsigned) this->group_count_);
   if (this->is_failed()) ESP_LOGCONFIG(TAG, "  The logic table could not be read.");
 }
 

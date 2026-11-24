@@ -12,7 +12,8 @@ namespace logic_core {
 
 // Reads a board. On a problem, returns false and says what in *error.
 bool board_from_json(const std::string &text, Board *out, std::string *error);
-Board board_from_value(const json::Value &v);
+// The same from a value already read; *error says what was wrong, or is empty.
+Board board_from_value(const json::Value &v, std::string *error);
 bool parse_ms(const std::string &text, uint32_t *out);
 
 }  // namespace logic_core

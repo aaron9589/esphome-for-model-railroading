@@ -2,28 +2,15 @@
 #include "logic_table.h"
 
 #include <cstdlib>
+#include <utility>
 
 namespace logic_core {
 
 using json::Value;
 
-namespace {
+Board board_from_value_(const Value &v);
 
-// "0.5s" or "500ms"; empty is 0. Anything else is an error, as in logic.js.
-bool parse_ms(const std::string &text, uint32_t *out) {
-  *out = 0;
-  if (text.empty()) return true;
-  bool millis = text.size() > 2 && text.compare(text.size() - 2, 2, "ms") == 0;
-  bool secs = !millis && text.size() > 1 && text.back() == 's';
-  if (!millis && !secs) return false;
-  std::string number = text.substr(0, text.size() - (millis ? 2 : 1));
-  if (number.empty() || number.find_first_not_of("0123456789.") != std::string::npos) return false;
-  char *end = nullptr;
-  double n = std::strtod(number.c_str(), &end);
-  if (*end != '\0') return false;
-  *out = static_cast<uint32_t>(n * (millis ? 1 : 1000) + 0.5);
-  return true;
-}
+namespace {
 
 std::string *g_error = nullptr;  // the first problem while reading a table
 
@@ -112,7 +99,41 @@ MastDef to_mast(const std::string &name, const Value &v) {
 
 }  // namespace
 
-Board board_from_value(const Value &v) {
+// "0.5s" or "500ms", spaces around allowed; empty is 0. Anything else is an
+// error, exactly as logic.js reads it: ^(\d+(\.\d+)?)(ms|s)$.
+bool parse_ms(const std::string &raw, uint32_t *out) {
+  *out = 0;
+  size_t a = raw.find_first_not_of(" \t\r\n");
+  if (a == std::string::npos) return raw.empty();
+  std::string text = raw.substr(a, raw.find_last_not_of(" \t\r\n") - a + 1);
+  bool millis = text.size() > 2 && text.compare(text.size() - 2, 2, "ms") == 0;
+  bool secs = !millis && !text.empty() && text.back() == 's';
+  if (!millis && !secs) return false;
+  std::string number = text.substr(0, text.size() - (millis ? 2 : 1));
+  size_t i = 0;
+  while (i < number.size() && number[i] >= '0' && number[i] <= '9') i++;
+  if (i == 0) return false;
+  if (i < number.size()) {
+    if (number[i] != '.') return false;
+    size_t j = i + 1;
+    while (j < number.size() && number[j] >= '0' && number[j] <= '9') j++;
+    if (j == i + 1 || j != number.size()) return false;
+  }
+  *out = static_cast<uint32_t>(std::strtod(number.c_str(), nullptr) * (millis ? 1 : 1000) + 0.5);
+  return true;
+}
+
+Board board_from_value(const Value &v, std::string *error) {
+  std::string local;
+  std::string *previous = g_error;
+  g_error = error ? error : &local;
+  g_error->clear();
+  Board b = board_from_value_(v);
+  g_error = previous;
+  return b;
+}
+
+Board board_from_value_(const Value &v) {
   Board b;
   b.sensors = strings(v.get("sensors"));
   b.turnouts = strings(v.get("turnouts"));
@@ -203,10 +224,10 @@ bool board_from_json(const std::string &text, Board *out, std::string *error) {
     *error = "the rule table is not a JSON object";
     return false;
   }
-  g_error = error;
-  *out = board_from_value(data);
-  g_error = nullptr;
-  return error->empty();
+  Board board = board_from_value(data, error);
+  if (!error->empty()) return false;
+  *out = std::move(board);
+  return true;
 }
 
 }  // namespace logic_core

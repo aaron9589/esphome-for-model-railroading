@@ -40,6 +40,7 @@ class MrLogicComponent : public Component {
     std::string name;
     std::function<void(int)> set;
     std::vector<std::string> aspects;
+    int stop{-2};
   };
   struct TurnoutBinding {
     std::string name;
@@ -63,6 +64,8 @@ class MrLogicComponent : public Component {
   uint32_t last_scan_ms_{0};
   uint32_t scans_{0};
   uint32_t slowest_us_{0};
+  size_t rule_count_{0};
+  size_t group_count_{0};
 };
 
 }  // namespace esphome::mr_logic

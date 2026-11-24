@@ -10,6 +10,7 @@ lambdas, so it does not depend on the globals' or scripts' C++ types.
 import json
 
 import esphome.codegen as cg
+import esphome.final_validate as fv
 from esphome.components import binary_sensor, script
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_NAME, CONF_SENSOR
@@ -82,6 +83,29 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional(CONF_TURNOUTS, default=[]): cv.ensure_list(TURNOUT_SCHEMA),
     }
 ).extend(cv.COMPONENT_SCHEMA)
+
+
+def _check_global(fconf, id_, want, where):
+    path = fconf.get_path_for_id(id_)
+    if not path or path[0] != "globals":
+        raise cv.Invalid(f"{where}: {id_} must be the id of a globals entry.")
+    declared = fconf.get_config_for_path(path[:-1])
+    if declared.get("type") != want:
+        raise cv.Invalid(f"{where}: globals {id_} must have type {want}, not {declared.get('type')}.")
+
+
+def _final_validate(config):
+    fconf = fv.full_config.get()
+    for item in config[CONF_MASTS]:
+        _check_global(fconf, item[CONF_ASPECT], "int", f"mast {item[CONF_NAME]}")
+    for item in config[CONF_TURNOUTS]:
+        _check_global(fconf, item[CONF_THROWN], "bool", f"turnout {item[CONF_NAME]}")
+        if CONF_FIELD_LOCKED in item:
+            _check_global(fconf, item[CONF_FIELD_LOCKED], "bool", f"turnout {item[CONF_NAME]}")
+    return config
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate
 
 
 async def to_code(config):
