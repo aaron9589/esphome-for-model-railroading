@@ -26,10 +26,16 @@ This repo is a beginner path for model-railroad ESP32 boards that talk to JMRI/C
 | `docs/jmri-mqtt-verification-guide.md` | JMRI sensor/turnout topics and panel checks |
 | `docs/README.md` | Detector wiring, point calibration, layout notes |
 | `docs/field-logic-spec.md` | Draft spec for the logic engine and the Field Logic mode (rules, layers, starters, remote inputs, plant ends, MCP23017 sensor pins); not built yet |
+| `docs/field-logic-implementation-plan.md` | Draft build plan for both specs: releases, work items, spikes, risks |
 | `docs/mss-emulation-spec.md` | Draft spec for MSS Logic, the second logic mode on the same engine: MSS-style modules described, not programmed (tracks, junctions, paired plant ends); not built yet |
 | `configurator/` | Static GitHub Pages Board Configurator |
 | `advanced-samples/` | Non-Configurator patterns for interest only |
 | `_img/` | Architecture diagrams and photos used by the README |
+
+## Logic work in progress
+
+- The Logic page (field logic and MSS Logic) is built on the long-lived branch `feature/logic`, following `docs/field-logic-implementation-plan.md`. Branch each work item off `feature/logic` and PR back into it.
+- Do not merge logic work into `main` until Release 5 of the plan is complete. `main` (and the live configurator) stays as today until then.
 
 ## Install and MQTT
 

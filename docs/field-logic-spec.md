@@ -1,6 +1,6 @@
 # Logic Engine and Field Logic — Feature Spec (draft)
 
-Status: draft, not built. What ships first is decided in the implementation plan, not here.
+Status: draft, not built. What ships first is decided in the [implementation plan](field-logic-implementation-plan.md), not here.
 
 This spec covers the **logic engine**, which every board with logic runs, and **Field Logic**, the mode where you write the rules. The other mode, **MSS Logic**, runs on the same engine and is in the [MSS Logic spec](mss-emulation-spec.md). See [Logic modes](#logic-modes).
 
@@ -253,6 +253,7 @@ Releasing with a train still in the section is the operator's call.
 
 - **ESPHome:** a template `button` named `Release <resource>`.
 - **MQTT** (when MQTT is on): `trains/track/turnout/logic/<board>/<resource>/Release`, a **JMRI turnout** (`MTlogic/<board>/<resource>/Release`). `THROWN` presses it. The board then publishes `CLOSED`, retained, to the same topic and ignores `CLOSED`. JMRI reads turnout feedback on the turnout's receive topic, which by default is the command topic, so it hears that `CLOSED` and the turnout snaps back like a push button. (This turnout has no `/Thrown` sensor.) The `CLOSED` also replaces any retained `THROWN` (JMRI publishes retained), so a release cannot fire again when the board reconnects.
+- **A release sent while the board was away is ignored.** A `THROWN` that arrives in the first 5 seconds after the board connects to the broker was waiting on the broker, perhaps for hours, and the section may since have filled. The board ignores it, logs a `WARN`, and publishes `CLOSED`. Ignoring a release is the safe direction: the section just stays held until someone presses again.
 
 ## Remote inputs
 
@@ -284,10 +285,10 @@ Board names appear in topics (`board/<board>/Online`, `logic/<board>`, plant end
 - The configurator **adds a suffix** to every new board's name: six characters, chosen at random when the board is created, for example `kiama-north-k7m4x2`. The characters are lowercase letters and digits without look-alikes (no `0`, `o`, `1` or `l`), so it can be read off a module card. That gives about 700 million values, so two boards at a meet with the same base name are very unlikely to clash.
 - **The suffix is the board's identity; the rest of the name is a label.** The suffix is stored with the board and never changes: not on re-download, and not on rename. Renaming `kiama-north-k7m4x2` to `kiama-south` gives `kiama-south-k7m4x2`. So the YAML, the JMRI XML and the module card always agree.
 - **It is random, not derived.** A hash of the name would be the same for two boards both called `module-1`, which is exactly the clash this prevents, and it would change on every rename. The MAC address is not used either, because the configurator never sees the ESP: the MAC is only known once the board runs, which is too late for the JMRI XML.
-- **Length.** ESPHome device names are at most 31 characters. The dash and suffix take 7, so the part you type is at most 24 (validation error beyond that).
+- **Length.** The tighter limit is the fallback hotspot: its name, `<board> setup`, must fit Wi-Fi's 32 characters, so the board name is at most 26 (ESPHome itself allows 31). The dash and suffix take 7, so the part you type is at most 19 (validation error beyond that).
 - An existing board without a suffix gets a warning once it has a logic mode or Share, with **Add a suffix**. The hint says that renaming changes the board's network name, so the next flash is by USB or to the old name.
 - **Copied files.** Importing a file as a new board, for example a second module from the same `board.yaml`, offers **New suffix**, because two copies would otherwise share an identity.
-- At runtime, a board that sees another board's birth message on its own Online topic logs an `ERROR` and shows it in its state text. Two boards with the same name cannot both work, so a clash, or a copy that kept its suffix, is never left silent.
+- **At runtime**, each sharing board also publishes its MAC address, retained, to `trains/track/board/<board>/Owner` (not read by JMRI). The Online topic cannot be used for this, because a board's own retained `ACTIVE` comes back to it looking the same as a twin's. A board that finds a different MAC on its own Owner topic logs an `ERROR`, publishes `Clash` to `trains/track/board/<board>/Problem`, and shows it on its web page. Two boards with the same name cannot both work, so a clash, or a copy that kept its suffix, is never left silent.
 
 ## Plant ends
 
@@ -340,7 +341,7 @@ A link does not change the rules or the version code. Each end publishes its sta
 ### At a meet
 
 Nothing is reflashed at a meet:
-- **Wi-Fi:** a board that cannot find its home network starts its fallback hotspot (`<board> setup`), which every board already has. Join it from a phone, and the captive portal picks the meet's network. The board keeps that network until it is changed the same way, so back home, do it again with the home network.
+- **Wi-Fi:** a board that cannot find its home network starts its fallback hotspot (`<board> setup`), which every board already has. Join it from a phone, and the captive portal picks the meet's network. ESPHome saves that network under a key made from the board's configuration and ESPHome version. So it lasts until the board is next flashed with a changed configuration or a newer ESPHome, and then the home network in the YAML applies again. Back home without a reflash, set the home network the same way.
 - **Broker:** boards look for `layout-mqtt.local`, the name the install scripts publish. One computer at the meet runs the install script, and every board finds it with no change. The script will not publish the name if another computer already answers to it.
 - **Pairing:** press Pair on both sides of each joint.
 
@@ -356,6 +357,7 @@ JMRI builds every MQTT topic as Channel + type topic (`track/turnout/`, `track/l
 | Board online | Sensor `MSboard/<board>/Online` | `trains/track/sensor/board/<board>/Online` | `ACTIVE` / `INACTIVE`, retained |
 
 JMRI does not read these topics:
+- `trains/track/board/<board>/Owner` and `…/Problem`: the board's MAC, for [unique board names](#unique-board-names).
 - `trains/track/logic/<board>/<resource>/State`: `IDLE`, `ACTIVE`, `CANCELLING` or `PASSED`, retained. For watching in MQTTX.
 - `trains/track/logic/<board>/Version`: the version code of the rules the board is running, retained.
 - `<mast-topic>/State`. Other boards read it as a remote input.
@@ -462,7 +464,7 @@ This is hardware, so it lives on the **Sensors page**, as the PCA9685 boards liv
 - **I2C bus.** A classic ESP32 has two. An expander can share a PCA9685 board's SDA and SCL pins: the PCA9685 is at `0x40`, so the addresses do not clash. Or it can have its own pins while a bus is free. Up to eight expanders per bus.
 - **Pins.** A sensor's pin dropdown lists the free ESP pins and every free expander pin, for example *MCP 1 · B3* (A0–A7, B0–B7). Wiring is the same as an ESP pin: detector output to the pin, and GND. The expander's internal pull-up is on, the input is inverted as on an ESP pin, and Debounce works the same.
 - **Buttons too.** Rule buttons and Pair buttons can use expander pins. Outputs (mast lamps, end LEDs) stay on ESP pins in this spec.
-- **Fail safe.** If an expander stops answering, ESPHome marks it failed. Its sensors then count as occupied for logic, any block that contains one reads occupied, and the board logs an `ERROR`. JMRI hears nothing new from them until it answers again.
+- **Fail safe.** If an expander stops answering after start-up, ESPHome does not mark it failed: it only sets a communication warning, and its pins keep their last value. So the logic component checks each expander's status (`is_failed()` and `status_has_warning()`) every scan, and the template sensor of any block that contains an expander sensor checks it too. While an expander reports a problem, its sensors count as not known, so they read occupied for logic, any block that contains one reads occupied, and the board logs an `ERROR`. A sensor's own JMRI topic may keep its last value until the expander answers again.
 - **Pin budget.** The Sensors page shows how many ESP inputs are free. When a new sensor has none left, the hint suggests adding an expander.
 
 ## Starters
@@ -716,7 +718,7 @@ The engine is one JS module (for example `configurator/logic.js`). It runs the s
 - Plant ends: each end track has end sensors and a first mast, or passes through to a track at another end, and pass-throughs do not loop. Plant ends need MQTT on.
 - Expanders: at most eight per I2C bus and two buses; addresses unique on a bus; each expander pin used once; a shared bus uses a PCA9685 board's pins exactly.
 - A board with a logic mode or Share whose name has no suffix: warning, with **Add a suffix** (see [Unique board names](#unique-board-names)).
-- A board name whose typed part is over 24 characters, once the suffix is on: error (ESPHome allows 31 in all).
+- A board name whose typed part is over 19 characters, once the suffix is on: error (the `<board> setup` hotspot name must fit in 32).
 - Sensor and turnout names cannot start with `logic/` or `board/`. No sensor may be named `<sensor>/State`, `<turnout>/Thrown`, `<turnout>/Locked` or `<turnout>/Moving`. Today's configurator already rejects `/Thrown` and `/Locked`.
 
 ## Generated YAML (shape)
@@ -728,7 +730,7 @@ Everything below is emitted only for what the Logic page declares: the interpret
 The rule table is written into `board.yaml` as data for the component. The version code is a hash of the rule table. Existing pieces (`<m>_aspect`, `<m>_show`, `<block>_sensor`) are reused, and no new lamp code is needed. `<m>_aspect` holds an aspect index, `-1` for nothing shown yet, or `-2` for dark.
 
 - The [scan](#the-scan) runs every 100 ms inside the component: read, evaluate, write, publish and log. It does nothing while logic is off.
-- State, all `restore_value: false`. It lives in the component, except where existing YAML reads it, which stays in ESPHome `globals`:
+- State, all `restore_value: false`. It lives in the component. Where existing YAML needs it (a turnout's lock check, a mast's aspect and `_show` script), the component either writes typed ESPHome `globals` it is given by id, or the YAML reads it through the component; the implementation plan's first spike picks one. The names below are the ones the YAML uses either way:
   - per input: its value, its two latches and, for a remote input, whether it is known
   - per resource: holder, phase, and per reserving rule its waiting-since time
   - per field-controlled mast: `<m>_held` (the Held flag from the last JMRI message) and `<m>_remote` (the aspect JMRI last picked, `-1` if none)
@@ -854,7 +856,8 @@ In `configurator/test/`, run through `configurator/package.json`:
   - a pulse shorter than a scan is still seen, including "occupied, then clear" inside one scan
   - two rules wanting the same resource in one scan: one grant, to the longest waiting, then list order
   - outputs and publishes happen only on change, and all again on connect
-  - a manual release, a hold and the switch take effect at the next scan.
+  - a manual release, a hold and the switch take effect at the next scan; a release waiting on the broker when the board connects is ignored
+  - with logic off, a field-controlled mast behaves exactly as today for every JMRI message
 - **Rules:**
   - a waiting rule is granted after release, and waiting order with three entrances
   - cancel before passing; a trigger flicker shorter than its *for* neither starts nor cancels a request
@@ -881,8 +884,8 @@ In `configurator/test/`, run through `configurator/package.json`:
   - track numbering at a joint, with one board turned round
   - changing a link changes no rule and not the version code
   - pairing: two ends pressed together pair; a third end in the window, or a track-count mismatch, pairs none; a window that expires leaves the link unchanged.
-- **Board names:** a new board gets a six-character suffix from the readable alphabet that survives re-download, import and rename; a typed name over 24 characters is an error; Add a suffix adds it once; importing as a new board offers New suffix; a second board answering on the Online topic is logged as an error.
-- **Expanders:** YAML for an expander sharing a PCA9685 bus and one on its own bus; a sensor on an expander pin; validation of addresses, buses and pin reuse; a failed expander's sensors read occupied and its blocks occupied; files without expanders import unchanged.
+- **Board names:** a new board gets a six-character suffix from the readable alphabet that survives re-download, import and rename; a typed name over 19 characters is an error; Add a suffix adds it once; importing as a new board offers New suffix; a different MAC on the board's Owner topic is logged as an error.
+- **Expanders:** YAML for an expander sharing a PCA9685 bus and one on its own bus; a sensor on an expander pin; validation of addresses, buses and pin reuse; an expander that stops answering after start-up (a communication warning, with its pins stuck at their last value) makes its sensors and blocks read occupied; files without expanders import unchanged.
 - **Checker:** finds a deliberate deadlock, and passes the one-train section starter.
 - **Ease of use:**
   - Explain gives the expected sentence for each starter's masts, and changes when a rule changes

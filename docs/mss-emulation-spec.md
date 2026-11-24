@@ -1,6 +1,6 @@
 # MSS Logic — Feature Spec (draft)
 
-Status: draft, not built. A [logic mode](field-logic-spec.md#logic-modes) that runs on the same engine as Field Logic, which must exist first.
+Status: draft, not built; see the [implementation plan](field-logic-implementation-plan.md). A [logic mode](field-logic-spec.md#logic-modes) that runs on the same engine as Field Logic, which must exist first.
 
 ## Why
 
