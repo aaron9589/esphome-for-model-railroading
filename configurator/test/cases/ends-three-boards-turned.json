@@ -1,0 +1,1050 @@
+{
+  "name": "three boards in a row, the middle one turned round, signal as one",
+  "covers": [
+    "track numbering at a joint, with one board turned round"
+  ],
+  "about": "Three copies of one double-track module. On each, North Home stands at end A and signals trains going towards end B on its north line (track 2 of end A, track 1 of end B); South Home stands at end B and signals the other way on its south line (track 2 of end B, track 1 of end A). Each block includes what the far end hears on that line, and each mast reads the next mast there. West and east face the same way; mid is turned round, so west's B meets mid's B and mid's A meets east's A, and mid's south line carries the eastbound trains. Track 1 meets the far end's last track, so west's North Home reads mid's South Home, which reads east's North Home: Clear, Clear, Approach before the end of the line. A train on that line drops them in turn, and the boundary sensor at mid's South Home holds west's block too; the other line is never touched. A train on mid's north line (eastbound's other line) reaches only east's South Home. Mid losing the broker sends its neighbours' masts facing it to Stop until it is back.",
+  "boards": {
+    "west": {
+      "sensors": [
+        "North in",
+        "North",
+        "South in",
+        "South"
+      ],
+      "masts": {
+        "North Home": {
+          "aspects": {
+            "R292": "stop",
+            "R285": "approach",
+            "R281": "clear"
+          }
+        },
+        "South Home": {
+          "aspects": {
+            "R292": "stop",
+            "R285": "approach",
+            "R281": "clear"
+          }
+        }
+      },
+      "logic": {
+        "ends": [
+          {
+            "name": "A",
+            "tracks": [
+              {},
+              {
+                "sensors": [
+                  "North in"
+                ],
+                "mast": "North Home"
+              }
+            ]
+          },
+          {
+            "name": "B",
+            "tracks": [
+              {},
+              {
+                "sensors": [
+                  "South in"
+                ],
+                "mast": "South Home"
+              }
+            ]
+          }
+        ],
+        "blocks": [
+          {
+            "name": "North block",
+            "sensors": [
+              "North in",
+              "North",
+              {
+                "end": "B",
+                "track": 1
+              }
+            ]
+          },
+          {
+            "name": "South block",
+            "sensors": [
+              "South in",
+              "South",
+              {
+                "end": "A",
+                "track": 1
+              }
+            ]
+          }
+        ],
+        "layers": [
+          {
+            "name": "North",
+            "rules": [
+              {
+                "trigger": {
+                  "while": {
+                    "block": "North block",
+                    "is": "clear"
+                  }
+                },
+                "checks": [
+                  {
+                    "end": "B",
+                    "track": 1,
+                    "hears": "mast",
+                    "is": [
+                      "approach",
+                      "advance",
+                      "clear"
+                    ]
+                  }
+                ],
+                "then": {
+                  "mast": "North Home",
+                  "aspect": "R281"
+                }
+              },
+              {
+                "trigger": {
+                  "while": {
+                    "block": "North block",
+                    "is": "clear"
+                  }
+                },
+                "checks": [],
+                "then": {
+                  "mast": "North Home",
+                  "aspect": "R285"
+                }
+              }
+            ]
+          },
+          {
+            "name": "South",
+            "rules": [
+              {
+                "trigger": {
+                  "while": {
+                    "block": "South block",
+                    "is": "clear"
+                  }
+                },
+                "checks": [
+                  {
+                    "end": "A",
+                    "track": 1,
+                    "hears": "mast",
+                    "is": [
+                      "approach",
+                      "advance",
+                      "clear"
+                    ]
+                  }
+                ],
+                "then": {
+                  "mast": "South Home",
+                  "aspect": "R281"
+                }
+              },
+              {
+                "trigger": {
+                  "while": {
+                    "block": "South block",
+                    "is": "clear"
+                  }
+                },
+                "checks": [],
+                "then": {
+                  "mast": "South Home",
+                  "aspect": "R285"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "mid": {
+      "sensors": [
+        "North in",
+        "North",
+        "South in",
+        "South"
+      ],
+      "masts": {
+        "North Home": {
+          "aspects": {
+            "R292": "stop",
+            "R285": "approach",
+            "R281": "clear"
+          }
+        },
+        "South Home": {
+          "aspects": {
+            "R292": "stop",
+            "R285": "approach",
+            "R281": "clear"
+          }
+        }
+      },
+      "logic": {
+        "ends": [
+          {
+            "name": "A",
+            "tracks": [
+              {},
+              {
+                "sensors": [
+                  "North in"
+                ],
+                "mast": "North Home"
+              }
+            ]
+          },
+          {
+            "name": "B",
+            "tracks": [
+              {},
+              {
+                "sensors": [
+                  "South in"
+                ],
+                "mast": "South Home"
+              }
+            ]
+          }
+        ],
+        "blocks": [
+          {
+            "name": "North block",
+            "sensors": [
+              "North in",
+              "North",
+              {
+                "end": "B",
+                "track": 1
+              }
+            ]
+          },
+          {
+            "name": "South block",
+            "sensors": [
+              "South in",
+              "South",
+              {
+                "end": "A",
+                "track": 1
+              }
+            ]
+          }
+        ],
+        "layers": [
+          {
+            "name": "North",
+            "rules": [
+              {
+                "trigger": {
+                  "while": {
+                    "block": "North block",
+                    "is": "clear"
+                  }
+                },
+                "checks": [
+                  {
+                    "end": "B",
+                    "track": 1,
+                    "hears": "mast",
+                    "is": [
+                      "approach",
+                      "advance",
+                      "clear"
+                    ]
+                  }
+                ],
+                "then": {
+                  "mast": "North Home",
+                  "aspect": "R281"
+                }
+              },
+              {
+                "trigger": {
+                  "while": {
+                    "block": "North block",
+                    "is": "clear"
+                  }
+                },
+                "checks": [],
+                "then": {
+                  "mast": "North Home",
+                  "aspect": "R285"
+                }
+              }
+            ]
+          },
+          {
+            "name": "South",
+            "rules": [
+              {
+                "trigger": {
+                  "while": {
+                    "block": "South block",
+                    "is": "clear"
+                  }
+                },
+                "checks": [
+                  {
+                    "end": "A",
+                    "track": 1,
+                    "hears": "mast",
+                    "is": [
+                      "approach",
+                      "advance",
+                      "clear"
+                    ]
+                  }
+                ],
+                "then": {
+                  "mast": "South Home",
+                  "aspect": "R281"
+                }
+              },
+              {
+                "trigger": {
+                  "while": {
+                    "block": "South block",
+                    "is": "clear"
+                  }
+                },
+                "checks": [],
+                "then": {
+                  "mast": "South Home",
+                  "aspect": "R285"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "east": {
+      "sensors": [
+        "North in",
+        "North",
+        "South in",
+        "South"
+      ],
+      "masts": {
+        "North Home": {
+          "aspects": {
+            "R292": "stop",
+            "R285": "approach",
+            "R281": "clear"
+          }
+        },
+        "South Home": {
+          "aspects": {
+            "R292": "stop",
+            "R285": "approach",
+            "R281": "clear"
+          }
+        }
+      },
+      "logic": {
+        "ends": [
+          {
+            "name": "A",
+            "tracks": [
+              {},
+              {
+                "sensors": [
+                  "North in"
+                ],
+                "mast": "North Home"
+              }
+            ]
+          },
+          {
+            "name": "B",
+            "tracks": [
+              {},
+              {
+                "sensors": [
+                  "South in"
+                ],
+                "mast": "South Home"
+              }
+            ]
+          }
+        ],
+        "blocks": [
+          {
+            "name": "North block",
+            "sensors": [
+              "North in",
+              "North",
+              {
+                "end": "B",
+                "track": 1
+              }
+            ]
+          },
+          {
+            "name": "South block",
+            "sensors": [
+              "South in",
+              "South",
+              {
+                "end": "A",
+                "track": 1
+              }
+            ]
+          }
+        ],
+        "layers": [
+          {
+            "name": "North",
+            "rules": [
+              {
+                "trigger": {
+                  "while": {
+                    "block": "North block",
+                    "is": "clear"
+                  }
+                },
+                "checks": [
+                  {
+                    "end": "B",
+                    "track": 1,
+                    "hears": "mast",
+                    "is": [
+                      "approach",
+                      "advance",
+                      "clear"
+                    ]
+                  }
+                ],
+                "then": {
+                  "mast": "North Home",
+                  "aspect": "R281"
+                }
+              },
+              {
+                "trigger": {
+                  "while": {
+                    "block": "North block",
+                    "is": "clear"
+                  }
+                },
+                "checks": [],
+                "then": {
+                  "mast": "North Home",
+                  "aspect": "R285"
+                }
+              }
+            ]
+          },
+          {
+            "name": "South",
+            "rules": [
+              {
+                "trigger": {
+                  "while": {
+                    "block": "South block",
+                    "is": "clear"
+                  }
+                },
+                "checks": [
+                  {
+                    "end": "A",
+                    "track": 1,
+                    "hears": "mast",
+                    "is": [
+                      "approach",
+                      "advance",
+                      "clear"
+                    ]
+                  }
+                ],
+                "then": {
+                  "mast": "South Home",
+                  "aspect": "R281"
+                }
+              },
+              {
+                "trigger": {
+                  "while": {
+                    "block": "South block",
+                    "is": "clear"
+                  }
+                },
+                "checks": [],
+                "then": {
+                  "mast": "South Home",
+                  "aspect": "R285"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "start": {
+    "west": {
+      "links": {
+        "A": "end",
+        "B": "mid/B"
+      }
+    },
+    "mid": {
+      "links": {
+        "A": "east/A",
+        "B": "west/B"
+      }
+    },
+    "east": {
+      "links": {
+        "A": "mid/A",
+        "B": "end"
+      }
+    }
+  },
+  "steps": [
+    {
+      "at": 0,
+      "expect": {
+        "west": {
+          "masts": {
+            "North Home": "R292",
+            "South Home": "R285"
+          },
+          "ends": {
+            "A": "end",
+            "B": "unheard"
+          }
+        },
+        "mid": {
+          "masts": {
+            "North Home": "R292",
+            "South Home": "R292"
+          },
+          "ends": {
+            "A": "unheard",
+            "B": "unheard"
+          }
+        },
+        "east": {
+          "masts": {
+            "North Home": "R285",
+            "South Home": "R292"
+          },
+          "ends": {
+            "A": "unheard",
+            "B": "end"
+          }
+        }
+      }
+    },
+    {
+      "at": 1,
+      "expect": {
+        "west": {
+          "masts": {
+            "North Home": "R285",
+            "South Home": "R285"
+          },
+          "ends": {
+            "A": "end",
+            "B": "heard"
+          }
+        },
+        "mid": {
+          "masts": {
+            "North Home": "R281",
+            "South Home": "R281"
+          },
+          "ends": {
+            "A": "heard",
+            "B": "heard"
+          }
+        },
+        "east": {
+          "masts": {
+            "North Home": "R285",
+            "South Home": "R285"
+          },
+          "ends": {
+            "A": "heard",
+            "B": "end"
+          }
+        }
+      }
+    },
+    {
+      "at": 2,
+      "expect": {
+        "west": {
+          "masts": {
+            "North Home": "R281",
+            "South Home": "R285"
+          }
+        },
+        "mid": {
+          "masts": {
+            "North Home": "R281",
+            "South Home": "R281"
+          }
+        },
+        "east": {
+          "masts": {
+            "North Home": "R285",
+            "South Home": "R281"
+          }
+        }
+      }
+    },
+    {
+      "at": 5,
+      "do": {
+        "west": [
+          {
+            "sensor": "North",
+            "is": "occupied"
+          }
+        ]
+      },
+      "expect": {
+        "west": {
+          "masts": {
+            "North Home": "R292",
+            "South Home": "R285"
+          }
+        },
+        "mid": {
+          "masts": {
+            "North Home": "R281",
+            "South Home": "R281"
+          }
+        },
+        "east": {
+          "masts": {
+            "North Home": "R285",
+            "South Home": "R281"
+          }
+        }
+      }
+    },
+    {
+      "at": 10,
+      "do": {
+        "mid": [
+          {
+            "sensor": "South in",
+            "is": "occupied"
+          }
+        ]
+      },
+      "expect": {
+        "west": {
+          "masts": {
+            "North Home": "R292",
+            "South Home": "R285"
+          }
+        },
+        "mid": {
+          "masts": {
+            "North Home": "R281",
+            "South Home": "R292"
+          }
+        },
+        "east": {
+          "masts": {
+            "North Home": "R285",
+            "South Home": "R281"
+          }
+        }
+      }
+    },
+    {
+      "at": 15,
+      "do": {
+        "west": [
+          {
+            "sensor": "North",
+            "is": "clear"
+          }
+        ]
+      },
+      "expect": {
+        "west": {
+          "masts": {
+            "North Home": "R292",
+            "South Home": "R285"
+          }
+        },
+        "mid": {
+          "masts": {
+            "North Home": "R281",
+            "South Home": "R292"
+          }
+        },
+        "east": {
+          "masts": {
+            "North Home": "R285",
+            "South Home": "R281"
+          }
+        }
+      }
+    },
+    {
+      "at": 20,
+      "do": {
+        "mid": [
+          {
+            "sensor": "South in",
+            "is": "clear"
+          },
+          {
+            "sensor": "South",
+            "is": "occupied"
+          }
+        ]
+      },
+      "expect": {
+        "west": {
+          "masts": {
+            "North Home": "R292",
+            "South Home": "R285"
+          }
+        },
+        "mid": {
+          "masts": {
+            "North Home": "R281",
+            "South Home": "R292"
+          }
+        },
+        "east": {
+          "masts": {
+            "North Home": "R285",
+            "South Home": "R281"
+          }
+        }
+      }
+    },
+    {
+      "at": 21,
+      "expect": {
+        "west": {
+          "masts": {
+            "North Home": "R285",
+            "South Home": "R285"
+          }
+        },
+        "mid": {
+          "masts": {
+            "North Home": "R281",
+            "South Home": "R292"
+          }
+        },
+        "east": {
+          "masts": {
+            "North Home": "R285",
+            "South Home": "R281"
+          }
+        }
+      }
+    },
+    {
+      "at": 25,
+      "do": {
+        "mid": [
+          {
+            "sensor": "South",
+            "is": "clear"
+          }
+        ]
+      },
+      "expect": {
+        "west": {
+          "masts": {
+            "North Home": "R285",
+            "South Home": "R285"
+          }
+        },
+        "mid": {
+          "masts": {
+            "North Home": "R281",
+            "South Home": "R281"
+          }
+        },
+        "east": {
+          "masts": {
+            "North Home": "R285",
+            "South Home": "R281"
+          }
+        }
+      }
+    },
+    {
+      "at": 26,
+      "expect": {
+        "west": {
+          "masts": {
+            "North Home": "R281",
+            "South Home": "R285"
+          }
+        },
+        "mid": {
+          "masts": {
+            "North Home": "R281",
+            "South Home": "R281"
+          }
+        },
+        "east": {
+          "masts": {
+            "North Home": "R285",
+            "South Home": "R281"
+          }
+        }
+      }
+    },
+    {
+      "at": 30,
+      "do": {
+        "mid": [
+          {
+            "sensor": "North",
+            "is": "occupied"
+          }
+        ]
+      },
+      "expect": {
+        "west": {
+          "masts": {
+            "North Home": "R281",
+            "South Home": "R285"
+          }
+        },
+        "mid": {
+          "masts": {
+            "North Home": "R292",
+            "South Home": "R281"
+          }
+        },
+        "east": {
+          "masts": {
+            "North Home": "R285",
+            "South Home": "R281"
+          }
+        }
+      }
+    },
+    {
+      "at": 31,
+      "expect": {
+        "west": {
+          "masts": {
+            "North Home": "R281",
+            "South Home": "R285"
+          }
+        },
+        "mid": {
+          "masts": {
+            "North Home": "R292",
+            "South Home": "R281"
+          }
+        },
+        "east": {
+          "masts": {
+            "North Home": "R285",
+            "South Home": "R285"
+          }
+        }
+      }
+    },
+    {
+      "at": 35,
+      "do": {
+        "mid": [
+          {
+            "sensor": "North",
+            "is": "clear"
+          }
+        ]
+      },
+      "expect": {
+        "west": {
+          "masts": {
+            "North Home": "R281",
+            "South Home": "R285"
+          }
+        },
+        "mid": {
+          "masts": {
+            "North Home": "R281",
+            "South Home": "R281"
+          }
+        },
+        "east": {
+          "masts": {
+            "North Home": "R285",
+            "South Home": "R285"
+          }
+        }
+      }
+    },
+    {
+      "at": 36,
+      "expect": {
+        "west": {
+          "masts": {
+            "North Home": "R281",
+            "South Home": "R285"
+          }
+        },
+        "mid": {
+          "masts": {
+            "North Home": "R281",
+            "South Home": "R281"
+          }
+        },
+        "east": {
+          "masts": {
+            "North Home": "R285",
+            "South Home": "R281"
+          }
+        }
+      }
+    },
+    {
+      "at": 40,
+      "do": {
+        "mid": [
+          {
+            "broker": "disconnected"
+          }
+        ]
+      },
+      "expect": {
+        "west": {
+          "masts": {
+            "North Home": "R281",
+            "South Home": "R285"
+          }
+        },
+        "mid": {
+          "masts": {
+            "North Home": "R292",
+            "South Home": "R292"
+          },
+          "ends": {
+            "A": "unheard",
+            "B": "unheard"
+          },
+          "publishes": []
+        },
+        "east": {
+          "masts": {
+            "North Home": "R285",
+            "South Home": "R281"
+          }
+        }
+      }
+    },
+    {
+      "at": 41,
+      "expect": {
+        "west": {
+          "masts": {
+            "North Home": "R292",
+            "South Home": "R285"
+          },
+          "ends": {
+            "B": "unheard"
+          }
+        },
+        "mid": {
+          "masts": {
+            "North Home": "R292",
+            "South Home": "R292"
+          }
+        },
+        "east": {
+          "masts": {
+            "North Home": "R285",
+            "South Home": "R292"
+          },
+          "ends": {
+            "A": "unheard"
+          }
+        }
+      }
+    },
+    {
+      "at": 45,
+      "do": {
+        "mid": [
+          {
+            "broker": "connected"
+          }
+        ]
+      },
+      "expect": {
+        "west": {
+          "masts": {
+            "North Home": "R292",
+            "South Home": "R285"
+          }
+        },
+        "mid": {
+          "masts": {
+            "North Home": "R281",
+            "South Home": "R281"
+          },
+          "ends": {
+            "A": "heard",
+            "B": "heard"
+          }
+        },
+        "east": {
+          "masts": {
+            "North Home": "R285",
+            "South Home": "R292"
+          }
+        }
+      }
+    },
+    {
+      "at": 46,
+      "expect": {
+        "west": {
+          "masts": {
+            "North Home": "R281",
+            "South Home": "R285"
+          },
+          "ends": {
+            "B": "heard"
+          }
+        },
+        "mid": {
+          "masts": {
+            "North Home": "R281",
+            "South Home": "R281"
+          }
+        },
+        "east": {
+          "masts": {
+            "North Home": "R285",
+            "South Home": "R281"
+          },
+          "ends": {
+            "A": "heard"
+          }
+        }
+      }
+    }
+  ]
+}

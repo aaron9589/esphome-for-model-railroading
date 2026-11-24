@@ -1,0 +1,140 @@
+{
+  "name": "two paired ends cannot hold each other occupied",
+  "covers": [
+    "two paired ends cannot hold each other occupied"
+  ],
+  "about": "One track runs through west and east with no signals: on each board it passes through from end to end, and each board's block Through is its own sensor plus what the joint end hears, so the block reaches across both boards. A train on W holds both boards' Through. Once it has gone, both clear: what an end offers never includes what it hears through that end. Then the same from E.",
+  "boards": {
+    "west": {
+      "sensors": ["W"],
+      "masts": { "Out": { "aspects": { "R292": "stop", "R281": "clear" } } },
+      "logic": {
+        "blocks": [{ "name": "Through", "sensors": ["W", { "end": "B", "track": 1 }] }],
+        "ends": [
+          { "name": "A", "tracks": [{ "sensors": ["W"], "through": { "end": "B", "track": 1 } }] },
+          { "name": "B", "tracks": [{ "sensors": ["W"], "through": { "end": "A", "track": 1 } }] }
+        ],
+        "layers": [
+          { "name": "Out", "rules": [
+            { "trigger": { "while": { "block": "Through", "is": "clear" } }, "checks": [], "then": { "mast": "Out", "aspect": "R281" } }
+          ] }
+        ]
+      }
+    },
+    "east": {
+      "sensors": ["E"],
+      "masts": { "In": { "aspects": { "R292": "stop", "R281": "clear" } } },
+      "logic": {
+        "blocks": [{ "name": "Through", "sensors": ["E", { "end": "A", "track": 1 }] }],
+        "ends": [
+          { "name": "A", "tracks": [{ "sensors": ["E"], "through": { "end": "B", "track": 1 } }] },
+          { "name": "B", "tracks": [{ "sensors": ["E"], "through": { "end": "A", "track": 1 } }] }
+        ],
+        "layers": [
+          { "name": "In", "rules": [
+            { "trigger": { "while": { "block": "Through", "is": "clear" } }, "checks": [], "then": { "mast": "In", "aspect": "R281" } }
+          ] }
+        ]
+      }
+    }
+  },
+  "start": {
+    "west": { "links": { "A": "end", "B": "east/A" } },
+    "east": { "links": { "A": "west/B", "B": "end" } }
+  },
+  "steps": [
+    {
+      "at": 0,
+      "expect": {
+        "west": {
+          "masts": { "Out": "R292" },
+          "ends": { "A": "end", "B": "unheard" },
+          "publishes": [
+            { "end": "A", "link": "end" },
+            { "end": "A", "track": 1, "block": "ACTIVE" },
+            { "end": "A", "track": 1, "mast": "stop" },
+            { "end": "B", "link": "east/A" },
+            { "end": "B", "track": 1, "block": "INACTIVE" },
+            { "end": "B", "track": 1, "mast": "stop" }
+          ]
+        },
+        "east": { "masts": { "In": "R292" }, "ends": { "A": "unheard", "B": "end" } }
+      }
+    },
+    {
+      "at": 1,
+      "expect": {
+        "west": { "masts": { "Out": "R281" }, "ends": { "B": "heard" }, "publishes": [{ "end": "A", "track": 1, "block": "INACTIVE" }] },
+        "east": { "masts": { "In": "R281" }, "ends": { "A": "heard" }, "publishes": [{ "end": "B", "track": 1, "block": "INACTIVE" }] }
+      }
+    },
+    {
+      "at": 5,
+      "do": { "west": [{ "sensor": "W", "is": "occupied" }] },
+      "expect": {
+        "west": {
+          "masts": { "Out": "R292" },
+          "publishes": [{ "end": "A", "track": 1, "block": "ACTIVE" }, { "end": "B", "track": 1, "block": "ACTIVE" }]
+        },
+        "east": { "masts": { "In": "R281" } }
+      }
+    },
+    {
+      "at": 6,
+      "expect": {
+        "west": { "masts": { "Out": "R292" } },
+        "east": { "masts": { "In": "R292" }, "publishes": [{ "end": "B", "track": 1, "block": "ACTIVE" }] }
+      }
+    },
+    {
+      "at": 10,
+      "do": { "west": [{ "sensor": "W", "is": "clear" }] },
+      "expect": {
+        "west": {
+          "masts": { "Out": "R281" },
+          "publishes": [{ "end": "A", "track": 1, "block": "INACTIVE" }, { "end": "B", "track": 1, "block": "INACTIVE" }]
+        },
+        "east": { "masts": { "In": "R292" } }
+      }
+    },
+    {
+      "at": 11,
+      "expect": {
+        "west": { "masts": { "Out": "R281" } },
+        "east": { "masts": { "In": "R281" }, "publishes": [{ "end": "B", "track": 1, "block": "INACTIVE" }] }
+      }
+    },
+    {
+      "at": 15,
+      "expect": { "west": { "masts": { "Out": "R281" } }, "east": { "masts": { "In": "R281" } } }
+    },
+    {
+      "at": 20,
+      "do": { "east": [{ "sensor": "E", "is": "occupied" }] },
+      "expect": {
+        "west": { "masts": { "Out": "R281" } },
+        "east": {
+          "masts": { "In": "R292" },
+          "publishes": [{ "end": "A", "track": 1, "block": "ACTIVE" }, { "end": "B", "track": 1, "block": "ACTIVE" }]
+        }
+      }
+    },
+    {
+      "at": 21,
+      "expect": { "west": { "masts": { "Out": "R292" } }, "east": { "masts": { "In": "R292" } } }
+    },
+    {
+      "at": 25,
+      "do": { "east": [{ "sensor": "E", "is": "clear" }] },
+      "expect": { "west": { "masts": { "Out": "R292" } }, "east": { "masts": { "In": "R281" } } }
+    },
+    {
+      "at": 26,
+      "expect": { "west": { "masts": { "Out": "R281" } }, "east": { "masts": { "In": "R281" } } }
+    },
+    {
+      "at": 30,
+      "expect": { "west": { "masts": { "Out": "R281" } }, "east": { "masts": { "In": "R281" } } }
+    }
+  ]
+}

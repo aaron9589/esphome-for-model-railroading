@@ -1,0 +1,68 @@
+{
+  "name": "a third end in the window pairs none",
+  "covers": [
+    "pairing: two ends pressed together pair; a third end in the window, or a track-count mismatch, pairs none; a window that expires leaves the link unchanged."
+  ],
+  "about": "Pair is pressed on west's B at scan 10, east's A at scan 20 and north's A at scan 30, each while the others are still pairing, so all three are one group. North's group closes at 33 s (it heard the others a scan after they pressed), west's and east's at 33.1 s. Each logs crowded and keeps its link.",
+  "boards": {
+    "west": { "sensors": ["W"], "logic": { "ends": [{ "name": "B", "tracks": [{ "sensors": ["W"] }] }] } },
+    "east": { "sensors": ["E"], "logic": { "ends": [{ "name": "A", "tracks": [{ "sensors": ["E"] }] }] } },
+    "north": { "sensors": ["N"], "logic": { "ends": [{ "name": "A", "tracks": [{ "sensors": ["N"] }] }] } }
+  },
+  "start": {
+    "west": { "links": { "B": "end" } },
+    "north": { "links": { "A": "end" } }
+  },
+  "steps": [
+    { "at": 10, "do": { "west": [{ "end": "B", "pair": "pressed" }] } },
+    { "at": 20, "do": { "east": [{ "end": "A", "pair": "pressed" }] } },
+    {
+      "at": 30,
+      "do": { "north": [{ "end": "A", "pair": "pressed" }] },
+      "expect": {
+        "west": { "ends": { "B": "pairing" } },
+        "east": { "ends": { "A": "pairing" } },
+        "north": { "ends": { "A": "pairing" } }
+      }
+    },
+    {
+      "at": 329,
+      "expect": {
+        "west": { "ends": { "B": "pairing" }, "events": [] },
+        "east": { "ends": { "A": "pairing" }, "events": [] },
+        "north": { "ends": { "A": "pairing" }, "events": [] }
+      }
+    },
+    {
+      "at": 330,
+      "expect": {
+        "west": { "ends": { "B": "pairing" }, "events": [] },
+        "east": { "ends": { "A": "pairing" }, "events": [] },
+        "north": {
+          "ends": { "A": "end" },
+          "links": { "A": "end" },
+          "events": [{ "pairing": "A", "result": "crowded" }],
+          "publishes": []
+        }
+      }
+    },
+    {
+      "at": 331,
+      "expect": {
+        "west": {
+          "ends": { "B": "end" },
+          "links": { "B": "end" },
+          "events": [{ "pairing": "B", "result": "crowded" }],
+          "publishes": []
+        },
+        "east": {
+          "ends": { "A": "empty" },
+          "links": { "A": "" },
+          "events": [{ "pairing": "A", "result": "crowded" }],
+          "publishes": []
+        },
+        "north": { "events": [] }
+      }
+    }
+  ]
+}

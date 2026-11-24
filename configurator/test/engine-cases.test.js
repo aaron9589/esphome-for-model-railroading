@@ -1,7 +1,8 @@
 // The shared engine cases in test/cases (work item 2.1). No engine runs them
 // yet (2.2 and 2.3 will). This checks that each case only refers to what its
 // board has, in the shapes test/cases/README.md describes, and that every Scan,
-// Rules and Fail safe bullet in the spec's Tests section has a case.
+// Rules, Fail safe and Plant ends bullet in the spec's Tests section has a case.
+// A multi-board case (`boards`) is checked board by board.
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
@@ -23,13 +24,43 @@ function specBullets() {
   for (const line of tests.split(/\r?\n/)) {
     const head = line.match(/^- \*\*([^*]+)\*\*/);
     if (head) section = head[1].replace(/:$/, "");
-    else if (["Scan", "Rules", "Fail safe"].includes(section) && line.startsWith("  - ")) bullets.push(line.slice(4));
+    else if (["Scan", "Rules", "Fail safe", "Plant ends"].includes(section) && line.startsWith("  - ")) bullets.push(line.slice(4));
   }
   return bullets;
 }
 
-// Checks one case, pushing a message for each problem.
+const END_STATES = ["pairing", "empty", "end", "unheard", "disagrees", "heard"];
+
+// Checks one case, pushing a message for each problem. A multi-board case is
+// checked as one case per board, with that board's part of each step.
 function check({ file, data }) {
+  if (!data.name) return [`${file}: case: no name`];
+  if (!data.boards) return checkBoard(file, data);
+  const problems = [];
+  const names = Object.keys(data.boards);
+  if (names.length < 2) problems.push(`${file}: case: a multi-board case needs two boards or more`);
+  if ("board" in data) problems.push(`${file}: case: board and boards`);
+  for (const key of Object.keys(data.start || {})) if (!names.includes(key)) problems.push(`${file}: start: no board ${key}`);
+  for (const step of data.steps || []) {
+    for (const part of ["do", "expect"]) {
+      for (const key of Object.keys(step[part] || {})) if (!names.includes(key)) problems.push(`${file}: step at ${step.at}: ${part} for no board ${key}`);
+    }
+  }
+  for (const name of names) {
+    const steps = (data.steps || []).map((step) => {
+      const one = { at: step.at };
+      if (step.do?.[name]) one.do = step.do[name];
+      if (step.expect?.[name]) one.expect = step.expect[name];
+      return one;
+    });
+    const start = { ...(data.start?.[name] || {}) };
+    if ("board" in start) problems.push(`${file}: ${name}: start: board is the board's key in boards`);
+    problems.push(...checkBoard(`${file} (${name})`, { ...data, board: data.boards[name], start: { ...start, board: name }, steps }));
+  }
+  return problems;
+}
+
+function checkBoard(file, data) {
   const problems = [];
   const fail = (where, what) => problems.push(`${file}: ${where}: ${what}`);
   const { board = {}, start = {}, steps } = data;
@@ -59,7 +90,34 @@ function check({ file, data }) {
     for (const key of ["stop", "startup"]) if (mast[key] !== undefined && !(mast[key] in aspects)) fail(`mast ${name}`, `${key} ${mast[key]}`);
     if (!Object.values(aspects).includes("stop")) fail(`mast ${name}`, "has no stop aspect");
   }
-  for (const block of logic.blocks || []) for (const s of block.sensors || []) if (!sensors.has(s)) fail(`block ${block.name}`, `sensor ${s}`);
+  // Plant ends: each track's sensors are this board's; a mast is on this
+  // board; a pass-through names a track of an end. The link is never here.
+  const ends = new Map((logic.ends || []).map((end) => [end.name, end]));
+  const endTrack = (end, track) => ends.has(end) && Number.isInteger(track) && track >= 1 && track <= (ends.get(end).tracks || []).length;
+  if (ends.size !== (logic.ends || []).length) fail("ends", "two ends share a name");
+  for (const end of logic.ends || []) {
+    for (const key of Object.keys(end)) if (!["name", "tracks", "pairPin", "ledPin"].includes(key)) fail(`end ${end.name}`, `${key} (a link is not part of the board)`);
+    if (!(end.tracks || []).length) fail(`end ${end.name}`, "no tracks");
+    (end.tracks || []).forEach((track, i) => {
+      const where = `end ${end.name} track ${i + 1}`;
+      for (const key of Object.keys(track)) if (!["sensors", "mast", "through"].includes(key)) fail(where, key);
+      for (const s of track.sensors || []) if (!sensors.has(s)) fail(where, `sensor ${s}`);
+      if (track.mast !== undefined && !(track.mast in masts)) fail(where, `mast ${track.mast}`);
+      if (track.mast !== undefined && track.through !== undefined) fail(where, "a mast and a pass-through");
+      if (track.through !== undefined && !endTrack(track.through.end, track.through.track)) fail(where, `through ${JSON.stringify(track.through)}`);
+    });
+  }
+  for (const block of logic.blocks || []) {
+    for (const s of block.sensors || []) {
+      if (typeof s === "string") {
+        if (!sensors.has(s)) fail(`block ${block.name}`, `sensor ${s}`);
+      } else if (s.end !== undefined) {
+        if (!endTrack(s.end, s.track)) fail(`block ${block.name}`, `end ${s.end} track ${s.track}`);
+      } else if (s.board !== undefined) {
+        if (!remoteHas(s.board, s.block !== undefined ? "block" : "sensor", s.sensor ?? s.block)) fail(`block ${block.name}`, `member ${JSON.stringify(s)}`);
+      } else fail(`block ${block.name}`, `member ${JSON.stringify(s)}`);
+    }
+  }
 
   for (const [b, other] of Object.entries(remote)) {
     for (const [name, mast] of Object.entries(other.masts || {})) {
@@ -83,6 +141,13 @@ function check({ file, data }) {
     if (!c || typeof c !== "object") return fail(where, "not a condition");
     if (c.all || c.any) return (c.all || c.any).forEach((inner) => condition(inner, where));
     if (c.not) return condition(c.not, where);
+    if (c.end !== undefined) {
+      if (!endTrack(c.end, c.track)) fail(where, `end ${c.end} track ${c.track}`);
+      if (!["block", "mast"].includes(c.hears)) fail(where, `hears ${c.hears}`);
+      const allowed = c.hears === "mast" ? TAGS : ["occupied", "clear"];
+      for (const is of [].concat(c.is)) if (!allowed.includes(is)) fail(where, `end ${c.end} is ${is}`);
+      return;
+    }
     const kind = ["block", "sensor", "turnout", "mast", "button"].find((k) => c[k] !== undefined);
     if (!kind) return fail(where, `unknown condition ${JSON.stringify(c)}`);
     const name = c[kind];
@@ -144,6 +209,8 @@ function check({ file, data }) {
   for (const [t, v] of Object.entries(start.turnouts || {})) if (!turnouts.has(t) || !states.turnout.includes(v)) fail("start", `turnout ${t} ${v}`);
   for (const [m, message] of Object.entries(start.jmri || {})) if (!(m in masts) || typeof message !== "string") fail("start", `jmri ${m}`);
   for (const t of Object.keys(start.remoteLocks || {})) if (!turnouts.has(t)) fail("start", `remoteLock ${t}`);
+  if (start.board !== undefined && typeof start.board !== "string") fail("start", `board ${start.board}`);
+  for (const [e, link] of Object.entries(start.links || {})) if (!ends.has(e) || typeof link !== "string") fail("start", `link ${e}`);
   for (const [b, s] of Object.entries(start.remote || {})) {
     if (!remote[b]) fail("start", `remote ${b}`);
     for (const n of Object.keys(s.sensors || {})) if (!remoteHas(b, "sensor", n)) fail("start", `${b} sensor ${n}`);
@@ -156,6 +223,18 @@ function check({ file, data }) {
 
   // steps
   function event(e, where) {
+    if (e.end !== undefined) {
+      if (!ends.has(e.end)) return fail(where, `no end ${e.end}`);
+      if (e.pair !== undefined) return void (e.pair !== "pressed" && fail(where, `pair ${e.pair}`));
+      if (e.link !== undefined || e.theirLink !== undefined) return void (typeof (e.link ?? e.theirLink) !== "string" && fail(where, "link"));
+      if (e.online !== undefined) return void (typeof e.online !== "boolean" && fail(where, "online"));
+      // A heard track is numbered as the linked end numbers it: the same count.
+      if (!endTrack(e.end, e.track)) return fail(where, `end ${e.end} track ${e.track}`);
+      if (e.block !== undefined) return void (!["occupied", "clear", "unknown"].includes(e.block) && fail(where, `block ${e.block}`));
+      if (e.mast !== undefined) return void (typeof e.mast !== "string" && fail(where, `mast ${e.mast}`));
+      return fail(where, `end event ${JSON.stringify(e)}`);
+    }
+    if (e.pairing !== undefined) return void (typeof e.pairing !== "string" && fail(where, "pairing"));
     if (e.board !== undefined) {
       if (!remote[e.board]) return fail(where, `no board ${e.board}`);
       if (e.online !== undefined) return void (typeof e.online !== "boolean" && fail(where, "online"));
@@ -192,6 +271,12 @@ function check({ file, data }) {
     if (e.release !== undefined) return res(e.release, where) && (["release", "cancel", "time", "manual", "switch"].includes(e.by) || fail(where, `by ${e.by}`));
     if (e.ignored !== undefined) return (e.ignored === "release" || fail(where, `ignored ${e.ignored}`)) && res(e.resource, where);
     if (e.resync !== undefined) return turnouts.has(e.resync) || fail(where, `resync ${e.resync}`);
+    if (e.pairing !== undefined) {
+      if (!ends.has(e.pairing)) return fail(where, `pairing ${e.pairing}`);
+      if (e.result === "paired") return void (typeof e.with !== "string" && fail(where, "paired with"));
+      return void ((!["crowded", "tracks", "alone"].includes(e.result) || "with" in e) && fail(where, `pairing result ${e.result}`));
+    }
+    if (e.disagrees !== undefined) return void ((!ends.has(e.disagrees) || typeof e.link !== "string" || typeof e.theirs !== "string") && fail(where, "disagrees"));
     fail(where, `unknown event ${JSON.stringify(e)}`);
   }
 
@@ -204,8 +289,10 @@ function check({ file, data }) {
     (step.do || []).forEach((e) => event(e, where));
     const expect = step.expect || {};
     for (const key of Object.keys(expect)) {
-      if (!["logic", "masts", "rules", "resources", "holders", "locks", "locked", "events", "writes", "publishes"].includes(key)) fail(where, `expect ${key}`);
+      if (!["logic", "masts", "rules", "resources", "holders", "locks", "locked", "events", "writes", "publishes", "ends", "links"].includes(key)) fail(where, `expect ${key}`);
     }
+    for (const [e, st] of Object.entries(expect.ends || {})) if (!ends.has(e) || !END_STATES.includes(st)) fail(where, `end ${e} is ${st}`);
+    for (const [e, link] of Object.entries(expect.links || {})) if (!ends.has(e) || typeof link !== "string") fail(where, `link ${e}`);
     for (const [m, a] of Object.entries(expect.masts || {})) {
       if (!(m in masts)) fail(where, `expect mast ${m}`);
       else if (a !== null && a !== "dark" && !(a in masts[m].aspects)) fail(where, `${m} has no aspect ${a}`);
@@ -229,7 +316,14 @@ function check({ file, data }) {
       } else if (!turnouts.has(w.lock) || typeof w.on !== "boolean") fail(where, `write ${JSON.stringify(w)}`);
     }
     for (const p of expect.publishes || []) {
-      if (p.release !== undefined) res(p.release, where) && p.value !== "CLOSED" && fail(where, "release publishes CLOSED");
+      if (p.pairing !== undefined) {
+        const [, end, tracks] = /^.*\/([^/]+)\/(\d+)$/.exec(p.pairing) || [];
+        if (p.pairing !== `${start.board ?? ""}/${end}/${tracks}` || !ends.has(end) || Number(tracks) !== ends.get(end).tracks.length) fail(where, `publish ${JSON.stringify(p)}`);
+      } else if (p.end !== undefined) {
+        const ok = p.link !== undefined ? typeof p.link === "string"
+          : endTrack(p.end, p.track) && (p.block !== undefined ? ["ACTIVE", "INACTIVE"].includes(p.block) : TAGS.includes(p.mast));
+        if (!ok) fail(where, `publish ${JSON.stringify(p)}`);
+      } else if (p.release !== undefined) res(p.release, where) && p.value !== "CLOSED" && fail(where, "release publishes CLOSED");
       else {
         const held = p.held !== undefined;
         const ok = resources.has(p.resource) && held !== (p.state !== undefined) &&
@@ -241,10 +335,21 @@ function check({ file, data }) {
   return problems;
 }
 
-test("there are cases, and each is one board and one timeline", () => {
+test("there are cases, and each is one board, or several, and one timeline", () => {
   assert.ok(cases.length >= 30, `${cases.length} cases`);
   for (const { file, data } of cases) {
-    assert.deepEqual(Object.keys(data).filter((k) => !["name", "covers", "about", "board", "start", "steps"].includes(k)), [], file);
+    assert.deepEqual(Object.keys(data).filter((k) => !["name", "covers", "about", "board", "boards", "start", "steps"].includes(k)), [], file);
+    assert.ok(("board" in data) !== ("boards" in data), `${file}: board or boards`);
+  }
+  assert.ok(cases.some(({ data }) => Object.keys(data.boards || {}).length >= 3), "a case with three boards");
+});
+
+test("a link is never part of a board, so it cannot change the version code", () => {
+  // The version code is a hash of the board's table (logic-yaml.js). A link is
+  // set only by start.links and link events, so no board in a case has one.
+  for (const { file, data } of cases) {
+    const boards = data.boards ? Object.values(data.boards) : [data.board];
+    for (const board of boards) assert.ok(!/"(link|links|theirLink)"/.test(JSON.stringify(board)), file);
   }
 });
 
@@ -252,9 +357,10 @@ test("every case refers only to what its board has", () => {
   assert.deepEqual(cases.flatMap(check), []);
 });
 
-test("every Scan, Rules and Fail safe bullet in the spec has a case", () => {
+test("every Scan, Rules, Fail safe and Plant ends bullet in the spec has a case", () => {
   const bullets = specBullets();
-  assert.ok(bullets.length >= 20, `found ${bullets.length} bullets`);
+  assert.ok(bullets.length >= 26, `found ${bullets.length} bullets`);
+  assert.ok(bullets.some((b) => b.startsWith("pairing:")), "the Plant ends bullets are read");
   const covered = new Set(cases.flatMap(({ data }) => data.covers));
   assert.deepEqual(bullets.filter((b) => !covered.has(b)), [], "bullets with no case");
   assert.deepEqual([...covered].filter((c) => !bullets.includes(c)), [], "covers text that is not a spec bullet");
@@ -295,6 +401,20 @@ test("the check would catch a broken case", () => {
   const more = check(odd);
   for (const text of ["south mast Home: no aspects", "south online true", "jmri Left Bridge", "no rule null", "ignored anything", "publish"]) {
     assert.ok(more.some((p) => p.includes(text)), text);
+  }
+});
+
+test("the check would catch a broken plant end case", () => {
+  const broken = JSON.parse(JSON.stringify(cases.find(({ file }) => file === "ends-three-boards-turned.json")));
+  const west = broken.data.boards.west;
+  west.logic.ends[0].tracks[1].mast = "Nowhere";
+  west.logic.ends[1].link = "mid/B";
+  west.logic.blocks[0].sensors.push({ end: "C", track: 1 });
+  west.logic.layers[0].rules[0].checks.push({ end: "B", track: 3, hears: "block", is: "approach" });
+  broken.data.steps.push({ at: 999, do: { west: [{ end: "B", track: 9, block: "occupied" }], south: [] }, expect: { mid: { ends: { A: "lost" } } } });
+  const problems = check(broken);
+  for (const text of ["mast Nowhere", "link (a link", "end C track 1", "end B track 3", "end B is approach", "end B track 9", "no board south", "end A is lost"]) {
+    assert.ok(problems.some((p) => p.includes(text)), text);
   }
 });
 

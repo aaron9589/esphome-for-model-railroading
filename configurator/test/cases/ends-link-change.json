@@ -1,0 +1,91 @@
+{
+  "name": "changing a link changes what the end hears, and nothing in the board",
+  "covers": [
+    "changing a link changes no rule and not the version code"
+  ],
+  "about": "The link lives only on the board (start and the link events), never in the board's table, so the version code, a hash of the table, cannot change with it; engine-cases.test.js checks that no case's board holds a link. Here the same two rules read end A while its link moves from east/A to north/C and back: each change forgets what the old neighbour said, so Exit shows Stop until the new one is heard.",
+  "board": {
+    "sensors": ["X"],
+    "masts": {
+      "Exit": { "aspects": { "R292": "stop", "R285": "approach", "R281": "clear" } }
+    },
+    "logic": {
+      "ends": [
+        { "name": "A", "tracks": [{ "sensors": ["X"], "mast": "Exit" }] }
+      ],
+      "layers": [
+        { "name": "Exit", "rules": [
+          { "trigger": { "while": { "block": "X", "is": "clear" } },
+            "checks": [{ "end": "A", "track": 1, "hears": "block", "is": "clear" }, { "end": "A", "track": 1, "hears": "mast", "is": ["approach", "advance", "clear"] }],
+            "then": { "mast": "Exit", "aspect": "R281" } },
+          { "trigger": { "while": { "block": "X", "is": "clear" } },
+            "checks": [{ "end": "A", "track": 1, "hears": "block", "is": "clear" }],
+            "then": { "mast": "Exit", "aspect": "R285" } }
+        ] }
+      ]
+    }
+  },
+  "start": { "board": "mid", "links": { "A": "east/A" } },
+  "steps": [
+    {
+      "at": 0,
+      "expect": { "masts": { "Exit": "R292" }, "ends": { "A": "unheard" }, "links": { "A": "east/A" } }
+    },
+    {
+      "at": 1,
+      "do": [
+        { "end": "A", "online": true },
+        { "end": "A", "theirLink": "mid/A" },
+        { "end": "A", "track": 1, "block": "clear" },
+        { "end": "A", "track": 1, "mast": "clear" }
+      ],
+      "expect": {
+        "masts": { "Exit": "R281" },
+        "ends": { "A": "heard" },
+        "writes": [{ "mast": "Exit", "aspect": "R281" }],
+        "publishes": [{ "end": "A", "track": 1, "mast": "clear" }]
+      }
+    },
+    {
+      "at": 3,
+      "do": [{ "end": "A", "link": "north/C" }],
+      "expect": {
+        "masts": { "Exit": "R292" },
+        "ends": { "A": "unheard" },
+        "links": { "A": "north/C" },
+        "writes": [{ "mast": "Exit", "aspect": "R292" }],
+        "publishes": [{ "end": "A", "link": "north/C" }, { "end": "A", "track": 1, "mast": "stop" }]
+      }
+    },
+    {
+      "at": 4,
+      "do": [{ "end": "A", "link": "north/C" }],
+      "expect": { "masts": { "Exit": "R292" }, "ends": { "A": "unheard" }, "publishes": [] }
+    },
+    {
+      "at": 5,
+      "do": [
+        { "end": "A", "online": true },
+        { "end": "A", "theirLink": "mid/A" },
+        { "end": "A", "track": 1, "block": "clear" },
+        { "end": "A", "track": 1, "mast": "stop" }
+      ],
+      "expect": { "masts": { "Exit": "R285" }, "ends": { "A": "heard" } }
+    },
+    {
+      "at": 7,
+      "do": [{ "end": "A", "link": "east/A" }],
+      "expect": { "masts": { "Exit": "R292" }, "ends": { "A": "unheard" }, "links": { "A": "east/A" } }
+    },
+    {
+      "at": 8,
+      "do": [
+        { "end": "A", "online": true },
+        { "end": "A", "theirLink": "mid/A" },
+        { "end": "A", "track": 1, "block": "clear" },
+        { "end": "A", "track": 1, "mast": "approach" }
+      ],
+      "expect": { "masts": { "Exit": "R281" }, "ends": { "A": "heard" } }
+    }
+  ]
+}

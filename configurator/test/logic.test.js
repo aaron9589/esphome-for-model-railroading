@@ -68,8 +68,8 @@ test("Explain says when a mast follows several groups, and a when trigger as it 
 test("Explain uses plain words for every mast in every case", () => {
   const SPEC_ONLY = /\b(scans?|scanning|latch(es|ed)?|interpreters?|rule tables?|phases?|resources?|layers?|tags?|tagged)\b/i;
   for (const file of fs.readdirSync(casesDir).filter((f) => f.endsWith(".json"))) {
-    const { board } = JSON.parse(fs.readFileSync(path.join(casesDir, file), "utf8"));
-    for (const mast of Object.keys(board.masts || {})) {
+    const data = JSON.parse(fs.readFileSync(path.join(casesDir, file), "utf8"));
+    for (const board of data.boards ? Object.values(data.boards) : [data.board]) for (const mast of Object.keys(board.masts || {})) {
       for (const sentence of L.explainMast(board, mast)) {
         assert.equal(SPEC_ONLY.exec(sentence), null, `${file} ${mast}: ${sentence}`);
         assert.doesNotMatch(sentence, /undefined|\[object/, `${file} ${mast}: ${sentence}`);
