@@ -1098,7 +1098,9 @@
       for (const rule of list(layer.rules)) {
         const mast = rule?.then?.mast;
         if (!isObject(rule) || typeof mast !== "string" || order.some((row) => row.mast === mast)) continue;
-        const own = list(rule.checks).find((c) => isObject(c) && c.board === undefined && c.is === "clear" && (typeof c.block === "string" || typeof c.sensor === "string"));
+        const clearHere = (c) => isObject(c) && c.board === undefined && c.is === "clear" && (typeof c.block === "string" || typeof c.sensor === "string");
+        // As the starter writes it: while the block is clear; else a clear check.
+        const own = [rule.trigger?.while, ...list(rule.checks)].find(clearHere);
         if (own) order.push({ mast, block: own.block ?? own.sensor });
       }
       for (let i = 1; i < order.length; i += 1) {

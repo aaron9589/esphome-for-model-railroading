@@ -563,10 +563,6 @@ The first active row wins; none means Stop. A moving turnout matches no row. Opt
 
 A row can instead **follow the next mast** on its route, so a control point joins the [block signals](#block-signals) tumbledown. The row then becomes one rule per indication, in the block signals order, each with the row's checks. A diverging route row picks diverging aspects for each indication, for example Medium Clear and Medium Approach. Those aspects are diverging, so the mast behind shows Approach Diverging.
 
-### Platform dwell
-
-Hold the signal at Stop for N seconds after a train arrives, then clear: "while Platform occupied for 30s, if Next clear → Clear".
-
 ### Level crossing
 
 Alternating flashing lights, optionally a gate servo, from either approach until the crossing block clears. Needs a new output type, so it is not just rules.
@@ -642,7 +638,7 @@ Scan, latch, interpreter, rule table and phase never appear on the page. Try it 
 
 ### Start simple, reveal the rest
 
-- **Starters first.** An empty Logic page in Field Logic mode shows the starters as cards with a small track picture each (gauntlet, single-line bridge, block signals, route signal, platform dwell, lock turnouts). **Write a rule from scratch** is the last card.
+- **Starters first.** An empty Logic page in Field Logic mode shows the starters as cards with a small track picture each (gauntlet, single-line bridge, block signals, route signal, lock turnouts). **Write a rule from scratch** is the last card.
 - **Advanced options are folded away.** *When … then …*, *for* times, hold after cancelling, the leaving guard and CANCEL sit under **More options** on each card. A starter's rules work without opening it.
 - **Sensible defaults everywhere.** Every field a starter fills has a default that works on a typical layout: 0.5s to ask, 3s to free, Advance Approach off, and the CATS aspects prefilled.
 - **A checklist at the top.** The page shows the next step until the board is ready: *choose a mode → add blocks and signals → try it → download*. Each step links to the part it means.
@@ -724,7 +720,7 @@ The engine is one JS module (for example `configurator/logic.js`). It runs the s
 Built in work item 2.6, except the plant end checks, which come with plant ends (Release 3). Each message links to the page and part where it is fixed. Where the list above is not exact, the configurator does this:
 
 - A rule reads a mast through its trigger, checks and Cancel, and through the release of the section it takes. A mast on another board never makes a cycle here.
-- A Block signals group is one whose `starter` is `block-signals`. Each mast's block is the first block (or sensor) its rules check is clear, and the masts run in the order their rules are listed.
+- A Block signals group is one whose `starter` is `block-signals`. Each mast's block is the block (or sensor) its rules' When needs clear, as the starter writes it, else the first one an Only if checks is clear. The masts run in the order their rules are listed.
 - Masts entries are checked too: the mast is on the Signal Masts page, each aspect given a meaning, ticked diverging or chosen as the stop aspect exists, and the approach lighting block exists.
 - A rule button's pin needs a pull-up, like a turnout's button, and a clash is an error.
 
@@ -949,6 +945,8 @@ In `configurator/test/`, run through `configurator/package.json`:
   - who wins a mast: first active rule within a layer, most restrictive across layers, in tag order
   - block signals: the worked example's four rows; the tumbledown with and without Advance Approach; Approach Diverging behind a diverging aspect, and Approach there when Approach Diverging is not used; a remote next mast going offline leaves Approach; a reversed or moving turnout in a block gives Stop
   - the two lock flags: the re-sync runs only when both are clear, not when one of two clears.
+  - lock turnouts under a train: the turnout is locked while its block is occupied, and unlocked once it clears
+  - route signal: the first row whose turnouts and blocks match wins; a moving turnout matches no row; a row that follows the next mast joins the block signals tumbledown
 - **Fail safe:**
   - the start-up scan with a train in the section (held, PASSED, releases after the delay), and with all clear
   - a toggle switch's boot move waits for the start-up scan, so a turnout under a train stays put

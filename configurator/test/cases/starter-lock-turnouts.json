@@ -1,0 +1,169 @@
+{
+  "name": "lock turnouts under a train: each turnout is locked while its block is occupied",
+  "covers": [
+    "lock turnouts under a train: the turnout is locked while its block is occupied, and unlocked once it clears"
+  ],
+  "about": "Lock turnouts under a train writes one plain rule per turnout. P1 is locked while Block A is occupied and P2 while Block B is. Each lock follows its own block: it comes on the scan after the train arrives, goes off the scan after it clears, and a train under one turnout leaves the other free.",
+  "board": {
+    "sensors": [
+      "Block A",
+      "Block B"
+    ],
+    "turnouts": [
+      "P1",
+      "P2"
+    ],
+    "logic": {
+      "layers": [
+        {
+          "name": "Turnout locks",
+          "rules": [
+            {
+              "trigger": {
+                "while": {
+                  "block": "Block A",
+                  "is": "occupied"
+                }
+              },
+              "checks": [],
+              "then": {
+                "lock": [
+                  "P1"
+                ]
+              }
+            },
+            {
+              "trigger": {
+                "while": {
+                  "block": "Block B",
+                  "is": "occupied"
+                }
+              },
+              "checks": [],
+              "then": {
+                "lock": [
+                  "P2"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "steps": [
+    {
+      "at": 1,
+      "expect": {
+        "locks": {
+          "P1": false,
+          "P2": false
+        }
+      }
+    },
+    {
+      "at": 2,
+      "do": [
+        {
+          "sensor": "Block A",
+          "is": "occupied"
+        }
+      ],
+      "expect": {
+        "locks": {
+          "P1": true,
+          "P2": false
+        },
+        "writes": [
+          {
+            "lock": "P1",
+            "on": true
+          }
+        ]
+      }
+    },
+    {
+      "at": 3,
+      "expect": {
+        "locks": {
+          "P1": true,
+          "P2": false
+        },
+        "writes": []
+      }
+    },
+    {
+      "at": 5,
+      "do": [
+        {
+          "sensor": "Block B",
+          "is": "occupied"
+        }
+      ],
+      "expect": {
+        "locks": {
+          "P1": true,
+          "P2": true
+        },
+        "writes": [
+          {
+            "lock": "P2",
+            "on": true
+          }
+        ]
+      }
+    },
+    {
+      "at": 7,
+      "do": [
+        {
+          "sensor": "Block A",
+          "is": "clear"
+        }
+      ],
+      "expect": {
+        "locks": {
+          "P1": false,
+          "P2": true
+        },
+        "writes": [
+          {
+            "lock": "P1",
+            "on": false
+          }
+        ]
+      }
+    },
+    {
+      "at": 9,
+      "do": [
+        {
+          "sensor": "Block B",
+          "is": "clear"
+        }
+      ],
+      "expect": {
+        "locks": {
+          "P1": false,
+          "P2": false
+        },
+        "writes": [
+          {
+            "lock": "P2",
+            "on": false
+          }
+        ]
+      }
+    },
+    {
+      "at": 10,
+      "expect": {
+        "locks": {
+          "P1": false,
+          "P2": false
+        },
+        "writes": []
+      }
+    }
+  ]
+}

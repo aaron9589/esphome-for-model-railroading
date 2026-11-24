@@ -1432,7 +1432,6 @@ details.logic-view h4 {
 .starter-picture .sp-amber { fill: #f59e0b; }
 .starter-picture .sp-green { fill: #22c55e; }
 .starter-picture .sp-off { fill: #4b5563; }
-.starter-picture .sp-platform { fill: #d1d5db; }
 .starter-picture .sp-road { fill: #e5e7eb; }
 .starter-picture .sp-lock { fill: #92400e; }
 .starter-picture .sp-shackle { stroke: #92400e; stroke-width: 2; }
@@ -1717,6 +1716,77 @@ details.rule-more {
   .rule-leaf select,
   .rule-signal select,
   .rule-when > select {
+    width: 100%;
+  }
+}
+
+/* Starters: One-train section, Lock turnouts */
+.starter-rows {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.starter-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  align-items: flex-end;
+}
+
+.starter-aspect {
+  display: inline-flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.starter-more {
+  margin-top: 0.5rem;
+}
+
+.starter-more summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.starter-more .check {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  margin-top: 0.4rem;
+}
+
+/* Starters: Block signals and Route signal */
+.starter-signals-row {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.starter-signals-field,
+.starter-signals-list {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.starter-signals-inline,
+.starter-signals-aspect {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: flex-end;
+}
+
+.starter-signals-more summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.starter-signals-more[open] summary {
+  margin-bottom: 0.5rem;
+}
+
+@media (max-width: 640px) {
+  .starter-signals-inline select,
+  .starter-signals-field select {
     width: 100%;
   }
 }

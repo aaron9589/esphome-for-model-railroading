@@ -6,7 +6,7 @@ import path from "node:path";
 import { configuratorDir, loadModules, test } from "./harness.js";
 
 // Every Logic page file, in index.html's order.
-export const LOGIC_UI_FILES = ["generator.js", "logic-yaml.js", "logic.js", "logic-ui.js", "logic-ui-masts.js", "logic-ui-rules.js", "logic-ui-views.js", "logic-ui-start.js"];
+export const LOGIC_UI_FILES = ["generator.js", "logic-yaml.js", "logic.js", "logic-ui.js", "logic-ui-masts.js", "logic-ui-rules.js", "logic-ui-views.js", "logic-ui-start.js", "logic-starters.js", "logic-starters-sections.js", "logic-starters-signals.js"];
 const context = loadModules(...LOGIC_UI_FILES);
 const { generateYaml, logicMode, myFirstBoardPreset, normalizeConfig, parseConfigFromYaml, sharesWithOtherBoards } =
   context.EsphomeMr;
@@ -33,7 +33,8 @@ function strings(value, where = "TEXT") {
 }
 
 test("no Logic page label uses a spec-only term, in any part", () => {
-  const found = [...allText()].flatMap(([where, text]) => strings(text, where)).filter(([, text]) => SPEC_ONLY.test(text));
+  const texts = [...allText(), ["EsphomeMrLogicStarters.TEXT", context.EsphomeMrLogicStarters.TEXT]];
+  const found = texts.flatMap(([where, text]) => strings(text, where)).filter(([, text]) => SPEC_ONLY.test(text));
   assert.deepEqual(found, []);
 });
 

@@ -35,10 +35,6 @@
         title: "Route signal",
         about: "A signal at turnouts that shows the route that is set, and Stop when the way ahead is not clear.",
       }),
-      "platform-dwell": Object.freeze({
-        title: "Platform dwell",
-        about: "Hold a train at the platform signal for a set time, then clear it.",
-      }),
       "level-crossing": Object.freeze({
         title: "Level crossing",
         about: "Flashing lights, and a gate if you have one, while a train is near the crossing.",
@@ -71,7 +67,7 @@
   // The cards, in the spec's order (Starters), with Write a rule from scratch
   // last. Approach lighting is not a starter: its card takes the person to
   // Masts, where it is set for each signal.
-  const STARTERS = Object.freeze(["one-train-section", "lock-turnouts", "block-signals", "route-signal", "platform-dwell", "level-crossing"]);
+  const STARTERS = Object.freeze(["one-train-section", "lock-turnouts", "block-signals", "route-signal", "level-crossing"]);
   const CARD_KEYS = Object.freeze([...STARTERS, "approach-lighting", "scratch"]);
 
   // Starters 2.8 has built, by key: { open(config, ctx, ui) }.
@@ -185,13 +181,6 @@
       path("M58 38 L84 22 H116"),
       mast(42, 38, ["green", "red"]),
       train(6, 38, 24),
-    ],
-    // A train at a platform, held at the signal beyond it.
-    "platform-dwell": [
-      line(4, 32, 116, 32),
-      '<rect class="sp-platform" x="20" y="38" width="64" height="7" rx="1"/>',
-      train(26, 32, 50),
-      mast(94, 32, ["red"]),
     ],
     // A road over the track, with flashing lights each side.
     "level-crossing": [
