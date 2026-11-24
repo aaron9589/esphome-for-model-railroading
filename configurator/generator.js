@@ -2313,6 +2313,7 @@ function generateYaml(config) {
   if (masts.length) emitSignalLights(lines, masts);
   const sharedTextSensors = [];
   logicHooks(config).emitTextSensors(sharedTextSensors, config);
+  logicHooks(config).emitRemoteSubscriptions(sharedTextSensors, config);
   if (mqtt && (points.length || masts.length || sharedTextSensors.length)) {
     lines.push("");
     lines.push("text_sensor:");

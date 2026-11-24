@@ -2059,7 +2059,7 @@ function renderJmriSummary() {
 }
 
 function renderLogic() {
-  renderLogicPage(el.logicPage, { config: state, field, hintEl, persist, render, showView });
+  renderLogicPage(el.logicPage, { config: state, field, hintEl, persist, render, showView, flash });
 }
 
 function render() {

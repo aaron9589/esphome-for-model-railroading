@@ -22,8 +22,11 @@ function board() {
 // Spec, Ease of use: "no page label uses a spec-only term".
 const SPEC_ONLY = /\b(scans?|scanning|latch(es|ed)?|interpreters?|rule tables?|phases?|resources?|layers?|tags?|tagged)\b/i;
 
+// Every string in TEXT, and what each sentence-building function says when
+// called with sample values.
 function strings(value, where = "TEXT") {
   if (typeof value === "string") return [[where, value]];
+  if (typeof value === "function") return strings(value("Sample", ["a change", "another"], 2), `${where}()`);
   return Object.entries(value).flatMap(([key, inner]) => strings(inner, `${where}.${key}`));
 }
 
