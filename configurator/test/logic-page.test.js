@@ -1,0 +1,141 @@
+// The Logic page shell: stored settings, the checklist, and plain words.
+// Work item 1.3.
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import path from "node:path";
+import { configuratorDir, loadModules, test } from "./harness.js";
+
+const context = loadModules("generator.js", "logic-ui.js");
+const { generateYaml, logicMode, myFirstBoardPreset, normalizeConfig, parseConfigFromYaml, sharesWithOtherBoards } =
+  context.EsphomeMr;
+const { FEATURES, TEXT, checklistSteps, logicNavHint, modeChoices } = context.EsphomeMrLogicUi;
+
+function board() {
+  const config = myFirstBoardPreset();
+  config.board.wifiSsid = "layout-wifi";
+  config.board.wifiPassword = "not-a-real-password";
+  config.board.apPassword = "GoldenFixtureHotspot";
+  config.board.apiKey = "Z29sZGVuLWZpeHR1cmUta2V5LW5vdC1hLXNlY3JldCE=";
+  return config;
+}
+
+// Spec, Ease of use: "no page label uses a spec-only term".
+const SPEC_ONLY = /\b(scans?|scanning|latch(es|ed)?|interpreters?|rule tables?|phases?|resources?|layers?|tags?|tagged)\b/i;
+
+function strings(value, where = "TEXT") {
+  if (typeof value === "string") return [[where, value]];
+  return Object.entries(value).flatMap(([key, inner]) => strings(inner, `${where}.${key}`));
+}
+
+test("no Logic page label uses a spec-only term", () => {
+  const found = strings(TEXT).filter(([, text]) => SPEC_ONLY.test(text));
+  assert.deepEqual(found, []);
+});
+
+test("the Logic section in index.html uses plain words too", () => {
+  const html = fs.readFileSync(path.join(configuratorDir, "index.html"), "utf8");
+  const section = html.slice(html.indexOf('data-panel="logic"'), html.indexOf('data-panel="yaml"'));
+  assert.ok(section.length > 0);
+  const text = section.replace(/<[^>]+>/g, " ");
+  assert.equal(SPEC_ONLY.exec(text), null);
+  const nav = html.slice(html.indexOf('data-view="logic"'), html.indexOf('data-view="yaml"')).replace(/<[^>]+>/g, " ");
+  assert.equal(SPEC_ONLY.exec(nav), null);
+});
+
+test("the lint would catch a spec-only term", () => {
+  for (const bad of ["Add a layer", "Release the resource", "Each scan", "Meaning (tag)", "Rule table"]) {
+    assert.ok(SPEC_ONLY.test(bad), bad);
+  }
+  for (const fine of ["Advantage", "Stage", "Last train", "Taggart"]) assert.ok(!SPEC_ONLY.test(fine), fine);
+});
+
+test("logic mode None with Share unticked writes no logic key", () => {
+  const plain = generateYaml(board());
+  for (const logic of [undefined, {}, { share: false }, { mode: "none" }, { share: "yes" }, { mode: "" }, []]) {
+    const config = board();
+    if (logic !== undefined) config.logic = logic;
+    assert.equal(generateYaml(config), plain, JSON.stringify(logic));
+  }
+});
+
+test("mode and Share are stored, and survive import", () => {
+  const config = board();
+  config.logic = { mode: "field", share: true };
+  const yaml = generateYaml(config);
+  assert.match(yaml, /"logic":\{"mode":"field","share":true\}/);
+  const restored = normalizeConfig(parseConfigFromYaml(yaml));
+  assert.equal(logicMode(restored), "field");
+  assert.equal(sharesWithOtherBoards(restored), true);
+  assert.equal(generateYaml(restored), yaml);
+
+  const shareOnly = board();
+  shareOnly.logic = { share: true };
+  assert.match(generateYaml(shareOnly), /"logic":\{"share":true\}/);
+  assert.equal(logicMode(normalizeConfig(shareOnly)), "none");
+});
+
+test("Share follows the mode until it is ticked or unticked", () => {
+  const config = board();
+  config.logic = {};
+  assert.equal(sharesWithOtherBoards(config), false);
+  config.logic.mode = "field";
+  assert.equal(sharesWithOtherBoards(config), true, "on by default in Field Logic");
+  delete config.logic.mode;
+  assert.equal(sharesWithOtherBoards(config), false, "back to None: off again");
+  assert.equal(generateYaml(config), generateYaml(board()));
+
+  config.logic = { mode: "field", share: false };
+  delete config.logic.mode;
+  config.logic.mode = "field";
+  assert.equal(sharesWithOtherBoards(config), false, "an untick is kept across mode changes");
+  const blob = JSON.parse(generateYaml(config).split("\n")[1].slice(2));
+  assert.deepEqual(blob.logic, { mode: "field", share: false });
+
+  config.logic = { share: true };
+  assert.equal(sharesWithOtherBoards(config), true, "ticked with mode None");
+});
+
+test("keys and modes a later configurator adds are kept on import", () => {
+  const config = board();
+  config.logic = { mode: "field", share: true, layers: [{ name: "Bridge" }] };
+  const restored = normalizeConfig(parseConfigFromYaml(generateYaml(config)));
+  assert.equal(restored.logic.layers[0].name, "Bridge");
+
+  const newer = board();
+  newer.logic = { mode: "future-mode" };
+  const back = normalizeConfig(parseConfigFromYaml(generateYaml(newer)));
+  assert.equal(back.logic.mode, "future-mode");
+  assert.equal(logicMode(back), "none");
+});
+
+test("MSS Logic always shares, and is not offered yet", () => {
+  const config = board();
+  config.logic = { mode: "mss", share: false };
+  assert.equal(sharesWithOtherBoards(normalizeConfig(config)), true);
+  assert.equal(FEATURES.mss, false);
+  assert.deepEqual([...modeChoices()], ["none", "field"]);
+});
+
+test("the checklist leads with choosing a mode, and ends with Download", () => {
+  const config = board();
+  const keys = (steps) => [...steps].map((step) => `${step.key}${step.done ? "+" : ""}`);
+  assert.deepEqual(keys(checklistSteps(config, { blocks: false })), ["mode", "download"]);
+  config.logic = { mode: "field" };
+  assert.deepEqual(keys(checklistSteps(config, { blocks: true })), ["mode+", "blocks", "download"]);
+  config.logic.blocks = [{ name: "Int 2" }];
+  assert.deepEqual(keys(checklistSteps(config, { blocks: true })), ["mode+", "blocks+", "download"]);
+  assert.equal(FEATURES.tryIt, false);
+});
+
+test("Starts on stays hidden until Release 2", () => {
+  assert.equal(FEATURES.startsOn, false);
+});
+
+test("the nav says the mode in plain words", () => {
+  const config = board();
+  assert.equal(logicNavHint(config), "None");
+  config.logic = { mode: "field" };
+  assert.equal(logicNavHint(config), "Field Logic");
+});
+
+if (!process.exitCode) console.log("\nAll Logic page tests passed.");

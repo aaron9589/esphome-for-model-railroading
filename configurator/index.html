@@ -48,8 +48,12 @@
             <span class="nav-title">4 · Signal Masts <span class="jmri-badge" title="Shows up in the JMRI Signal Mast Table">JMRI</span></span>
             <span class="nav-hint"><span id="count-signals">0</span> masts</span>
           </button>
+          <button type="button" class="nav-item" data-view="logic">
+            <span>5 · Logic</span>
+            <span class="nav-hint" id="logic-nav-hint">None</span>
+          </button>
           <button type="button" class="nav-item" data-view="yaml">
-            <span>5 · Download</span>
+            <span>6 · Download</span>
             <span class="nav-hint">Your board.yaml</span>
           </button>
         </nav>
@@ -159,6 +163,20 @@
             </details>
             <div class="pager">
               <button type="button" data-goto="points">Back: turnouts</button>
+              <button type="button" class="primary" data-goto="logic">Next: logic</button>
+            </div>
+          </section>
+
+          <section class="view" data-panel="logic" hidden>
+            <header class="view-head">
+              <div>
+                <h2>Logic</h2>
+                <p>How this board decides what its signals show.</p>
+              </div>
+            </header>
+            <div id="logic-page"></div>
+            <div class="pager">
+              <button type="button" data-goto="signals">Back: signal masts</button>
               <button type="button" class="primary" data-goto="yaml">Next: download</button>
             </div>
           </section>
@@ -223,7 +241,7 @@
               </div>
             </div>
             <div class="pager">
-              <button type="button" data-goto="signals">Back: signal masts</button>
+              <button type="button" data-goto="logic">Back: logic</button>
             </div>
           </section>
         </main>
@@ -252,6 +270,7 @@
     <div id="board-fields" hidden></div>
 
     <script src="./generator.js"></script>
+    <script src="./logic-ui.js"></script>
     <script src="./app.js"></script>
   </body>
 </html>

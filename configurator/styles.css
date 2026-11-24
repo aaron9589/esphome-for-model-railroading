@@ -1122,3 +1122,37 @@ button.mini {
     grid-template-columns: 220px;
   }
 }
+
+/* Logic page */
+.logic-checklist {
+  margin: 0;
+  padding-left: 1.4rem;
+  display: grid;
+  gap: 0.35rem;
+}
+
+.logic-checklist li {
+  color: var(--muted);
+}
+
+.logic-checklist li.is-next {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.logic-checklist li.is-done a {
+  text-decoration: line-through;
+  color: var(--muted);
+}
+
+.logic-checklist .step-status {
+  margin-left: 0.5rem;
+  font-size: 0.8rem;
+  font-weight: 400;
+  color: var(--accent);
+}
+
+.logic-mode-about {
+  grid-column: 1 / -1;
+  margin: 0;
+}
