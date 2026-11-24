@@ -325,6 +325,7 @@ class Engine {
   // A plant end: its link and what has been heard through it, per track of
   // this board (index 0 is track 1); and what was last published.
   struct EndState {
+    std::string who;  // "<board>/<end>", this end's own address
     std::string link, their_link;  // their_link "": not heard
     int8_t online = -1;
     std::vector<int8_t> block, mast;  // -1 not heard; block 0 / 1; mast a Tag
@@ -410,7 +411,7 @@ class Engine {
   void track(uint16_t node);
   // Plant ends (README rules 23-29).
   int16_t find_end(const std::string &name) const;
-  std::string who(uint16_t end) const;
+  const std::string &who(uint16_t end) const { return ends_[end].who; }
   Link link_kind(uint16_t end) const;
   void set_link(uint16_t end, const std::string &link);
   bool ready(uint16_t end) const;

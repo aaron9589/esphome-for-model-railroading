@@ -97,6 +97,7 @@ Engine::Engine(const Table &table, const Start &start) : t_(table) {
     ends_[e].mast.assign(tracks, -1);
     ends_[e].published_block.assign(tracks, -1);
     ends_[e].published_mast.assign(tracks, -1);
+    ends_[e].who = board_ + "/" + t_.names[t_.ends[e].name];
   }
 
   jmri_shown_.assign(masts, SHOWS_NOTHING);
@@ -192,7 +193,7 @@ size_t Engine::bytes() const {
              vec_bytes(published_) + vec_bytes(ends_) + vec_bytes(pair_group_);
   for (const auto &v : res_rules_) n += vec_bytes(v);
   for (const auto &e : ends_)
-    n += e.link.capacity() + e.their_link.capacity() + e.published_link.capacity() + 4 * e.block.capacity();
+    n += e.who.capacity() + e.link.capacity() + e.their_link.capacity() + e.published_link.capacity() + 4 * e.block.capacity();
   // vector<bool> packs bits.
   n += (field_.size() + remote_locks_.size() * 3 + prev_block_.size() + holds_.size()) / 8 + 6 * 16;
   return n;
@@ -431,7 +432,6 @@ int16_t Engine::find_end(const std::string &name) const {
   return -1;
 }
 
-std::string Engine::who(uint16_t e) const { return board_ + "/" + t_.names[t_.ends[e].name]; }
 
 // Rule 24.
 Engine::Link Engine::link_kind(uint16_t e) const {
@@ -472,7 +472,7 @@ void Engine::end_hears(uint16_t e, int32_t track, bool *occupied, Tag *tag) cons
 
 // Rule 26.
 bool Engine::in_pairing(uint16_t e) const {
-  const std::string me = who(e);
+  const std::string &me = who(e);
   for (const auto &x : pair_group_)
     if (x.who == me) return true;
   for (const auto &g : closed_groups_)
@@ -557,7 +557,7 @@ void Engine::decide_pairing(ScanOut *out) {
   for (const auto &g : closed_groups_) {
     for (size_t ei = 0; ei < t_.ends.size(); ei++) {
       const uint16_t e = static_cast<uint16_t>(ei);
-      const std::string w = who(e);
+      const std::string &w = who(e);
       bool in = false;
       size_t others = 0;
       const PairEntry *other = nullptr;
