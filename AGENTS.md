@@ -37,6 +37,7 @@ This repo is a beginner path for model-railroad ESP32 boards that talk to JMRI/C
 ## Logic work in progress
 
 - The Logic page (field logic and MSS Logic) is built on the long-lived branch `feature/logic`, following `docs/field-logic-implementation-plan.md`. Each work item has a GitHub issue (label `logic`, milestones R0–R5). Branch it off `feature/logic` as named in the issue and PR back into it. PRs into `feature/logic` do not auto-close issues, so close the issue when its PR merges.
+- The JS engine is `configurator/logic.js` (`EsphomeMrLogic.createEngine`, `explainMast`): plain JS with no DOM, so the C++ core can mirror it. `test/engine-run.test.js` replays every case against it. It is not loaded by `index.html` until a page part needs it (Try it, Explain).
 - Engine cases (`configurator/test/cases/*.json`, format and scan rules in its `README.md`) are worked out by hand from the spec. When an engine fails one, fix the engine or raise the spec question; never regenerate a case from an engine's output.
 - Do not merge logic work into `main` until Release 5 of the plan is complete. `main` (and the live configurator) stays as today until then.
 
