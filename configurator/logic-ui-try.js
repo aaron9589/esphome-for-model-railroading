@@ -59,6 +59,20 @@
     trainStep: "Step",
     trainNoBlocks: "None",
     trainRowOf: (group, n) => `${group}, track ${n}`,
+    trainAcross: "Carry on across the joint",
+    trainStay: "Stay on this board",
+    trainCross: (end, track) => `Into the pretend neighbour at end ${end}, track ${track}`,
+    trainNeighbourHeading: (end, track) => `Pretend neighbour, end ${end}, track ${track}: signals 1 to 3`,
+    neighboursHeading: "Pretend neighbours",
+    neighboursHint: "A pretend neighbour stands in for the board next door at an end: three blocks of track with a signal at each. It answers the end the way a real board would, so you can run a train across the joint. Click one of its blocks to put a train in it or take it out.",
+    neighbourOn: (end) => `End ${end}: pretend there is a neighbour`,
+    endName: (end) => `End ${end}`,
+    neighbourRuns: Object.freeze({ into: "Trains run towards this board", away: "Trains run away from this board" }),
+    neighbourTurn: "Turn it round",
+    neighbourBlockLabel: (at, occupied) => `Block ${at}: ${occupied ? "a train is in it" : "empty"}`,
+    neighbourHears: (occupied, meaning) => `This board offers it: ${occupied ? "block occupied" : "block clear"}, signal ${meaning}`,
+    joint: "Joint",
+    drivenValue: (label, value) => `${label}: ${value} (set by the pretend neighbour)`,
     dark: "Dark",
     nothing: "Nothing shown yet",
   });
@@ -66,6 +80,7 @@
   const isObject = (value) => value && typeof value === "object" && !Array.isArray(value);
   const list = (value) => (Array.isArray(value) ? value : []);
   const SVG = "http://www.w3.org/2000/svg";
+  const SEP = "\u0000";
   const T = () => global.EsphomeMrLogicTry;
 
   // ===== State kept between draws ===========================================
@@ -75,7 +90,7 @@
   let pending = null; // a Show me sequence waiting to be played
   let banner = false;
   let timer = null;
-  let trainChoice = { shape: 0, start: "", way: "forward", length: 1, steps: null, group: "" };
+  let trainChoice = { shape: 0, start: "", way: "forward", length: 1, steps: null, group: "", cross: "" };
 
   function stopRunning() {
     if (timer !== null) global.clearInterval(timer);
@@ -93,7 +108,7 @@
     }
     if (json && current.json === json) return current;
     stopRunning();
-    trainChoice = { shape: 0, start: "", way: "forward", length: 1, steps: null, group: "" };
+    trainChoice = { shape: 0, start: "", way: "forward", length: 1, steps: null, group: "", cross: "" };
     let session = null;
     let error = "";
     if (json) {
@@ -229,15 +244,20 @@
       const boards = session.boards();
       if (!inputs.length && !boards.length) parts.inputs.append(ui.paragraph(TEXT.noInputs));
       for (const info of inputs) {
+        if (info.driven) {
+          parts.inputs.append(ui.paragraph(TEXT.drivenValue(info.label, T0.valueLabel(info, info.value)), "hint"));
+          continue;
+        }
         const options = info.values.map((value) => ({ value, label: T0.valueLabel(info, value) }));
-        if (!info.values.includes(info.value)) options.unshift({ value: info.value, label: T0.TEXT.values[info.value] || info.value, disabled: true });
+        if (!info.values.includes(info.value)) options.unshift({ value: info.value, label: T0.valueLabel(info, info.value), disabled: true });
         const field = ctx.field(info.label, info.value, (value) => {
           session.setInput(info.key, value, { scan: !isRunning() });
           draw();
           drawInputs();
         }, { select: options });
         parts.inputs.append(field);
-        if (info.remote && info.value === "unknown") field.append(ctx.hintEl(T0.readsAs(info)));
+        const reads = info.kind === "end" || info.value === "unknown" ? T0.readsAs(info) : "";
+        if (info.remote && reads) field.append(ctx.hintEl(reads));
       }
       if (boards.length) {
         parts.inputs.append(heading(TEXT.boardsHeading));
@@ -256,6 +276,12 @@
     if (shapes.length) {
       parts.track = el("div", "try-track");
       section.append(heading(TEXT.trackHeading), ui.paragraph(TEXT.trackHint, "hint"), parts.track);
+    }
+
+    // ----- the pretend neighbours -----
+    if (session.neighbours().length) {
+      parts.neighbours = el("div", "try-neighbours");
+      section.append(heading(TEXT.neighboursHeading), ui.paragraph(TEXT.neighboursHint, "hint"), parts.neighbours);
     }
 
     // ----- what it shows -----
@@ -285,7 +311,7 @@
       parts.time.textContent = `${TEXT.timeLabel}: ${TEXT.time(view.time)}`;
       const signature = JSON.stringify([
         view.masts.map((m) => m.aspect), view.sections.map((s) => [s.state, s.holder]), view.turnouts.map((t) => [t.position, t.locked, t.byRules]),
-        view.rules.map((r) => r.phase), view.waiting, view.log.length, session.inputs().map((i) => i.value), shapes.length ? shapes.map((s) => s.blocks.map((b) => session.blockOccupied(blockRef(s, b)))) : 0,
+        view.rules.map((r) => r.phase), view.waiting, view.log.length, session.inputs().map((i) => i.value), view.neighbours, shapes.length ? shapes.map((s) => s.blocks.map((b) => session.blockOccupied(blockRef(s, b)))) : 0,
       ]);
       if (signature === last) return;
       last = signature;
@@ -294,6 +320,7 @@
       drawTurnouts(view);
       drawDetails(view);
       drawTrack(view);
+      drawNeighbours(view);
     }
 
     function blockRef(shape, name) {
@@ -431,6 +458,79 @@
       }
     }
 
+    // ----- the pretend neighbours -----
+    function toggleNeighbourBlock(ref) {
+      session.setBlock(ref, !session.blockOccupied(ref), { scan: !isRunning() });
+      draw();
+      drawInputs();
+    }
+
+    function drawNeighbourStrip(track, endName) {
+      const blockW = 76;
+      const gap = 44;
+      const width = 24 + 3 * (blockW + gap);
+      const drawing = svg("svg", { class: "try-strip", viewBox: `0 0 ${width} 150`, width, height: 150, role: "group", "aria-label": TEXT.trainCross(endName, track.track) });
+      drawing.append(svg("line", { class: "try-rail", x1: 0, y1: 92, x2: width, y2: 92 }));
+      drawing.append(svg("line", { class: "try-joint", x1: 10, y1: 60, x2: 10, y2: 124 }));
+      drawing.append(svg("text", { class: "try-label", x: 10, y: 144, "text-anchor": "start" }, TEXT.joint));
+      track.blocks.forEach((block, i) => {
+        const x = 24 + i * (blockW + gap) + (track.direction === "away" ? gap : 0);
+        const g = svg("g", { class: `try-block${block.occupied ? " is-occupied" : ""}` });
+        g.append(svg("rect", { x, y: 72, width: blockW, height: 40, rx: 6 }));
+        if (block.occupied) g.append(svg("rect", { class: "try-train-body", x: x + 14, y: 82, width: blockW - 28, height: 20, rx: 4 }));
+        g.append(svg("text", { class: "try-label", x: x + blockW / 2, y: 128, "text-anchor": "middle" }, String(block.at)));
+        clickable(g, TEXT.neighbourBlockLabel(block.at, block.occupied), () => toggleNeighbourBlock(block.ref));
+        drawing.append(g);
+        const signal = track.signals[i];
+        const cx = track.direction === "away" ? x - gap / 2 : x + blockW + gap / 2;
+        const sg = svg("g", { class: `try-signal tag-${signal.tag}` });
+        sg.append(svg("title", {}, `${signal.at}: ${signal.meaning}`));
+        sg.append(svg("line", { class: "try-post", x1: cx, y1: 92, x2: cx, y2: 42 }));
+        sg.append(svg("circle", { class: "try-head", cx, cy: 34, r: 10 }));
+        sg.append(svg("path", { class: "try-arrow", d: track.direction === "away" ? `M ${cx - 6} 80 L ${cx + 8} 92 L ${cx - 6} 104` : `M ${cx + 6} 80 L ${cx - 8} 92 L ${cx + 6} 104`, fill: "none" }));
+        drawing.append(sg);
+      });
+      const wrap = el("div", "try-strip-wrap");
+      wrap.append(drawing);
+      return wrap;
+    }
+
+    function drawNeighbours(view) {
+      if (!parts.neighbours) return;
+      parts.neighbours.replaceChildren();
+      for (const neighbour of view.neighbours) {
+        const box = el("div", "try-shape");
+        const state = view.ends.find((e) => e.name === neighbour.end);
+        box.append(el("h5", "try-shape-name", state?.text ? `${TEXT.endName(neighbour.end)}: ${state.text}` : TEXT.endName(neighbour.end)));
+        box.append(ctx.field(TEXT.neighbourOn(neighbour.end), neighbour.on, (checked) => {
+          session.setNeighbour(neighbour.end, checked, { scan: !isRunning() });
+          trainChoice.cross = "";
+          trainChoice.steps = null;
+          draw();
+          drawInputs();
+          drawTrain();
+          drawNeighbours(session.view());
+        }, { checkbox: true }));
+        if (neighbour.on) {
+          for (const track of neighbour.tracks) {
+            const row = el("div", "try-neighbour-track");
+            row.append(el("p", "hint", `${TEXT.trainCross(neighbour.end, track.track)}. ${TEXT.neighbourRuns[track.direction]}. ${TEXT.neighbourHears(track.hears.occupied, (T().TEXT.meanings[track.hears.tag] || track.hears.tag))}`));
+            row.append(button(TEXT.neighbourTurn, () => {
+              session.turnNeighbour(neighbour.end, track.track, { scan: !isRunning() });
+              trainChoice.steps = null;
+              draw();
+              drawInputs();
+              drawTrain();
+              drawNeighbours(session.view());
+            }));
+            row.append(drawNeighbourStrip(track, neighbour.end));
+            box.append(row);
+          }
+        }
+        parts.neighbours.append(box);
+      }
+    }
+
     // ----- Run a train -----
     function trainOptions() {
       const out = [];
@@ -467,10 +567,23 @@
       fields.append(ctx.field(TEXT.trainLength, String(trainChoice.length), (value) => {
         trainChoice.length = Math.max(1, Math.min(names.length, Math.floor(Number(value)) || 1));
       }, { type: "number" }));
+      const joints = session.neighbours().flatMap((n) => (n.on ? n.tracks.map((t) => ({ value: `${n.end}${SEP}${t.track}`, label: TEXT.trainCross(n.end, t.track) })) : []));
+      if (!joints.some((j) => j.value === trainChoice.cross)) trainChoice.cross = "";
+      if (joints.length) {
+        fields.append(ctx.field(TEXT.trainAcross, trainChoice.cross, (value) => {
+          trainChoice.cross = value;
+        }, { select: [{ value: "", label: TEXT.trainStay }, ...joints] }));
+      }
       parts.train.append(fields);
       parts.train.append(button(TEXT.trainGo, () => {
-        const path = T().trainPath(chosen.row, trainChoice.start, trainChoice.way);
-        trainChoice.steps = T().runTrain(session, { path, length: trainChoice.length, masts: chosen.shape.masts });
+        let path = T().trainPath(chosen.row, trainChoice.start, trainChoice.way);
+        let across;
+        if (trainChoice.cross) {
+          const [end, track] = trainChoice.cross.split(SEP);
+          across = { end, track: Number(track) };
+          path = T().crossPath(session, path, across);
+        }
+        trainChoice.steps = T().runTrain(session, { path, length: trainChoice.length, masts: chosen.shape.masts, ...(across ? { neighbours: [across] } : {}) });
         trainChoice.group = chosen.shape.group;
         draw();
         drawInputs();
@@ -485,6 +598,8 @@
       const head = el("tr");
       head.append(el("th", "", TEXT.trainStep), el("th", "", TEXT.trainBlocks));
       for (const name of masts) head.append(el("th", "", name));
+      const across = steps[0]?.neighbours || [];
+      for (const n of across) head.append(el("th", "", TEXT.trainNeighbourHeading(n.end, n.track)));
       const thead = el("thead");
       thead.append(head);
       table.append(thead);
@@ -499,6 +614,10 @@
           const cell = el("td", "try-train-cell");
           cell.append(mastView(ctx, name, shown?.aspect ?? null, shown?.meaning));
           tr.append(cell);
+        }
+        for (const n of step.neighbours || []) {
+          const signals = n.signals.map((x) => `${x.at}: ${x.meaning}`).join(", ");
+          tr.append(el("td", "", signals));
         }
         body.append(tr);
       }

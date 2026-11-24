@@ -40,7 +40,22 @@
 
   // ===== The model: which inputs the rules read, and their values ==========
 
-  const KINDS = ["block", "sensor", "turnout", "mast", "button"];
+  const KINDS = ["block", "sensor", "turnout", "mast", "button", "end"];
+  const SEP = "\u0000";
+
+  // A plant end's track, as the rules read it (work item 3.4). The key names
+  // this board's track; the event names the linked end's track (spec, Plant
+  // ends: track k meets the far track N + 1 - k). Another end is modelled as
+  // paired, heard and answering: its Block clear, its Mast Stop. Only the
+  // tracks the rules read are inputs, and a Mast takes Stop and the meanings
+  // the rules compare it with, so the end adds a few states, not a power of
+  // five. "Not paired" and "not heard" are not explored: they read like
+  // occupied and Stop, which the inputs already reach.
+  const endKey = (end, track, what) => ["~end", end, String(track), what].join(SEP);
+  const isEndKey = (key) => String(key).startsWith(`~end${SEP}`);
+  const endTracks = (board, end) => list(list(board.logic?.ends).find((e) => e?.name === end)?.tracks).length;
+  // The board name the checker and Try it give a board that has ends.
+  const SELF = "this-board";
 
   function conditionsIn(value, out = []) {
     if (Array.isArray(value)) {
@@ -66,6 +81,17 @@
     const inputs = new Map();
     const add = (key, values, start, event) => { if (!inputs.has(key)) inputs.set(key, { key, values, start, event }); };
     const sensor = (name) => add(`sensor\u0000${name}`, ["clear", "occupied"], "clear", (is) => ({ sensor: name, is }));
+    const mastMeanings = new Map(); // end key -> the meanings rules compare it with
+    const endItem = (end, track, what, meanings) => {
+      const count = endTracks(board, end);
+      if (!Number.isInteger(track) || track < 1 || track > count) return;
+      const their = count + 1 - track;
+      const key = endKey(end, track, what);
+      if (what === "block") return add(key, ["clear", "occupied"], "clear", (is) => ({ end, track: their, block: is }));
+      if (!mastMeanings.has(key)) mastMeanings.set(key, new Set());
+      for (const m of meanings) mastMeanings.get(key).add(m);
+      add(key, ["stop"], "stop", (tag) => ({ end, track: their, mast: tag }));
+    };
     const remoteItem = (ref) => {
       const kind = ["sensor", "block", "turnout", "mast"].find((k) => ref[k] !== undefined);
       const name = ref[kind];
@@ -83,10 +109,16 @@
       for (const member of blocks.get(name)) {
         if (typeof member === "string") sensor(member);
         else if (isObject(member) && member.board) remoteItem(member);
+        else if (isObject(member) && member.end !== undefined) endItem(member.end, member.track, "block", []);
       }
     };
     const resources = list(logic.resources);
     for (const cond of conditionsIn([list(logic.layers).map((l) => list(l.rules)), resources.map((r) => r.release)])) {
+      if (cond.end !== undefined && cond.board === undefined) {
+        if (cond.hears === "mast") endItem(cond.end, cond.track, "mast", [].concat(cond.is).filter((m) => typeof m === "string"));
+        else endItem(cond.end, cond.track, "block", []);
+        continue;
+      }
       if (cond.board !== undefined) { remoteItem(cond); continue; }
       if (cond.block !== undefined) block(cond.block);
       else if (cond.sensor !== undefined) sensor(cond.sensor);
@@ -105,21 +137,35 @@
       for (const member of list(res.blocks)) {
         if (typeof member === "string") block(member);
         else if (isObject(member) && member.board) remoteItem(member);
+        else if (isObject(member) && member.end !== undefined) endItem(member.end, member.track, "block", []);
       }
     }
     for (const mast of Object.values(board.masts || {})) if (typeof mast.approachLight === "string") block(mast.approachLight);
     // An event setting a value it already has is not a step, so "none" and
     // "unknown" are only ever start values.
+    for (const [key, meanings] of mastMeanings) inputs.get(key).values = ["stop", ...E().TAGS.filter((t) => t !== "stop" && meanings.has(t))];
     return [...inputs.values()];
   }
 
+  // The events that bring a board's ends to the checker's start: each paired
+  // with another board, which is on and answering.
+  function endSetup(board) {
+    const events = [];
+    for (const end of list(board.logic?.ends)) {
+      if (!end?.name) continue;
+      events.push({ end: end.name, link: `neighbour/${end.name}` }, { end: end.name, theirLink: `${SELF}/${end.name}` }, { end: end.name, online: true });
+    }
+    return events;
+  }
   // The inputs a rule's request depends on: its When and its Cancel.
   function requestInputs(rule, board, inputs) {
     const keys = new Set();
     const logic = board.logic || {};
     const blocks = new Map(list(logic.blocks).map((b) => [b.name, list(b.sensors)]));
     const add = (cond) => {
-      if (cond.board !== undefined) {
+      if (cond.end !== undefined && cond.board === undefined) {
+        keys.add(endKey(cond.end, cond.track, cond.hears === "mast" ? "mast" : "block"));
+      } else if (cond.board !== undefined) {
         const kind = ["sensor", "block", "turnout", "mast"].find((k) => cond[k] !== undefined);
         keys.add(`${cond.board}\u0000${kind}\u0000${cond[kind]}`);
       } else if (cond.block !== undefined && blocks.has(cond.block)) {
@@ -142,7 +188,9 @@
       if (kind === "turnout") remote[b].turnouts[name] = "closed";
       else if (kind !== "mast") remote[b].sensors[name] = "clear";
     }
-    return { logic: "on", broker: "connected", remote };
+    const out = { logic: "on", broker: "connected", remote };
+    if (list(board.logic?.ends).length) out.board = SELF;
+    return out;
   }
 
   function longestTimerScans(board) {
@@ -188,6 +236,7 @@
 
     const replay = (path) => {
       const engine = engineOf();
+      for (const e of endSetup(board)) engine.event(e);
       engine.scan();
       for (const step of path) {
         if (step.do) {
@@ -440,5 +489,5 @@
     return result;
   }
 
-  global.EsphomeMrLogicChecker = { TEXT, checkBoard, checkConfig, inputsOf, ruleWords };
+  global.EsphomeMrLogicChecker = { TEXT, SELF, checkBoard, checkConfig, inputsOf, endSetup, endKey, isEndKey, ruleWords };
 })(typeof globalThis !== "undefined" ? globalThis : window);
