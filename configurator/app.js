@@ -31,6 +31,7 @@ const {
   CATS_ASPECTS,
   catsAspectState,
 } = globalThis.EsphomeMr;
+const { renderLogicPage, logicNavHint } = globalThis.EsphomeMrLogicUi;
 
 const STORAGE_KEY = "esphome-mr-configurator-v1";
 const CREDENTIALS_KEY = "esphome-mr-credentials-v1";
@@ -107,6 +108,8 @@ const el = {
   signalsList: document.getElementById("signals-list"),
   countSignals: document.getElementById("count-signals"),
   signalsEmpty: document.getElementById("signals-empty"),
+  logicPage: document.getElementById("logic-page"),
+  logicNavHint: document.getElementById("logic-nav-hint"),
 };
 
 document.querySelectorAll(".nav-item").forEach((button) => {
@@ -1998,6 +2001,7 @@ function updatePreview() {
   el.countBlocks.textContent = String(state.blocks.length);
   el.countPoints.textContent = String(state.points.length);
   el.countSignals.textContent = String(state.signals.masts.length);
+  el.logicNavHint.textContent = logicNavHint(state);
   renderJmriSummary();
   el.blocksEmpty.hidden = state.blocks.length > 0;
   el.pointsEmpty.hidden = state.points.length > 0;
@@ -2047,6 +2051,10 @@ function renderJmriSummary() {
   document.getElementById("btn-download-jmri").disabled = total === 0;
 }
 
+function renderLogic() {
+  renderLogicPage(el.logicPage, { config: state, field, hintEl, persist, render, showView });
+}
+
 function render() {
   renderBoard();
   renderDriver();
@@ -2055,6 +2063,7 @@ function render() {
   renderPinBudget();
   renderPoints();
   renderSignals();
+  renderLogic();
   updatePreview();
 }
 

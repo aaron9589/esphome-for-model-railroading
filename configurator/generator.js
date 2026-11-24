@@ -121,6 +121,43 @@ function expanderId(index) {
   return `mcp23017_${index + 1}`;
 }
 
+// The Logic page (docs/field-logic-spec.md) is stored in config.logic. A board
+// with logic mode None and Share unticked keeps no logic key, so its YAML is
+// exactly what it was before the Logic page existed.
+const LOGIC_MODE_NAMES = Object.freeze({ field: "Field Logic", mss: "MSS Logic" });
+
+function logicMode(config) {
+  const mode = config?.logic?.mode;
+  return LOGIC_MODE_NAMES[mode] ? mode : "none";
+}
+
+// Share with other boards: ticked, or always on in MSS Logic.
+function sharesWithOtherBoards(config) {
+  return config?.logic?.share === true || logicMode(config) === "mss";
+}
+
+function normalizeLogic(config) {
+  const logic = config.logic;
+  if (!logic || typeof logic !== "object" || Array.isArray(logic)) {
+    delete config.logic;
+    return;
+  }
+  if (!LOGIC_MODE_NAMES[logic.mode]) delete logic.mode;
+  logic.share = logic.share === true;
+}
+
+// What goes in the config blob: nothing for an empty Logic page. Keys this
+// configurator does not know yet are kept, so a newer file round-trips.
+function logicForBlob(logic) {
+  if (!logic || typeof logic !== "object") return undefined;
+  const hasContent = Object.entries(logic).some(([key, value]) => {
+    if (key === "share") return value === true;
+    if (Array.isArray(value)) return value.length > 0;
+    return value !== undefined && value !== null && value !== false;
+  });
+  return hasContent ? JSON.parse(JSON.stringify(logic)) : undefined;
+}
+
 function uniqueIds(items, nameKey = "name") {
   const seen = new Map();
   return items.map((item, index) => {
@@ -397,6 +434,7 @@ function normalizeConfig(config) {
       if (aspect.startup) startupSeen = true;
     }
   }
+  normalizeLogic(config);
   return config;
 }
 
@@ -1830,6 +1868,8 @@ function generateYaml(config) {
     } : {}),
     signals: signalsForBlob(config.signals),
   };
+  const logicBlob = logicForBlob(config.logic);
+  if (logicBlob) stateForBlob.logic = logicBlob;
 
   const lines = [];
   lines.push(`# ${CONFIG_MARKER}`);
@@ -2264,6 +2304,9 @@ function generateYaml(config) {
     myFirstBoardPreset,
     newBoardConfig,
     emptyConfig,
+    LOGIC_MODE_NAMES,
+    logicMode,
+    sharesWithOtherBoards,
     NAME_SUFFIX_ALPHABET,
     MAX_TYPED_NAME,
     isNameSuffix,
