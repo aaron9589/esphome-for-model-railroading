@@ -81,6 +81,13 @@ test("renaming to the same name, or with nothing on the Logic page, changes noth
   assert.equal(none.logic, undefined, "no logic key is made");
 });
 
+test("renaming to an empty name renames nothing", () => {
+  const config = board();
+  const before = plain(config.logic);
+  for (const to of ["", "   ", undefined, null]) assert.equal(L.renameReferences(config, "sensor", "Int 2 East", to), 0);
+  assert.deepEqual(plain(config.logic), before);
+});
+
 test("a sensor name is only renamed where a sensor is meant", () => {
   const config = board();
   config.logic.blocks[0].name = "Int 2 East";
@@ -88,9 +95,9 @@ test("a sensor name is only renamed where a sensor is meant", () => {
   assert.equal(config.logic.blocks[0].name, "Int 2 East", "a block's own name is not a sensor reference");
 });
 
-// Rules, masts and plant ends come in later releases; their stored format
-// (spec, Stored format) refers to items the same way, so a rename reaches them.
-test("turnouts and masts are renamed wherever the stored format refers to them", () => {
+// Rules, masts and plant ends come in later releases. The shapes below are
+// from the spec's Stored format, which refers to items with these keys.
+test("turnouts and masts are renamed in the stored format's mast, end and rule shapes", () => {
   const config = board();
   config.logic.masts = [{ mast: "Up Home", stopAspect: "R292" }];
   config.logic.ends = [{ name: "A", tracks: [{ sensors: ["Int 2 East"], mast: "Up Home" }] }];

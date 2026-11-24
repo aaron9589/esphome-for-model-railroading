@@ -378,19 +378,49 @@ function normalizeTopics(config) {
 // (change), not on every key: a half-typed name can pass through another
 // item's name. A name that another item of the same kind has, before or
 // after, is ambiguous, so its references are left for validation to report.
-function followRename(nameField, kind, item, items) {
+// An emptied name is not finished: the next name typed takes the references.
+// A rename still being typed when the page closes or reloads is applied then.
+let pendingRename = null;
+
+function applyRename() {
+  const pending = pendingRename;
+  if (!pending) return false;
+  const { kind, item, list, before } = pending;
+  if (!list().includes(item)) {
+    pendingRename = null;
+    return false;
+  }
+  const after = item.name;
+  if (!String(after || "").trim()) return false;
+  pendingRename = null;
+  const taken = (name) =>
+    list().some((other) => other !== item && other.name === name) ||
+    (kind === "mast" && (state.logic?.masts || []).some((mast) => mast?.virtual && mast.name === name));
+  if (before === after || taken(before) || taken(after)) return false;
+  return !!window.EsphomeMrLogicYaml?.renameReferences(state, kind, before, after);
+}
+
+window.addEventListener("pagehide", () => {
+  if (applyRename()) persist();
+});
+
+function followRename(nameField, kind, item, list) {
   const input = nameField.querySelector("input");
-  let before = item.name;
-  input.addEventListener("focus", () => {
-    before = item.name;
-  });
+  // The name before this edit. The field's own input handler has already
+  // changed item.name when ours runs, so it is kept here.
+  let settled = item.name;
+  const start = () => {
+    if (pendingRename?.item !== item) pendingRename = { kind, item, list, before: settled };
+  };
+  input.addEventListener("focus", start);
+  input.addEventListener("input", start);
   input.addEventListener("change", () => {
-    const after = item.name;
-    const shared = (name) => items.some((other) => other !== item && other.name === name);
-    if (before !== after && !shared(before) && !shared(after)) {
-      if (window.EsphomeMrLogicYaml?.renameReferences(state, kind, before, after)) persist();
+    if (pendingRename?.item !== item) return;
+    if (applyRename()) {
+      persist();
+      updatePreview();
     }
-    before = after;
+    if (!pendingRename) settled = item.name;
   });
   return nameField;
 }
@@ -900,7 +930,7 @@ function renderBlocks() {
         placeholder: "Kiama/Up XOver",
         full: true,
         hint: "Name in the logs. The topic is filled in from this.",
-      }), "sensor", block, state.blocks),
+      }), "sensor", block, () => state.blocks),
       topicField,
       field("Pin", sensorPinValue(block), (v) => {
         setSensorPin(block, v);
@@ -1296,7 +1326,7 @@ function renderPointCard(point, index) {
       placeholder: "Kiama/Up Loop",
       full: true,
       hint: "Name on the calibration page.",
-    }), "turnout", point, state.points),
+    }), "turnout", point, () => state.points),
     topicField,
     linkedField(
       "Position report",
@@ -1839,7 +1869,7 @@ function renderSignals() {
         placeholder: "KJN-42.26",
         full: true,
         hint: "Name in the logs. The topic is filled in from this.",
-      }), "mast", mast, signals.masts),
+      }), "mast", mast, () => state.signals?.masts || []),
       topicField,
       field("Drive", gpio ? "gpio" : "addressable", (v) => {
         mast.mode = v === "gpio" ? "gpio" : "addressable";
