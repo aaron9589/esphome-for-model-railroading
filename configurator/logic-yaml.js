@@ -1224,6 +1224,16 @@
       validateAspectNames((mast.aspects || []).map((aspect) => String(aspect.label ?? "")), where, (text) => r.error(SIGNALS, text));
     }
     const field = fieldMastNames(config);
+    // Fail safe: a signal logic sets falls back to its stop aspect at start-up,
+    // when no rule applies and when JMRI holds it. With no aspect meaning Stop
+    // that would be some other aspect, perhaps Clear.
+    for (const name of field) {
+      const mast = (config.signals?.masts || []).find((m) => m.name === name);
+      const entry = mast ? mastEntry(config, name) : mastEntries(config).find((e) => e.virtual === true && e.name === name);
+      const aspects = mast ? (mast.aspects || []).map((a) => String(a.label ?? "")) : list(entry?.aspects).map(String);
+      if (!aspects.length || aspects.some((aspect) => aspectTag(entry, aspect) === "stop")) continue;
+      r.error(MASTS, `Signal "${name}" has no aspect that means Stop, so it would show one of its other aspects at start-up, when no rule applies, and when JMRI holds it. Give one of its aspects the meaning Stop under Masts.`);
+    }
     const names = new Set();
     for (const entry of mastEntries(config)) {
       if (entry.virtual !== true) continue;

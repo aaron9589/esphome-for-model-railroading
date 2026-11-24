@@ -605,4 +605,18 @@ test("each message links to its part of the Logic page", () => {
   assert.deepEqual(found, []);
 });
 
+test("fail safe: a signal logic sets needs an aspect that means Stop", () => {
+  const config = board();
+  const entry = config.logic.masts.find((m) => m.mast === "Left Bridge") || (config.logic.masts.push({ mast: "Left Bridge", tags: {} }), config.logic.masts.at(-1));
+  const labels = config.signals.masts.find((m) => m.name === "Left Bridge").aspects.map((a) => a.label);
+  entry.tags = Object.fromEntries(labels.map((label) => [label, "clear"]));
+  const { errors, links } = validateConfig(normalizeConfig(plain(config)));
+  const text = [...errors].find((e) => e.includes('Signal "Left Bridge" has no aspect that means Stop'));
+  assert.ok(text, [...errors].join("\n"));
+  assert.equal(links.get(text).part, "logic-masts");
+  // One aspect meaning Stop is enough.
+  entry.tags[labels[0]] = "stop";
+  assert.ok(![...validateConfig(normalizeConfig(plain(config))).errors].some((e) => e.includes("means Stop")));
+});
+
 if (!process.exitCode) console.log("\nAll validation tests passed.");
