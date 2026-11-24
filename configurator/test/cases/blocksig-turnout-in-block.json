@@ -1,0 +1,214 @@
+{
+  "name": "a reversed or moving turnout in the block gives Stop",
+  "covers": [
+    "block signals: the worked example's four rows; the tumbledown with and without Advance Approach; Approach Diverging behind a diverging aspect, and Approach there when Approach Diverging is not used; a remote next mast going offline leaves Approach; a reversed or moving turnout in a block gives Stop"
+  ],
+  "about": "Home's block has P1, through position closed. P1 moving or thrown matches no rule, so Home shows Stop; closed again, it clears.",
+  "board": {
+    "sensors": [
+      "K"
+    ],
+    "turnouts": [
+      "P1"
+    ],
+    "masts": {
+      "Home": {
+        "aspects": {
+          "R292": "stop",
+          "R285": "approach",
+          "R281": "clear"
+        }
+      },
+      "Next Home": {
+        "aspects": {
+          "R292": "stop",
+          "R285": "approach",
+          "R281": "clear"
+        }
+      }
+    },
+    "logic": {
+      "layers": [
+        {
+          "name": "Up",
+          "rules": [
+            {
+              "trigger": {
+                "while": {
+                  "block": "K",
+                  "is": "clear"
+                }
+              },
+              "checks": [
+                {
+                  "turnout": "P1",
+                  "is": "closed"
+                },
+                {
+                  "mast": "Next Home",
+                  "is": "diverging"
+                },
+                {
+                  "not": {
+                    "mast": "Next Home",
+                    "is": [
+                      "stop",
+                      "restricting"
+                    ]
+                  }
+                }
+              ],
+              "then": {
+                "mast": "Home",
+                "aspect": "R285"
+              }
+            },
+            {
+              "trigger": {
+                "while": {
+                  "block": "K",
+                  "is": "clear"
+                }
+              },
+              "checks": [
+                {
+                  "turnout": "P1",
+                  "is": "closed"
+                },
+                {
+                  "mast": "Next Home",
+                  "is": [
+                    "advance",
+                    "clear"
+                  ]
+                }
+              ],
+              "then": {
+                "mast": "Home",
+                "aspect": "R281"
+              }
+            },
+            {
+              "trigger": {
+                "while": {
+                  "block": "K",
+                  "is": "clear"
+                }
+              },
+              "checks": [
+                {
+                  "turnout": "P1",
+                  "is": "closed"
+                },
+                {
+                  "mast": "Next Home",
+                  "is": "approach"
+                }
+              ],
+              "then": {
+                "mast": "Home",
+                "aspect": "R281"
+              }
+            },
+            {
+              "trigger": {
+                "while": {
+                  "block": "K",
+                  "is": "clear"
+                }
+              },
+              "checks": [
+                {
+                  "turnout": "P1",
+                  "is": "closed"
+                },
+                {
+                  "mast": "Next Home",
+                  "is": [
+                    "stop",
+                    "restricting"
+                  ]
+                }
+              ],
+              "then": {
+                "mast": "Home",
+                "aspect": "R285"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "start": {
+    "jmri": {
+      "Next Home": "R281; Lit; Unheld"
+    }
+  },
+  "steps": [
+    {
+      "at": 0,
+      "expect": {
+        "masts": {
+          "Home": "R281"
+        }
+      }
+    },
+    {
+      "at": 5,
+      "do": [
+        {
+          "turnout": "P1",
+          "is": "moving"
+        }
+      ],
+      "expect": {
+        "masts": {
+          "Home": "R292"
+        }
+      }
+    },
+    {
+      "at": 10,
+      "do": [
+        {
+          "turnout": "P1",
+          "is": "thrown"
+        }
+      ],
+      "expect": {
+        "masts": {
+          "Home": "R292"
+        }
+      }
+    },
+    {
+      "at": 15,
+      "do": [
+        {
+          "turnout": "P1",
+          "is": "moving"
+        }
+      ],
+      "expect": {
+        "masts": {
+          "Home": "R292"
+        }
+      }
+    },
+    {
+      "at": 20,
+      "do": [
+        {
+          "turnout": "P1",
+          "is": "closed"
+        }
+      ],
+      "expect": {
+        "masts": {
+          "Home": "R281"
+        }
+      }
+    }
+  ]
+}

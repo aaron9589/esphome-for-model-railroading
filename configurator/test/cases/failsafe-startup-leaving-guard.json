@@ -1,0 +1,154 @@
+{
+  "name": "start-up counts a train in a leaving-guard block as waiting",
+  "covers": [
+    "the start-up scan counts a train in a leaving-guard block as waiting"
+  ],
+  "about": "A single-line bridge starts with a train on the bridge and one in Right. The bridge is held and PASSED, but no leaving guard is set at start-up, so the Right train waits and is granted when the bridge releases.",
+  "board": {
+    "sensors": [
+      "Left",
+      "Bridge",
+      "Right"
+    ],
+    "masts": {
+      "Left Bridge": {
+        "aspects": {
+          "R292": "stop",
+          "R281": "clear"
+        }
+      },
+      "Right Bridge": {
+        "aspects": {
+          "R292": "stop",
+          "R281": "clear"
+        }
+      }
+    },
+    "logic": {
+      "resources": [
+        {
+          "name": "Bridge",
+          "blocks": [
+            "Bridge"
+          ],
+          "release": {
+            "while": {
+              "block": "Bridge",
+              "is": "clear"
+            },
+            "for": "3s"
+          }
+        }
+      ],
+      "layers": [
+        {
+          "name": "Single line",
+          "rules": [
+            {
+              "trigger": {
+                "while": {
+                  "block": "Left",
+                  "is": "occupied"
+                },
+                "for": "0.5s",
+                "leavingGuard": true
+              },
+              "checks": [
+                {
+                  "block": "Right",
+                  "is": "clear"
+                }
+              ],
+              "then": {
+                "mast": "Left Bridge",
+                "aspect": "R281",
+                "reserve": "Bridge"
+              }
+            },
+            {
+              "trigger": {
+                "while": {
+                  "block": "Right",
+                  "is": "occupied"
+                },
+                "for": "0.5s",
+                "leavingGuard": true
+              },
+              "checks": [
+                {
+                  "block": "Left",
+                  "is": "clear"
+                }
+              ],
+              "then": {
+                "mast": "Right Bridge",
+                "aspect": "R281",
+                "reserve": "Bridge"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "start": {
+    "sensors": {
+      "Bridge": "occupied",
+      "Right": "occupied"
+    }
+  },
+  "steps": [
+    {
+      "at": 0,
+      "expect": {
+        "events": [
+          {
+            "startup": true
+          },
+          {
+            "pass": "Bridge",
+            "rule": null
+          }
+        ],
+        "resources": {
+          "Bridge": "PASSED"
+        }
+      }
+    },
+    {
+      "at": 5,
+      "expect": {
+        "rules": {
+          "Single line/2": "waiting"
+        }
+      }
+    },
+    {
+      "at": 10,
+      "do": [
+        {
+          "sensor": "Bridge",
+          "is": "clear"
+        }
+      ]
+    },
+    {
+      "at": 40,
+      "expect": {
+        "events": [
+          {
+            "release": "Bridge",
+            "by": "release"
+          },
+          {
+            "grant": "Bridge",
+            "rule": "Single line/2"
+          }
+        ],
+        "masts": {
+          "Right Bridge": "R281"
+        }
+      }
+    }
+  ]
+}

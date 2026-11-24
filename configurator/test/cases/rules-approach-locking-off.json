@@ -1,0 +1,149 @@
+{
+  "name": "approach locking off: a cancel frees the section and its turnout at once",
+  "covers": [
+    "approach locking: off frees at once; on holds for the time, then frees; a block occupied during that time goes to PASSED; manual release ends it"
+  ],
+  "about": "The Left train is granted, locking P1, then backs out. With approach locking off, the cancel frees the bridge and unlocks P1 in the same scan.",
+  "board": {
+    "sensors": [
+      "Left",
+      "Bridge",
+      "Right"
+    ],
+    "masts": {
+      "Left Bridge": {
+        "aspects": {
+          "R292": "stop",
+          "R281": "clear"
+        }
+      },
+      "Right Bridge": {
+        "aspects": {
+          "R292": "stop",
+          "R281": "clear"
+        }
+      }
+    },
+    "logic": {
+      "resources": [
+        {
+          "name": "Bridge",
+          "blocks": [
+            "Bridge"
+          ],
+          "release": {
+            "while": {
+              "block": "Bridge",
+              "is": "clear"
+            },
+            "for": "3s"
+          }
+        }
+      ],
+      "layers": [
+        {
+          "name": "Gauntlet",
+          "rules": [
+            {
+              "trigger": {
+                "while": {
+                  "block": "Left",
+                  "is": "occupied"
+                },
+                "for": "0.5s"
+              },
+              "checks": [],
+              "then": {
+                "mast": "Left Bridge",
+                "aspect": "R281",
+                "reserve": "Bridge",
+                "lock": [
+                  "P1"
+                ]
+              }
+            },
+            {
+              "trigger": {
+                "while": {
+                  "block": "Right",
+                  "is": "occupied"
+                },
+                "for": "0.5s"
+              },
+              "checks": [],
+              "then": {
+                "mast": "Right Bridge",
+                "aspect": "R281",
+                "reserve": "Bridge"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    "turnouts": [
+      "P1"
+    ]
+  },
+  "steps": [
+    {
+      "at": 1,
+      "do": [
+        {
+          "sensor": "Left",
+          "is": "occupied"
+        }
+      ]
+    },
+    {
+      "at": 6,
+      "expect": {
+        "events": [
+          {
+            "grant": "Bridge",
+            "rule": "Gauntlet/1"
+          }
+        ],
+        "locks": {
+          "P1": true
+        },
+        "masts": {
+          "Left Bridge": "R281"
+        }
+      }
+    },
+    {
+      "at": 10,
+      "do": [
+        {
+          "sensor": "Left",
+          "is": "clear"
+        }
+      ]
+    },
+    {
+      "at": 15,
+      "expect": {
+        "events": [
+          {
+            "cancel": "Bridge",
+            "rule": "Gauntlet/1"
+          },
+          {
+            "release": "Bridge",
+            "by": "cancel"
+          }
+        ],
+        "masts": {
+          "Left Bridge": "R292"
+        },
+        "resources": {
+          "Bridge": "IDLE"
+        },
+        "locks": {
+          "P1": false
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,67 @@
+{
+  "name": "start-up locks a turnout under a train before the toggle switch can move it",
+  "covers": [
+    "a toggle switch's boot move waits for the start-up scan, so a turnout under a train stays put"
+  ],
+  "about": "P1's block is occupied at power-on. The start-up scan locks P1, and logs startup; the board makes the toggle switch's boot move only after this scan, so the switch finds P1 locked.",
+  "board": {
+    "sensors": [
+      "Bridge"
+    ],
+    "turnouts": [
+      "P1"
+    ],
+    "logic": {
+      "layers": [
+        {
+          "name": "Locks",
+          "rules": [
+            {
+              "trigger": {
+                "while": {
+                  "block": "Bridge",
+                  "is": "occupied"
+                }
+              },
+              "checks": [],
+              "then": {
+                "lock": [
+                  "P1"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "start": {
+    "sensors": {
+      "Bridge": "occupied"
+    }
+  },
+  "steps": [
+    {
+      "at": 0,
+      "expect": {
+        "events": [
+          {
+            "startup": true
+          }
+        ],
+        "locks": {
+          "P1": true
+        },
+        "locked": {
+          "P1": true
+        },
+        "writes": [
+          {
+            "lock": "P1",
+            "on": true
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -1,0 +1,255 @@
+{
+  "name": "logic off: every JMRI message does what it does today",
+  "covers": [
+    "with logic off, a field-controlled mast behaves exactly as today for every JMRI message"
+  ],
+  "about": "With logic off, the rules do nothing and each message picks the aspect exactly as today's handler: an exact match, then Unlit dark, then Held to R292 (or dark with no R292 or Stop aspect), then the aspect name, else ignored.",
+  "board": {
+    "sensors": [
+      "Main",
+      "Siding"
+    ],
+    "masts": {
+      "Up Home": {
+        "aspects": {
+          "R292": "stop",
+          "R285": "approach",
+          "R281": "clear",
+          "Call On": "restricting"
+        },
+        "states": {
+          "Call On": [
+            "Call On; Lit; Held"
+          ]
+        },
+        "startup": "R285"
+      },
+      "Siding Exit": {
+        "aspects": {
+          "Danger": "stop",
+          "Clear": "clear"
+        }
+      }
+    },
+    "logic": {
+      "layers": [
+        {
+          "name": "Plain",
+          "rules": [
+            {
+              "trigger": {
+                "while": {
+                  "block": "Main",
+                  "is": "clear"
+                }
+              },
+              "checks": [],
+              "then": {
+                "mast": "Up Home",
+                "aspect": "R281"
+              }
+            },
+            {
+              "trigger": {
+                "while": {
+                  "block": "Siding",
+                  "is": "clear"
+                }
+              },
+              "checks": [],
+              "then": {
+                "mast": "Siding Exit",
+                "aspect": "Clear"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "start": {
+    "logic": "off"
+  },
+  "steps": [
+    {
+      "at": 0,
+      "expect": {
+        "logic": "off",
+        "events": [],
+        "masts": {
+          "Up Home": "R285",
+          "Siding Exit": null
+        }
+      }
+    },
+    {
+      "at": 1,
+      "do": [
+        {
+          "jmri": "Up Home",
+          "message": "R281; Lit; Unheld"
+        }
+      ],
+      "expect": {
+        "masts": {
+          "Up Home": "R281"
+        }
+      }
+    },
+    {
+      "at": 2,
+      "do": [
+        {
+          "jmri": "Up Home",
+          "message": "R285; Lit; Held"
+        }
+      ],
+      "expect": {
+        "masts": {
+          "Up Home": "R292"
+        }
+      }
+    },
+    {
+      "at": 3,
+      "do": [
+        {
+          "jmri": "Up Home",
+          "message": "R281; Unlit; Unheld"
+        }
+      ],
+      "expect": {
+        "masts": {
+          "Up Home": "dark"
+        }
+      }
+    },
+    {
+      "at": 4,
+      "do": [
+        {
+          "jmri": "Up Home",
+          "message": "Call On; Lit; Held"
+        }
+      ],
+      "expect": {
+        "masts": {
+          "Up Home": "Call On"
+        }
+      }
+    },
+    {
+      "at": 5,
+      "do": [
+        {
+          "jmri": "Up Home",
+          "message": "null; Lit; Held"
+        }
+      ],
+      "expect": {
+        "masts": {
+          "Up Home": "R292"
+        }
+      }
+    },
+    {
+      "at": 6,
+      "do": [
+        {
+          "jmri": "Up Home",
+          "message": "R285; Lit; Unheld"
+        }
+      ],
+      "expect": {
+        "masts": {
+          "Up Home": "R285"
+        }
+      }
+    },
+    {
+      "at": 7,
+      "do": [
+        {
+          "jmri": "Up Home",
+          "message": "Bogus; Lit; Unheld"
+        }
+      ],
+      "expect": {
+        "masts": {
+          "Up Home": "R285"
+        }
+      }
+    },
+    {
+      "at": 8,
+      "do": [
+        {
+          "jmri": "Up Home",
+          "message": "R281"
+        }
+      ],
+      "expect": {
+        "masts": {
+          "Up Home": "R281"
+        }
+      }
+    },
+    {
+      "at": 9,
+      "do": [
+        {
+          "jmri": "Up Home",
+          "message": "R292 ; Lit; Unheld"
+        }
+      ],
+      "expect": {
+        "masts": {
+          "Up Home": "R292"
+        }
+      }
+    },
+    {
+      "at": 10,
+      "do": [
+        {
+          "jmri": "Siding Exit",
+          "message": "Clear; Lit; Unheld"
+        }
+      ],
+      "expect": {
+        "masts": {
+          "Siding Exit": "Clear"
+        }
+      }
+    },
+    {
+      "at": 11,
+      "do": [
+        {
+          "jmri": "Siding Exit",
+          "message": "Clear; Lit; Held"
+        }
+      ],
+      "expect": {
+        "masts": {
+          "Siding Exit": "dark"
+        }
+      }
+    },
+    {
+      "at": 12,
+      "do": [
+        {
+          "jmri": "Siding Exit",
+          "message": "Danger; Lit; Unheld"
+        }
+      ],
+      "expect": {
+        "masts": {
+          "Siding Exit": "Danger"
+        },
+        "events": []
+      }
+    }
+  ]
+}

@@ -1,0 +1,193 @@
+{
+  "name": "short pulses: a press and an occupied-then-clear inside one scan are seen",
+  "covers": [
+    "a pulse shorter than a scan is still seen, including \"occupied, then clear\" inside one scan"
+  ],
+  "about": "Depart is pressed and released between two scans: the when trigger still asks for the section. Later Far goes occupied and clear between two scans: the release 'when Far occupied, then clear' still completes.",
+  "board": {
+    "sensors": [
+      "Platform",
+      "Next",
+      "Far"
+    ],
+    "masts": {
+      "Platform Exit": {
+        "aspects": {
+          "R292": "stop",
+          "R281": "clear"
+        }
+      }
+    },
+    "logic": {
+      "buttons": [
+        {
+          "name": "Depart"
+        }
+      ],
+      "resources": [
+        {
+          "name": "Line",
+          "blocks": [
+            "Next"
+          ],
+          "release": {
+            "when": {
+              "block": "Far",
+              "is": "occupied"
+            },
+            "then": [
+              {
+                "block": "Far",
+                "is": "clear"
+              }
+            ]
+          }
+        }
+      ],
+      "layers": [
+        {
+          "name": "Departure",
+          "rules": [
+            {
+              "trigger": {
+                "when": {
+                  "button": "Depart",
+                  "is": "pressed"
+                }
+              },
+              "checks": [
+                {
+                  "block": "Platform",
+                  "is": "occupied"
+                }
+              ],
+              "then": {
+                "mast": "Platform Exit",
+                "aspect": "R281",
+                "reserve": "Line"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "start": {
+    "sensors": {
+      "Platform": "occupied"
+    }
+  },
+  "steps": [
+    {
+      "at": 0,
+      "expect": {
+        "masts": {
+          "Platform Exit": "R292"
+        },
+        "rules": {
+          "Departure/1": "idle"
+        },
+        "events": [
+          {
+            "startup": true
+          }
+        ]
+      }
+    },
+    {
+      "at": 3,
+      "do": [
+        {
+          "button": "Depart",
+          "is": "pressed"
+        },
+        {
+          "button": "Depart",
+          "is": "released"
+        }
+      ],
+      "expect": {
+        "events": [
+          {
+            "grant": "Line",
+            "rule": "Departure/1"
+          }
+        ],
+        "masts": {
+          "Platform Exit": "R281"
+        },
+        "rules": {
+          "Departure/1": "active"
+        },
+        "resources": {
+          "Line": "ACTIVE"
+        }
+      }
+    },
+    {
+      "at": 10,
+      "do": [
+        {
+          "sensor": "Next",
+          "is": "occupied"
+        }
+      ],
+      "expect": {
+        "events": [
+          {
+            "pass": "Line",
+            "rule": "Departure/1"
+          }
+        ],
+        "masts": {
+          "Platform Exit": "R292"
+        },
+        "resources": {
+          "Line": "PASSED"
+        }
+      }
+    },
+    {
+      "at": 15,
+      "do": [
+        {
+          "sensor": "Next",
+          "is": "clear"
+        }
+      ],
+      "expect": {
+        "resources": {
+          "Line": "PASSED"
+        },
+        "events": []
+      }
+    },
+    {
+      "at": 20,
+      "do": [
+        {
+          "sensor": "Far",
+          "is": "occupied"
+        },
+        {
+          "sensor": "Far",
+          "is": "clear"
+        }
+      ],
+      "expect": {
+        "events": [
+          {
+            "release": "Line",
+            "by": "release"
+          }
+        ],
+        "resources": {
+          "Line": "IDLE"
+        },
+        "rules": {
+          "Departure/1": "idle"
+        }
+      }
+    }
+  ]
+}

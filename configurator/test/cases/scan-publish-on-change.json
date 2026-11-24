@@ -1,0 +1,235 @@
+{
+  "name": "writes and publishes only on change, and everything again on connect",
+  "covers": [
+    "outputs and publishes happen only on change, and all again on connect"
+  ],
+  "about": "The gauntlet's writes and publishes, scan by scan: only what changed, nothing when nothing changed, and every resource's Held and State again after the broker reconnects.",
+  "board": {
+    "sensors": [
+      "Left",
+      "Bridge",
+      "Right"
+    ],
+    "masts": {
+      "Left Bridge": {
+        "aspects": {
+          "R292": "stop",
+          "R281": "clear"
+        }
+      },
+      "Right Bridge": {
+        "aspects": {
+          "R292": "stop",
+          "R281": "clear"
+        }
+      }
+    },
+    "logic": {
+      "resources": [
+        {
+          "name": "Bridge",
+          "blocks": [
+            "Bridge"
+          ],
+          "release": {
+            "while": {
+              "block": "Bridge",
+              "is": "clear"
+            },
+            "for": "3s"
+          }
+        }
+      ],
+      "layers": [
+        {
+          "name": "Gauntlet",
+          "rules": [
+            {
+              "trigger": {
+                "while": {
+                  "block": "Left",
+                  "is": "occupied"
+                },
+                "for": "0.5s"
+              },
+              "checks": [],
+              "then": {
+                "mast": "Left Bridge",
+                "aspect": "R281",
+                "reserve": "Bridge"
+              }
+            },
+            {
+              "trigger": {
+                "while": {
+                  "block": "Right",
+                  "is": "occupied"
+                },
+                "for": "0.5s"
+              },
+              "checks": [],
+              "then": {
+                "mast": "Right Bridge",
+                "aspect": "R281",
+                "reserve": "Bridge"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "steps": [
+    {
+      "at": 0,
+      "expect": {
+        "events": [
+          {
+            "startup": true
+          }
+        ],
+        "writes": [],
+        "publishes": [
+          {
+            "resource": "Bridge",
+            "held": "INACTIVE"
+          },
+          {
+            "resource": "Bridge",
+            "state": "IDLE"
+          }
+        ]
+      }
+    },
+    {
+      "at": 1,
+      "do": [
+        {
+          "sensor": "Left",
+          "is": "occupied"
+        }
+      ],
+      "expect": {
+        "writes": [],
+        "publishes": []
+      }
+    },
+    {
+      "at": 5,
+      "expect": {
+        "writes": [],
+        "publishes": []
+      }
+    },
+    {
+      "at": 6,
+      "expect": {
+        "events": [
+          {
+            "grant": "Bridge",
+            "rule": "Gauntlet/1"
+          }
+        ],
+        "writes": [
+          {
+            "mast": "Left Bridge",
+            "aspect": "R281"
+          }
+        ],
+        "publishes": [
+          {
+            "resource": "Bridge",
+            "held": "ACTIVE"
+          },
+          {
+            "resource": "Bridge",
+            "state": "ACTIVE"
+          }
+        ]
+      }
+    },
+    {
+      "at": 7,
+      "expect": {
+        "writes": [],
+        "publishes": []
+      }
+    },
+    {
+      "at": 20,
+      "do": [
+        {
+          "sensor": "Bridge",
+          "is": "occupied"
+        }
+      ],
+      "expect": {
+        "events": [
+          {
+            "pass": "Bridge",
+            "rule": "Gauntlet/1"
+          }
+        ],
+        "writes": [
+          {
+            "mast": "Left Bridge",
+            "aspect": "R292"
+          }
+        ],
+        "publishes": [
+          {
+            "resource": "Bridge",
+            "state": "PASSED"
+          }
+        ]
+      }
+    },
+    {
+      "at": 21,
+      "expect": {
+        "writes": [],
+        "publishes": []
+      }
+    },
+    {
+      "at": 30,
+      "do": [
+        {
+          "broker": "disconnected"
+        }
+      ],
+      "expect": {
+        "writes": [],
+        "publishes": []
+      }
+    },
+    {
+      "at": 32,
+      "do": [
+        {
+          "broker": "connected"
+        }
+      ],
+      "expect": {
+        "writes": [],
+        "publishes": [
+          {
+            "resource": "Bridge",
+            "held": "ACTIVE"
+          },
+          {
+            "resource": "Bridge",
+            "state": "PASSED"
+          }
+        ]
+      }
+    },
+    {
+      "at": 33,
+      "expect": {
+        "writes": [],
+        "publishes": []
+      }
+    }
+  ]
+}

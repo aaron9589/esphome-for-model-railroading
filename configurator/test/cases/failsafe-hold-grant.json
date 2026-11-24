@@ -1,0 +1,195 @@
+{
+  "name": "a held mast is not granted; a hold after the grant lets the other entrance go",
+  "covers": [
+    "a held mast is not granted until unheld; held after the grant, before passing, cancels it so another rule can go"
+  ],
+  "about": "Left Bridge is held before its train arrives: the train waits until it is unheld. Later a Right train waits while Left holds the bridge; holding Left Bridge again cancels Left back to waiting, and Right is granted in the same scan.",
+  "board": {
+    "sensors": [
+      "Left",
+      "Bridge",
+      "Right"
+    ],
+    "masts": {
+      "Left Bridge": {
+        "aspects": {
+          "R292": "stop",
+          "R281": "clear"
+        }
+      },
+      "Right Bridge": {
+        "aspects": {
+          "R292": "stop",
+          "R281": "clear"
+        }
+      }
+    },
+    "logic": {
+      "resources": [
+        {
+          "name": "Bridge",
+          "blocks": [
+            "Bridge"
+          ],
+          "release": {
+            "while": {
+              "block": "Bridge",
+              "is": "clear"
+            },
+            "for": "3s"
+          }
+        }
+      ],
+      "layers": [
+        {
+          "name": "Gauntlet",
+          "rules": [
+            {
+              "trigger": {
+                "while": {
+                  "block": "Left",
+                  "is": "occupied"
+                },
+                "for": "0.5s"
+              },
+              "checks": [],
+              "then": {
+                "mast": "Left Bridge",
+                "aspect": "R281",
+                "reserve": "Bridge"
+              }
+            },
+            {
+              "trigger": {
+                "while": {
+                  "block": "Right",
+                  "is": "occupied"
+                },
+                "for": "0.5s"
+              },
+              "checks": [],
+              "then": {
+                "mast": "Right Bridge",
+                "aspect": "R281",
+                "reserve": "Bridge"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "steps": [
+    {
+      "at": 1,
+      "do": [
+        {
+          "jmri": "Left Bridge",
+          "message": "R281; Lit; Held"
+        }
+      ]
+    },
+    {
+      "at": 2,
+      "do": [
+        {
+          "sensor": "Left",
+          "is": "occupied"
+        }
+      ]
+    },
+    {
+      "at": 7,
+      "expect": {
+        "rules": {
+          "Gauntlet/1": "waiting"
+        },
+        "masts": {
+          "Left Bridge": "R292"
+        },
+        "resources": {
+          "Bridge": "IDLE"
+        },
+        "events": []
+      }
+    },
+    {
+      "at": 14,
+      "expect": {
+        "rules": {
+          "Gauntlet/1": "waiting"
+        }
+      }
+    },
+    {
+      "at": 15,
+      "do": [
+        {
+          "jmri": "Left Bridge",
+          "message": "R281; Lit; Unheld"
+        }
+      ],
+      "expect": {
+        "events": [
+          {
+            "grant": "Bridge",
+            "rule": "Gauntlet/1"
+          }
+        ],
+        "masts": {
+          "Left Bridge": "R281"
+        }
+      }
+    },
+    {
+      "at": 20,
+      "do": [
+        {
+          "sensor": "Right",
+          "is": "occupied"
+        }
+      ]
+    },
+    {
+      "at": 25,
+      "expect": {
+        "rules": {
+          "Gauntlet/2": "waiting"
+        }
+      }
+    },
+    {
+      "at": 30,
+      "do": [
+        {
+          "jmri": "Left Bridge",
+          "message": "R281; Lit; Held"
+        }
+      ],
+      "expect": {
+        "events": [
+          {
+            "cancel": "Bridge",
+            "rule": "Gauntlet/1"
+          },
+          {
+            "release": "Bridge",
+            "by": "cancel"
+          },
+          {
+            "grant": "Bridge",
+            "rule": "Gauntlet/2"
+          }
+        ],
+        "masts": {
+          "Left Bridge": "R292",
+          "Right Bridge": "R281"
+        },
+        "rules": {
+          "Gauntlet/1": "waiting",
+          "Gauntlet/2": "active"
+        }
+      }
+    }
+  ]
+}

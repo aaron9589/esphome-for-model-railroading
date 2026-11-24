@@ -1,0 +1,181 @@
+{
+  "name": "with logic on, only Held is read from JMRI's message",
+  "covers": [
+    "with logic on, a JMRI message's aspect name is ignored (`refresh()`, `null; Lit; Held`)"
+  ],
+  "about": "CATS's refresh() sends a real aspect name, and a mast that never got one sends null; Lit; Held. With logic on, the aspect name and Lit/Unlit change nothing: only Held and Unheld count.",
+  "board": {
+    "sensors": [
+      "Left",
+      "Bridge",
+      "Right"
+    ],
+    "masts": {
+      "Left Bridge": {
+        "aspects": {
+          "R292": "stop",
+          "R285": "approach",
+          "R281": "clear"
+        }
+      },
+      "Right Bridge": {
+        "aspects": {
+          "R292": "stop",
+          "R281": "clear"
+        }
+      }
+    },
+    "logic": {
+      "resources": [
+        {
+          "name": "Bridge",
+          "blocks": [
+            "Bridge"
+          ],
+          "release": {
+            "while": {
+              "block": "Bridge",
+              "is": "clear"
+            },
+            "for": "3s"
+          }
+        }
+      ],
+      "layers": [
+        {
+          "name": "Gauntlet",
+          "rules": [
+            {
+              "trigger": {
+                "while": {
+                  "block": "Left",
+                  "is": "occupied"
+                },
+                "for": "0.5s"
+              },
+              "checks": [],
+              "then": {
+                "mast": "Left Bridge",
+                "aspect": "R281",
+                "reserve": "Bridge"
+              }
+            },
+            {
+              "trigger": {
+                "while": {
+                  "block": "Right",
+                  "is": "occupied"
+                },
+                "for": "0.5s"
+              },
+              "checks": [],
+              "then": {
+                "mast": "Right Bridge",
+                "aspect": "R281",
+                "reserve": "Bridge"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "steps": [
+    {
+      "at": 1,
+      "do": [
+        {
+          "jmri": "Left Bridge",
+          "message": "R281; Lit; Unheld"
+        }
+      ],
+      "expect": {
+        "masts": {
+          "Left Bridge": "R292"
+        }
+      }
+    },
+    {
+      "at": 2,
+      "do": [
+        {
+          "sensor": "Left",
+          "is": "occupied"
+        }
+      ]
+    },
+    {
+      "at": 7,
+      "expect": {
+        "events": [
+          {
+            "grant": "Bridge",
+            "rule": "Gauntlet/1"
+          }
+        ],
+        "masts": {
+          "Left Bridge": "R281"
+        }
+      }
+    },
+    {
+      "at": 10,
+      "do": [
+        {
+          "jmri": "Left Bridge",
+          "message": "null; Lit; Held"
+        }
+      ],
+      "expect": {
+        "events": [
+          {
+            "cancel": "Bridge",
+            "rule": "Gauntlet/1"
+          },
+          {
+            "release": "Bridge",
+            "by": "cancel"
+          }
+        ],
+        "masts": {
+          "Left Bridge": "R292"
+        }
+      }
+    },
+    {
+      "at": 15,
+      "do": [
+        {
+          "jmri": "Left Bridge",
+          "message": "R292; Lit; Unheld"
+        }
+      ],
+      "expect": {
+        "events": [
+          {
+            "grant": "Bridge",
+            "rule": "Gauntlet/1"
+          }
+        ],
+        "masts": {
+          "Left Bridge": "R281"
+        }
+      }
+    },
+    {
+      "at": 20,
+      "do": [
+        {
+          "jmri": "Left Bridge",
+          "message": "R285; Unlit; Unheld"
+        }
+      ],
+      "expect": {
+        "events": [],
+        "masts": {
+          "Left Bridge": "R281"
+        }
+      }
+    }
+  ]
+}

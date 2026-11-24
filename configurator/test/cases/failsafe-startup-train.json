@@ -1,0 +1,164 @@
+{
+  "name": "start-up with a train on the bridge: held, PASSED, released after the delay",
+  "covers": [
+    "the start-up scan with a train in the section (held, PASSED, releases after the delay), and with all clear"
+  ],
+  "about": "The board starts with Bridge occupied and a train waiting at Left. The bridge is held and PASSED with no holder, so nothing clears; 3s after the bridge clears it releases and Left is granted.",
+  "board": {
+    "sensors": [
+      "Left",
+      "Bridge",
+      "Right"
+    ],
+    "masts": {
+      "Left Bridge": {
+        "aspects": {
+          "R292": "stop",
+          "R281": "clear"
+        }
+      },
+      "Right Bridge": {
+        "aspects": {
+          "R292": "stop",
+          "R281": "clear"
+        }
+      }
+    },
+    "logic": {
+      "resources": [
+        {
+          "name": "Bridge",
+          "blocks": [
+            "Bridge"
+          ],
+          "release": {
+            "while": {
+              "block": "Bridge",
+              "is": "clear"
+            },
+            "for": "3s"
+          }
+        }
+      ],
+      "layers": [
+        {
+          "name": "Gauntlet",
+          "rules": [
+            {
+              "trigger": {
+                "while": {
+                  "block": "Left",
+                  "is": "occupied"
+                },
+                "for": "0.5s"
+              },
+              "checks": [],
+              "then": {
+                "mast": "Left Bridge",
+                "aspect": "R281",
+                "reserve": "Bridge"
+              }
+            },
+            {
+              "trigger": {
+                "while": {
+                  "block": "Right",
+                  "is": "occupied"
+                },
+                "for": "0.5s"
+              },
+              "checks": [],
+              "then": {
+                "mast": "Right Bridge",
+                "aspect": "R281",
+                "reserve": "Bridge"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "start": {
+    "sensors": {
+      "Bridge": "occupied",
+      "Left": "occupied"
+    }
+  },
+  "steps": [
+    {
+      "at": 0,
+      "expect": {
+        "events": [
+          {
+            "startup": true
+          },
+          {
+            "pass": "Bridge",
+            "rule": null
+          }
+        ],
+        "resources": {
+          "Bridge": "PASSED"
+        },
+        "holders": {
+          "Bridge": null
+        },
+        "masts": {
+          "Left Bridge": "R292",
+          "Right Bridge": "R292"
+        },
+        "rules": {
+          "Gauntlet/1": "idle"
+        }
+      }
+    },
+    {
+      "at": 5,
+      "expect": {
+        "rules": {
+          "Gauntlet/1": "waiting"
+        },
+        "events": []
+      }
+    },
+    {
+      "at": 10,
+      "do": [
+        {
+          "sensor": "Bridge",
+          "is": "clear"
+        }
+      ]
+    },
+    {
+      "at": 39,
+      "expect": {
+        "resources": {
+          "Bridge": "PASSED"
+        },
+        "masts": {
+          "Left Bridge": "R292"
+        }
+      }
+    },
+    {
+      "at": 40,
+      "expect": {
+        "events": [
+          {
+            "release": "Bridge",
+            "by": "release"
+          },
+          {
+            "grant": "Bridge",
+            "rule": "Gauntlet/1"
+          }
+        ],
+        "masts": {
+          "Left Bridge": "R281"
+        }
+      }
+    }
+  ]
+}

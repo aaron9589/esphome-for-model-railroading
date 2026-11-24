@@ -1,0 +1,134 @@
+{
+  "name": "start-up with the bridge clear and trains at both ends: list order",
+  "covers": [
+    "the start-up scan with a train in the section (held, PASSED, releases after the delay), and with all clear"
+  ],
+  "about": "Both trigger blocks are occupied at power-on. Their 0.5s timers start at the start-up scan, so both rules ask in the same scan and Left, listed first, is granted.",
+  "board": {
+    "sensors": [
+      "Left",
+      "Bridge",
+      "Right"
+    ],
+    "masts": {
+      "Left Bridge": {
+        "aspects": {
+          "R292": "stop",
+          "R281": "clear"
+        }
+      },
+      "Right Bridge": {
+        "aspects": {
+          "R292": "stop",
+          "R281": "clear"
+        }
+      }
+    },
+    "logic": {
+      "resources": [
+        {
+          "name": "Bridge",
+          "blocks": [
+            "Bridge"
+          ],
+          "release": {
+            "while": {
+              "block": "Bridge",
+              "is": "clear"
+            },
+            "for": "3s"
+          }
+        }
+      ],
+      "layers": [
+        {
+          "name": "Gauntlet",
+          "rules": [
+            {
+              "trigger": {
+                "while": {
+                  "block": "Left",
+                  "is": "occupied"
+                },
+                "for": "0.5s"
+              },
+              "checks": [],
+              "then": {
+                "mast": "Left Bridge",
+                "aspect": "R281",
+                "reserve": "Bridge"
+              }
+            },
+            {
+              "trigger": {
+                "while": {
+                  "block": "Right",
+                  "is": "occupied"
+                },
+                "for": "0.5s"
+              },
+              "checks": [],
+              "then": {
+                "mast": "Right Bridge",
+                "aspect": "R281",
+                "reserve": "Bridge"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "start": {
+    "sensors": {
+      "Left": "occupied",
+      "Right": "occupied"
+    }
+  },
+  "steps": [
+    {
+      "at": 0,
+      "expect": {
+        "events": [
+          {
+            "startup": true
+          }
+        ],
+        "resources": {
+          "Bridge": "IDLE"
+        },
+        "masts": {
+          "Left Bridge": "R292",
+          "Right Bridge": "R292"
+        }
+      }
+    },
+    {
+      "at": 4,
+      "expect": {
+        "rules": {
+          "Gauntlet/1": "idle",
+          "Gauntlet/2": "idle"
+        }
+      }
+    },
+    {
+      "at": 5,
+      "expect": {
+        "events": [
+          {
+            "grant": "Bridge",
+            "rule": "Gauntlet/1"
+          }
+        ],
+        "rules": {
+          "Gauntlet/2": "waiting"
+        },
+        "masts": {
+          "Left Bridge": "R281",
+          "Right Bridge": "R292"
+        }
+      }
+    }
+  ]
+}

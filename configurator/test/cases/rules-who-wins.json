@@ -1,0 +1,277 @@
+{
+  "name": "who wins: first active rule in a layer, most restrictive across layers, first layer on a tie",
+  "covers": [
+    "who wins a mast: first active rule within a layer, most restrictive across layers, in tag order"
+  ],
+  "about": "Home has one layer of two rules: the first active one wins, whatever its aspect. Exit has three layers: the most restrictive tag wins, a layer with no active rule says Stop, two clear aspects go to the first layer, and a hold is one more layer saying Stop.",
+  "board": {
+    "sensors": [
+      "A",
+      "B",
+      "C",
+      "D",
+      "E"
+    ],
+    "masts": {
+      "Home": {
+        "aspects": {
+          "R292": "stop",
+          "R285": "approach",
+          "R281": "clear"
+        }
+      },
+      "Exit": {
+        "aspects": {
+          "R292": "stop",
+          "R287": "restricting",
+          "R285": "approach",
+          "ADV_NORM": "advance",
+          "R282": "clear",
+          "R281": "clear"
+        }
+      }
+    },
+    "logic": {
+      "layers": [
+        {
+          "name": "Order",
+          "rules": [
+            {
+              "trigger": {
+                "while": {
+                  "block": "A",
+                  "is": "clear"
+                }
+              },
+              "checks": [],
+              "then": {
+                "mast": "Home",
+                "aspect": "R281"
+              }
+            },
+            {
+              "trigger": {
+                "while": {
+                  "block": "B",
+                  "is": "clear"
+                }
+              },
+              "checks": [],
+              "then": {
+                "mast": "Home",
+                "aspect": "R285"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Near",
+          "rules": [
+            {
+              "trigger": {
+                "while": {
+                  "block": "C",
+                  "is": "clear"
+                }
+              },
+              "checks": [],
+              "then": {
+                "mast": "Exit",
+                "aspect": "R282"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Far",
+          "rules": [
+            {
+              "trigger": {
+                "while": {
+                  "block": "D",
+                  "is": "clear"
+                }
+              },
+              "checks": [],
+              "then": {
+                "mast": "Exit",
+                "aspect": "ADV_NORM"
+              }
+            },
+            {
+              "trigger": {
+                "while": {
+                  "block": "D",
+                  "is": "occupied"
+                }
+              },
+              "checks": [],
+              "then": {
+                "mast": "Exit",
+                "aspect": "R281"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Last",
+          "rules": [
+            {
+              "trigger": {
+                "while": {
+                  "block": "E",
+                  "is": "clear"
+                }
+              },
+              "checks": [],
+              "then": {
+                "mast": "Exit",
+                "aspect": "R281"
+              }
+            },
+            {
+              "trigger": {
+                "while": {
+                  "block": "E",
+                  "is": "occupied"
+                }
+              },
+              "checks": [],
+              "then": {
+                "mast": "Exit",
+                "aspect": "R287"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "steps": [
+    {
+      "at": 0,
+      "expect": {
+        "masts": {
+          "Home": "R281",
+          "Exit": "ADV_NORM"
+        }
+      }
+    },
+    {
+      "at": 1,
+      "do": [
+        {
+          "sensor": "A",
+          "is": "occupied"
+        }
+      ],
+      "expect": {
+        "masts": {
+          "Home": "R285",
+          "Exit": "ADV_NORM"
+        }
+      }
+    },
+    {
+      "at": 2,
+      "do": [
+        {
+          "sensor": "B",
+          "is": "occupied"
+        }
+      ],
+      "expect": {
+        "masts": {
+          "Home": "R292"
+        }
+      }
+    },
+    {
+      "at": 3,
+      "do": [
+        {
+          "sensor": "A",
+          "is": "clear"
+        },
+        {
+          "sensor": "B",
+          "is": "clear"
+        },
+        {
+          "sensor": "D",
+          "is": "occupied"
+        }
+      ],
+      "expect": {
+        "masts": {
+          "Home": "R281",
+          "Exit": "R282"
+        }
+      }
+    },
+    {
+      "at": 4,
+      "do": [
+        {
+          "sensor": "E",
+          "is": "occupied"
+        }
+      ],
+      "expect": {
+        "masts": {
+          "Exit": "R287"
+        }
+      }
+    },
+    {
+      "at": 5,
+      "do": [
+        {
+          "sensor": "C",
+          "is": "occupied"
+        }
+      ],
+      "expect": {
+        "masts": {
+          "Exit": "R292"
+        }
+      }
+    },
+    {
+      "at": 6,
+      "do": [
+        {
+          "sensor": "C",
+          "is": "clear"
+        },
+        {
+          "sensor": "E",
+          "is": "clear"
+        },
+        {
+          "jmri": "Exit",
+          "message": "R281; Lit; Held"
+        }
+      ],
+      "expect": {
+        "masts": {
+          "Exit": "R292"
+        }
+      }
+    },
+    {
+      "at": 7,
+      "do": [
+        {
+          "jmri": "Exit",
+          "message": "R281; Lit; Unheld"
+        }
+      ],
+      "expect": {
+        "masts": {
+          "Exit": "R282"
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,202 @@
+{
+  "name": "switching off hands masts to JMRI's last aspect; switching on starts again from Stop",
+  "covers": [
+    "switching off hands masts to JMRI's last aspect; switching on runs a start-up scan."
+  ],
+  "about": "JMRI's R285 is recorded while logic is on. Switching off frees the bridge; Left Bridge takes JMRI's last aspect and Right Bridge, which never got one, its stop aspect. While off, JMRI drives the mast at once. Switching on runs a start-up scan: both masts at Stop, and the waiting train is granted 0.5s later.",
+  "board": {
+    "sensors": [
+      "Left",
+      "Bridge",
+      "Right"
+    ],
+    "masts": {
+      "Left Bridge": {
+        "aspects": {
+          "R292": "stop",
+          "R285": "approach",
+          "R281": "clear"
+        }
+      },
+      "Right Bridge": {
+        "aspects": {
+          "R292": "stop",
+          "R281": "clear"
+        }
+      }
+    },
+    "logic": {
+      "resources": [
+        {
+          "name": "Bridge",
+          "blocks": [
+            "Bridge"
+          ],
+          "release": {
+            "while": {
+              "block": "Bridge",
+              "is": "clear"
+            },
+            "for": "3s"
+          }
+        }
+      ],
+      "layers": [
+        {
+          "name": "Gauntlet",
+          "rules": [
+            {
+              "trigger": {
+                "while": {
+                  "block": "Left",
+                  "is": "occupied"
+                },
+                "for": "0.5s"
+              },
+              "checks": [],
+              "then": {
+                "mast": "Left Bridge",
+                "aspect": "R281",
+                "reserve": "Bridge"
+              }
+            },
+            {
+              "trigger": {
+                "while": {
+                  "block": "Right",
+                  "is": "occupied"
+                },
+                "for": "0.5s"
+              },
+              "checks": [],
+              "then": {
+                "mast": "Right Bridge",
+                "aspect": "R281",
+                "reserve": "Bridge"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "steps": [
+    {
+      "at": 1,
+      "do": [
+        {
+          "jmri": "Left Bridge",
+          "message": "R285; Lit; Unheld"
+        }
+      ],
+      "expect": {
+        "masts": {
+          "Left Bridge": "R292"
+        }
+      }
+    },
+    {
+      "at": 2,
+      "do": [
+        {
+          "sensor": "Left",
+          "is": "occupied"
+        }
+      ]
+    },
+    {
+      "at": 7,
+      "expect": {
+        "events": [
+          {
+            "grant": "Bridge",
+            "rule": "Gauntlet/1"
+          }
+        ],
+        "masts": {
+          "Left Bridge": "R281"
+        }
+      }
+    },
+    {
+      "at": 10,
+      "do": [
+        {
+          "logic": "off"
+        }
+      ],
+      "expect": {
+        "events": [
+          {
+            "release": "Bridge",
+            "by": "switch"
+          }
+        ],
+        "logic": "off",
+        "resources": {
+          "Bridge": "IDLE"
+        },
+        "masts": {
+          "Left Bridge": "R285",
+          "Right Bridge": "R292"
+        }
+      }
+    },
+    {
+      "at": 15,
+      "do": [
+        {
+          "jmri": "Left Bridge",
+          "message": "R281; Lit; Unheld"
+        }
+      ],
+      "expect": {
+        "masts": {
+          "Left Bridge": "R281"
+        }
+      }
+    },
+    {
+      "at": 20,
+      "do": [
+        {
+          "logic": "on"
+        }
+      ],
+      "expect": {
+        "logic": "on",
+        "events": [
+          {
+            "startup": true
+          }
+        ],
+        "masts": {
+          "Left Bridge": "R292",
+          "Right Bridge": "R292"
+        }
+      }
+    },
+    {
+      "at": 24,
+      "expect": {
+        "rules": {
+          "Gauntlet/1": "idle"
+        }
+      }
+    },
+    {
+      "at": 25,
+      "expect": {
+        "events": [
+          {
+            "grant": "Bridge",
+            "rule": "Gauntlet/1"
+          }
+        ],
+        "masts": {
+          "Left Bridge": "R281"
+        }
+      }
+    }
+  ]
+}
