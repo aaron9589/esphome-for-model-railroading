@@ -3,6 +3,12 @@ const {
   STRAPPING_PINS,
   NO_PULLUP_PINS,
   MAX_PCA_BOARDS,
+  MCP_ADDRESSES,
+  MAX_EXPANDERS_PER_BUS,
+  expanderPinLabel,
+  i2cBuses,
+  i2cBusLimit,
+  pcaInUse,
   ensureSecrets,
   generatePassword,
   generateYaml,
@@ -89,6 +95,8 @@ const el = {
   addPoint: document.getElementById("btn-add-point"),
   directPwmNote: document.getElementById("direct-pwm-note"),
   blocksList: document.getElementById("blocks-list"),
+  expandersList: document.getElementById("expanders-list"),
+  pinBudget: document.getElementById("pin-budget"),
   pointsList: document.getElementById("points-list"),
   preview: document.getElementById("yaml-preview"),
   importFile: document.getElementById("import-file"),
@@ -147,7 +155,7 @@ document.getElementById("btn-add-block").addEventListener("click", () => {
     name,
     topic: topicFor("block", name),
     topicCustom: false,
-    gpio: "GPIO14",
+    ...nextSensorPin(),
     inverted: true,
     debounce: "500ms",
   });
@@ -534,6 +542,78 @@ function blockPinChoices(current) {
   return choices;
 }
 
+// ESP pins a detector can use, in the order Add sensor tries them.
+function sensorEspPins() {
+  const pullup = PULLUP_PINS.filter((pin) => !STRAPPING_PINS.has(pin));
+  return ["GPIO14", ...pullup.filter((pin) => pin !== "GPIO14"), ...Object.keys(NO_PULLUP_PINS),
+    ...PULLUP_PINS.filter((pin) => STRAPPING_PINS.has(pin))];
+}
+
+function usedExpanderPins(except) {
+  const used = new Set();
+  for (const block of state.blocks) {
+    if (block !== except && block.expander) used.add(`${block.expander}\u0000${block.pin}`);
+  }
+  return used;
+}
+
+// A new sensor's pin: a free ESP pin, then a free expander pin.
+function nextSensorPin() {
+  const used = usedPins();
+  const esp = sensorEspPins().find((pin) => !used.has(pin));
+  if (esp) return { gpio: esp };
+  const usedExp = usedExpanderPins();
+  for (const expander of state.expanders || []) {
+    for (let pin = 0; pin < 16; pin += 1) {
+      if (!usedExp.has(`${expander.name}\u0000${pin}`)) return { expander: expander.name, pin };
+    }
+  }
+  return { gpio: "" };
+}
+
+// Free ESP input pins, for the pin budget hint.
+function freeSensorPins() {
+  const used = usedPins();
+  return sensorEspPins().filter((pin) => !used.has(pin)).length;
+}
+
+// A sensor's pin dropdown: free ESP pins, then free expander pins, and its
+// own pin. Expander pins are "mcp:<index>:<pin>".
+function sensorPinChoices(block) {
+  const used = usedPins();
+  const own = block.expander ? "" : String(block.gpio || "").toUpperCase();
+  const choices = blockPinChoices(own).filter((choice) => choice.value === own || !used.has(choice.value));
+  if (!own) choices.unshift({ value: "", label: "Pick a pin", disabled: true });
+  const usedExp = usedExpanderPins(block);
+  (state.expanders || []).forEach((expander, i) => {
+    for (let pin = 0; pin < 16; pin += 1) {
+      const mine = block.expander === expander.name && Number(block.pin) === pin;
+      if (!mine && usedExp.has(`${expander.name}\u0000${pin}`)) continue;
+      choices.push({ value: `mcp:${i}:${pin}`, label: `${expander.name} · ${expanderPinLabel(pin)}` });
+    }
+  });
+  return choices;
+}
+
+function sensorPinValue(block) {
+  if (!block.expander) return String(block.gpio || "").toUpperCase();
+  const i = (state.expanders || []).findIndex((expander) => expander.name === block.expander);
+  return i >= 0 ? `mcp:${i}:${Number(block.pin)}` : "";
+}
+
+function setSensorPin(block, value) {
+  const match = /^mcp:(\d+):(\d+)$/.exec(value);
+  if (match) {
+    block.expander = state.expanders[Number(match[1])].name;
+    block.pin = Number(match[2]);
+    delete block.gpio;
+  } else {
+    block.gpio = value;
+    delete block.expander;
+    delete block.pin;
+  }
+}
+
 function usedPins() {
   const used = new Set();
   for (const block of state.blocks || []) {
@@ -544,6 +624,12 @@ function usedPins() {
       if (pcaBoard.sda) used.add(String(pcaBoard.sda).toUpperCase());
       if (pcaBoard.scl) used.add(String(pcaBoard.scl).toUpperCase());
     }
+  }
+  // An expander on a PCA9685 board with no turnouts uses that board's pins.
+  for (const expander of state.expanders || []) {
+    const pins = expander.bus ? (pcaInUse(state) ? null : state.pcaBoards[expander.bus - 1]) : expander;
+    if (pins?.sda) used.add(String(pins.sda).toUpperCase());
+    if (pins?.scl) used.add(String(pins.scl).toUpperCase());
   }
   for (const point of state.points || []) {
     if (!usesPca() && point.servoPin) used.add(String(point.servoPin).toUpperCase());
@@ -786,13 +872,15 @@ function renderBlocks() {
         hint: "Name in the logs. The topic is filled in from this.",
       }),
       topicField,
-      field("GPIO", block.gpio, (v) => {
-        block.gpio = v;
+      field("Pin", sensorPinValue(block), (v) => {
+        setSensorPin(block, v);
         persist();
-        updatePreview();
+        render();
       }, {
-        select: blockPinChoices(block.gpio),
-        hint: "Pin this detector uses. VP, VN, 34, and 35 have no pull-up.",
+        select: sensorPinChoices(block),
+        hint: (state.expanders || []).length
+          ? "Pin this detector uses. VP, VN, 34, and 35 have no pull-up. Expander pins wire the same as ESP pins."
+          : "Pin this detector uses. VP, VN, 34, and 35 have no pull-up.",
       }),
       field("Debounce", block.debounce, (v) => {
         block.debounce = v.trim() || "500ms";
@@ -814,6 +902,179 @@ function renderBlocks() {
     card.append(header, fields);
     el.blocksList.append(card);
   });
+}
+
+// Where a new expander goes: a PCA9685 bus in use, else the pins another
+// expander already uses, else GPIO21/GPIO22 or the next free pair.
+function newExpanderBus() {
+  if (pcaInUse(state)) return { bus: 1 };
+  const own = (state.expanders || []).find((expander) => !expander.bus);
+  if (own) return { sda: own.sda, scl: own.scl };
+  const used = usedPins();
+  if (!used.has("GPIO21") && !used.has("GPIO22")) return { sda: "GPIO21", scl: "GPIO22" };
+  const sda = nextServoPin();
+  used.add(sda);
+  const scl = PULLUP_PINS.find((pin) => !used.has(pin) && !STRAPPING_PINS.has(pin)) || "GPIO22";
+  return { sda, scl };
+}
+
+// The other expanders on the same bus as `expander` (or as `where`).
+function busMates(expander, where = expander) {
+  return (state.expanders || []).filter((other) => other !== expander && (where.bus
+    ? other.bus === where.bus
+    : !other.bus && other.sda === where.sda && other.scl === where.scl));
+}
+
+function freeAddress(expander, where) {
+  const taken = new Set(busMates(expander, where).map((other) => other.address));
+  return MCP_ADDRESSES.find((address) => !taken.has(address)) || "0x20";
+}
+
+function expanderBusChoices(expander) {
+  const choices = [];
+  if (pcaInUse(state)) {
+    state.pcaBoards.forEach((pcaBoard, i) => {
+      choices.push({ value: `pca:${i + 1}`, label: `Shares PCA9685 ${i + 1} (${pcaBoard.sda}, ${pcaBoard.scl})` });
+    });
+  }
+  if (expander.bus && !choices.some((choice) => choice.value === `pca:${expander.bus}`)) {
+    const pins = state.pcaBoards[expander.bus - 1];
+    choices.push({ value: `pca:${expander.bus}`, label: pins ? `PCA9685 ${expander.bus}'s pins (${pins.sda}, ${pins.scl}), no turnouts on it` : `PCA9685 ${expander.bus}, which is gone` });
+  }
+  choices.push({ value: "own", label: "Its own SDA and SCL pins" });
+  return choices;
+}
+
+function renderExpanders() {
+  const expanders = state.expanders || [];
+  el.expandersList.replaceChildren();
+  expanders.forEach((expander, index) => {
+    const card = document.createElement("div");
+    card.className = "row-card";
+    const header = document.createElement("header");
+    const title = document.createElement("h3");
+    title.textContent = expander.name;
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.className = "remove";
+    remove.textContent = "Remove";
+    remove.addEventListener("click", () => {
+      const orphans = state.blocks.filter((block) => block.expander === expander.name);
+      for (const block of orphans) setSensorPin(block, "");
+      expanders.splice(index, 1);
+      persist();
+      render();
+      if (orphans.length) flash("err", `${orphans.length} sensor${orphans.length > 1 ? "s were" : " was"} on ${expander.name}. Pick a new pin for ${orphans.length > 1 ? "them" : "it"}.`);
+    });
+    const actions = document.createElement("div");
+    actions.className = "row-actions";
+    actions.append(remove);
+    header.append(title, actions);
+
+    const fields = document.createElement("div");
+    fields.className = "fields";
+    // Sensors follow a renamed expander. They are picked when the edit starts,
+    // so passing through another expander's name does not take its sensors.
+    let following = null;
+    const nameField = field("Name", expander.name, (v) => {
+      if (!following) following = state.blocks.filter((block) => block.expander === expander.name);
+      expander.name = v;
+      for (const block of following) block.expander = v;
+      title.textContent = v || `Expander ${index + 1}`;
+      persist();
+      updatePreview();
+    }, { placeholder: "MCP 1", hint: "Shown in each sensor's pin list, such as MCP 1 · B3." });
+    nameField.querySelector("input").addEventListener("change", () => {
+      following = null;
+      render();
+    });
+    const busField = field("I2C bus", expander.bus ? `pca:${expander.bus}` : "own", (v) => {
+      if (v === "own") {
+        const own = newExpanderBus();
+        delete expander.bus;
+        expander.sda = own.sda || "GPIO21";
+        expander.scl = own.scl || "GPIO22";
+      } else {
+        expander.bus = Number(v.slice(4));
+        delete expander.sda;
+        delete expander.scl;
+      }
+      if (busMates(expander).some((other) => other.address === expander.address)) expander.address = freeAddress(expander);
+      persist();
+      render();
+    }, {
+      select: expanderBusChoices(expander),
+      hint: "Sharing a PCA9685 board's pins saves two ESP pins. The PCA9685 is at 0x40, so the addresses do not clash.",
+    });
+    const mates = busMates(expander);
+    const addressField = field("Address", expander.address, (v) => {
+      expander.address = v;
+      persist();
+      render();
+    }, {
+      select: MCP_ADDRESSES.map((address) => {
+        const other = mates.find((mate) => mate.address === address);
+        return { value: address, label: other ? `${address} (${other.name})` : address };
+      }),
+      hint: "Set by the A0, A1 and A2 links on the expander. All three to GND is 0x20.",
+    });
+    fields.append(nameField, busField, addressField);
+    if (!expander.bus) {
+      fields.append(
+        field("SDA pin", String(expander.sda || "").toUpperCase(), (v) => {
+          expander.sda = v;
+          persist();
+          render();
+        }, { select: i2cPinChoices(expander.sda), hint: "Data pin. Expanders with the same pins share one bus." }),
+        field("SCL pin", String(expander.scl || "").toUpperCase(), (v) => {
+          expander.scl = v;
+          persist();
+          render();
+        }, { select: i2cPinChoices(expander.scl), hint: "Clock pin." })
+      );
+    }
+    const count = state.blocks.filter((block) => block.expander === expander.name).length;
+    const used = document.createElement("p");
+    used.className = "hint full";
+    used.textContent = `${count} of 16 pins used.`;
+    fields.append(used);
+    card.append(header, fields);
+    el.expandersList.append(card);
+  });
+
+  const add = document.createElement("button");
+  add.type = "button";
+  add.textContent = "Add expander";
+  const buses = i2cBuses(state);
+  const limit = i2cBusLimit(state.board.module);
+  add.addEventListener("click", () => {
+    const names = new Set(expanders.map((expander) => expander.name));
+    let n = expanders.length + 1;
+    while (names.has(`MCP ${n}`)) n += 1;
+    const expander = { name: `MCP ${n}`, ...newExpanderBus() };
+    expander.address = freeAddress(expander);
+    expanders.push(expander);
+    state.expanders = expanders;
+    persist();
+    render();
+  });
+  const row = document.createElement("div");
+  row.className = "add-board";
+  row.append(add, hintEl(`Up to ${MAX_EXPANDERS_PER_BUS} on one I2C bus. An ESP32 has ${limit} buses${buses.length ? `, and this board uses ${buses.length}` : ""}.`));
+  el.expandersList.append(row);
+}
+
+function renderPinBudget() {
+  const free = freeSensorPins();
+  const hasExpander = (state.expanders || []).length > 0;
+  el.pinBudget.classList.toggle("is-out", free === 0 && !hasExpander);
+  if (free > 0) {
+    el.pinBudget.textContent = `${free} ESP pin${free === 1 ? "" : "s"} free for sensors.`;
+  } else if (hasExpander) {
+    el.pinBudget.textContent = "No ESP pins free. New sensors go on expander pins.";
+  } else {
+    el.pinBudget.textContent = "No ESP pins free for sensors. Add an expander (MCP23017) below for 16 more.";
+  }
 }
 
 function renderPoints() {
@@ -879,6 +1140,16 @@ function renderPcaBoard(pcaBoard, b) {
           point.channel = nextChannel(0, point);
         } else if (on > b) {
           point.pcaBoard = on - 1;
+        }
+      }
+      // Expanders on its bus keep the same pins, now as their own.
+      for (const expander of state.expanders || []) {
+        if (expander.bus === b + 1) {
+          delete expander.bus;
+          expander.sda = String(pcaBoard.sda || "").toUpperCase();
+          expander.scl = String(pcaBoard.scl || "").toUpperCase();
+        } else if (expander.bus > b + 1) {
+          expander.bus -= 1;
         }
       }
       state.pcaBoards.splice(b, 1);
@@ -1766,6 +2037,8 @@ function render() {
   renderBoard();
   renderDriver();
   renderBlocks();
+  renderExpanders();
+  renderPinBudget();
   renderPoints();
   renderSignals();
   updatePreview();

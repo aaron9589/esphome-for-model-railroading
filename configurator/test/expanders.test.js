@@ -138,14 +138,19 @@ test("two buses at most", () => {
   assert.ok(errorsOf(config).some((e) => e.includes("2 I2C buses, and this board needs 3")));
 });
 
-test("sharing a PCA9685 bus needs that board in use", () => {
+test("sharing a PCA9685 board with no turnouts uses its pins as the expander's own bus", () => {
   const config = board({ points: [], expanders: [{ name: "MCP 1", bus: 1, address: "0x20" }] });
-  assert.ok(errorsOf(config).some((e) => e.includes("MCP 1 shares PCA9685 1's I2C pins")));
+  config.blocks.push(sensor("Yard 1", "MCP 1", 8));
+  assert.deepEqual(errorsOf(config), []);
+  assert.match(yamlFor(config, "shared-unused"), /^i2c:\n  sda: GPIO21\n  scl: GPIO22\n  scan: true\n\nmcp23017:\n  - id: mcp23017_1\n    address: 0x20\n\n/m);
+
+  // With servos on ESP pins, those pins are the expander's, and a servo on one clashes.
   const servos = board({ pca9685: false, expanders: [{ name: "MCP 1", bus: 1, address: "0x20" }] });
-  servos.points[0].servoPin = "GPIO18";
-  assert.ok(errorsOf(servos).some((e) => e.includes("shares PCA9685 1's I2C pins")));
+  servos.points[0].servoPin = "GPIO21";
+  assert.ok(validateConfig(normalizeConfig(servos)).warnings.some((w) => w.includes("GPIO clash: GPIO21")));
+
   const missing = board({ expanders: [{ name: "MCP 1", bus: 2, address: "0x20" }] });
-  assert.ok(errorsOf(missing).some((e) => e.includes("PCA9685 2")));
+  assert.ok(errorsOf(missing).some((e) => e.includes("there is no PCA9685 2")));
 });
 
 test("own pins must be both of a bus's pins, and usable", () => {

@@ -87,7 +87,9 @@ function pcaInUse(config) {
  * The I2C buses this board drives, in order: each PCA9685 board in use, then
  * each pair of expander pins not already a bus. Each bus lists its PCA9685
  * board (`pca`, or null) and its expanders (indexes into config.expanders).
- * An expander that shares a board not in use is left off (a validation error).
+ * An expander that shares a board with no turnouts uses that board's pins as
+ * its own bus. One that shares a board that does not exist is left off (a
+ * validation error).
  */
 function i2cBuses(config) {
   const buses = [];
@@ -98,13 +100,12 @@ function i2cBuses(config) {
     });
   }
   (config.expanders || []).forEach((expander, i) => {
-    let bus;
-    if (expander.bus) {
-      bus = buses.find((b) => b.pca === expander.bus - 1);
-      if (!bus) return;
-    } else {
-      const sda = String(expander.sda || "").toUpperCase();
-      const scl = String(expander.scl || "").toUpperCase();
+    let bus = expander.bus ? buses.find((b) => b.pca === expander.bus - 1) : null;
+    if (!bus) {
+      const pins = expander.bus ? pcaBoards[expander.bus - 1] : expander;
+      if (!pins) return;
+      const sda = String(pins.sda || "").toUpperCase();
+      const scl = String(pins.scl || "").toUpperCase();
       bus = buses.find((b) => b.sda === sda && b.scl === scl);
       if (!bus) {
         bus = { sda, scl, pca: null, expanders: [] };
@@ -652,10 +653,8 @@ function validateConfig(config) {
       if (!MCP_ADDRESSES.includes(expander.address)) {
         errors.push(`${expander.name} address ${expander.address} is not 0x20 to 0x27. The A0-A2 links on the expander set it.`);
       }
-      if (expander.bus) {
-        if (!pcaInUse(config) || expander.bus > pcaBoards.length) {
-          errors.push(`${expander.name} shares PCA9685 ${expander.bus}'s I2C pins, but this board has no turnouts on a PCA9685 ${expander.bus}. Give the expander its own SDA and SCL pins.`);
-        }
+      if (expander.bus && expander.bus > pcaBoards.length) {
+        errors.push(`${expander.name} shares PCA9685 ${expander.bus}'s I2C pins, but there is no PCA9685 ${expander.bus} on the Turnouts page. Give the expander its own SDA and SCL pins.`);
       }
     });
     const buses = i2cBuses(config);

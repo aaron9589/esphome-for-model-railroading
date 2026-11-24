@@ -93,8 +93,14 @@
                 <button type="button" id="btn-add-block" class="primary">Add sensor</button>
               </div>
             </header>
+            <p id="pin-budget" class="pin-budget"></p>
             <div id="blocks-list"></div>
             <p id="blocks-empty" class="empty" hidden>No sensors yet.</p>
+            <div class="card" id="expanders-card">
+              <h3>Expanders (MCP23017)</h3>
+              <p class="card-copy">An expander adds 16 sensor pins over I2C. Wire a detector to an expander pin and GND, the same as an ESP pin. It can share a PCA9685 board's SDA and SCL pins, or have its own.</p>
+              <div id="expanders-list"></div>
+            </div>
             <div class="pager">
               <button type="button" data-goto="board">Back: board</button>
               <button type="button" class="primary" data-goto="points">Next: turnouts</button>
