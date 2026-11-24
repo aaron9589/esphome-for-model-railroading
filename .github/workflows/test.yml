@@ -1,8 +1,9 @@
 name: Tests
 
 on:
+  # logic/** covers work items stacked on another item's branch.
   pull_request:
-    branches: [main, feature/logic]
+    branches: [main, feature/logic, "logic/**"]
   # Pushes to main are tested by pages.yml, which calls this before it deploys.
   push:
     branches: [feature/logic]

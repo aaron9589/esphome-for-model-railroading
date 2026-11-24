@@ -54,7 +54,7 @@ This repo is a beginner path for model-railroad ESP32 boards that talk to JMRI/C
 ## Board Configurator
 
 - Live at https://aaron9589.github.io/esphome-for-model-railroading/
-- Source: `configurator/` (static site). Deployed by `.github/workflows/pages.yml` on pushes to `main` that touch `configurator/**`, only after `.github/workflows/test.yml` passes; `configurator/test/` is left out of the site. `test.yml` also runs on PRs into `main` and `feature/logic` and on pushes to `feature/logic`.
+- Source: `configurator/` (static site). Deployed by `.github/workflows/pages.yml` on pushes to `main` that touch `configurator/**`, only after `.github/workflows/test.yml` passes; `configurator/test/` is left out of the site. `test.yml` also runs on PRs into `main`, `feature/logic` and `logic/**` (stacked work items) and on pushes to `feature/logic`.
 - Writes one `board.yaml` with an `esphome-mr-config:1` comment so the same file can be imported again. Do not invent a second file format.
 - The mast editor lists lamps top of the mast first (with LED numbers; the stored `lamps` array stays LED 0 first) and shows each aspect as a card with a small mast picture; click a lamp to set its colour and effect. The raw JMRI match strings sit under a collapsed *JMRI aspect* section. There are no lamp presets.
 - The UI calls the sections Sensors, Turnouts, and Signal Masts (the JMRI table names), with a JMRI badge in the nav. The stored keys stay `blocks`, `points`, and `signals` so old files import.
