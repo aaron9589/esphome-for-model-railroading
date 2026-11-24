@@ -2,15 +2,13 @@
 
 Field Logic lets a board work out its own signals from rules you build on the configurator's **Logic** page, so the signals keep working when JMRI is closed.
 
-This guide is written in chapters, one for each part of the Logic page as it is built. This first chapter covers the groundwork that rules will stand on:
+This guide is written in chapters, one for each part of the Logic page as it is built. So far it covers:
 
-- a name that is unique at a meet (the **suffix**)
-- more sensor pins with an **expander**
-- **Share with other boards**
-- **blocks**: a stretch of track made of several sensors, which JMRI sees as one sensor
-- **linked boards**: reading another board's sensors.
+- the groundwork: a name that is unique at a meet (the **suffix**), more sensor pins with an **expander**, **Share with other boards**, **blocks** (a stretch of track made of several sensors, which JMRI sees as one sensor) and **linked boards**
+- a first working set of signals: a **starter** (One-train section) that writes the rules for you, the **signals** it sets, **Try it**, the checker's **problems**, then **downloading and flashing**
+- two more starters in short: **Lock turnouts under a train** and **Block signals**.
 
-There are no rules yet. Everything in this chapter already works on its own: a block reports to JMRI and CATS like any sensor.
+The groundwork works on its own: a block reports to JMRI and CATS like any sensor. The rest of the guide uses a second worked example, a **gauntlet over a bridge**, which you can build from an empty board. Plant ends and MSS Logic come in later releases.
 
 Use this after the [First Board Setup Guide](first-board-setup-guide.md) and the [JMRI MQTT Verification Guide](jmri-mqtt-verification-guide.md). Your board should be online in ESPHome, and JMRI should have its MQTT connection set up.
 
@@ -174,6 +172,313 @@ A sensor from another board counts as **occupied** until this board has heard fr
 
 ---
 
+## The gauntlet over a bridge
+
+From here the guide uses a second example. Two tracks come together to cross a single bridge, then separate again. Only one train may be on the bridge at a time, and a signal at each end tells the driver when it is safe.
+
+- Three blocks: **Left**, **Bridge** and **Right**.
+- Two signals: **Left Bridge**, at the Left end of the bridge, and **Right Bridge**, at the Right end.
+- The tracks converge onto the bridge and separate again, so a train that crosses from Left leaves onto its own track beyond Right. It never goes back out through the Right block.
+
+You can add this to the board you already have, or start a new one. Either way, the board needs these before you start. If you built the Int 2 example, you have done this kind of step already.
+
+1. **Sensors page:** one sensor for each block. Call them **Left current**, **Bridge current** and **Right current**. A sensor and a block cannot share a name, which is why they have a different name here.
+2. **Signal Masts page:** two masts, **Left Bridge** and **Right Bridge**. Give each two aspects, **Stop** and **Clear**. Stop is red and Clear is green. Mark Stop as the aspect to show at start-up.
+3. **Logic page:** Logic set to **Field Logic**, as in Step 4. Under **Blocks**, add **Left**, **Bridge** and **Right**, and put each one's current sensor in it (Step 5).
+
+> **Screenshot placeholder:** a sketch of the gauntlet: two tracks converging onto a bridge, blocks Left, Bridge and Right marked, and a signal at each end of the bridge.
+
+Success looks like:
+- **Next steps** at the top of the Logic page shows *Add blocks and signals* as **Done**.
+- No red message at the top of the page.
+
+---
+
+## Start from a starter: One-train section
+
+You do not write rules for the gauntlet. A **starter** asks a few plain questions and writes the rules for you, in a **group** you can change afterwards. The starter for this track is **One-train section**: a stretch of track that only one train may be on at a time, with a protected entrance at each end. It also suits a single-line bridge or tunnel, a diamond crossing and a staging throat.
+
+1. On the Logic page, find the **Start here** card. (Once you have a group, the same cards sit under **Add from starter**.)
+2. Click **One-train section**. A form opens.
+3. Fill it in, then click **Add**. If something is missing, the form lists it under *Fix these first:*.
+
+> **Screenshot placeholder:** the Start here card showing the starters as cards, with One-train section first.
+
+### The questions
+
+| The form says | What it means | For the gauntlet |
+|---|---|---|
+| **Name** | The name of the section, and of the group of rules. It shows in the logs and in MQTTX. | `Bridge` |
+| **Blocks in the section** | The track that only one train may use at a time. Click **Add a block** and pick each one. | `Bridge` only |
+| **Entrance 1**, **Entrance 2** | One for each way into the section. You need two to four. **Add an entrance** adds another. | Two |
+| **A train waiting in** | The block where a train stands, asking to go in. | Left for entrance 1, Right for entrance 2 |
+| **Signal** | The signal that protects that entrance. | Left Bridge, then Right Bridge |
+| **shows** | What it shows to let the train go in. This is filled in for you when the signal has an aspect that means Clear. | Clear |
+
+Each entrance needs its own waiting block. Two entrances cannot wait in the same one.
+
+Under **More options** (folded away, and the starter works without opening it):
+
+| The form says | What it means | Default |
+|---|---|---|
+| **Free the section when its blocks are clear for** | How long the section's blocks must stay empty before the next train may go in. This covers the tail of a train, and a gap between two cars. | 3 seconds |
+| **Hold after cancelling** | If a signal drops in front of a train, keep the section for a while anyway, so the next train cannot be let in under it. Railways call this approach locking. | Off |
+| **Trains also leave through entrance 1** (and 2) | See the next part. | Unticked |
+
+### The section it makes
+
+When you click **Add**, the page writes two things.
+
+- A **section** called Bridge, under **Sections**. A section is track only one train may use at a time. It holds the Bridge block, and it is freed when the Bridge block has been clear for 3 seconds. You can see and edit it under **Sections**.
+- A **group** called Bridge under **Groups**, with one rule for each entrance. Each rule is one sentence: *when this happens, show that.* Open **Rule 1** and you will see its three parts, **When**, **Only if** and **Then**:
+  - **When:** Left is occupied (and has been for half a second, so a flicker is ignored).
+  - **Only if:** nothing else is needed.
+  - **Then:** Left Bridge shows Clear, and the Bridge section is taken (**Take the section**).
+
+The signal only clears when the section is free. Once Left Bridge has the section, Right Bridge cannot have it, so Right Bridge stays at Stop until the first train has gone through and the section is freed. This is why a gauntlet is safe: the two signals cannot both be Clear.
+
+> **Screenshot placeholder:** the Groups card with the Bridge group open, Rule 1 showing When, Only if and Then, and the sentence under it.
+
+### Trains also leave through here
+
+From the sensors alone, the board cannot tell a train **waiting** in Left from a train that is **leaving** the section through Left. The tick box tells it which.
+
+- **Leave it unticked for the gauntlet.** The tracks separate beyond the bridge, so a train in Left or Right is always waiting its turn.
+- **Tick it for a single line,** such as one track over a bridge or through a tunnel, where trains come out of the section through the same block they went in by. Tick it on both entrances. A train waiting at one end then goes first, and a train that has just arrived while the section is taken is treated as one leaving. It cannot ask for the section until its block has been clear once.
+
+Success looks like:
+- The Groups card shows the Bridge group with two rules, and the Sections card shows Bridge.
+- The Masts card lists Left Bridge and Right Bridge.
+
+---
+
+## The signals
+
+The rules set the signals, so the page needs to know what each aspect **means**. Open the **Masts** card. A signal joins it when a rule first sets it. Left Bridge and Right Bridge are there now.
+
+Each mast is drawn as a small picture, lit in the aspect you are looking at. For each one:
+
+1. Under **Aspects**, check each aspect's **Meaning**. This is what the aspect tells the driver: Stop, Restricting, Approach, Advance Approach or Clear. Set Stop to **Stop** and Clear to **Clear**. CATS aspects arrive with their meaning filled in. For any other names, check them yourself: an aspect left at Stop is treated as Stop.
+2. **Diverging route** is for a train that takes a turnout at reduced speed. The gauntlet does not need it.
+3. **At stop and at start-up** is what the signal shows when the rules say Stop, and from power-on, before anything has been worked out. **Automatic** picks the aspect that means Stop. Pick another aspect if you want something particular, such as a red-over-red.
+4. **Set by logic** is shown next to each signal that this board decides. JMRI and CATS cannot change it while logic is on, apart from a hold (see [CATS hold](#cats-hold)).
+
+> **Screenshot placeholder:** the Masts card with Left Bridge open, its two aspects with Meaning set, and At stop and at start-up on Automatic.
+
+**Aspect names must be different** on each signal that logic uses. If two aspects on one mast have the same name, the page says so.
+
+### Explain
+
+Every signal that logic sets has an **Explain** button. Click it. You get one plain sentence for each thing the signal can show, worked out from the rules, so it is always what the board does:
+
+- *Left Bridge shows Clear when a train has been in Left for half a second and the Bridge section is free.*
+- *Otherwise it shows Stop.*
+
+If a sentence is not what you meant, the rule behind it is wrong. Fix the rule, and Explain changes with it. Click **Hide** to close it.
+
+> **Screenshot placeholder:** Explain open under Left Bridge, with the sentences above.
+
+Success looks like:
+- Each signal has a meaning for every aspect, and Explain says what you expect.
+- No red message at the top of the page.
+
+---
+
+## Try it
+
+**Try it** lets you work the track on the page before you flash anything. Nothing here touches the layout or the board.
+
+1. Scroll to the **Try it** card. The gauntlet starter knows the shape of the track, so you see a **Track** picture: Left, Bridge and Right in a row, with a signal at each end.
+2. Under **Signals**, Left Bridge and Right Bridge both show **Stop**. Under **Sections**, Bridge is **Free**.
+3. **Put a train in Left.** Click the Left block in the picture. It says *Left: a train is in it*.
+4. Click **Skip ahead 1 second**. The rule waits half a second to be sure the train is really there, so you must let a little time pass.
+
+Success looks like:
+- **Left Bridge** shows **Clear**.
+- **Bridge** says *Taken, waiting for the train*.
+- **Right Bridge** is still at **Stop**.
+
+Now carry on. After each, click **Skip ahead 1 second**:
+
+1. **Put a train in Bridge** (click Bridge). The section says *A train is in it*.
+2. **Take the train out of Left** (click Left again). Left Bridge goes back to Stop, as the train has gone by.
+3. **Put a train in Right** while Bridge is still occupied. Right Bridge stays at Stop. That train must wait.
+4. **Take the train out of Bridge.** Click **Skip ahead 10 seconds**. The section is **Free** again (it waits 3 seconds of clear track first). Right Bridge, with its train still waiting in Right, now shows Clear.
+
+That is the whole gauntlet. If something does not match, click **Start again** and try it a step at a time with **Step**, which moves time on by a tenth of a second.
+
+The other controls:
+
+- **Run** lets time pass at normal speed. **Stop** stops it.
+- Under **Inputs** are the sensors the rules read. You can change one there instead of clicking the picture.
+- A value that is **Not known** is what another board reads when it is switched off or has not been heard from. It counts as occupied, so a signal never clears by mistake.
+
+> **Screenshot placeholder:** Try it with a train in Left, Left Bridge showing Clear, Right Bridge at Stop and the Bridge section *Taken, waiting for the train*.
+
+### Run a train
+
+Clicking blocks one at a time is slow. **Run a train** does it for you.
+
+1. Under **Run a train**, pick **Along** (the group, here Bridge), **Starting in** (Left), **Direction** (*As drawn, left to right*) and **Length in blocks** (1 is a short train).
+2. Click **Run a train**.
+3. The train moves one block at a time. Each step is listed, such as *Train enters Left* and *Train leaves Left*, with every signal drawn as it is at that step. **Blocks with a train** shows where the train is, and **Step** moves it on.
+
+Run it both ways, and with a train waiting at the other end. Most mistakes show up here.
+
+> **Screenshot placeholder:** Run a train with the steps listed and Left Bridge Clear at the step where the train enters Left.
+
+### Show timing details
+
+You do not need this to make the gauntlet work. Open **Show timing details** when a signal does not do what you expected and you want to know why. It shows:
+
+- **Time**: how far the pretend clock has moved.
+- **Rules**: each rule and what it is doing. *Not in use*, *Waiting for its section*, *Has its section*, *The train is in the section*, or *Gave up, section still held*.
+- **Waiting order**: when two entrances want the section, who is next. The one that has waited longest goes first. If two have waited equally, the one listed first in the group goes first.
+- **What happened**: a list in plain words, such as *Rule 1 in group "Bridge" took section "Bridge"* and *Section "Bridge" is free again when its release condition held*.
+
+If Right Bridge will not clear, look at **Rules**. A rule that says *Waiting for its section* is behind another one, and **What happened** says who has it.
+
+---
+
+## Problems
+
+The page checks your work as you go. A message appears in the box at the top of every page, including the Download page. Each says **what is wrong, why it matters, and what to do**, and names the item. For example:
+
+> *Section "Bridge" has block "Left", which is not on this board. Add it under Blocks, or remove it from the section.*
+
+- A red message is an **error**. It stops the download until you fix it.
+- A yellow message is a **warning**. It never stops the download, but read it, because it often points at a real mistake.
+- Click **Show** at the end of a message. The page takes you to the part that needs fixing. Fix it, and the message goes.
+
+> **Screenshot placeholder:** the message box with one error and one warning, each with a Show link.
+
+### What the checker says
+
+Once nothing else is wrong, the page also runs a **checker**. It tries your rules against every mix of trains it can think of, then tells you what it found. A checker message has a **Show** link that does more than go to the page: it carries you to Try it and plays the exact steps that cause the problem, so you can watch it happen. Click **Step** to go on from there.
+
+| The message begins | It means | What to do |
+|---|---|---|
+| *Rule 1 in group "Bridge" can be left waiting for section "Bridge" forever, with its train still there.* | A train can stand in front of a signal for ever. This is an **error**. | Click **Show** and watch what holds the section. Then check what has to happen for it to be free: its release, and the blocks listed in the section. |
+| *… can be passed over forever: other trains keep getting section "Bridge" while it waits.* | A train at one entrance could be starved by trains at the other. A **warning**. | Click **Show**. On a busy layout, think about whether that is acceptable. |
+| *… can never apply: no mix of trains, turnouts and signals makes its When and Only if true together.* | A rule asks for something impossible, usually a block that must be both occupied and clear. | Open the rule and look at its When and Only if. |
+| *Signal "Left Bridge" can never show anything but Stop.* | No rule that sets it can ever apply. | Check the rules that set it. |
+| *This board has too many combinations to check every one, so the checker tried N random runs.* | The board is large, and the checker could not try everything. | Treat a clean result as good, not as proof. Use Try it and Run a train as well. |
+
+The checker only knows what you have told the page. It knows only one train fits in a section if you put that track in a section, and it cannot tell that two signals lead onto the same track unless a section says so.
+
+Other messages you may meet, and what to do:
+
+| The message says | What to do |
+|---|---|
+| *… reads signal "…", which is not on the Signal Masts page* | The signal was deleted or renamed on the Signal Masts page. Add it again, or pick another. Renaming on the page renames it in the rules; deleting does not. |
+| *Block "…" is in sections "…" and "…". A block can be in one section only* | Take the block out of one section. Two sections over one block could let two trains in. |
+| *… starts when something happens and has no Cancel* | A warning on a rule that starts with **When**. Add a **Cancel when…** if the train might not come. |
+| *Signal "…" is set to … by group "…" and to … by group "…"* | A warning: two groups set one signal. It shows the most cautious of them. Check that is what you want. |
+| *… sets signal "…" and also reads it* | A rule waits on itself. Read the signal ahead instead. |
+
+---
+
+## Download and flash
+
+### The Logic version
+
+1. Open the **Download** page. With Field Logic, you see **Logic version**, a short code. It matches the board when the board is running exactly what you checked. Below it, **Warnings about the logic** lists any warnings.
+2. If errors are left, the page says how many must be fixed first, and the Download button is greyed out.
+
+Write the version down, or leave the page open. After you flash, the board shows the same code on its web page (**Logic version**). If they differ, the board is running an older file: flash again.
+
+### Download summary
+
+Click **Download summary**. It saves a one-page file, `<board name>-summary.html`. Open it in a browser and print it. It lists:
+
+- each signal the logic sets, with its Explain sentences
+- each block, with its sensors and the pin each is wired to
+- each section, and when it is freed.
+
+It carries the Logic version too. Keep it on the workbench or under the module, so that whoever wires or repairs it next knows what it is meant to do.
+
+> **Screenshot placeholder:** the Download page with Logic version, Warnings about the logic and the Download summary button.
+
+### Flash
+
+Flash the board as in Step 6 of the groundwork, from the Download page, or with **Send to ESPHome**. Install by USB if you added a suffix. A board that has run logic before can be updated wirelessly.
+
+The first build is long, because ESPHome fetches the Field Logic component from GitHub. The board then starts with the logic **on** (unless you unticked **Logic on at start-up** under **Settings**).
+
+Success looks like:
+- The board's web page shows **Logic version** with the same code as the Download page.
+- It has a **Field logic** switch, which is on, and a **Release Bridge** button.
+
+### Check it in MQTTX
+
+Open MQTTX, connect to `127.0.0.1:1883` with no username, and subscribe to `trains/#`. The names below are for the board `gauntlet-k7m4x2`. Yours will have its own.
+
+| Topic | What it shows |
+|---|---|
+| `trains/track/sensor/logic/gauntlet-k7m4x2/Bridge/Held` | `ACTIVE` while a rule has the Bridge section, and `INACTIVE` when it is free. This is the one to watch first. |
+| `trains/track/logic/gauntlet-k7m4x2/Bridge/State` | The section in a word: `IDLE` (free), `ACTIVE` (taken, waiting for the train), `PASSED` (a train is in it) or `CANCELLING` (held a while after the request stopped). |
+| `trains/track/signalmast/Left Bridge/State` | The aspect Left Bridge is showing, by its JMRI aspect name (the part of the aspect's JMRI match before the first `;`). Present when **Share with other boards** is ticked. |
+| `trains/track/light/logic/gauntlet-k7m4x2` | `ON` or `OFF`: the **Logic on / off** light. |
+| `trains/track/logic/gauntlet-k7m4x2/Version` | The Logic version, as the board sent it when it connected. |
+
+Try it for real:
+
+1. Cover the **Left current** sensor with your hand, or run a train into Left. After half a second, `Bridge/Held` goes `ACTIVE`, `Bridge/State` goes `ACTIVE`, and Left Bridge goes Clear.
+2. Let the train onto the bridge. `Bridge/State` goes `PASSED`.
+3. Clear the track. 3 seconds after the Bridge block clears, `Bridge/State` goes `IDLE` and `Held` goes `INACTIVE`.
+
+> **Screenshot placeholder:** MQTTX showing the Bridge Held and State topics, and Left Bridge's State.
+
+**Logic on / off.** The board's web page has a **Field logic** switch. Turn it off, and the board hands its signals back to JMRI and CATS, which set them as they did before. Turn it on, and the board works them out again. The light `MLlogic/gauntlet-k7m4x2` does the same from JMRI. Signals that no rule sets are never affected.
+
+**Release.** If a detector fails, or a train stalls, the section can stay held. Click **Release Bridge** on the board's web page to free it by hand. The signals go to Stop, and a later pass of the rules can grant the section again. Releasing with a train still in the section is your call.
+
+From JMRI, tick **Logic** on the Download page before you download the JMRI XML. It adds the on / off light, a **Release** turnout for each section (`MTlogic/<board>/Bridge/Release`), and a sensor that mirrors Held. Throwing the Release turnout presses the button, and it snaps back by itself. A release that arrives in the first 5 seconds after the board connects is ignored, because it may have been waiting on the broker for hours.
+
+> **Screenshot placeholder:** the board's web page with the Field logic switch, Logic version and the Release Bridge button.
+
+### CATS hold
+
+CATS has a **Hold Only** option on a signal template. With it, CATS does not set the aspect. It only **holds** the signal at Stop when its own logic says Stop, and lets go when it says go. With Field Logic on, the board does the rest.
+
+- A held signal shows Stop, whatever the rules say.
+- A rule that wants a held signal does not get the section. It keeps waiting, and takes the section when the signal is no longer held.
+- A hold that was left on the broker when JMRI closed keeps the signal at Stop. That is on purpose. To clear it, unhold the signal in CATS or JMRI, or press **Release** for that section, which clears the board's copy of the hold.
+
+---
+
+## Lock turnouts under a train
+
+A short starter for a turnout that must not be thrown with a train on it. **Lock turnouts under a train** writes one rule for each turnout: while its block is occupied, the turnout stays locked.
+
+1. On the Logic page, click **Add from starter**, then **Lock turnouts under a train**.
+2. Give the group a **Group name**.
+3. Pick each **Turnout**, and the **Block it sits in**. **Add a turnout** adds another row.
+4. Click **Add**.
+
+While the block is occupied, the turnout ignores its fascia button and JMRI or CATS. When the block clears, it unlocks. A turnout with a toggle switch then catches up with where the switch now is.
+
+You can try it in Try it: put a train in the block and the turnout shows *Locked by the rules*.
+
+---
+
+## Block signals
+
+**Block signals** is the starter for a run of plain track with a signal for each block. Each signal shows **Stop** while the block ahead of it has a train in it. Further back, it shows **Approach**, then **Clear**, as the train moves on. The signals behind a train step down: Stop, then Approach, then Clear, as it gets further away. A signal that is at Stop for any reason, such as a one-train section in use, drops the signals behind it too.
+
+1. Click **Add from starter**, then **Block signals**.
+2. Give the **Direction** a name, such as Up. List the signals in the order trains run: each row is a signal and the **Block it protects**, which is the one just beyond it.
+3. After the last block, choose **The next signal**, or **End of signalled track**.
+4. Click **Add**. **Both directions** adds a second group for the signals facing the other way.
+
+Where two blocks share no sensor at their boundary, the page warns that a signal could clear while an unpowered car is still there. Put an optical sensor at the boundary in both blocks, as for Int 2 in Step 5.
+
+Block signals do not stop two trains meeting head-on on single track. Put a One-train section over the single line as well. Its signals keep the entrance at Stop while the line is in use, and the block signals step down behind them.
+
+The same chapters apply: Try it draws the strip, **Run a train** walks along it, and Explain says what each signal shows.
+
+---
+
 ## When something is wrong
 
 Check one thing at a time, in this order.
@@ -191,4 +496,22 @@ Check one thing at a time, in this order.
 1. Check the board shows **Online** in ESPHome.
 2. Check the board's MQTT broker is `layout-mqtt.local`, as in the first board guide.
 
-The next chapter adds rules.
+**The signal will not clear.**
+1. In Try it, put a train in the block that asks for it. If the signal clears there, the rules are fine and the fault is in the wiring or the board. If not, open **Show timing details** and look at **Rules**.
+2. A rule that says *Waiting for its section* is behind another rule or a held section. Check the section in MQTTX: `.../Held` should be `INACTIVE` when the track is empty.
+3. A held section with an empty track means a block is still reading occupied. Check each of its sensors, as in the first answer above. Or press **Release** for the section.
+4. Check the signal is not held by CATS or JMRI (see [CATS hold](#cats-hold)).
+
+**Every signal shows Stop, and the rules seem right.**
+1. Check the **Field logic** switch on the board's web page is on, and `trains/track/light/logic/<board>` is `ON`.
+2. Check **Logic version** on the board's web page matches the Download page. If not, flash again.
+3. Check **Meaning** for each aspect under Masts. An aspect left at Stop counts as Stop.
+
+**The page says there is a problem, and Show goes nowhere.**
+1. Scroll the Logic page: the part may be further down. Fix the first red message first, because others often follow from it.
+2. Rename or delete on the Sensors, Turnouts or Signal Masts page? Deleting leaves the old name in the rules, and the message names it.
+
+**The section never frees.**
+1. Under **Sections**, check **Free the section when…**. With the default, every block in the section must be clear for 3 seconds.
+2. Look at each block's sensors in MQTTX. One that reads `ACTIVE` with nothing on the track holds the section. A sensor on a linked board counts as occupied while that board is offline.
+3. In an emergency, press **Release** for the section.
