@@ -24,11 +24,16 @@ export function loadModules(...files) {
 
 /**
  * Run one named test. A failure is reported and marks the file as failed, and
- * the remaining tests in the file still run.
+ * the remaining tests in the file still run. Tests are synchronous: an async
+ * test would pass before its assertions ran, so it is reported as a failure.
  */
 export function test(name, fn) {
   try {
-    fn();
+    const result = fn();
+    if (result && typeof result.then === "function") {
+      result.catch(() => {});
+      throw new Error("test() runs synchronous tests only; this one returned a promise");
+    }
     console.log(`ok - ${name}`);
   } catch (err) {
     console.error(`fail - ${name}`);
