@@ -10,7 +10,7 @@
 #include <utility>
 #include <vector>
 
-namespace mr_logic {
+namespace logic_core {
 
 // Most restrictive first.
 enum Tag : int8_t { TAG_NONE = -1, TAG_STOP = 0, TAG_RESTRICTING, TAG_APPROACH, TAG_ADVANCE, TAG_CLEAR };
@@ -180,7 +180,8 @@ std::string stop_aspect(const MastDef &mast);
 
 class Engine {
  public:
-  Engine(const Board &board, const Start &start);
+  // The engine keeps the board; move it in rather than copying it.
+  Engine(Board board, const Start &start);
   // Rules and resources point into board_, so an Engine stays where it is made.
   Engine(const Engine &) = delete;
   Engine &operator=(const Engine &) = delete;
@@ -305,4 +306,4 @@ class Engine {
   void track(const Cond &c);
 };
 
-}  // namespace mr_logic
+}  // namespace logic_core

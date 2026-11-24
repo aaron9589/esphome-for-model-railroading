@@ -10,179 +10,14 @@
 #include <string>
 #include <vector>
 
-#include "../components/mr_logic/core/logic_core.h"
-#include "json.h"
+#include "../components/mr_logic/logic_core.h"
+#include "../components/mr_logic/logic_json.h"
+#include "../components/mr_logic/logic_table.h"
 
+using namespace logic_core;
 using json::Value;
-using namespace mr_logic;
 
 namespace {
-
-uint32_t parse_ms(const std::string &text) {
-  if (text.empty()) return 0;
-  double n = std::strtod(text.c_str(), nullptr);
-  bool millis = text.size() > 2 && text.compare(text.size() - 2, 2, "ms") == 0;
-  return static_cast<uint32_t>(n * (millis ? 1 : 1000) + 0.5);
-}
-
-std::vector<std::string> strings(const Value *v) {
-  std::vector<std::string> out;
-  if (!v) return out;
-  if (v->type == Value::STR) out.push_back(v->str);
-  for (const auto &x : v->arr) out.push_back(x.str);
-  return out;
-}
-
-Cond to_cond(const Value &v) {
-  Cond c;
-  if (const Value *k = v.get("all")) {
-    c.kind = Cond::ALL;
-    for (const auto &x : k->arr) c.kids.push_back(to_cond(x));
-    return c;
-  }
-  if (const Value *k = v.get("any")) {
-    c.kind = Cond::ANY;
-    for (const auto &x : k->arr) c.kids.push_back(to_cond(x));
-    return c;
-  }
-  if (const Value *k = v.get("not")) {
-    c.kind = Cond::NOT;
-    c.kids.push_back(to_cond(*k));
-    return c;
-  }
-  if (v.has("block") || v.has("sensor")) {
-    c.kind = Cond::BLOCK;
-    c.name = v.has("block") ? v.text("block") : v.text("sensor");
-  } else if (v.has("turnout")) {
-    c.kind = Cond::TURNOUT;
-    c.name = v.text("turnout");
-  } else if (v.has("mast")) {
-    c.kind = Cond::MAST;
-    c.name = v.text("mast");
-  } else if (v.has("button")) {
-    c.kind = Cond::BUTTON;
-    c.name = v.text("button");
-  }
-  if (v.has("board")) {
-    c.remote = true;
-    c.board = v.text("board");
-  }
-  c.is = strings(v.get("is"));
-  return c;
-}
-
-Trigger to_trigger(const Value *v) {
-  Trigger t;
-  if (!v) return t;
-  t.present = true;
-  t.for_ms = parse_ms(v->text("for"));
-  if (const Value *b = v->get("leavingGuard")) t.leaving_guard = b->b;
-  if (const Value *w = v->get("when")) {
-    t.when = true;
-    t.seq.push_back(to_cond(*w));
-    if (const Value *then = v->get("then"))
-      for (const auto &m : then->arr) t.seq.push_back(to_cond(m));
-  } else if (const Value *w = v->get("while")) {
-    t.cond = to_cond(*w);
-  }
-  return t;
-}
-
-MastDef to_mast(const std::string &name, const Value &v) {
-  MastDef m;
-  m.name = name;
-  if (const Value *a = v.get("aspects"))
-    for (const auto &p : a->obj) m.aspects.emplace_back(p.first, tag_from_name(p.second.str));
-  m.diverging = strings(v.get("diverging"));
-  m.stop = v.text("stop");
-  m.startup = v.text("startup");
-  m.approach_light = v.text("approachLight");
-  if (const Value *s = v.get("states"))
-    for (const auto &p : s->obj) m.states[p.first] = strings(&p.second);
-  return m;
-}
-
-Board to_board(const Value &v) {
-  Board b;
-  b.sensors = strings(v.get("sensors"));
-  b.turnouts = strings(v.get("turnouts"));
-  if (const Value *m = v.get("masts"))
-    for (const auto &p : m->obj) b.masts.push_back(to_mast(p.first, p.second));
-  if (const Value *r = v.get("remote")) {
-    for (const auto &p : r->obj) {
-      RemoteBoardDef rb;
-      rb.name = p.first;
-      rb.sensors = strings(p.second.get("sensors"));
-      rb.blocks = strings(p.second.get("blocks"));
-      rb.turnouts = strings(p.second.get("turnouts"));
-      if (const Value *m = p.second.get("masts"))
-        for (const auto &q : m->obj) rb.masts.push_back(to_mast(q.first, q.second));
-      b.remote.push_back(rb);
-    }
-  }
-  const Value *logic = v.get("logic");
-  if (!logic) return b;
-  if (const Value *blocks = logic->get("blocks")) {
-    for (const auto &x : blocks->arr) {
-      BlockDef block;
-      block.name = x.text("name");
-      if (const Value *s = x.get("sensors")) {
-        for (const auto &m : s->arr) {
-          Member member;
-          if (m.type == Value::STR) {
-            member.name = m.str;
-          } else {
-            member.name = m.has("sensor") ? m.text("sensor") : m.text("block");
-            member.remote = m.has("board");
-            member.board = m.text("board");
-          }
-          block.members.push_back(member);
-        }
-      }
-      b.blocks.push_back(block);
-    }
-  }
-  if (const Value *buttons = logic->get("buttons"))
-    for (const auto &x : buttons->arr) b.buttons.push_back(x.text("name"));
-  if (const Value *resources = logic->get("resources")) {
-    for (const auto &x : resources->arr) {
-      ResourceDef r;
-      r.name = x.text("name");
-      r.blocks = strings(x.get("blocks"));
-      r.release = to_trigger(x.get("release"));
-      r.approach_lock_ms = parse_ms(x.text("approachLock"));
-      b.resources.push_back(r);
-    }
-  }
-  if (const Value *layers = logic->get("layers")) {
-    for (const auto &x : layers->arr) {
-      LayerDef layer;
-      layer.name = x.text("name");
-      if (const Value *rules = x.get("rules")) {
-        for (const auto &r : rules->arr) {
-          RuleDef rule;
-          rule.trigger = to_trigger(r.get("trigger"));
-          if (const Value *checks = r.get("checks"))
-            for (const auto &c : checks->arr) rule.checks.push_back(to_cond(c));
-          if (const Value *then = r.get("then")) {
-            rule.then.mast = then->text("mast");
-            rule.then.aspect = then->text("aspect");
-            rule.then.reserve = then->text("reserve");
-            rule.then.lock = strings(then->get("lock"));
-          }
-          const Value *cancel = r.get("cancel");
-          if (const Value *when = cancel ? cancel->get("when") : nullptr) {
-            rule.has_cancel = true;
-            rule.cancel = to_cond(*when);
-          }
-          layer.rules.push_back(rule);
-        }
-      }
-      b.layers.push_back(layer);
-    }
-  }
-  return b;
-}
 
 Start to_start(const Value *v) {
   Start s;
@@ -305,7 +140,10 @@ std::vector<std::string> run_case(const Value &data) {
   const Value *board = data.get("board");
   const Value *steps = data.get("steps");
   if (!board || !steps) return {"the case has no board or no steps"};
-  Engine engine(to_board(*board), to_start(data.get("start")));
+  std::string table_error;
+  Board parsed = board_from_value(*board, &table_error);
+  if (!table_error.empty()) return {"the board cannot be read: " + table_error};
+  Engine engine(std::move(parsed), to_start(data.get("start")));
   int64_t next = 0;
   for (const auto &step : steps->arr) {
     const Value *at_value = step.get("at");
@@ -391,7 +229,13 @@ int run_trace(const std::string &path) {
     std::fprintf(stderr, "a trace needs board and scans\n");
     return 2;
   }
-  Engine engine(to_board(*data.get("board")), to_start(data.get("start")));
+  std::string table_error;
+  Board parsed = board_from_value(*data.get("board"), &table_error);
+  if (!table_error.empty()) {
+    std::fprintf(stderr, "the board cannot be read: %s\n", table_error.c_str());
+    return 2;
+  }
+  Engine engine(std::move(parsed), to_start(data.get("start")));
   std::string out = "[";
   bool first = true;
   for (const auto &scan : data.get("scans")->arr) {
@@ -419,8 +263,25 @@ int run_trace(const std::string &path) {
 
 }  // namespace
 
+// Durations mode, for the cross-check: one time per line in, the milliseconds
+// (or "null" when it cannot be read) out, one per line.
+int run_durations() {
+  char line[256];
+  while (std::fgets(line, sizeof line, stdin)) {
+    std::string text(line);
+    if (!text.empty() && text.back() == '\n') text.pop_back();
+    uint32_t ms = 0;
+    if (parse_ms(text, &ms))
+      std::printf("%u\n", (unsigned) ms);
+    else
+      std::printf("null\n");
+  }
+  return 0;
+}
+
 int main(int argc, char **argv) {
   if (argc == 3 && std::string(argv[1]) == "--trace") return run_trace(argv[2]);
+  if (argc == 2 && std::string(argv[1]) == "--durations") return run_durations();
   if (argc < 2) {
     std::fprintf(stderr, "usage: engine_tests <cases dir> | engine_tests --trace <trace.json>\n");
     return 2;

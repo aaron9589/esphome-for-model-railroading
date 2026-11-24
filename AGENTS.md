@@ -30,7 +30,7 @@ This repo is a beginner path for model-railroad ESP32 boards that talk to JMRI/C
 | `docs/field-logic-implementation-plan.md` | Draft build plan for both specs: releases, work items, spikes, risks |
 | `docs/mss-emulation-spec.md` | Draft spec for MSS Logic, the second logic mode on the same engine: MSS-style modules described, not programmed (tracks, junctions, paired plant ends); not built yet |
 | `configurator/` | Static GitHub Pages Board Configurator |
-| `components/mr_logic/core/` | The logic engine's C++ core (plain C++17, no ESPHome), mirroring `configurator/logic.js` |
+| `components/mr_logic/` | ESPHome external component: `logic_core.{h,cpp}` (the engine, plain C++17 with no ESPHome includes, mirroring `configurator/logic.js`), the adapter `mr_logic.{h,cpp}` and `__init__.py`. ESPHome copies only a component's top-level sources, so the core sits beside the adapter |
 | `engine-tests/` | CMake project: builds the core and replays `configurator/test/cases`; `--trace` mode for the JS cross-check (`test/engine-diff.test.js`) |
 | `.github/workflows/` | `test.yml` (configurator tests, golden files, JMRI XML schema check) and `pages.yml` (deploy after tests pass) |
 | `advanced-samples/` | Non-Configurator patterns for interest only |
@@ -39,7 +39,7 @@ This repo is a beginner path for model-railroad ESP32 boards that talk to JMRI/C
 ## Logic work in progress
 
 - The Logic page (field logic and MSS Logic) is built on the long-lived branch `feature/logic`, following `docs/field-logic-implementation-plan.md`. Each work item has a GitHub issue (label `logic`, milestones R0–R5). Branch it off `feature/logic` as named in the issue and PR back into it. PRs into `feature/logic` do not auto-close issues, so close the issue when its PR merges.
-- Change `logic.js` and `components/mr_logic/core/logic_core.cpp` together: each function has a namesake in the other. CI replays the cases against both and feeds both the same random events (`engine` job in `test.yml`).
+- Change `logic.js` and `components/mr_logic/logic_core.cpp` together: each function has a namesake in the other. CI replays the cases against both and feeds both the same random events (`engine` job in `test.yml`).
 - The JS engine is `configurator/logic.js` (`EsphomeMrLogic.createEngine`, `explainMast`): plain JS with no DOM, so the C++ core can mirror it. `test/engine-run.test.js` replays every case against it. It is not loaded by `index.html` until a page part needs it (Try it, Explain).
 - Engine cases (`configurator/test/cases/*.json`, format and scan rules in its `README.md`) are worked out by hand from the spec. When an engine fails one, fix the engine or raise the spec question; never regenerate a case from an engine's output.
 - Do not merge logic work into `main` until Release 5 of the plan is complete. `main` (and the live configurator) stays as today until then.

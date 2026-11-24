@@ -4,7 +4,7 @@
 
 #include <algorithm>
 
-namespace mr_logic {
+namespace logic_core {
 
 namespace {
 
@@ -105,7 +105,7 @@ bool pick_aspect(const MastDef &mast, const std::string &x, std::string *out) {
 
 // --- set-up ---------------------------------------------------------------
 
-Engine::Engine(const Board &board, const Start &start) : board_(board) {
+Engine::Engine(Board board, const Start &start) : board_(std::move(board)) {
   for (const auto &layer : board_.layers) {
     std::vector<int> list;
     for (size_t i = 0; i < layer.rules.size(); i++) {
@@ -877,4 +877,4 @@ State Engine::state() const {
   return s;
 }
 
-}  // namespace mr_logic
+}  // namespace logic_core

@@ -124,6 +124,19 @@ function runJs(board, start, scans) {
   });
 }
 
+const DURATIONS = ["", "0.5s", "500ms", "3s", "10s", " 3s", "3s ", ".5s", "5.s", "5", "3 s", "10 s", "1.25s", "0ms", "s", "ms", "-1s", "1e3ms", "1.5.0s", "07s"];
+
+if (bin) {
+  test("JS and C++ read every time the same way, and refuse the same typos", () => {
+    const cpp = execFileSync(bin, ["--durations"], { input: DURATIONS.join("\n") + "\n", encoding: "utf8" }).trim().split("\n");
+    const js = DURATIONS.map((text) => {
+      const value = L.ms(text);
+      return Number.isNaN(value) ? "null" : String(value);
+    });
+    assert.deepEqual(cpp, js, DURATIONS.map((d, i) => `${JSON.stringify(d)}: C++ ${cpp[i]}, JS ${js[i]}`).join("; "));
+  });
+}
+
 if (!bin) {
   test("JS and C++ engines agree (skipped: set ENGINE_TESTS_BIN to the built engine_tests)", () => {});
 } else {
