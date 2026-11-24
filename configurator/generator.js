@@ -1016,29 +1016,42 @@ function validateConfig(config) {
     }
   }
 
-  // Rule buttons (Logic page): a pin of their own, like every other pin.
+  // Rule buttons and plant ends' Pair and LED pins (Logic page): a pin of
+  // their own, like every other pin. An item is { name, kind?, label?, owner?,
+  // where, pin } or, on an expander, { ..., expander, pin }.
   for (const button of logicHooks(config).buttonPins(config) || []) {
     let text = "";
+    const who = button.label || `Button "${button.name}"`;
+    const owner = button.owner || `button ${button.name}`;
+    const asWord = button.kind === "led" ? "LED" : button.label ? "Pair button" : "button";
     if (button.expander !== undefined) {
       // On an expander: checked like a sensor on one, sharing its pins.
       const expander = expanders.find((e) => e.name === button.expander);
       const pin = Number(button.pin);
       const key = expander ? `${expander.name}\u0000${pin}` : "";
-      if (!expander) text = `Button "${button.name}" is on expander "${button.expander}", which is not on the Sensors page. Pick another pin for the button.`;
-      else if (!Number.isInteger(pin) || pin < 0 || pin > 15) text = `Button "${button.name}" needs an expander pin from A0 to B7.`;
-      else if (expanderPins.has(key)) text = `${expander.name} pin ${expanderPinLabel(pin)} is used by "${expanderPins.get(key)}" and button "${button.name}". A pin can do one job: pick another pin for the button.`;
-      else expanderPins.set(key, `button ${button.name}`);
+      if (!expander) text = `${who} is on expander "${button.expander}", which is not on the Sensors page. Pick another pin for the ${asWord}.`;
+      else if (!Number.isInteger(pin) || pin < 0 || pin > 15) text = `${who} needs an expander pin from A0 to B7.`;
+      else if (expanderPins.has(key)) text = `${expander.name} pin ${expanderPinLabel(pin)} is used by "${expanderPins.get(key)}" and ${button.label ? who : `button "${button.name}"`}. A pin can do one job: pick another pin for the ${asWord}.`;
+      else expanderPins.set(key, owner);
       if (text) {
         errors.push(text);
         links.set(text, button.where);
       }
       continue;
     }
-    // Wired to GND like a turnout's button, so it needs the pin's pull-up.
-    const issue = pinProblem(button.pin, "button");
-    if (issue) text = `Button "${button.name}" ${issue}.`;
-    else if (pins.has(button.pin)) text = `Button "${button.name}" is on ${button.pin}, which "${pins.get(button.pin)}" already uses. A pin can do one job: pick another pin for the button.`;
-    else pins.set(button.pin, `button ${button.name}`);
+    if (button.kind === "led") {
+      // An LED is driven, so the pin must be able to output.
+      const issue = signalPinProblem(button.pin, "LED pin");
+      if (issue) text = `${who}: ${issue}.`;
+      else if (pins.has(button.pin)) text = `${who} is on ${button.pin}, which "${pins.get(button.pin)}" already uses. A pin can do one job: pick another pin for the LED.`;
+      else pins.set(button.pin, owner);
+    } else {
+      // Wired to GND like a turnout's button, so it needs the pin's pull-up.
+      const issue = pinProblem(button.pin, button.label ? "its" : "button");
+      if (issue) text = button.label ? `${who}: ${issue}.` : `Button "${button.name}" ${issue}.`;
+      else if (pins.has(button.pin)) text = `${who} is on ${button.pin}, which "${pins.get(button.pin)}" already uses. A pin can do one job: pick another pin for the ${asWord}.`;
+      else pins.set(button.pin, owner);
+    }
     if (text) {
       errors.push(text);
       links.set(text, button.where);
