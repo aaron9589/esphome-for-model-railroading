@@ -970,7 +970,7 @@ test("JMRI XML lists sensors, turnouts, and signal masts as MQTT items", () => {
   assert.match(xml, /<mqttsignalmast class="jmri.jmrix.mqtt.configurexml.MqttSignalMastXml">\n      <systemName>IF\$mqm:cats-masts:cats-virtual\(Kiama\/Up Home\)<\/systemName>\n      <userName>Kiama\/Up Home<\/userName>/);
   assert.match(xml, /MQTT Channel to be "trains\/"/);
   assert.doesNotMatch(xml, /Custom|Bad \(mast\)/);
-  assert.deepEqual(JSON.parse(JSON.stringify(counts)), { sensors: 3, turnouts: 1, masts: 1 });
+  assert.deepEqual(JSON.parse(JSON.stringify(counts)), { sensors: 3, turnouts: 1, masts: 1, lights: 0 });
   assert.equal(skipped.length, 2);
   assert.ok(skipped[0].includes("Custom"));
   assert.ok(skipped[1].includes("Bad (mast)"));
@@ -981,20 +981,20 @@ test("JMRI XML lists sensors, turnouts, and signal masts as MQTT items", () => {
 
   // Tick boxes. A turnout keeps its own position sensor without the Sensors table.
   const mastsOnly = generateJmriXml(config, { sensors: false, turnouts: false });
-  assert.deepEqual(JSON.parse(JSON.stringify(mastsOnly.counts)), { sensors: 0, turnouts: 0, masts: 1 });
+  assert.deepEqual(JSON.parse(JSON.stringify(mastsOnly.counts)), { sensors: 0, turnouts: 0, masts: 1, lights: 0 });
   assert.doesNotMatch(mastsOnly.xml, /<sensors|<turnouts/);
   assert.match(mastsOnly.xml, /<signalmasts/);
   assert.deepEqual(JSON.parse(JSON.stringify(mastsOnly.skipped)), [skipped[1]]);
   const turnoutsOnly = generateJmriXml(config, { sensors: false, masts: false });
-  assert.deepEqual(JSON.parse(JSON.stringify(turnoutsOnly.counts)), { sensors: 1, turnouts: 1, masts: 0 });
+  assert.deepEqual(JSON.parse(JSON.stringify(turnoutsOnly.counts)), { sensors: 1, turnouts: 1, masts: 0, lights: 0 });
   assert.match(turnoutsOnly.xml, /<systemName>MSKiama\/Up Loop\/Thrown<\/systemName>/);
   assert.doesNotMatch(turnoutsOnly.xml, /MSKiama\/Up XOver|<signalmasts/);
   const none = generateJmriXml(config, { sensors: false, turnouts: false, masts: false });
-  assert.deepEqual(JSON.parse(JSON.stringify(none.counts)), { sensors: 0, turnouts: 0, masts: 0 });
+  assert.deepEqual(JSON.parse(JSON.stringify(none.counts)), { sensors: 0, turnouts: 0, masts: 0, lights: 0 });
 
   config.board.mqttEnabled = false;
   const off = generateJmriXml(config);
-  assert.deepEqual(JSON.parse(JSON.stringify(off.counts)), { sensors: 0, turnouts: 0, masts: 0 });
+  assert.deepEqual(JSON.parse(JSON.stringify(off.counts)), { sensors: 0, turnouts: 0, masts: 0, lights: 0 });
   assert.doesNotMatch(off.xml, /<sensors|<turnouts|<signalmasts/);
 });
 

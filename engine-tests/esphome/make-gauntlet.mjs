@@ -1,6 +1,6 @@
-// Writes gauntlet.yaml: the gauntlet board from the configurator's generator,
-// plus the mr_logic component bound to everything it can bind, for CI's
-// `esphome compile`. Work item 2.4; 2.5's generator will write this part itself.
+// Writes gauntlet.yaml: the gauntlet board as the configurator's generator
+// writes it, Field Logic and all, for CI's `esphome compile`. The only change
+// is the component's source: this checkout instead of the pinned GitHub ref.
 //   node engine-tests/esphome/make-gauntlet.mjs
 import fs from "node:fs";
 import path from "node:path";
@@ -33,69 +33,47 @@ config.signals = { mode: "gpio", masts: ["Left Bridge", "Right Bridge"].map((nam
     { label: "Clear", states: ["R281; Lit; Unheld"], lamps: [lamp("off"), lamp("green")] },
   ],
 })) };
-// Field Logic with a block that reads a linked board's sensor, so the
-// generator writes that board's subscriptions.
+
+// A linked board: Far reads its Approach sensor, and Right Bridge clears only
+// while its Home mast is not at Stop.
 const north = L.typedLinkedBoard("kiama-north-k7m4x2");
 north.blocks = [L.typedItem("sensor", "Approach")];
-config.logic = { mode: "field", remoteBoards: [north], blocks: [{ name: "Far", topic: M.topicFor("block", "Far"), topicCustom: false,
-  sensors: [{ board: "kiama-north-k7m4x2", sensor: "Approach" }] }] };
+north.signals.masts = [{ name: "Home", topic: M.topicFor("signal", "Home"), aspects: ["R292", "R281"], tags: { R292: "stop", R281: "clear" }, diverging: [] }];
+
+// The gauntlet over a bridge (spec, One-train section), with P1 locked by the
+// Left entrance, approach lighting on Left Bridge, and a signal with no lights.
+const tags = { Stop: "stop", Clear: "clear" };
+config.logic = {
+  mode: "field",
+  remoteBoards: [north],
+  blocks: [{ name: "Far", topic: M.topicFor("block", "Far"), topicCustom: false, sensors: [{ board: "kiama-north-k7m4x2", sensor: "Approach" }] }],
+  masts: [
+    { mast: "Left Bridge", tags, approachLight: "Left" },
+    { mast: "Right Bridge", tags },
+    { virtual: true, name: "Bridge Exit", topic: M.topicFor("signal", "Bridge Exit"), aspects: ["Stop", "Clear"], tags },
+  ],
+  resources: [{ name: "Bridge", blocks: ["Bridge"], release: { while: { block: "Bridge", is: "clear" }, for: "3s" } }],
+  layers: [
+    { name: "Gauntlet", starter: "one-train-section", rules: [
+      { trigger: { while: { block: "Left", is: "occupied" }, for: "0.5s" }, checks: [],
+        then: { mast: "Left Bridge", aspect: "Clear", reserve: "Bridge", lock: ["P1"] } },
+      { trigger: { while: { block: "Right", is: "occupied" }, for: "0.5s" },
+        checks: [{ mast: "Home", board: "kiama-north-k7m4x2", is: ["approach", "advance", "clear"] }],
+        then: { mast: "Right Bridge", aspect: "Clear", reserve: "Bridge" } },
+    ] },
+    { name: "Exit", rules: [
+      { trigger: { while: { block: "Far", is: "clear" } }, checks: [], then: { mast: "Bridge Exit", aspect: "Clear" } },
+    ] },
+  ],
+};
 const errors = [...M.validateConfig(config).errors];
 if (errors.length) throw new Error(errors.join("\n"));
 let yaml = M.generateYaml(config);
 
-// The rule table: the gauntlet case's board, with P1 locked by the Left entrance.
-const table = JSON.parse(fs.readFileSync(path.join(repo, "configurator/test/cases/rules-approach-locking-off.json"), "utf8")).board;
-table.remote = { "kiama-north-k7m4x2": { sensors: ["Approach"] } };
+const source = `  - source: ${L.LOGIC_COMPONENT_SOURCE}\n`;
+if (!yaml.includes(source)) throw new Error("The generator no longer writes the component's source line.");
+yaml = yaml.replace(source, "  - source:\n      type: local\n      path: ../../components\n");
 
-const ids = (list) => M.uniqueIds(list);
-const remoteIds = L.resolveRemote(config, { board: "kiama-north-k7m4x2", sensor: "Approach" });
-const point = ids(config.points)[0];
-const section = [
-  "",
-  "external_components:",
-  "  - source:",
-  "      type: local",
-  "      path: ../../components",
-  "    components: [mr_logic]",
-  "",
-  "mr_logic:",
-  "  id: logic",
-  `  board: ${config.board.name}`,
-  "  version: test0001",
-  // A single-quoted YAML scalar: a ' inside is written twice.
-  `  table: '${JSON.stringify(table).replace(/'/g, "''")}'`,
-  "  logic_switch: field_logic",
-  "  sensors:",
-  ...ids(config.blocks).flatMap((b) => [`    - name: ${M.yamlQuote(b.name)}`, `      sensor: ${b.id}_sensor`]),
-  "  masts:",
-  ...ids(config.signals.masts).flatMap((m) => [`    - name: ${M.yamlQuote(m.name)}`, `      aspect: ${m.id}_aspect`, `      show: ${m.id}_show`, `      jmri: ${m.id}`]),
-  "  turnouts:",
-  `    - name: ${point.name}`,
-  `      thrown: ${point.id}_thrown`,
-  `      throw_closed: ${point.id}_throw_closed`,
-  `      throw_thrown: ${point.id}_throw_thrown`,
-  `      field_locked: ${point.id}_field_locked`,
-  `      remote_locked: ${point.id}_locked`,
-  `      resync: ${point.id}_latch_1`,
-  "  remote:",
-  "    - board: kiama-north-k7m4x2",
-  `      online: ${remoteIds.onlineId}`,
-  "      sensors:",
-  "        - name: Approach",
-  `          state: ${remoteIds.id}`,
-  "",
-];
-yaml = yaml.trimEnd() + "\n" + section.join("\n");
-// The field lock global, the logic switch and the Release button: 2.5 writes these.
-yaml = yaml.replace(/^globals:\n/m, `globals:\n  - id: ${point.id}_field_locked\n    type: bool\n    restore_value: false\n    initial_value: "false"\n`);
-const extra = {
-  switch: ["  - platform: template", "    id: field_logic", '    name: "Field logic"', "    optimistic: true", "    restore_mode: RESTORE_DEFAULT_ON"],
-  button: ["  - platform: template", '    name: "Release Bridge"', "    on_press:", "      - lambda: 'id(logic).release(\"Bridge\");'"],
-};
-for (const [key, lines] of Object.entries(extra)) {
-  const at = yaml.search(new RegExp(`^${key}:\\n`, "m"));
-  yaml = at >= 0 ? yaml.replace(new RegExp(`^${key}:\\n`, "m"), `${key}:\n${lines.join("\n")}\n`) : `${yaml}\n${key}:\n${lines.join("\n")}\n`;
-}
 const header = "# Made by engine-tests/esphome/make-gauntlet.mjs for CI's esphome compile. Do not edit by hand.\n";
 fs.writeFileSync(path.join(here, "gauntlet.yaml"), header + yaml);
 console.log("wrote", path.join(here, "gauntlet.yaml"));

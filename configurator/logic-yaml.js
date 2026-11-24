@@ -102,6 +102,7 @@
       if (!M().mastShows(mast)) continue;
       publish(lines, "    ", mastStateTopic(mast), mastStateLambda(mast));
     }
+    for (const mast of virtualMastIds(config)) publish(lines, "    ", mastStateTopic(mast), virtualStateLambda(mast));
     // Owner: this board's MAC. A different MAC heard after our own came back
     // is another board with the same name.
     for (const flag of ["board_owner_heard", "board_owner_answered"]) {
@@ -161,8 +162,9 @@
     publish(lines, "            ", mastStateTopic(mast), mastStateLambda(mast));
   }
 
-  // --- globals the shared publishes need.
+  // --- globals: Field Logic's, then the ones the shared publishes need.
   function emitGlobals(lines, config) {
+    emitLogicGlobals(lines, config);
     if (!sharing(config)) return;
     for (const flag of ["board_owner_heard", "board_owner_answered"]) {
       lines.push(`  - id: ${flag}`);
@@ -206,9 +208,10 @@
     for (const row of body) lines.push(`          ${row}`);
   }
 
-  // Web page for the Owner check's result.
+  // Web page for the Owner check's result, and for the logic switch, the
+  // Release buttons and the version code.
   function needsWebServer(config) {
-    return sharing(config);
+    return sharing(config) || fieldMode(config);
   }
 
   // --- JMRI XML: the Logic tick box.
@@ -219,6 +222,12 @@
     const items = [];
     if (M().sharesWithOtherBoards(config)) items.push({ kind: "online", label: "Online sensor", topic: onlineTopic(config) });
     for (const block of logicBlocks(config)) items.push({ kind: "block", label: `Block "${block.name}"`, topic: block.topic });
+    if (fieldMode(config)) {
+      for (const res of resourcesOf(config)) {
+        if (!String(res.name || "")) continue;
+        items.push({ kind: "held", label: `Held "${res.name}"`, topic: logicTopic(config, "sensor", `/${res.name}/Held`) });
+      }
+    }
     return items;
   }
 
@@ -234,6 +243,21 @@
     const M_ = M();
     M_.normalizeConfig(other);
     const pick = (items) => (items || []).map(({ name, topic }) => ({ name, topic }));
+    // Each mast's aspects as its /State names them (the JMRI aspect name), with
+    // the tags and diverging ticks that board's Masts gives them, so rules here
+    // read it by meaning. A mast that board's logic does not tag reads as stop.
+    const entries = Array.isArray(other.logic?.masts) ? other.logic.masts.filter((entry) => entry && typeof entry === "object") : [];
+    const field = M_.logicMode(other) === "field";
+    const meaning = (entry, pairs) => {
+      const tags = {};
+      const diverging = [];
+      for (const [label, name] of pairs) {
+        if (!name || Object.hasOwn(tags, name)) continue;
+        tags[name] = field ? aspectTag(entry, label) : "stop";
+        if (field && aspectDiverging(entry, label)) diverging.push(name);
+      }
+      return { aspects: Object.keys(tags), tags, diverging };
+    };
     return {
       name: other.board.name,
       share: M_.sharesWithOtherBoards(other) && other.board.mqttEnabled !== false,
@@ -243,10 +267,21 @@
         masts: (other.signals?.masts || []).map((mast) => ({
           name: mast.name,
           topic: mast.topic,
-          aspects: (mast.aspects || []).map((aspect) => aspectName(aspect)).filter(Boolean),
+          ...meaning(
+            entries.find((entry) => entry.virtual !== true && entry.mast === mast.name),
+            (mast.aspects || []).map((aspect) => [String(aspect.label ?? ""), aspectName(aspect)]),
+          ),
         })),
       },
-      logic: { blocks: pick(other.logic?.blocks) },
+      logic: {
+        blocks: pick(other.logic?.blocks),
+        // Signals with no lights: their /State is the aspect's own name.
+        masts: field ? entries.filter((entry) => entry.virtual === true && entry.name).map((entry) => ({
+          name: entry.name,
+          topic: entry.topic,
+          ...meaning(entry, (Array.isArray(entry.aspects) ? entry.aspects : []).map((name) => [String(name), String(name)])),
+        })) : [],
+      },
     };
   }
 
@@ -288,6 +323,7 @@
     sensor: { list: (board) => board.blocks, label: "sensor" },
     block: { list: (board) => board.logic?.blocks, label: "block" },
     turnout: { list: (board) => board.points, label: "turnout" },
+    mast: { list: (board) => [...(board.signals?.masts || []), ...(board.logic?.masts || [])], label: "signal mast" },
   });
 
   function remoteKind(ref) {
@@ -306,7 +342,7 @@
   function findRemote(config, ref) {
     const kind = remoteKind(ref);
     const board = linkedBoards(config).find((b) => b.name === ref?.board);
-    if (!kind) return { problem: "is not a sensor, block or turnout" };
+    if (!kind) return { problem: "is not a sensor, block, turnout or signal mast" };
     if (!board) return { problem: `is on board "${ref.board}", which is not under Linked boards` };
     const item = (REMOTE_KINDS[kind].list(board) || []).find((i) => i.name === ref[kind]);
     if (!item) return { problem: `${REMOTE_KINDS[kind].label} "${ref[kind]}" is not on ${board.name}. Refresh the linked board, or pick another` };
@@ -367,13 +403,17 @@
     return ids;
   }
 
-  // Every remote item this board's logic uses. Blocks use them now; rules will.
+  // Every remote item this board's logic uses: block members, and anything a
+  // rule or a section's release reads with a `board` key.
   function remoteRefsUsed(config) {
     if (M().logicMode(config) !== "field") return [];
     const refs = [];
     for (const block of config.logic?.blocks || []) {
       for (const member of block.sensors || []) if (isRemoteRef(member)) refs.push(member);
     }
+    walkObjects([layersOf(config), resourcesOf(config)], (obj) => {
+      if (isRemoteRef(obj)) refs.push(obj);
+    });
     return refs;
   }
 
@@ -388,6 +428,8 @@
       if (kind === "turnout") {
         subs.set(`${id}_thrown`, M().thrownTopic(item.topic));
         subs.set(`${id}_moving`, M().turnoutSensorTopic(item.topic, "Moving"));
+      } else if (kind === "mast") {
+        subs.set(id, mastStateTopic(item));
       } else {
         subs.set(id, sensorStateTopic(item));
       }
@@ -460,6 +502,9 @@
     }
     if (member && typeof member === "object" && member.turnout !== undefined) {
       return { problem: `has turnout "${member.turnout}" in it. A block is made of sensors: take the turnout out` };
+    }
+    if (member && typeof member === "object" && member.mast !== undefined) {
+      return { problem: `has signal mast "${member.mast}" in it. A block is made of sensors: take the mast out` };
     }
     if (isRemoteRef(member)) return { remote: member };
     return { problem: "has a sensor this configurator cannot read. Remove it" };
@@ -679,9 +724,56 @@
     }
   }
 
+  // The component turns an aspect's name into the index the show script draws,
+  // so each aspect of a mast logic uses needs a name of its own. A name that
+  // is only a number would also change place in the table, since JSON objects
+  // put those first.
+  const NUMBER_NAME = /^(0|[1-9]\d*)$/;
+
+  function validateAspectNames(names, where, errors) {
+    const seen = new Set();
+    for (const name of names) {
+      if (!name.trim()) errors.push(`${where} has an aspect with no name. Name it, or remove it.`);
+      else if (seen.has(name)) errors.push(`${where} has two aspects called "${name}". Logic needs each aspect named once: rename one.`);
+      else if (NUMBER_NAME.test(name)) errors.push(`${where} has an aspect called "${name}", only a number. Give it a name with a letter in it.`);
+      seen.add(name);
+    }
+  }
+
+  function validateLogicMasts(config, errors) {
+    if (!fieldMode(config)) return;
+    const used = mastNamesUsed(config);
+    const real = new Set();
+    for (const mast of config.signals?.masts || []) {
+      real.add(mast.name);
+      if (!used.has(mast.name)) continue;
+      const where = `Signal mast "${mast.name}"`;
+      // An aspect with no JMRI string is already an error on every mast.
+      validateAspectNames((mast.aspects || []).map((aspect) => String(aspect.label ?? "")), where, errors);
+    }
+    const field = fieldMastNames(config);
+    const names = new Set();
+    for (const entry of mastEntries(config)) {
+      if (entry.virtual !== true) continue;
+      const name = String(entry.name || "").trim();
+      if (!name) {
+        errors.push("A signal with no lights has no name. Name it, or remove it.");
+        continue;
+      }
+      const where = `Signal with no lights "${name}"`;
+      if (real.has(name)) errors.push(`${where} has the name of a signal mast on the Signal Masts page. Rename it.`);
+      else if (names.has(name)) errors.push(`Two signals with no lights are called "${name}". Rename one.`);
+      names.add(name);
+      if (!list(entry.aspects).length) errors.push(`${where} has no aspects. Add the aspects rules show on it.`);
+      validateAspectNames(list(entry.aspects).map(String), where, errors);
+      if (!field.has(name)) errors.push(`${where} is not set by any rule, so it would always show Stop. Add a rule that sets it, or remove it.`);
+    }
+  }
+
   function validate(config, errors, warnings) {
     validateLinkedBoards(config, errors, warnings);
     validateBlocks(config, errors, warnings);
+    validateLogicMasts(config, errors);
     const shares = M().sharesWithOtherBoards(config);
     const active = shares || M().logicMode(config) !== "none";
     if (!active) return;
@@ -723,7 +815,586 @@
     }
   }
 
+  // ===== Field Logic on the board (work item 2.5) ===========================
+  // The rule table (the engine cases' board format, as JSON), its version
+  // code, and the YAML around the mr_logic component: the logic switch, the
+  // Release buttons, the field-lock and virtual-mast globals, and the
+  // component's bindings (spec, "The component (Spike A)").
+
+  // The component's source, pinned so a board builds against the interpreter
+  // that matches the page that made its YAML (plan, "Pinning the component").
+  // A branch until the first pre-release tag is cut; then logic-v0.1.0, ...
+  const LOGIC_COMPONENT_REF = "feature/logic";
+  const LOGIC_COMPONENT_SOURCE = `github://aaron9589/esphome-for-model-railroading@${LOGIC_COMPONENT_REF}`;
+  const LOGIC_ID = "logic";
+  const SWITCH_ID = "field_logic";
+
+  const fieldMode = (config) => M().logicMode(config) === "field";
+  const mqttOn = (config) => config.board?.mqttEnabled !== false;
+  const list = (value) => (Array.isArray(value) ? value : []);
+  const isObject = (value) => value && typeof value === "object" && !Array.isArray(value);
+
+  function layersOf(config) {
+    return list(config.logic?.layers).filter(isObject);
+  }
+
+  function resourcesOf(config) {
+    return list(config.logic?.resources).filter(isObject);
+  }
+
+  // Masts entries: { mast } for a mast on the Signal Masts page, or
+  // { virtual: true, name, topic, aspects, tags } for a signal with no lights.
+  function mastEntries(config) {
+    return list(config.logic?.masts).filter(isObject);
+  }
+
+  function virtualMasts(config) {
+    if (!fieldMode(config)) return [];
+    return mastEntries(config).filter((entry) => entry.virtual === true && String(entry.name || "").trim());
+  }
+
+  function mastEntry(config, name) {
+    return mastEntries(config).find((entry) => entry.virtual !== true && entry.mast === name);
+  }
+
+  // Every object in a rule, depth first: conditions, moments, then.
+  function walkObjects(value, visit) {
+    if (Array.isArray(value)) {
+      value.forEach((item) => walkObjects(item, visit));
+      return;
+    }
+    if (!isObject(value)) return;
+    visit(value);
+    for (const inner of Object.values(value)) walkObjects(inner, visit);
+  }
+
+  // Masts this board's rules set: field-controlled (spec, Terms).
+  function fieldMastNames(config) {
+    const names = new Set();
+    if (!fieldMode(config)) return names;
+    for (const layer of layersOf(config)) {
+      for (const rule of list(layer.rules)) {
+        const mast = rule?.then?.mast;
+        if (typeof mast === "string" && mast) names.add(mast);
+      }
+    }
+    return names;
+  }
+
+  // Masts the rules read on this board (no `board` key), or set.
+  function mastNamesUsed(config) {
+    const names = fieldMastNames(config);
+    walkObjects([layersOf(config), resourcesOf(config)], (obj) => {
+      if (typeof obj.mast === "string" && obj.mast && obj.board === undefined) names.add(obj.mast);
+    });
+    for (const entry of mastEntries(config)) if (entry.virtual !== true && typeof entry.mast === "string") names.add(entry.mast);
+    return names;
+  }
+
+  // Turnouts a rule locks: they get a field-lock global.
+  function lockedTurnoutNames(config) {
+    const names = new Set();
+    if (!fieldMode(config)) return names;
+    for (const layer of layersOf(config)) {
+      for (const rule of list(layer.rules)) {
+        for (const name of list(rule?.then?.lock)) if (typeof name === "string" && name) names.add(name);
+      }
+    }
+    return names;
+  }
+
+  // An aspect's tag on this board: as set under Masts, else stop. An untagged
+  // aspect counts as the most restrictive (spec, Stored format).
+  function aspectTag(entry, name) {
+    const tag = isObject(entry?.tags) && Object.hasOwn(entry.tags, name) ? entry.tags[name] : undefined;
+    return M().ASPECT_TAGS.includes(tag) ? tag : "stop";
+  }
+
+  function aspectDiverging(entry, name) {
+    return list(entry?.diverging).includes(name);
+  }
+
+  function startupLabel(mast) {
+    const aspect = (mast.aspects || []).find((item) => item.startup === true && (item.states || []).some((s) => String(s).trim()));
+    return aspect ? String(aspect.label) : undefined;
+  }
+
+  // The stop aspect: as set under Masts, else the aspect named R292 or Stop
+  // (by name or by its JMRI aspect), else the first stop aspect, else the first.
+  function stopLabel(names, tags, chosen, jmriNames = []) {
+    if (chosen && names.includes(chosen)) return chosen;
+    for (const held of ["R292", "Stop"]) {
+      const at = names.findIndex((name, i) => (name === held || jmriNames[i] === held) && tags[name] === "stop");
+      if (at >= 0) return names[at];
+    }
+    return names.find((name) => tags[name] === "stop") || names[0];
+  }
+
+  // A real mast in the table. Its aspects keep the Signal Masts page's order,
+  // because the component turns an aspect name into the index the show
+  // script draws. Its JMRI strings go in only where they are not the
+  // default the engine assumes ("<aspect>; Lit; Unheld").
+  function realMastTable(config, mast) {
+    const entry = mastEntry(config, mast.name);
+    const names = (mast.aspects || []).map((aspect) => String(aspect.label ?? ""));
+    const aspects = {};
+    for (const name of names) if (!Object.hasOwn(aspects, name)) aspects[name] = aspectTag(entry, name);
+    const out = { aspects };
+    const diverging = names.filter((name) => aspectDiverging(entry, name));
+    if (diverging.length) out.diverging = [...new Set(diverging)];
+    const states = {};
+    (mast.aspects || []).forEach((aspect, i) => {
+      const own = (aspect.states || []).map((s) => String(s).trim()).filter(Boolean);
+      const name = names[i];
+      if (Object.hasOwn(states, name)) return;
+      if (own.length !== 1 || own[0] !== `${name}; Lit; Unheld`) states[name] = own;
+    });
+    if (Object.keys(states).length) out.states = states;
+    out.stop = stopLabel(names, aspects, entry?.stopAspect, (mast.aspects || []).map(aspectName));
+    const startup = startupLabel(mast);
+    if (startup !== undefined) out.startup = startup;
+    if (typeof entry?.approachLight === "string" && entry.approachLight) out.approachLight = entry.approachLight;
+    return out;
+  }
+
+  function virtualMastTable(entry) {
+    const names = list(entry.aspects).map((name) => String(name));
+    const aspects = {};
+    for (const name of names) if (!Object.hasOwn(aspects, name)) aspects[name] = aspectTag(entry, name);
+    const out = { aspects };
+    const diverging = names.filter((name) => aspectDiverging(entry, name));
+    if (diverging.length) out.diverging = [...new Set(diverging)];
+    out.stop = stopLabel(names, aspects, entry.stopAspect);
+    if (typeof entry.approachLight === "string" && entry.approachLight) out.approachLight = entry.approachLight;
+    return out;
+  }
+
+  // A copy with every object's keys in order, so the same rule always gives
+  // the same text, whatever order its keys were stored in.
+  function sorted(value) {
+    if (Array.isArray(value)) return value.map(sorted);
+    if (!isObject(value)) return value;
+    const out = {};
+    for (const key of Object.keys(value).sort()) if (value[key] !== undefined) out[key] = sorted(value[key]);
+    return out;
+  }
+
+  // Only the fields that run. A layer's `starter` and a block's topic are for
+  // the page and the YAML; they are not part of the logic.
+  function tableLogic(config) {
+    const logic = {};
+    const blocks = logicBlocks(config).map((block) => ({ name: String(block.name || ""), sensors: sorted(list(block.sensors)) }));
+    if (blocks.length) logic.blocks = blocks;
+    const resources = resourcesOf(config).map((res) => {
+      const out = { name: String(res.name || ""), blocks: sorted(list(res.blocks)) };
+      if (res.release !== undefined) out.release = sorted(res.release);
+      if (res.approachLock) out.approachLock = res.approachLock;
+      return out;
+    });
+    if (resources.length) logic.resources = resources;
+    const layers = layersOf(config).map((layer) => ({
+      name: String(layer.name || ""),
+      rules: list(layer.rules).filter(isObject).map((rule) => {
+        const out = {};
+        for (const key of ["trigger", "checks", "then", "cancel"]) if (rule[key] !== undefined) out[key] = sorted(rule[key]);
+        return out;
+      }),
+    }));
+    if (layers.length) logic.layers = layers;
+    return logic;
+  }
+
+  // Another board's masts as its /State reads: by JMRI aspect name.
+  function remoteMastTable(mast) {
+    const names = list(mast.aspects).map(String);
+    const tags = isObject(mast.tags) ? mast.tags : {};
+    const aspects = {};
+    for (const name of names) if (!Object.hasOwn(aspects, name)) aspects[name] = M().ASPECT_TAGS.includes(tags[name]) ? tags[name] : "stop";
+    const out = { aspects };
+    const diverging = names.filter((name) => list(mast.diverging).includes(name));
+    if (diverging.length) out.diverging = [...new Set(diverging)];
+    return out;
+  }
+
+  function remoteTable(config) {
+    const remote = {};
+    const kindKey = { sensor: "sensors", block: "blocks", turnout: "turnouts" };
+    for (const ref of remoteRefsUsed(config)) {
+      const found = findRemote(config, ref);
+      if (!found.item) continue;
+      const entry = (remote[found.board.name] ||= {});
+      if (found.kind === "mast") {
+        entry.masts ||= {};
+        if (!Object.hasOwn(entry.masts, found.item.name)) entry.masts[found.item.name] = remoteMastTable(found.item);
+        continue;
+      }
+      const key = kindKey[found.kind];
+      entry[key] ||= [];
+      if (!entry[key].includes(found.item.name)) entry[key].push(found.item.name);
+    }
+    return remote;
+  }
+
+  /**
+   * The rule table: this board in the engine cases' format (test/cases/README.md),
+   * which the component reads, logic.js runs, and the version code hashes.
+   * Null when the board has no Field Logic.
+   */
+  function logicTable(config) {
+    if (!fieldMode(config)) return null;
+    const table = {};
+    const sensors = (config.blocks || []).map((sensor) => String(sensor.name || ""));
+    if (sensors.length) table.sensors = sensors;
+    const turnouts = (config.points || []).map((point) => String(point.name || ""));
+    if (turnouts.length) table.turnouts = turnouts;
+    const used = mastNamesUsed(config);
+    const masts = {};
+    for (const mast of config.signals?.masts || []) {
+      if (used.has(mast.name) && !Object.hasOwn(masts, mast.name)) masts[mast.name] = realMastTable(config, mast);
+    }
+    for (const entry of virtualMasts(config)) {
+      if (!Object.hasOwn(masts, entry.name)) masts[entry.name] = virtualMastTable(entry);
+    }
+    if (Object.keys(masts).length) table.masts = masts;
+    const remote = remoteTable(config);
+    if (Object.keys(remote).length) table.remote = remote;
+    table.logic = tableLogic(config);
+    return table;
+  }
+
+  function logicTableJson(config) {
+    const table = logicTable(config);
+    return table ? JSON.stringify(table) : "";
+  }
+
+  // The version code: FNV-1a (32 bits) over the table's UTF-8 bytes, as eight
+  // hex digits. The table is built in a fixed order from only what runs, so
+  // the same rules always give the same code.
+  function versionCode(config) {
+    const json = logicTableJson(config);
+    if (!json) return "";
+    let hash = 0x811c9dc5;
+    const byte = (b) => {
+      hash = Math.imul(hash ^ b, 0x01000193) >>> 0;
+    };
+    for (const ch of json) {
+      const c = ch.codePointAt(0);
+      if (c < 0x80) byte(c);
+      else if (c < 0x800) [0xc0 | (c >> 6), 0x80 | (c & 63)].forEach(byte);
+      else if (c < 0x10000) [0xe0 | (c >> 12), 0x80 | ((c >> 6) & 63), 0x80 | (c & 63)].forEach(byte);
+      else [0xf0 | (c >> 18), 0x80 | ((c >> 12) & 63), 0x80 | ((c >> 6) & 63), 0x80 | (c & 63)].forEach(byte);
+    }
+    return hash.toString(16).padStart(8, "0");
+  }
+
+  // Ids: real masts as the generator numbers them; virtual masts after them,
+  // so a virtual mast never takes a real mast's id.
+  function realMastIds(config) {
+    return M().uniqueIds(config.signals?.masts || []);
+  }
+
+  function virtualMastIds(config) {
+    const real = config.signals?.masts || [];
+    const all = M().uniqueIds([...real, ...virtualMasts(config)]);
+    return all.slice(real.length);
+  }
+
+  // Field-controlled masts on the Signal Masts page, by id, with their stop
+  // aspect's index, for the boot step. Empty without Field Logic.
+  function fieldMastBoot(config) {
+    const field = fieldMastNames(config);
+    const boot = new Map();
+    if (!field.size) return boot;
+    const table = logicTable(config);
+    for (const mast of realMastIds(config)) {
+      if (!field.has(mast.name) || !M().mastShows(mast)) continue;
+      const def = table.masts?.[mast.name];
+      if (!def || boot.has(mast.id)) continue;
+      const stop = (mast.aspects || []).findIndex((aspect) => String(aspect.label ?? "") === def.stop);
+      if (stop >= 0) boot.set(mast.id, stop);
+    }
+    return boot;
+  }
+
+  // --- on_boot -150: a field-controlled mast shows its stop aspect while
+  // logic is on, and its startup aspect (if any) only while it is off. The
+  // component shows the same again at its start-up scan.
+  function emitBootMast(lines, config, mast, startupIndex) {
+    const boot = fieldMastBoot(config);
+    if (!boot.has(mast.id)) return false;
+    if (boot.get(mast.id) === startupIndex) {
+      // The same aspect either way.
+      lines.push("        - globals.set:");
+      lines.push(`            id: ${mast.id}_aspect`);
+      lines.push(`            value: '${startupIndex}'`);
+      lines.push("        - script.execute:");
+      lines.push(`            id: ${mast.id}_show`);
+      lines.push("            restart_effects: true");
+      return true;
+    }
+    lines.push("        - if:");
+    lines.push("            condition:");
+    lines.push(`              lambda: 'return id(${LOGIC_ID}).logic_on();'`);
+    lines.push("            then:");
+    lines.push("              - globals.set:");
+    lines.push(`                  id: ${mast.id}_aspect`);
+    lines.push(`                  value: '${boot.get(mast.id)}'`);
+    lines.push("              - script.execute:");
+    lines.push(`                  id: ${mast.id}_show`);
+    lines.push("                  restart_effects: true");
+    if (startupIndex >= 0) {
+      lines.push("            else:");
+      lines.push("              - globals.set:");
+      lines.push(`                  id: ${mast.id}_aspect`);
+      lines.push(`                  value: '${startupIndex}'`);
+      lines.push("              - script.execute:");
+      lines.push(`                  id: ${mast.id}_show`);
+      lines.push("                  restart_effects: true");
+    }
+    return true;
+  }
+
+  function isBootMast(config, mast) {
+    return fieldMastBoot(config).has(mast.id);
+  }
+
+  // --- on_boot -200: a toggle switch's boot move waits for the start-up scan,
+  // so a turnout under a train is locked before the switch can move it.
+  function emitBootWait(lines, indent, config) {
+    if (!fieldMode(config)) return;
+    lines.push(`${indent}- wait_until:`);
+    lines.push(`${indent}    condition:`);
+    lines.push(`${indent}      lambda: 'return id(${LOGIC_ID}).started();'`);
+  }
+
+  // --- globals: each rule-locked turnout's field lock, and each virtual
+  // mast's aspect. Neither is saved: the start-up scan works them out again.
+  function emitLogicGlobals(lines, config) {
+    const locked = lockedTurnoutNames(config);
+    for (const point of M().uniqueIds(config.points || [])) {
+      if (!locked.has(point.name)) continue;
+      lines.push(`  - id: ${point.id}_field_locked`);
+      lines.push("    type: bool");
+      lines.push("    restore_value: false");
+      lines.push('    initial_value: "false"');
+    }
+    for (const mast of virtualMastIds(config)) {
+      lines.push(`  - id: ${mast.id}_aspect`);
+      lines.push("    type: int");
+      lines.push("    restore_value: false");
+      lines.push("    initial_value: '-1'");
+    }
+  }
+
+  // --- script: a virtual mast's show script. No lamps: it publishes the
+  // aspect another board reads, and logs it.
+  function emitLogicScripts(lines, config) {
+    for (const mast of virtualMastIds(config)) {
+      const names = list(mast.aspects).map(String);
+      lines.push(`  - id: ${mast.id}_show`);
+      lines.push("    mode: restart");
+      lines.push("    parameters:");
+      lines.push("      restart_effects: bool");
+      lines.push("    then:");
+      lines.push("      - lambda: |-");
+      lines.push(`          switch (id(${mast.id}_aspect)) {`);
+      names.forEach((name, i) => {
+        if (names.indexOf(name) !== i) return;
+        lines.push(`            case ${i}: ESP_LOGI("signal_mast", "%s", ${M().cppString(`${mast.name} | ${name}`)}); break;`);
+      });
+      lines.push("            default: break;");
+      lines.push("          }");
+      if (!sharing(config)) continue;
+      publish(lines, "      ", mastStateTopic(mast), virtualStateLambda(mast));
+    }
+  }
+
+  function virtualStateLambda(mast) {
+    const names = list(mast.aspects).map(String);
+    const rows = [`switch (id(${mast.id}_aspect)) {`];
+    names.forEach((name, i) => {
+      if (names.indexOf(name) === i) rows.push(`  case ${i}: return ${M().cppString(name)};`);
+    });
+    rows.push('  default: return "";');
+    rows.push("}");
+    return rows;
+  }
+
+  // --- button: Release <section>, a press for the component.
+  function emitLogicButtons(lines, config) {
+    if (!fieldMode(config)) return;
+    for (const res of resourcesOf(config)) {
+      const name = String(res.name || "");
+      if (!name) continue;
+      lines.push("  - platform: template");
+      lines.push(`    name: ${M().yamlQuote(M().entityName(`Release ${name}`))}`);
+      lines.push("    on_press:");
+      lines.push("      - lambda: |-");
+      lines.push(`          id(${LOGIC_ID}).release(${M().cppString(name)});`);
+    }
+  }
+
+  // --- switch: Field logic on / off, saved across reboots. Its starting value
+  // is used until it is first changed.
+  function emitLogicSwitch(lines, config) {
+    if (!fieldMode(config)) return;
+    lines.push("  - platform: template");
+    lines.push(`    id: ${SWITCH_ID}`);
+    lines.push('    name: "Field logic"');
+    lines.push("    optimistic: true");
+    lines.push(`    restore_mode: ${config.logic?.startsOn === false ? "RESTORE_DEFAULT_OFF" : "RESTORE_DEFAULT_ON"}`);
+  }
+
+  // --- text_sensor: the version code, on the board's web page.
+  function emitLogicTextSensors(lines, config) {
+    if (!fieldMode(config)) return;
+    lines.push("  - platform: template");
+    lines.push("    id: logic_version");
+    lines.push('    name: "Logic version"');
+    lines.push("    entity_category: diagnostic");
+    lines.push(`    lambda: 'return {"${versionCode(config)}"};'`);
+  }
+
+  // --- external_components and mr_logic: the component and its bindings.
+  // Every id it names is already in the YAML.
+  function emitComponent(lines, config) {
+    if (!fieldMode(config)) return;
+    const { yamlQuote } = M();
+    const mqtt = mqttOn(config);
+    lines.push("");
+    lines.push("external_components:");
+    lines.push(`  - source: ${LOGIC_COMPONENT_SOURCE}`);
+    lines.push("    components: [mr_logic]");
+    lines.push("");
+    lines.push("mr_logic:");
+    lines.push(`  id: ${LOGIC_ID}`);
+    // Without a board name the component sends and hears nothing over MQTT.
+    if (mqtt) lines.push(`  board: ${yamlQuote(config.board.name)}`);
+    lines.push(`  version: "${versionCode(config)}"`);
+    // A single-quoted YAML scalar: a ' inside is written twice.
+    lines.push(`  table: '${logicTableJson(config).replace(/'/g, "''")}'`);
+    lines.push(`  logic_switch: ${SWITCH_ID}`);
+    const sensors = M().uniqueIds(config.blocks || []);
+    if (sensors.length) {
+      lines.push("  sensors:");
+      for (const sensor of sensors) {
+        lines.push(`    - name: ${yamlQuote(sensor.name)}`);
+        lines.push(`      sensor: ${sensor.id}_sensor`);
+        const at = sensor.expander ? (config.expanders || []).findIndex((e) => e.name === sensor.expander) : -1;
+        if (at >= 0) lines.push(`      expander: ${M().expanderId(at)}`);
+      }
+    }
+    const used = mastNamesUsed(config);
+    const bound = new Set();
+    const masts = [];
+    for (const mast of realMastIds(config)) {
+      if (!used.has(mast.name) || bound.has(mast.name) || !M().mastShows(mast)) continue;
+      bound.add(mast.name);
+      masts.push({ name: mast.name, id: mast.id, jmri: mqtt });
+    }
+    for (const mast of virtualMastIds(config)) {
+      if (bound.has(mast.name)) continue;
+      bound.add(mast.name);
+      masts.push({ name: mast.name, id: mast.id, jmri: false });
+    }
+    if (masts.length) {
+      lines.push("  masts:");
+      for (const mast of masts) {
+        lines.push(`    - name: ${yamlQuote(mast.name)}`);
+        lines.push(`      aspect: ${mast.id}_aspect`);
+        lines.push(`      show: ${mast.id}_show`);
+        // Its mqtt_subscribe: JMRI's messages, for the hold and with logic off.
+        if (mast.jmri) lines.push(`      jmri: ${mast.id}`);
+      }
+    }
+    const points = M().uniqueIds(config.points || []);
+    if (points.length) {
+      const locked = lockedTurnoutNames(config);
+      lines.push("  turnouts:");
+      for (const point of points) {
+        lines.push(`    - name: ${yamlQuote(point.name)}`);
+        lines.push(`      thrown: ${point.id}_thrown`);
+        lines.push(`      throw_closed: ${point.id}_throw_closed`);
+        lines.push(`      throw_thrown: ${point.id}_throw_thrown`);
+        if (locked.has(point.name)) lines.push(`      field_locked: ${point.id}_field_locked`);
+      }
+    }
+    if (!mqtt) return;
+    const boards = new Map();
+    for (const ref of remoteRefsUsed(config)) {
+      const found = resolveRemote(config, ref);
+      if (!found.item) continue;
+      if (!boards.has(found.board.name)) boards.set(found.board.name, { online: found.onlineId, sensors: [], blocks: [], turnouts: [], masts: [], seen: new Set() });
+      const board = boards.get(found.board.name);
+      const key = `${found.kind}\u0000${found.item.name}`;
+      if (board.seen.has(key)) continue;
+      board.seen.add(key);
+      board[`${found.kind}s`].push({ name: found.item.name, id: found.id });
+    }
+    if (!boards.size) return;
+    lines.push("  remote:");
+    for (const [name, board] of boards) {
+      lines.push(`    - board: ${yamlQuote(name)}`);
+      lines.push(`      online: ${board.online}`);
+      for (const kind of ["sensors", "blocks", "masts"]) {
+        if (!board[kind].length) continue;
+        lines.push(`      ${kind}:`);
+        for (const item of board[kind]) {
+          lines.push(`        - name: ${yamlQuote(item.name)}`);
+          lines.push(`          state: ${item.id}`);
+        }
+      }
+      if (board.turnouts.length) {
+        lines.push("      turnouts:");
+        for (const item of board.turnouts) {
+          lines.push(`        - name: ${yamlQuote(item.name)}`);
+          lines.push(`          thrown: ${item.id}_thrown`);
+          lines.push(`          moving: ${item.id}_moving`);
+        }
+      }
+    }
+  }
+
+  // --- JMRI XML, Logic box: the switch light, each Release turnout and each
+  // Held sensor. The light and turnout are JMRI's way to reach the board's
+  // own topics; the Release turnout takes the board's CLOSED as feedback on
+  // its own topic (DIRECT), so it has no /Thrown sensor.
+  function logicTopic(config, kind, rest) {
+    return `trains/track/${kind}/logic/${config.board.name}${rest}`;
+  }
+
+  function jmriLights(config) {
+    if (!mqttOn(config) || !fieldMode(config)) return [];
+    return [{ kind: "switch", label: "Logic switch light", topic: logicTopic(config, "light", "") }];
+  }
+
+  function jmriTurnouts(config) {
+    if (!mqttOn(config) || !fieldMode(config)) return [];
+    return resourcesOf(config)
+      .filter((res) => String(res.name || ""))
+      .map((res) => ({ kind: "release", label: `Release "${res.name}"`, topic: logicTopic(config, "turnout", `/${res.name}/Release`) }));
+  }
+
   global.EsphomeMrLogicYaml = {
+    LOGIC_COMPONENT_REF,
+    LOGIC_COMPONENT_SOURCE,
+    logicTable,
+    logicTableJson,
+    versionCode,
+    fieldMastNames,
+    lockedTurnoutNames,
+    virtualMasts,
+    isBootMast,
+    emitBootMast,
+    emitBootWait,
+    emitLogicGlobals,
+    emitLogicScripts,
+    emitLogicButtons,
+    emitLogicSwitch,
+    emitLogicTextSensors,
+    emitComponent,
+    jmriLights,
+    jmriTurnouts,
     linkedBoardFromConfig,
     typedLinkedBoard,
     typedItem,

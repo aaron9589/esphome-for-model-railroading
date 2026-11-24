@@ -68,7 +68,10 @@ test("Field Logic shares by default; unticked it publishes nothing", () => {
   const off = generateYaml(shared("my-first-board", { mode: "field", share: false }));
   const { removed, added } = lineDiff(plain, off);
   assert.equal(removed.length, 1);
-  assert.equal(added.length, 1);
+  // Field Logic adds the logic component, its switch and the web page, but
+  // nothing that another board reads.
+  assert.ok(added.length > 1);
+  assert.doesNotMatch(added.join("\n"), /birth_message|\/(State|Moving|Online|Owner)\b/);
 });
 
 test("the board's Online sensor is its birth, will and shutdown message", () => {

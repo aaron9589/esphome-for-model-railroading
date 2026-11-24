@@ -2096,9 +2096,17 @@ function renderJmriSummary() {
         .filter((item) => !left.some((line) => line.startsWith(`${item.label}:`)));
       const online = items.some((item) => item.kind === "online");
       const blocks = items.filter((item) => item.kind === "block").length;
-      const parts = [...(online ? ["This board's Online sensor"] : []), ...(blocks ? [plural(blocks, "block")] : [])];
+      const held = items.filter((item) => item.kind === "held").length;
+      const light = (globalThis.EsphomeMrLogicYaml.jmriLights(state) || []).length;
+      const releases = (globalThis.EsphomeMrLogicYaml.jmriTurnouts(state) || []).length;
+      const parts = [
+        ...(online ? ["This board's Online sensor"] : []),
+        ...(blocks ? [plural(blocks, "block")] : []),
+        ...(light ? ["the Logic on / off light"] : []),
+        ...(releases ? [`${plural(releases, "Release turnout")} with ${releases === 1 ? "its" : "their"} Held sensor${releases === 1 ? "" : "s"}`] : []),
+      ];
       if (!parts.length) return "Nothing yet.";
-      const text = parts.join(" and ");
+      const text = parts.length > 1 ? `${parts.slice(0, -1).join(", ")} and ${parts[parts.length - 1]}` : parts[0];
       return `${text[0].toUpperCase()}${text.slice(1)}.`;
     })(),
   };
@@ -2109,7 +2117,8 @@ function renderJmriSummary() {
   if (state.board.mqttEnabled === false) {
     summary.textContent = "MQTT is off for this board, so nothing here talks to JMRI.";
   } else {
-    summary.textContent = `In the file: ${plural(counts.sensors, "sensor")}, ${plural(counts.turnouts, "turnout")}, and ${plural(counts.masts, "signal mast")}.`;
+    const lights = counts.lights ? `, ${plural(counts.lights, "light")}` : "";
+    summary.textContent = `In the file: ${plural(counts.sensors, "sensor")}, ${plural(counts.turnouts, "turnout")}${lights}, and ${plural(counts.masts, "signal mast")}.`;
   }
   const list = document.getElementById("jmri-skipped");
   list.replaceChildren(...skipped.map((text) => {
