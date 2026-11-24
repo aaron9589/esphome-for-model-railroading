@@ -144,9 +144,11 @@ test("the YAML binds the component to the board's own ids", () => {
     "      throw_closed: p1_throw_closed",
     "      throw_thrown: p1_throw_thrown",
     "      field_locked: p1_field_locked",
+    "      remote_locked: p1_locked",
+    "      resync: p1_latch_1",
     "",
   ].join("\n")));
-  assert.ok(yaml.endsWith("      field_locked: p1_field_locked\n"));
+  assert.ok(yaml.endsWith("      resync: p1_latch_1\n"));
   // Every top-level key once: ESPHome rejects a repeat.
   const keys = topLevelKeys(yaml);
   assert.deepEqual(keys, [...new Set(keys)]);

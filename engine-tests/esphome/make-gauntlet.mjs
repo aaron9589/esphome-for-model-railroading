@@ -22,8 +22,13 @@ config.board.nameSuffix = "k7m4x2";
 config.blocks = ["Left", "Bridge", "Right"].map((name, i) => ({
   name, topic: M.topicFor("block", name), topicCustom: false, gpio: ["GPIO14", "GPIO27", "GPIO26"][i], inverted: true, debounce: "500ms",
 }));
-config.points = [{ ...config.points[0], name: "P1", topic: M.topicFor("point", "P1"), lockEnabled: true, lockDefault: "unlocked",
-  controls: [{ action: "latch-thrown", buttonPin: "GPIO33" }] }];
+// P1: a toggle switch and Remote lock. P2: a push button, no Remote lock.
+config.points = [
+  { ...config.points[0], name: "P1", topic: M.topicFor("point", "P1"), lockEnabled: true, lockDefault: "unlocked",
+    controls: [{ action: "latch-thrown", buttonPin: "GPIO33" }] },
+  { ...config.points[0], name: "P2", topic: M.topicFor("point", "P2"), servoPin: "GPIO25", lockEnabled: false,
+    controls: [{ action: "toggle", buttonPin: "GPIO4" }] },
+];
 const lamp = (color) => ({ color, mode: "steady" });
 config.signals = { mode: "gpio", masts: ["Left Bridge", "Right Bridge"].map((name, i) => ({
   name, topic: M.topicFor("signal", name), topicCustom: false, mode: "gpio",
@@ -41,7 +46,7 @@ north.blocks = [L.typedItem("sensor", "Approach")];
 north.signals.masts = [{ name: "Home", topic: M.topicFor("signal", "Home"), aspects: ["R292", "R281"], tags: { R292: "stop", R281: "clear" }, diverging: [] }];
 
 // The gauntlet over a bridge (spec, One-train section), with P1 locked by the
-// Left entrance, approach lighting on Left Bridge, and a signal with no lights.
+// Left entrance and P2 by the Right, approach lighting on Left Bridge, and a signal with no lights.
 const tags = { Stop: "stop", Clear: "clear" };
 config.logic = {
   mode: "field",
@@ -59,7 +64,7 @@ config.logic = {
         then: { mast: "Left Bridge", aspect: "Clear", reserve: "Bridge", lock: ["P1"] } },
       { trigger: { while: { block: "Right", is: "occupied" }, for: "0.5s" },
         checks: [{ mast: "Home", board: "kiama-north-k7m4x2", is: ["approach", "advance", "clear"] }],
-        then: { mast: "Right Bridge", aspect: "Clear", reserve: "Bridge" } },
+        then: { mast: "Right Bridge", aspect: "Clear", reserve: "Bridge", lock: ["P2"] } },
     ] },
     { name: "Exit", rules: [
       { trigger: { while: { block: "Far", is: "clear" } }, checks: [], then: { mast: "Bridge Exit", aspect: "Clear" } },
