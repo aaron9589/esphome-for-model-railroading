@@ -418,6 +418,8 @@
       else add(mast.pin || config.signals?.pin);
     }
     for (const button of buttonsOf(config)) if (button !== except && !onExpander(button)) add(button.pin);
+    // Plant ends: their Pair and LED pins.
+    for (const pin of L().endPins(config)) if (pin.expander === undefined) add(pin.pin);
     return used;
   }
 
@@ -426,6 +428,7 @@
     const used = new Set();
     for (const block of config.blocks || []) if (block.expander) used.add(`${block.expander}\u0000${Number(block.pin)}`);
     for (const button of buttonsOf(config)) if (button !== except && onExpander(button)) used.add(`${button.expander}\u0000${Number(button.pin)}`);
+    for (const pin of L().endPins(config)) if (pin.expander !== undefined) used.add(`${pin.expander}\u0000${Number(pin.pin)}`);
     return used;
   }
 

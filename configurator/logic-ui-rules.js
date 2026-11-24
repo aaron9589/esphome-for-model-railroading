@@ -177,6 +177,7 @@
     const kind = conditionKind(cond);
     if (!isLeaf(cond)) return "";
     if (cond.board !== undefined) return { board: cond.board, [kind]: cond[kind] };
+    if (kind === "end") return { end: cond.end, track: cond.track, hears: cond.hears };
     return { [kind === "sensor" ? "block" : kind]: cond[kind] };
   }
 
@@ -190,7 +191,12 @@
   function conditionItemChoices(config) {
     const ui = global.EsphomeMrLogicUi;
     const groups = [];
-    for (const kind of ["block", "turnout", "mast", "button"]) {
+    for (const kind of ["block", "turnout", "mast", "button", "end"]) {
+      if (kind === "end") {
+        // What an end of this board hears: values are { end, track, hears }.
+        groups.push(...ui.itemChoices(config, "end"));
+        continue;
+      }
       for (const group of ui.itemChoices(config, kind, { remote: kind !== "button" })) {
         const own = group.options.length && typeof group.options[0].value === "string";
         groups.push({
@@ -208,12 +214,28 @@
     return [...(IS_WORDS[kind] || [])];
   }
 
+  /** The `is` words for one leaf: what an end hears has a block's or a signal's (no diverging). */
+  function isWordsOf(leaf) {
+    const kind = conditionKind(leaf);
+    if (kind === "end") return leaf.hears === "mast" ? [...MEANINGS] : [...IS_WORDS.block];
+    return isWords(kind);
+  }
+
   /** A leaf on a newly picked item, keeping `is` when the new item can have it. */
   function setConditionItem(cond, ref) {
     const kind = refKind(ref);
     if (!kind) return { block: "", is: isObject(cond) && IS_WORDS.block.includes(cond.is) ? cond.is : "occupied" };
     const before = conditionKind(cond);
     const out = { ...ref };
+    if (kind === "end") {
+      // Keep `is` when it still means something for what this end track hears.
+      const words = isWordsOf(out);
+      const kept = isObject(cond) ? [].concat(cond.is ?? []) : [];
+      out.is = before === "end" && cond.hears === ref.hears && kept.length && kept.every((w) => words.includes(w))
+        ? cond.is
+        : (ref.hears === "mast" ? "clear" : "occupied");
+      return out;
+    }
     if (before && family(before) === family(kind) && cond.is !== undefined) out.is = cond.is;
     else out.is = kind === "mast" ? "clear" : IS_WORDS[kind][0];
     return out;
@@ -773,11 +795,12 @@
   }
 
   // Tick boxes for a mast condition's meanings.
-  function meaningPicker(cond, set, env, key) {
+  function meaningPicker(cond, set, env, key, heard = false) {
     const box = el("span", "rule-meanings");
     box.title = TEXT.meaningHint;
     const chosen = meaningsOf(cond);
-    for (const word of [...MEANINGS, "diverging"]) {
+    // A signal an end hears is its meaning only, never a diverging route.
+    for (const word of heard ? MEANINGS : [...MEANINGS, "diverging"]) {
       const label = el("label", "rule-tick");
       const input = el("input");
       input.type = "checkbox";
@@ -836,12 +859,12 @@
       set(next);
       commit(env, `${key}-item`);
     }, { key: `${key}-item` }));
-    if (kind === "mast") {
-      row.append(el("span", "rule-word", TEXT.shows), meaningPicker(leaf, set, env, `${key}-is`));
-    } else if (kind && kind !== "end") {
+    if (kind === "mast" || (kind === "end" && leaf.hears === "mast")) {
+      row.append(el("span", "rule-word", TEXT.shows), meaningPicker(leaf, set, env, `${key}-is`, kind === "end"));
+    } else if (kind) {
       const words = moment ? TEXT.becomesWords : TEXT.isWords;
       row.append(plainSelect(
-        isWords(kind).map((word) => ({ value: word, label: words[word] })),
+        isWordsOf(leaf).map((word) => ({ value: word, label: words[word] })),
         [].concat(leaf.is)[0],
         (is) => { set(setConditionIs(leaf, is)); commit(env, `${key}-is`); },
         { label: TEXT.isLabel, key: `${key}-is` },
@@ -1203,7 +1226,7 @@
   global.EsphomeMrLogicUiRules = {
     TEXT, MEANINGS, TIMES,
     // conditions
-    blankCondition, conditionKind, conditionRef, conditionItemChoices, isWords, setConditionItem, setConditionIs,
+    blankCondition, conditionKind, conditionRef, conditionItemChoices, isWords, isWordsOf, setConditionItem, setConditionIs,
     meaningsOf, toggleMeaning, wrapCondition, unwrapCondition, setCombine, addBranch, removeBranch, setBranch,
     // triggers, checks, then, cancel
     triggerKind, setTriggerKind, setFor, setLeavingGuard, addThenMoment, setThenMoment, removeThenMoment,
