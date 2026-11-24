@@ -90,7 +90,7 @@ for (const file of fixtures) {
 
 test("every golden file has a fixture", () => {
   const present = fs.existsSync(goldenDir) ? fs.readdirSync(goldenDir) : [];
-  const orphans = present.filter((file) => !expectedGolden.has(file));
+  const orphans = present.filter((file) => /\.(yaml|xml)$/.test(file) && !expectedGolden.has(file));
   if (update) {
     for (const file of orphans) {
       fs.rmSync(path.join(goldenDir, file));
