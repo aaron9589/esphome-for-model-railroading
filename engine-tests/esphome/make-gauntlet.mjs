@@ -57,6 +57,9 @@ config.logic = {
     { mast: "Right Bridge", tags },
     { virtual: true, name: "Bridge Exit", topic: M.topicFor("signal", "Bridge Exit"), aspects: ["Stop", "Clear"], tags },
   ],
+  // One plant end with two tracks: track 1 meets Left Bridge, and track 2 passes
+  // through to track 1. A Pair button on GPIO17 and an LED on GPIO23.
+  ends: [{ name: "A", tracks: [{ sensors: ["Left"], mast: "Left Bridge" }, { sensors: ["Right"], through: { end: "A", track: 1 } }], pairPin: "GPIO17", ledPin: "GPIO23" }],
   resources: [{ name: "Bridge", blocks: ["Bridge"], release: { while: { block: "Bridge", is: "clear" }, for: "3s" } }],
   layers: [
     { name: "Gauntlet", starter: "one-train-section", rules: [
