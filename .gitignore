@@ -38,3 +38,4 @@ Temporary Items
 engine-tests/build/
 __pycache__/
 engine-tests/build-asan/
+engine-tests/esphome/.esphome/
