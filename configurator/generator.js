@@ -222,6 +222,8 @@ function normalizeConfig(config) {
   delete board.fallbackHotspot;
   delete board.apiEnabled;
   delete board.otaPassword;
+  if (board.nameSuffix !== undefined && !isNameSuffix(board.nameSuffix)) delete board.nameSuffix;
+  if (board.nameSuffix) setTypedBoardName(board, typedBoardName(board));
   if (typeof board.mqttEnabled !== "boolean") board.mqttEnabled = true;
   if (typeof config.pca9685 !== "boolean") config.pca9685 = true;
   config.pcaBoards = pcaBoardsOf(config).map((pcaBoard) => ({
@@ -374,6 +376,66 @@ function ensureSecrets(config) {
   return config;
 }
 
+// Board name suffix: six random characters that are the board's identity, so
+// two boards both called module-1 at a meet do not clash. Lowercase letters and
+// digits without look-alikes (no 0, o, 1 or l), so it reads off a module card.
+// It is stored as board.nameSuffix and kept on rename; the rest is a label.
+const NAME_SUFFIX_ALPHABET = "abcdefghijkmnpqrstuvwxyz23456789";
+const NAME_SUFFIX_LENGTH = 6;
+// The fallback hotspot, "<board> setup", must fit Wi-Fi's 32 characters, so
+// the name is at most 26. The dash and suffix take 7 of those.
+const MAX_TYPED_NAME = 32 - " setup".length - (NAME_SUFFIX_LENGTH + 1);
+
+function isNameSuffix(value) {
+  return typeof value === "string" && value.length === NAME_SUFFIX_LENGTH
+    && [...value].every((ch) => NAME_SUFFIX_ALPHABET.includes(ch));
+}
+
+function generateNameSuffix() {
+  if (NAME_SUFFIX_ALPHABET.length !== 32) throw new Error("name suffix alphabet must be 32 characters");
+  return [...randomBytes(NAME_SUFFIX_LENGTH)].map((byte) => NAME_SUFFIX_ALPHABET[byte & 31]).join("");
+}
+
+/** The part of the board name you type, without the suffix. */
+function typedBoardName(board) {
+  const name = String(board?.name || "");
+  const suffix = board?.nameSuffix;
+  if (!suffix) return name;
+  if (name === suffix) return "";
+  return name.endsWith(`-${suffix}`) ? name.slice(0, -(suffix.length + 1)) : name;
+}
+
+/** Rename the board, keeping its suffix. */
+function setTypedBoardName(board, typed) {
+  const text = String(typed ?? "").trim();
+  board.name = board.nameSuffix ? (text ? `${text}-${board.nameSuffix}` : board.nameSuffix) : text;
+  return board;
+}
+
+/** Add a suffix to a board that has none. Never adds a second one. */
+function addNameSuffix(board) {
+  if (board.nameSuffix) return board;
+  const typed = typedBoardName(board);
+  board.nameSuffix = generateNameSuffix();
+  return setTypedBoardName(board, typed);
+}
+
+/** A new identity for a copied board: same typed name, new suffix. */
+function newNameSuffix(board) {
+  const typed = typedBoardName(board);
+  let suffix = generateNameSuffix();
+  while (suffix === board.nameSuffix) suffix = generateNameSuffix();
+  board.nameSuffix = suffix;
+  return setTypedBoardName(board, typed);
+}
+
+/** A new board: the starter preset, with a suffix. */
+function newBoardConfig() {
+  const config = myFirstBoardPreset();
+  addNameSuffix(config.board);
+  return config;
+}
+
 function signalPinProblem(pin, role = "Signal data pin") {
   const name = String(pin || "").toUpperCase();
   if (!name) return `${role} is missing`;
@@ -440,8 +502,18 @@ function validateConfig(config) {
   if (String(board.apPassword || "").length > 0 && String(board.apPassword).length < 8) {
     errors.push("Hotspot password must be at least 8 characters.");
   }
-  if (board.name && `${board.name} setup`.length > 32) {
+  if (board.nameSuffix) {
+    const typed = typedBoardName(board);
+    if (!typed) {
+      errors.push(`Board name is empty. Type a name before -${board.nameSuffix}.`);
+    } else if (typed.length > MAX_TYPED_NAME) {
+      errors.push(`Board name is ${typed.length} characters before -${board.nameSuffix}. Keep it to ${MAX_TYPED_NAME}, so the hotspot name "<board> setup" fits in Wi-Fi's 32.`);
+    }
+  } else if (board.name && `${board.name} setup`.length > 32) {
     warnings.push("Hotspot name is longer than 32 characters. Shorten the board name.");
+  }
+  if (!board.nameSuffix && (config.logic?.mode || config.logic?.share === true)) {
+    warnings.push("Board name has no suffix. Boards that share or run logic need a unique name: click Add a suffix on the Board page. Renaming changes the board's network name, so flash it next by USB or to the old name.");
   }
 
   const pins = new Map();
@@ -1555,6 +1627,7 @@ function generateYaml(config) {
   const stateForBlob = {
     board: {
       name: board.name,
+      ...(board.nameSuffix ? { nameSuffix: board.nameSuffix } : {}),
       module: board.module,
       wifiSsid: board.wifiSsid || "",
       wifiPassword: board.wifiPassword || "",
@@ -1986,7 +2059,16 @@ function generateYaml(config) {
     sanitizeId,
     uniqueIds,
     myFirstBoardPreset,
+    newBoardConfig,
     emptyConfig,
+    NAME_SUFFIX_ALPHABET,
+    MAX_TYPED_NAME,
+    isNameSuffix,
+    generateNameSuffix,
+    typedBoardName,
+    setTypedBoardName,
+    addNameSuffix,
+    newNameSuffix,
     topicFor,
     thrownTopic,
     lockTopic,
