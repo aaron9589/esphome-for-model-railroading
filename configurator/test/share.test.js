@@ -84,22 +84,24 @@ test("a sensor mirrors its state to /State, retained; its own topic stays unreta
   for (const payload of ["ACTIVE", "INACTIVE"]) {
     assert.match(yaml, new RegExp(`            topic: "trains/track/sensor/Kiama/Up XOver"\\n            payload: ${payload}\\n            retain: false\\n            qos: 2\\n        - mqtt.publish:\\n            topic: ${state}\\n            payload: ${payload}\\n            retain: true\\n            qos: 2\\n`));
   }
-  assert.match(yaml, new RegExp(`    - mqtt.publish:\\n        topic: ${state}\\n        payload: !lambda \\|-\\n          return id\\(kiama_up_xover_sensor\\).state \\? "ACTIVE" : "INACTIVE";\\n        retain: true\\n`));
+  // On connect, only once the sensor has a reading.
+  assert.match(yaml, new RegExp(`    - if:\\n        condition:\\n          lambda: 'return id\\(kiama_up_xover_sensor\\).has_state\\(\\);'\\n        then:\\n          - mqtt.publish:\\n              topic: ${state}\\n              payload: !lambda \\|-\\n                return id\\(kiama_up_xover_sensor\\).state \\? "ACTIVE" : "INACTIVE";\\n              retain: true\\n`));
 });
 
 test("a turnout publishes /Moving: ACTIVE as a throw starts, INACTIVE after /Thrown", () => {
   const yaml = generateYaml(shared("my-first-board"));
   const moving = '"trains/track/sensor/Kiama/Up Loop/Moving"';
-  for (const which of ["closed", "thrown"]) {
+  for (const [which, other] of [["closed", "thrown"], ["thrown", "closed"]]) {
     const script = yaml.slice(yaml.indexOf(`  - id: kiama_up_loop_throw_${which}\n`));
     const body = script.slice(0, script.indexOf("\n  - id: ", 5));
-    const start = body.indexOf(`topic: ${moving}\n                payload: ACTIVE`);
+    // Every throw, announced or not (a boot move can be running at connect).
+    const start = body.indexOf(`      - mqtt.publish:\n          topic: ${moving}\n          payload: ACTIVE`);
     const servo = body.indexOf("servo.write");
     const thrown = body.indexOf('topic: "trains/track/sensor/Kiama/Up Loop/Thrown"');
-    const end = body.indexOf(`topic: ${moving}\n                payload: INACTIVE`);
+    const end = body.indexOf(`      - if:\n          condition:\n            lambda: 'return !id(kiama_up_loop_throw_${other}).is_running();'\n          then:\n            - mqtt.publish:\n                topic: ${moving}\n                payload: INACTIVE`);
     assert.ok(start > 0 && start < servo, `${which}: ACTIVE before the servo moves`);
-    assert.ok(thrown > servo && end > thrown, `${which}: INACTIVE after /Thrown`);
-    assert.equal(body.match(/lambda: 'return announce;'/g).length, 2, `${which}: both only on announced throws`);
+    assert.ok(thrown > servo && end > thrown, `${which}: INACTIVE after /Thrown, unless the other throw is still running`);
+    assert.equal(body.match(/lambda: 'return announce;'/g).length, 1, `${which}: only /Thrown waits for announce`);
   }
   assert.match(yaml, new RegExp(`    - mqtt.publish:\\n        topic: ${moving}\\n        payload: !lambda \\|-\\n          return id\\(kiama_up_loop_throw_closed\\).is_running\\(\\) \\|\\| id\\(kiama_up_loop_throw_thrown\\).is_running\\(\\) \\? "ACTIVE" : "INACTIVE";\\n        retain: true\\n`));
 });
@@ -121,10 +123,12 @@ test("an aspect's name is its JMRI name, else its label", () => {
 test("the Owner check: this board's MAC, retained, and a clash after our own came back", () => {
   const yaml = generateYaml(shared("sensors"));
   const owner = "trains/track/board/sensor-board/Owner";
-  assert.match(yaml, new RegExp(`    - globals.set:\\n        id: board_owner_heard\\n        value: 'false'\\n    - mqtt.publish:\\n        topic: ${owner}\\n        payload: !lambda \\|-\\n          return get_mac_address_pretty\\(\\);\\n        retain: true\\n`));
+  assert.match(yaml, new RegExp(`    - globals.set:\\n        id: board_owner_heard\\n        value: 'false'\\n    - globals.set:\\n        id: board_owner_answered\\n        value: 'false'\\n    - mqtt.publish:\\n        topic: ${owner}\\n        payload: !lambda \\|-\\n          return get_mac_address_pretty\\(\\);\\n        retain: true\\n`));
+  // The board that sees a clash sends its own MAC again, once, so both see it.
+  assert.match(yaml, new RegExp(`if \\(!id\\(board_owner_answered\\)\\) \\{\\n {12}id\\(board_owner_answered\\) = true;\\n {12}id\\(mqtt_server\\).publish\\("${owner}", mine, 2, true\\);`));
   assert.match(yaml, /  - id: board_owner_heard\n    type: bool\n    restore_value: false\n/);
   assert.match(yaml, new RegExp(`  - platform: mqtt_subscribe\\n    id: board_owner\\n    internal: true\\n    topic: ${owner}\\n`));
-  assert.match(yaml, /if \(x.empty\(\) \|\| !id\(board_owner_heard\)\) return;\n {10}ESP_LOGE\("board", "Another board called sensor-board/);
+  assert.match(yaml, /if \(x.empty\(\) \|\| !id\(board_owner_heard\)\) return;\n {10}ESP_LOGE\("board", "Another board called %s is on the broker \(MAC %s\). Give one of them a new suffix.", "sensor-board", x.c_str\(\)\);/);
   assert.match(yaml, /id\(mqtt_server\).publish\("trains\/track\/board\/sensor-board\/Problem", std::string\("Clash"\), 0, false\);/);
   // Shown on the board's web page, which a sensors-only board now has.
   assert.match(yaml, /  - platform: template\n    id: board_name_check\n    name: "Board name check"\n/);
@@ -142,7 +146,7 @@ test("Disable MQTT makes Share an error, and nothing is published", () => {
 });
 
 test("reserved names are errors once a board shares or runs logic", () => {
-  const names = ["logic/Bridge", "Board/x", "Up Main/State", "Loop/Moving", "Loop/Locked", "Loop/Thrown"];
+  const names = ["logic/Bridge", "Board/x", "Up Main/State", "Loop/Moving", "Loop/Locked", "Loop/Thrown", "Loop/thrown", "Loop/STATE"];
   for (const name of names) {
     const config = fixture("my-first-board");
     config.blocks[0].name = name;
@@ -164,6 +168,10 @@ test("a sensor cannot sit on a topic the board shares", () => {
     config.blocks.push({ name: "Odd", topic, topicCustom: true, gpio: "GPIO27", inverted: true, debounce: "500ms" });
     assert.ok(errorsOf(config).some((e) => e.includes(`Sensor "Odd" uses ${topic}`)), topic);
   }
+  const masts = shared("masts-addressable");
+  masts.signals.masts[1].topic = "trains/track/signalmast/KJN-42.26/State";
+  assert.ok(errorsOf(masts).some((e) => e.includes('Signal mast "Dwarf (Yard)" uses trains/track/signalmast/KJN-42.26/State')));
+
   const mirror = shared("my-first-board");
   mirror.blocks.push({ name: "Odd", topic: "trains/track/sensor/Kiama/Up XOver/State", topicCustom: true, gpio: "GPIO27", inverted: true, debounce: "500ms" });
   assert.ok(errorsOf(mirror).some((e) => e.includes("Kiama/Up XOver\"'s shared state")));

@@ -716,9 +716,12 @@ function boardNameFields() {
     updatePreview();
   }, {
     placeholder: "yard-board-01",
-    hint: suffix
+    hint: (suffix
       ? `Name of this board on the network. The -${suffix} at the end is this board's own, so its name is unique at a meet. It stays when you rename the board.`
-      : "Name of this board on the network.",
+      : "Name of this board on the network.")
+      + (globalThis.EsphomeMr.sharesWithOtherBoards(state)
+        ? " This board shares, so renaming it leaves its old Online sensor showing in JMRI: delete it there after the next flash."
+        : ""),
     full: true,
   });
   const fields = [nameField];

@@ -1173,7 +1173,7 @@ function emitThrowScript(lines, point, thrown, publish, config) {
   lines.push(`                payload: "${payload}"`);
   lines.push("                retain: true");
   lines.push("                qos: 2");
-  logicHooks(config).emitThrowEnd(lines, config, point);
+  logicHooks(config).emitThrowEnd(lines, config, point, thrown);
 }
 
 function emitButtonAllowed(lines, point, lock) {

@@ -72,8 +72,14 @@
   // --- mqtt: on_connect. Everything shared is sent again on connect.
   function emitOnConnect(lines, config, { blocks, points, masts }) {
     if (!sharing(config)) return;
+    // A sensor with no reading yet sends nothing: its first reading publishes
+    // /State from on_press or on_release. A retained guess could read clear.
     for (const block of blocks) {
-      publish(lines, "    ", sensorStateTopic(block), [`return id(${block.id}_sensor).state ? "ACTIVE" : "INACTIVE";`]);
+      lines.push("    - if:");
+      lines.push("        condition:");
+      lines.push(`          lambda: 'return id(${block.id}_sensor).has_state();'`);
+      lines.push("        then:");
+      publish(lines, "          ", sensorStateTopic(block), [`return id(${block.id}_sensor).state ? "ACTIVE" : "INACTIVE";`]);
     }
     for (const point of points) {
       publish(lines, "    ", movingTopic(point), [
@@ -86,9 +92,11 @@
     }
     // Owner: this board's MAC. A different MAC heard after our own came back
     // is another board with the same name.
-    lines.push("    - globals.set:");
-    lines.push("        id: board_owner_heard");
-    lines.push("        value: 'false'");
+    for (const flag of ["board_owner_heard", "board_owner_answered"]) {
+      lines.push("    - globals.set:");
+      lines.push(`        id: ${flag}`);
+      lines.push("        value: 'false'");
+    }
     publish(lines, "    ", ownerTopic(config), ["return get_mac_address_pretty();"]);
   }
 
@@ -98,20 +106,22 @@
     publish(lines, indent, sensorStateTopic(block), [active ? "ACTIVE" : "INACTIVE"]);
   }
 
-  // --- throw scripts: /Moving, ACTIVE as the throw starts and INACTIVE once
-  // /Thrown has the new position. Only announced throws publish, as /Thrown does;
-  // on connect the board sends where it is.
+  // --- throw scripts: /Moving, ACTIVE as every throw starts (boot moves too,
+  // since on connect may have seen one running) and INACTIVE once /Thrown has
+  // the new position. An opposite command can start the other throw script
+  // mid-move, so only the last one running clears it.
   function emitThrowStart(lines, config, point) {
     if (!sharing(config)) return;
-    lines.push("      - if:");
-    lines.push("          condition:");
-    lines.push("            lambda: 'return announce;'");
-    lines.push("          then:");
-    publish(lines, "            ", movingTopic(point), ["ACTIVE"]);
+    publish(lines, "      ", movingTopic(point), ["ACTIVE"]);
   }
 
-  function emitThrowEnd(lines, config, point) {
+  function emitThrowEnd(lines, config, point, thrown) {
     if (!sharing(config)) return;
+    const other = `${point.id}_throw_${thrown ? "closed" : "thrown"}`;
+    lines.push("      - if:");
+    lines.push("          condition:");
+    lines.push(`            lambda: 'return !id(${other}).is_running();'`);
+    lines.push("          then:");
     publish(lines, "            ", movingTopic(point), ["INACTIVE"]);
   }
 
@@ -142,10 +152,12 @@
   // --- globals the shared publishes need.
   function emitGlobals(lines, config) {
     if (!sharing(config)) return;
-    lines.push("  - id: board_owner_heard");
-    lines.push("    type: bool");
-    lines.push("    restore_value: false");
-    lines.push('    initial_value: "false"');
+    for (const flag of ["board_owner_heard", "board_owner_answered"]) {
+      lines.push(`  - id: ${flag}`);
+      lines.push("    type: bool");
+      lines.push("    restore_value: false");
+      lines.push('    initial_value: "false"');
+    }
   }
 
   // --- text_sensor: the Owner check, and its result on the web page.
@@ -170,9 +182,14 @@
       "  return;",
       "}",
       "if (x.empty() || !id(board_owner_heard)) return;",
-      `ESP_LOGE("board", "Another board called ${name} is on the broker (MAC %s). Give one of them a new suffix.", x.c_str());`,
-      `id(board_name_check).publish_state("Clash: another board called ${name}, MAC " + x);`,
+      `ESP_LOGE("board", "Another board called %s is on the broker (MAC %s). Give one of them a new suffix.", ${M().cppString(name)}, x.c_str());`,
+      `id(board_name_check).publish_state(std::string(${M().cppString(`Clash: another board called ${name}, MAC `)}) + x);`,
       `id(mqtt_server).publish(${M().cppString(problemTopic(config))}, std::string("Clash"), 0, false);`,
+      "// Send our MAC again, once, so the other board sees the clash too.",
+      "if (!id(board_owner_answered)) {",
+      "  id(board_owner_answered) = true;",
+      `  id(mqtt_server).publish(${M().cppString(ownerTopic(config))}, mine, 2, true);`,
+      "}",
     ];
     for (const row of body) lines.push(`          ${row}`);
   }
@@ -211,7 +228,7 @@
       const name = String(item.name || "").trim();
       const prefix = RESERVED_PREFIXES.find((p) => name.toLowerCase().startsWith(p));
       if (prefix) errors.push(`${kind} "${name}" starts with ${prefix}, which board topics use. Rename it.`);
-      const suffix = RESERVED_SUFFIXES.find((s) => name.endsWith(s));
+      const suffix = RESERVED_SUFFIXES.find((s) => name.toLowerCase().endsWith(s.toLowerCase()));
       if (suffix) errors.push(`${kind} "${name}" ends with ${suffix}, which shared topics use. Rename it.`);
     }
     if (!shares || config.board?.mqttEnabled === false) return;
@@ -220,9 +237,15 @@
     published.set(onlineTopic(config), "this board's Online report");
     for (const block of config.blocks || []) published.set(sensorStateTopic(block), `sensor "${block.name}"'s shared state`);
     for (const point of config.points || []) published.set(movingTopic(point), `turnout "${point.name}"'s moving report`);
+    const masts = config.signals?.masts || [];
+    for (const mast of masts) published.set(mastStateTopic(mast), `signal mast "${mast.name}"'s shared aspect`);
     for (const block of config.blocks || []) {
       const what = published.get(block.topic);
       if (what) errors.push(`Sensor "${block.name}" uses ${block.topic}, where the board sends ${what}. Rename the sensor.`);
+    }
+    for (const mast of masts) {
+      const what = published.get(mast.topic);
+      if (what) errors.push(`Signal mast "${mast.name}" uses ${mast.topic}, where the board sends ${what}. Rename the mast.`);
     }
   }
 
