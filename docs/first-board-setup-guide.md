@@ -27,7 +27,7 @@ Success looks like:
 1. Open the **[Board Configurator](https://aaron9589.github.io/esphome-for-model-railroading/)**, load **My First Board** (or import a previous download), and fill in Wi-Fi. The MQTT broker field is already `layout-mqtt.local`. `ping layout-mqtt.local` checks that this computer answers.
 2. On the configurator's **Download** page, click **Send to ESPHome**. It copies the YAML and opens ESPHome in a new tab. (Or click **Download YAML** and open the file in a text editor to copy it.)
 3. In ESPHome, click **Create device**, open **Advanced set up options**, and choose **Empty Configuration**.
-4. Type the board name from the Configurator as the **Device name** (example: `my-first-board`), then click **Finish setup**.
+4. Type the board name from the Configurator as the **Device name** (example: `my-first-board-k7m4x2`; the six characters at the end are this board's own), then click **Finish setup**.
 5. The editor opens with some starter text. Select all of it (Ctrl+A, or ⌘A on a Mac) and paste over it.
 6. Click **Save**.
 

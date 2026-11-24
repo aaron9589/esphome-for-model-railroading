@@ -7,7 +7,11 @@ const {
   generatePassword,
   generateYaml,
   generateJmriXml,
-  myFirstBoardPreset,
+  newBoardConfig,
+  typedBoardName,
+  setTypedBoardName,
+  addNameSuffix,
+  newNameSuffix,
   normalizeConfig,
   parseConfigFromYaml,
   thrownTopic,
@@ -65,7 +69,7 @@ const COLOR_LABELS = {
 
 const CRED_FIELDS = ["wifiSsid", "wifiPassword", "mqttBroker", "apPassword"];
 
-let state = loadState() || myFirstBoardPreset();
+let state = loadState() || newBoardConfig();
 normalizeConfig(state);
 normalizeTopics(state);
 applyCredentials(state, loadCredentials());
@@ -272,6 +276,7 @@ document.getElementById("btn-copy").addEventListener("click", async () => {
 // Returns false (after showing why) when the text is not one of ours.
 function importText(text, source) {
   try {
+    const previousSuffix = state.board?.nameSuffix;
     state = parseConfigFromYaml(text);
     normalizeTopics(state);
     // Prefer credentials from the imported file when present; otherwise keep browser-saved ones.
@@ -285,7 +290,11 @@ function importText(text, source) {
     saveCredentials(extractCredentials(state.board));
     persist();
     render();
-    flash("ok", `Imported ${source}.`);
+    // A copy of another board's file would share that board's identity. Not
+    // said when re-importing this browser's own board.
+    flash("ok", state.board.nameSuffix && state.board.nameSuffix !== previousSuffix
+      ? `Imported ${source}. If you are setting up a second board from this file, click New suffix on the Board page.`
+      : `Imported ${source}.`);
     return true;
   } catch (err) {
     flash("err", err.message || String(err));
@@ -606,19 +615,69 @@ function renderModules() {
   el.boardIdentity.append(wrap);
 }
 
+// The name you type, with the board's suffix shown after it. The suffix is the
+// board's identity: it stays when the board is renamed.
+function boardNameFields() {
+  const b = state.board;
+  const suffix = b.nameSuffix;
+  const nameField = field("Board name", typedBoardName(b), (v) => {
+    setTypedBoardName(b, v);
+    persist();
+    updatePreview();
+  }, {
+    placeholder: "yard-board-01",
+    hint: suffix
+      ? `Name of this board on the network. The -${suffix} at the end is this board's own, so its name is unique at a meet. It stays when you rename the board.`
+      : "Name of this board on the network.",
+    full: true,
+  });
+  const fields = [nameField];
+  if (suffix) {
+    const input = nameField.querySelector("input");
+    const row = document.createElement("span");
+    row.className = "name-with-suffix";
+    const tail = document.createElement("span");
+    tail.className = "name-suffix";
+    tail.textContent = `-${suffix}`;
+    input.replaceWith(row);
+    row.append(input, tail);
+    fields.push(suffixAction("New suffix",
+      "Only for a copy of another board's file. Two boards must never share a suffix. The board's network name changes, so flash it next by USB.",
+      () => {
+        newNameSuffix(b);
+        return `New suffix -${b.nameSuffix}. Flash this board by USB next: its network name has changed.`;
+      }));
+  } else {
+    fields.push(suffixAction("Add a suffix",
+      "Adds six characters, such as -k7m4x2, so this board's name is unique at a meet. Boards that share or run logic need one. The board's network name changes, so flash it next by USB.",
+      () => {
+        addNameSuffix(b);
+        return `Added -${b.nameSuffix}. Flash this board by USB next: its network name has changed.`;
+      }));
+  }
+  return fields;
+}
+
+function suffixAction(label, hint, apply) {
+  const wrap = document.createElement("div");
+  wrap.className = "suffix-action full";
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "text";
+  button.textContent = label;
+  button.addEventListener("click", () => {
+    const message = apply();
+    persist();
+    render();
+    flash("ok", message);
+  });
+  wrap.append(button, hintEl(hint));
+  return wrap;
+}
+
 function renderBoard() {
   const b = state.board;
-  el.boardIdentity.replaceChildren(
-    field("Board name", b.name, (v) => {
-      b.name = v.trim();
-      persist();
-      updatePreview();
-    }, {
-      placeholder: "yard-board-01",
-      hint: "Name of this board on the network.",
-      full: true,
-    })
-  );
+  el.boardIdentity.replaceChildren(...boardNameFields());
   renderModules();
   el.boardNetwork.replaceChildren(
     field("Wi-Fi name", b.wifiSsid, (v) => setCredential("wifiSsid", v), {

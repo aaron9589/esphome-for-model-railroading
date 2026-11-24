@@ -488,6 +488,30 @@ button:focus-visible {
   white-space: nowrap;
 }
 
+.name-with-suffix {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.name-with-suffix input {
+  flex: 1;
+  min-width: 0;
+}
+
+.name-suffix {
+  font-family: var(--mono);
+  color: var(--muted);
+}
+
+.suffix-action {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.2rem;
+}
+
 .check {
   flex-direction: row;
   align-items: flex-start;
