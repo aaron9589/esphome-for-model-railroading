@@ -17,7 +17,7 @@ const {
   setTypedBoardName,
   typedBoardName,
   validateConfig,
-} = loadModules("generator.js").EsphomeMr;
+} = loadModules("generator.js", "logic-yaml.js").EsphomeMr;
 
 function withCreds(config) {
   config.board.wifiSsid = "layout-wifi";

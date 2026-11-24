@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { loadModules, test } from "./harness.js";
 
-const context = loadModules("generator.js");
+const context = loadModules("generator.js", "logic-yaml.js");
 
 const {
   CONFIG_MARKER,

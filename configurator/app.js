@@ -254,7 +254,7 @@ document.getElementById("btn-send-esphome").addEventListener("click", async () =
 });
 
 // Which JMRI tables go in the XML. Not saved: every table is ticked on load.
-const jmriInclude = { sensors: true, turnouts: true, masts: true };
+const jmriInclude = { sensors: true, turnouts: true, masts: true, logic: true };
 for (const box of document.querySelectorAll("[data-jmri]")) {
   box.addEventListener("change", () => {
     jmriInclude[box.dataset.jmri] = box.checked;
@@ -2020,7 +2020,10 @@ function renderJmriSummary() {
     sensors: table === "sensors",
     turnouts: table === "turnouts",
     masts: table === "masts",
+    logic: table === "logic",
   }).counts;
+  // The Logic box is shown for boards that share or run logic.
+  document.getElementById("jmri-logic-box").hidden = !globalThis.EsphomeMrLogicYaml.hasJmriLogic(state);
   const hints = {
     sensors: `${plural(only("sensors").sensors, "block detector")}.`,
     turnouts: (() => {
@@ -2031,6 +2034,7 @@ function renderJmriSummary() {
       return `${plural(c.turnouts, "turnout")}, ${each} position sensor${locks ? `, plus ${plural(locks, "lock sensor")}` : ""}.`;
     })(),
     masts: `${plural(only("masts").masts, "signal mast")}.`,
+    logic: only("logic").sensors ? "This board's Online sensor." : "Nothing yet.",
   };
   for (const hint of document.querySelectorAll("[data-jmri-hint]")) {
     hint.textContent = hints[hint.dataset.jmriHint];

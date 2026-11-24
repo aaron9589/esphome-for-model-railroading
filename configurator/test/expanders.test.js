@@ -14,7 +14,7 @@ const {
   normalizeConfig,
   parseConfigFromYaml,
   validateConfig,
-} = loadModules("generator.js").EsphomeMr;
+} = loadModules("generator.js", "logic-yaml.js").EsphomeMr;
 
 // Write the YAML each test builds here, for `esphome config` by hand:
 // ESPHOME_YAML_OUT=/some/dir npm test
