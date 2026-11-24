@@ -443,6 +443,7 @@ void MrLogicComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "Logic: %u sensors, %u masts, %u turnouts bound; %u rules in %u groups",
                 (unsigned) this->sensors_.size(), (unsigned) this->masts_.size(), (unsigned) this->turnouts_.size(),
                 (unsigned) this->table_data_.rules.size(), (unsigned) this->table_data_.layers.size());
+  if (!this->version_.empty()) ESP_LOGCONFIG(TAG, "  Logic version %s", this->version_.c_str());
   if (!this->board_.empty()) ESP_LOGCONFIG(TAG, "  Topics for board %s", this->board_.c_str());
   if (this->is_failed()) ESP_LOGCONFIG(TAG, "  The logic table could not be read.");
 }

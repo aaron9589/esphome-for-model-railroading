@@ -815,6 +815,20 @@ mr_logic:
 - `resync` runs the turnout's latch script with `force: false` when it goes from locked (either flag) to unlocked; the YAML's own `UNLOCKED` handler stops running it on a board with logic.
 - An expander that fails or warns makes its sensors read occupied, and the component logs an `ERROR` until it answers again.
 
+**What the generator writes** (work item 2.5, `logic-yaml.js`). With Field Logic, every board gets the component, the switch and the version, rules or not:
+
+- **The table** lists every sensor and turnout on the board, the masts logic sets or reads (or lists under Masts), the virtual masts, the other boards' items the rules and blocks read, and the Logic page's blocks, sections and groups. Only what runs goes in: a group's `starter` and a block's topic stay out, and each rule's keys are written in a fixed order. So the same rules always give the same table.
+- **Aspect names** in the table are the aspect labels from the Signal Masts page, in that page's order, because the component turns a name into the index the show script draws. So on a mast logic uses, each label must be unique and not only a number (JSON puts number keys first). An aspect's JMRI strings go in as its `states` unless they are just `<label>; Lit; Unheld`. The stop aspect is always written out: the one chosen under Masts, else the aspect named, or with the JMRI aspect, `R292` or `Stop`, else the first `stop` aspect.
+- **Tags** are as set under Masts. An aspect with no tag is `stop`, and one not ticked diverging is not diverging. The Masts part (2.7a) fills in the CATS tags when a mast joins it.
+- **Another board's masts** are read by their `/State`, which carries the JMRI aspect name. So a linked board's snapshot keeps each mast's aspects by JMRI name, with the tags that board gives them, and its virtual masts. A board without Field Logic gives no tags, so its masts read as `stop`.
+- **The version code** is FNV-1a (32 bits) over the table's UTF-8 bytes, as eight hex digits. It is in `mr_logic: version:`, in the `Logic version` text sensor, and in the component's boot log.
+- **Boot:** a field-controlled mast joins the -150 step. While logic is on it shows its stop aspect; while off, its startup aspect, if it has one. A toggle switch's -200 move first waits for `id(logic).started()`.
+- **Virtual masts** get an `int` aspect global and a `_show` script that logs the aspect and, when sharing, publishes `/State`. They have no lamps and are not in the JMRI XML.
+- **Disable MQTT:** `mr_logic` has no `board` and no `jmri` bindings; the switch, Release buttons and version stay. A mast that a rule sets needs no MQTT; a mast JMRI sets still does.
+- **JMRI XML (Logic box):** the switch light `MLlogic/<board>`, each section's Release turnout with `DIRECT` feedback (it takes the board's `CLOSED` on its own topic), and its Held sensor.
+- The component comes from `github://aaron9589/esphome-for-model-railroading@<LOGIC_COMPONENT_REF>`, which is `feature/logic` until the first pre-release tag. CI fails if that ref is not on GitHub.
+- **Left to 2.5b** (turnout lock emitters): binding `remote_locked` and `resync`, the field lock in the fascia buttons' and latch scripts' guards, and the lock report for rule-locked turnouts. Until then the field lock is written but nothing on the board obeys it. Rule buttons are not generated yet either: the component has no binding for them.
+
 **Still to measure on a board** (the spike's hardware half): scan time on the ESP32, the 100 ms loop's jitter while MQTT connects, free heap with about 40 `mqtt_subscribe` text sensors, and the boot order on the bench. The boot order to try: the startup-aspect step (`on_boot` priority -150) runs only while the logic switch is off; the latch scripts (-200) wait until the component's start-up scan has run; the component's setup priority is `DATA`, after the sensors and scripts it reads.
 
 ## Stored format

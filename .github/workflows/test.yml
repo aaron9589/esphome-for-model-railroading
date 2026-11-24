@@ -28,10 +28,24 @@ jobs:
           node-version: 24
 
       # Unit tests, and the golden files: today's YAML and JMRI XML for every
-      # fixture, byte-for-byte.
+      # fixture, byte-for-byte. The tests also write the boards they build to
+      # ESPHOME_YAML_OUT, so the Field Logic XML (no golden file has logic) is
+      # checked against the schema below.
       - name: npm test
         working-directory: configurator
+        env:
+          ESPHOME_YAML_OUT: ${{ runner.temp }}/boards
         run: npm test
+
+      # Boards download the logic component from this ref, so it must exist.
+      - name: The pinned logic component ref exists
+        run: |
+          ref=$(sed -n 's/^ *const LOGIC_COMPONENT_REF = "\(.*\)";$/\1/p' configurator/logic-yaml.js)
+          test -n "$ref" || { echo "::error::LOGIC_COMPONENT_REF not found in configurator/logic-yaml.js"; exit 1; }
+          git ls-remote --exit-code "https://github.com/${{ github.repository }}" "refs/heads/$ref" "refs/tags/$ref" >/dev/null || {
+            echo "::error::LOGIC_COMPONENT_REF is $ref, which is not a branch or tag on GitHub. Create the tag before the PR that bumps it."
+            exit 1
+          }
 
       # The JMRI 5.4 schema. Its includes are http://jmri.org/xml/... URLs, so an
       # XML catalog points them at this checkout and xmllint never goes online.
@@ -47,7 +61,8 @@ jobs:
       - name: Install xmllint
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libxml2-utils
 
-      # npm test has just proved test/golden/*.xml is what the generator writes.
+      # npm test has just proved test/golden/*.xml is what the generator writes,
+      # and written the other test boards' XML to $RUNNER_TEMP/boards.
       - name: Validate the JMRI XML against layout-4-19-2.xsd
         run: |
           cat > "$RUNNER_TEMP/jmri-catalog.xml" <<CATALOG
@@ -61,7 +76,7 @@ jobs:
           CATALOG
           XML_CATALOG_FILES="$RUNNER_TEMP/jmri-catalog.xml" xmllint --nonet --noout \
             --schema jmri/xml/schema/layout-4-19-2.xsd \
-            configurator/test/golden/*.xml
+            configurator/test/golden/*.xml "$RUNNER_TEMP"/boards/*.xml
 
   engine:
     name: Logic engine (C++ core) and the JS cross-check

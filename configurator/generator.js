@@ -909,7 +909,14 @@ function validateConfig(config) {
   const masts = signals.masts || [];
   if (masts.length) {
     if (board.mqttEnabled === false) {
-      errors.push("Signal masts need MQTT. Turn it back on under Board.");
+      // A mast that Field Logic sets runs without MQTT; one JMRI sets cannot.
+      const field = logicHooks(config).fieldMastNames(config);
+      if (!field?.size) errors.push("Signal masts need MQTT. Turn it back on under Board.");
+      else {
+        for (const mast of masts) {
+          if (!field.has(mast.name)) errors.push(`Signal mast "${mast.name}" needs MQTT: JMRI sets it. Turn MQTT back on under Board, or set the mast from a rule.`);
+        }
+      }
     }
     for (const mast of masts) {
       const seen = new Map();
@@ -1008,6 +1015,7 @@ const JMRI_TABLES = Object.freeze({
   sensor: { typeTopic: "track/sensor/", table: "Sensor Table" },
   turnout: { typeTopic: "track/turnout/", table: "Turnout Table" },
   signalmast: { typeTopic: "track/signalmast/", table: "Signal Mast Table" },
+  light: { typeTopic: "track/light/", table: "Light Table" },
 });
 
 // XML comments cannot contain "--".
@@ -1047,6 +1055,7 @@ function generateJmriXml(config, include = {}) {
   const sensors = [];
   const turnouts = [];
   const masts = [];
+  const lights = [];
   const skipped = [];
   const channels = new Set();
   const mqtt = config.board?.mqttEnabled !== false;
@@ -1082,6 +1091,25 @@ function generateJmriXml(config, include = {}) {
       else {
         channels.add(found.channel);
         sensors.push(found.address);
+      }
+    }
+    // The logic switch's light, and each section's Release turnout. Release
+    // has no /Thrown sensor: DIRECT feedback takes the board's CLOSED on its
+    // own topic, so it snaps back like a push button.
+    for (const item of logicHooks(config).jmriTurnouts(config) || []) {
+      const found = jmriAddress(item.topic, "turnout");
+      if (!found) skipped.push(`${item.label}: topic has no ${JMRI_TABLES.turnout.typeTopic}`);
+      else {
+        channels.add(found.channel);
+        turnouts.push({ address: found.address });
+      }
+    }
+    for (const item of logicHooks(config).jmriLights(config) || []) {
+      const found = jmriAddress(item.topic, "light");
+      if (!found) skipped.push(`${item.label}: topic has no ${JMRI_TABLES.light.typeTopic}`);
+      else {
+        channels.add(found.channel);
+        lights.push(found.address);
       }
     }
   }
@@ -1123,11 +1151,21 @@ function generateJmriXml(config, include = {}) {
     lines.push('  <turnouts class="jmri.jmrix.mqtt.configurexml.MqttTurnoutManagerXml">');
     for (const turnout of turnouts) {
       // ONESENSOR: the board's /Thrown sensor is ACTIVE when thrown, INACTIVE when closed.
-      lines.push(`    <turnout feedback="ONESENSOR" sensor1="MS${xmlText(turnout.feedback)}" inverted="false" automate="Default">`);
+      if (turnout.feedback) lines.push(`    <turnout feedback="ONESENSOR" sensor1="MS${xmlText(turnout.feedback)}" inverted="false" automate="Default">`);
+      else lines.push('    <turnout feedback="DIRECT" inverted="false" automate="Default">');
       lines.push(`      <systemName>MT${xmlText(turnout.address)}</systemName>`);
       lines.push("    </turnout>");
     }
     lines.push("  </turnouts>");
+  }
+  if (lights.length) {
+    lines.push('  <lights class="jmri.jmrix.mqtt.configurexml.MqttLightManagerXml">');
+    for (const address of lights) {
+      lines.push("    <light>");
+      lines.push(`      <systemName>ML${xmlText(address)}</systemName>`);
+      lines.push("    </light>");
+    }
+    lines.push("  </lights>");
   }
   if (masts.length) {
     lines.push("  <!-- Signal masts need the CATS signal template in the JMRI profile (resources/signals/cats-masts). -->");
@@ -1144,7 +1182,7 @@ function generateJmriXml(config, include = {}) {
   lines.push("</layout-config>");
   return {
     xml: `${lines.join("\n")}\n`,
-    counts: { sensors: sensors.length, turnouts: turnouts.length, masts: masts.length },
+    counts: { sensors: sensors.length, turnouts: turnouts.length, masts: masts.length, lights: lights.length },
     skipped,
   };
 }
@@ -1791,7 +1829,7 @@ function emitSecondsSlider(lines, name, id, min, max, initial) {
 // wins, so custom strings still work. Otherwise Unlit (approach lighting) is
 // dark, Held shows the Stop aspect (dark if there is none), and anything else
 // matches on the aspect name, so "R281; Lit; Held" cannot leave R281 showing.
-function emitSignalTextSensors(lines, masts) {
+function emitSignalTextSensors(lines, masts, fieldMasts) {
   for (const mast of masts) {
     const exact = [];
     const byName = new Map();
@@ -1811,7 +1849,7 @@ function emitSignalTextSensors(lines, masts) {
     lines.push("    internal: true");
     lines.push(`    topic: ${yamlQuote(mast.topic)}`);
     // No aspect to show yet, so no aspect global or show script to call.
-    if (!exact.length) continue;
+    if (!exact.length || fieldMasts?.has(mast.name)) continue;
     lines.push("    on_value:");
     lines.push("      - lambda: |-");
     const body = [
@@ -2013,9 +2051,11 @@ function generateYaml(config) {
 
   const stripMasts = masts.filter((mast) => mast.mode !== "gpio");
   const gpioMasts = masts.filter((mast) => mast.mode === "gpio");
+  // With Field Logic, a mast that rules set boots at its stop aspect while
+  // logic is on, so it joins this step even without a startup aspect.
   const startupMasts = masts
     .map((mast) => ({ mast, index: startupAspectIndex(mast) }))
-    .filter((item) => item.index >= 0);
+    .filter((item) => item.index >= 0 || logicHooks(config).isBootMast(config, item.mast));
   if (points.length || stripMasts.length || startupMasts.length) {
     if (points.length) {
       lines.push("    - priority: -200.0");
@@ -2029,7 +2069,9 @@ function generateYaml(config) {
         }
         const latch = latchIndex(point);
         if (latch >= 0) {
-          // A latched switch wins over the saved position.
+          // A latched switch wins over the saved position. With logic, not
+          // before the start-up scan has locked any turnout under a train.
+          logicHooks(config).emitBootWait(lines, "        ", config);
           lines.push("        - script.execute:");
           lines.push(`            id: ${point.id}_latch_${latch + 1}`);
           lines.push("            force: true");
@@ -2064,6 +2106,7 @@ function generateYaml(config) {
       lines.push("    - priority: -150.0");
       lines.push("      then:");
       for (const { mast, index } of startupMasts) {
+        if (logicHooks(config).emitBootMast(lines, config, mast, index)) continue;
         lines.push("        - globals.set:");
         lines.push(`            id: ${mast.id}_aspect`);
         lines.push(`            value: '${index}'`);
@@ -2141,6 +2184,7 @@ function generateYaml(config) {
   lines.push("  - platform: restart");
   lines.push("    id: reboot_esp");
   lines.push('    name: "Restart Board"');
+  logicHooks(config).emitLogicButtons(lines, config);
 
   if (points.length || masts.length || logicHooks(config).needsWebServer(config)) {
     lines.push("");
@@ -2221,6 +2265,12 @@ function generateYaml(config) {
     }
     lines.push(...sharedGlobals);
   }
+
+  // Logic's own switch and scripts join those sections, or open them.
+  const logicSwitches = [];
+  logicHooks(config).emitLogicSwitch(logicSwitches, config);
+  const logicScripts = [];
+  logicHooks(config).emitLogicScripts(logicScripts, config);
 
   const hasButtons = points.some((point) => (point.controls || []).some((control) => control.buttonPin));
   const logicBlockSensors = [];
@@ -2351,7 +2401,7 @@ function generateYaml(config) {
         }
       });
     }
-    if (lights.length) {
+    if (lights.length || logicSwitches.length) {
       lines.push("");
       lines.push("switch:");
       for (const light of lights) {
@@ -2361,6 +2411,7 @@ function generateYaml(config) {
         lines.push(`    name: ${yamlQuote(light.name)}`);
         lines.push("    internal: true");
       }
+      lines.push(...logicSwitches.splice(0));
     }
 
     lines.push("");
@@ -2374,18 +2425,30 @@ function generateYaml(config) {
     for (const mast of masts) {
       if (mastShows(mast)) emitShowScript(lines, mast, config);
     }
+    lines.push(...logicScripts.splice(0));
 
   } else if (masts.length) {
     lines.push("");
     lines.push("number:");
     emitSignalControls(lines, masts);
-    if (masts.some(mastShows)) {
+    if (masts.some(mastShows) || logicScripts.length) {
       lines.push("");
       lines.push("script:");
       for (const mast of masts) {
         if (mastShows(mast)) emitShowScript(lines, mast, config);
       }
+      lines.push(...logicScripts.splice(0));
     }
+  }
+  if (logicScripts.length) {
+    lines.push("");
+    lines.push("script:");
+    lines.push(...logicScripts);
+  }
+  if (logicSwitches.length) {
+    lines.push("");
+    lines.push("switch:");
+    lines.push(...logicSwitches);
   }
 
   const gpioWithLamps = gpioMasts.filter((mast) => (mast.lamps || []).length);
@@ -2398,13 +2461,22 @@ function generateYaml(config) {
   const sharedTextSensors = [];
   logicHooks(config).emitTextSensors(sharedTextSensors, config);
   logicHooks(config).emitRemoteSubscriptions(sharedTextSensors, config);
-  if (mqtt && (points.length || masts.length || sharedTextSensors.length)) {
+  // The logic version is on the web page with MQTT off too.
+  const logicTextSensors = [];
+  logicHooks(config).emitLogicTextSensors(logicTextSensors, config);
+  if ((mqtt && (points.length || masts.length || sharedTextSensors.length)) || logicTextSensors.length) {
     lines.push("");
     lines.push("text_sensor:");
-    if (points.length) emitPointTextSensors(lines, points);
-    if (masts.length) emitSignalTextSensors(lines, masts);
-    lines.push(...sharedTextSensors);
+    if (mqtt) {
+      if (points.length) emitPointTextSensors(lines, points);
+      // A mast that rules set keeps its subscription, without a handler: the
+      // logic component reads JMRI's messages for it.
+      if (masts.length) emitSignalTextSensors(lines, masts, logicHooks(config).fieldMastNames(config));
+      lines.push(...sharedTextSensors);
+    }
+    lines.push(...logicTextSensors);
   }
+  logicHooks(config).emitComponent(lines, config);
 
   lines.push("");
   return lines.join("\n");
