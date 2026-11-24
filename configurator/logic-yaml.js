@@ -246,8 +246,13 @@
     // Each mast's aspects as its /State names them (the JMRI aspect name), with
     // the tags and diverging ticks that board's Masts gives them, so rules here
     // read it by meaning. A mast that board's logic does not tag reads as stop.
-    const entries = Array.isArray(other.logic?.masts) ? other.logic.masts.filter((entry) => entry && typeof entry === "object") : [];
-    const field = M_.logicMode(other) === "field";
+    // An MSS Logic board is read through its builder: its blocks and signals
+    // with no lights are the built ones, and its masts mean what its Signals
+    // grid says.
+    const mss = M_.logicMode(other) === "mss";
+    const items = logicItems(other);
+    const entries = list(items.masts).filter(isObject);
+    const field = mss || M_.logicMode(other) === "field";
     const meaning = (entry, pairs) => {
       const tags = {};
       const diverging = [];
@@ -274,9 +279,9 @@
         })),
       },
       logic: {
-        blocks: pick(other.logic?.blocks),
+        blocks: pick(mss ? items.blocks : other.logic?.blocks),
         // Its sections' blocks, so a block is in sections on one board only.
-        resources: field ? list(other.logic?.resources).filter(isObject).map((res) => ({
+        resources: field ? list(items.resources).filter(isObject).map((res) => ({
           name: String(res.name || ""),
           blocks: list(res.blocks).filter((b) => typeof b === "string" || isObject(b)),
         })) : [],
@@ -499,8 +504,8 @@
   // is, and it publishes like a detector. Blocks are detection, not logic, so
   // they run whether rules do or not. Only Field Logic generates them.
   function logicBlocks(config) {
-    if (M().logicMode(config) !== "field") return [];
-    return Array.isArray(config.logic?.blocks) ? config.logic.blocks : [];
+    if (!fieldMode(config)) return [];
+    return list(logicItems(config).blocks);
   }
 
   // The blocks with their ESPHome ids: <block>_block, beside <sensor>_sensor.
@@ -532,6 +537,8 @@
       return { problem: `has signal mast "${member.mast}" in it. A block is made of sensors: take the mast out` };
     }
     if (isRemoteRef(member)) return { remote: member };
+    // What a plant end hears (MSS Logic builds these). The engine reads it.
+    if (member && typeof member === "object" && member.end !== undefined && member.track !== undefined) return { end: member };
     return { problem: "has a sensor this configurator cannot read. Remove it" };
   }
 
@@ -627,7 +634,7 @@
         moved += 1;
       }
     }
-    for (const layer of layersOf(config)) {
+    for (const layer of list(config.logic?.layers).filter(isObject)) {
       for (const rule of list(layer.rules)) {
         if (rule?.then?.mast === mastName && rule.then.aspect === from) {
           rule.then.aspect = to;
@@ -635,6 +642,8 @@
         }
       }
     }
+    // MSS Logic's Signals grid names aspects too.
+    moved += global.EsphomeMrMssBuilder?.renameAspect(config, mastName, from, to) || 0;
     return moved;
   }
 
@@ -668,6 +677,8 @@
       }
     };
     walk(config.logic);
+    // MSS Logic names masts at block boundaries and junction legs.
+    if (kind === "mast") count += global.EsphomeMrMssBuilder?.renameMast(config, from, to) || 0;
     return count;
   }
 
@@ -819,7 +830,7 @@
         return;
       }
     } else if (kind === "button") {
-      if (!list(config.logic?.buttons).some((b) => isObject(b) && b.name === name)) {
+      if (!list(logicItems(config).buttons).some((b) => isObject(b) && b.name === name)) {
         r.error(where, `${who} uses button "${name}", which is not under Buttons. Add it, or pick another.`);
         return;
       }
@@ -847,7 +858,7 @@
   function validateButtons(config, r) {
     if (!fieldMode(config)) return;
     const names = new Set();
-    for (const button of list(config.logic?.buttons)) {
+    for (const button of list(logicItems(config).buttons)) {
       if (!isObject(button)) continue;
       const name = String(button.name || "").trim();
       if (!name) r.error(BUTTONS, "A button has no name. Name it, or remove it.");
@@ -861,7 +872,7 @@
   // as { name, pin: "GPIO.." }, an expander pin as { name, expander, pin }.
   function buttonPins(config) {
     if (!fieldMode(config)) return [];
-    return list(config.logic?.buttons)
+    return list(logicItems(config).buttons)
       .filter((b) => isObject(b) && (onExpander(b) || String(b.pin || "").trim()))
       .map((b) => (onExpander(b)
         ? { name: String(b.name || ""), expander: b.expander, pin: b.pin, where: BUTTONS }
@@ -1187,9 +1198,11 @@
         uses.get(key).blocks.push(name || "?");
       }
     }
-    // A boundary sensor sits in the two blocks either side of it.
+    // A boundary sensor sits in the two blocks either side of it. (In MSS
+    // Logic a junction's sensors are in the first block of every leg.)
+    const mss = M().logicMode(config) === "mss";
     for (const { member, blocks: inBlocks } of uses.values()) {
-      if (inBlocks.length > 2) {
+      if (inBlocks.length > 2 && !mss) {
         const what = memberLabel(member);
         r.warn(BLOCKS, `${what[0].toUpperCase()}${what.slice(1)} is in ${inBlocks.length} blocks (${inBlocks.join(", ")}). A sensor at a boundary is in two: check the others.`);
       }
@@ -1252,18 +1265,59 @@
     }
   }
 
+  // --- MSS Logic (mss-builder.js, work item 4.1). Its own checks come first,
+  // each pointing at the part of the description that caused it. Only when
+  // those find no error do the checks above run over the built items, and a
+  // problem with a built item then points back at the part that made it.
+  const MSS_PARTS = Object.freeze({ "logic-blocks": "tracks", "logic-groups": "tracks", "logic-masts": "signals" });
+  const MSS_KINDS = Object.freeze({ block: "block", signal: "mast", lights: "mast", group: "group" });
+
+  function mssReporter(config, r) {
+    const builder = global.EsphomeMrMssBuilder;
+    const origins = list(logicItems(config).origins);
+    const find = (kind, name) => origins.find((o) => o.name === name && (!kind || o.kind === kind));
+    const map = (where, text) => {
+      if (where?.view !== "logic" || !MSS_PARTS[where.part]) return [where, text];
+      // The first built item the sentence names, by the word before it.
+      for (const [, word, name] of text.matchAll(/(\w+)\s+"([^"]*)"/g)) {
+        const origin = find(MSS_KINDS[word.toLowerCase()], name) || find(null, name);
+        if (origin) return [origin.where, `${text} ${builder.TEXT.madeFrom(origin.words)}`];
+      }
+      return [{ view: "logic", part: builder.PARTS[MSS_PARTS[where.part]] }, text];
+    };
+    return {
+      error: (where, text) => r.error(...map(where, text)),
+      warn: (where, text) => r.warn(...map(where, text)),
+    };
+  }
+
   function validate(config, errors, warnings, links) {
-    const r = reporter(errors, warnings, links);
-    validateLinkedBoards(config, r);
-    validateBlocks(config, r);
-    validateLogicMasts(config, r);
-    validateMastEntries(config, r);
-    validateButtons(config, r);
-    validateSections(config, r);
-    validateRules(config, r);
-    validateCycles(config, r);
-    validateBlockSignals(config, r);
-    validateChecker(config, r, errors);
+    const base = reporter(errors, warnings, links);
+    const mss = M().logicMode(config) === "mss";
+    let r = base;
+    let checkBuilt = true;
+    if (mss) {
+      const found = global.EsphomeMrMssBuilder ? global.EsphomeMrMssBuilder.problems(config) : [];
+      for (const problem of found) (problem.level === "error" ? base.error : base.warn)(problem.where, problem.text);
+      checkBuilt = !found.some((problem) => problem.level === "error");
+      if (checkBuilt) r = mssReporter(config, base);
+    }
+    if (checkBuilt) {
+      validateLinkedBoards(config, r);
+      validateBlocks(config, r);
+      validateLogicMasts(config, r);
+      validateMastEntries(config, r);
+      validateButtons(config, r);
+      validateSections(config, r);
+      validateRules(config, r);
+      validateCycles(config, r);
+      // MSS Logic warns about a boundary with no sensor itself, and its
+      // checker limits are work item 4.5 (the checker has no plant ends yet).
+      if (!mss) {
+        validateBlockSignals(config, r);
+        validateChecker(config, r, errors);
+      }
+    }
     const shares = M().sharesWithOtherBoards(config);
     const active = shares || M().logicMode(config) !== "none";
     if (!active) return;
@@ -1319,23 +1373,53 @@
   const LOGIC_ID = "logic";
   const SWITCH_ID = "field_logic";
 
-  const fieldMode = (config) => M().logicMode(config) === "field";
+  // The board runs the engine: Field Logic, or MSS Logic, whose description
+  // is built into the same items (mss-builder.js), so everything below reads
+  // them through logicItems and generates them the same way.
+  const fieldMode = (config) => ["field", "mss"].includes(M().logicMode(config));
   const mqttOn = (config) => config.board?.mqttEnabled !== false;
   const list = (value) => (Array.isArray(value) ? value : []);
   const isObject = (value) => value && typeof value === "object" && !Array.isArray(value);
 
+  // The items the engine runs: the Logic page's for Field Logic (and None),
+  // the built ones for MSS Logic. Built items are never stored; they are
+  // built again from `logic.mss` whenever it, or the masts it reads, change.
+  let built = { key: null, items: null };
+  function logicItems(config) {
+    if (M().logicMode(config) !== "mss") return isObject(config?.logic) ? config.logic : {};
+    const builder = global.EsphomeMrMssBuilder;
+    if (!builder) {
+      if (!isObject(config.logic.mss)) return {};
+      throw new Error("This board uses MSS Logic, but mss-builder.js is not loaded.");
+    }
+    const key = JSON.stringify([
+      config.logic.mss ?? null,
+      list(config.signals?.masts).map((mast) => [mast?.name, list(mast?.aspects).map((aspect) => [aspect?.label, aspect?.states])]),
+    ]);
+    if (built.key !== key) built = { key, items: builder.build(config) };
+    return built.items;
+  }
+
   function layersOf(config) {
-    return list(config.logic?.layers).filter(isObject);
+    return list(logicItems(config).layers).filter(isObject);
   }
 
   function resourcesOf(config) {
-    return list(config.logic?.resources).filter(isObject);
+    return list(logicItems(config).resources).filter(isObject);
   }
 
   // Masts entries: { mast } for a mast on the Signal Masts page, or
   // { virtual: true, name, topic, aspects, tags } for a signal with no lights.
   function mastEntries(config) {
-    return list(config.logic?.masts).filter(isObject);
+    return list(logicItems(config).masts).filter(isObject);
+  }
+
+  // Plant ends: { name, tracks: [{ sensors, mast } | { sensors, through }],
+  // pairPin, ledPin }. Only MSS Logic builds them so far (the Plant ends part
+  // is work item 3.3).
+  function endsOf(config) {
+    if (!fieldMode(config)) return [];
+    return list(logicItems(config).ends).filter(isObject);
   }
 
   function virtualMasts(config) {
@@ -1491,6 +1575,9 @@
       }),
     }));
     if (layers.length) logic.layers = layers;
+    // An end's pins are for the board, not the engine (test/cases/README.md).
+    const ends = endsOf(config).map((end) => ({ name: String(end.name || ""), tracks: sorted(list(end.tracks)) }));
+    if (ends.length) logic.ends = ends;
     return logic;
   }
 
@@ -1933,6 +2020,8 @@
     remoteSubscriptions,
     emitRemoteSubscriptions,
     logicBlocks,
+    logicItems,
+    endsOf,
     blockMember,
     memberKey,
     renameReferences,

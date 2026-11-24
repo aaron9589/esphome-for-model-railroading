@@ -200,15 +200,29 @@ test("Disable MQTT: the field lock still guards the buttons and latch, with no r
 });
 
 test("without Field Logic the Lock topic's UNLOCKED handler still re-syncs, as before", () => {
-  for (const mode of ["none", "mss"]) {
-    const config = board({ mode });
-    config.logic = { mode, share: true };
-    const yaml = generateYaml(normalizeConfig(plain(config)));
-    assert.doesNotMatch(yaml, /field_locked|lock_report|mr_logic/);
-    const lock = itemAt(yaml, "    id: p2_lock");
-    assert.match(lock, /bool was_locked = id\(p2_locked\);\n {16}id\(p2_locked\) = false;\n {16}if \(was_locked\) id\(p2_latch_1\)\.execute\(false\);/);
-    assert.match(itemAt(yaml, "  - id: p2_latch_1"), /\/\/ A remote lock holds the point where it is\.\n {10}if \(id\(p2_locked\)\) want = id\(p2_thrown\);/);
-  }
+  const config = board({ mode: "none" });
+  config.logic = { mode: "none", share: true };
+  const yaml = generateYaml(normalizeConfig(plain(config)));
+  assert.doesNotMatch(yaml, /field_locked|lock_report|mr_logic/);
+  const lock = itemAt(yaml, "    id: p2_lock");
+  assert.match(lock, /bool was_locked = id\(p2_locked\);\n {16}id\(p2_locked\) = false;\n {16}if \(was_locked\) id\(p2_latch_1\)\.execute\(false\);/);
+  assert.match(itemAt(yaml, "  - id: p2_latch_1"), /\/\/ A remote lock holds the point where it is\.\n {10}if \(id\(p2_locked\)\) want = id\(p2_thrown\);/);
+});
+
+test("MSS Logic runs the component as Field Logic does: it re-syncs the remote lock, and no rule locks a turnout", () => {
+  const config = board({ mode: "mss" });
+  config.logic = { mode: "mss" };
+  const yaml = generateYaml(normalizeConfig(plain(config)));
+  assert.match(yaml, /mr_logic:/);
+  assert.doesNotMatch(yaml, /field_locked|lock_report/);
+  assert.doesNotMatch(itemAt(yaml, "    id: p2_lock"), /was_locked/);
+  assert.deepEqual(bindingOf(yaml, "P2"), [
+    "thrown: p2_thrown",
+    "throw_closed: p2_throw_closed",
+    "throw_thrown: p2_throw_thrown",
+    "remote_locked: p2_locked",
+    "resync: p2_latch_1",
+  ]);
 });
 
 if (!process.exitCode) console.log("\nAll field lock tests passed.");

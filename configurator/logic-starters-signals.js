@@ -129,11 +129,16 @@
 
   // ===== References and conditions ==========================================
 
-  const filled = (ref) => (typeof ref === "string" ? ref.trim() !== "" : isObject(ref) && !!ref.board);
+  // What a plant end hears as the next signal: { end, track } (the MSS
+  // builder writes these; the engine reads them as `hears: "mast"`).
+  const isEndRef = (ref) => isObject(ref) && ref.end !== undefined && ref.track !== undefined;
+  const filled = (ref) => (typeof ref === "string" ? ref.trim() !== "" : isObject(ref) && (!!ref.board || isEndRef(ref)));
   const nameOf = (ref) => (typeof ref === "string" ? ref : String(ref?.mast ?? ref?.block ?? ref?.sensor ?? ref?.turnout ?? ""));
   const sameRef = (a, b) => JSON.stringify(a) === JSON.stringify(b);
   const blockIs = (ref, is) => (typeof ref === "string" ? { block: ref, is } : { ...ref, is });
-  const mastIs = (ref, is) => (typeof ref === "string" ? { mast: ref, is } : { board: ref.board, mast: ref.mast, is });
+  const mastIs = (ref, is) => (typeof ref === "string" ? { mast: ref, is }
+    : isEndRef(ref) ? { end: ref.end, track: ref.track, hears: "mast", is }
+      : { board: ref.board, mast: ref.mast, is });
   const turnoutIs = (t) => (typeof t.turnout === "string" ? { turnout: t.turnout, is: t.position } : { ...t.turnout, is: t.position });
   const turnoutChecks = (turnouts) => list(turnouts).filter((t) => isObject(t) && filled(t.turnout)).map(turnoutIs);
 
@@ -224,8 +229,11 @@
     });
     if (!filled(next)) return [rule([], aspects.approach)];
     const n = (is) => mastIs(next, is);
+    // What an end hears is a meaning only, never diverging, so rule 1 could
+    // never apply there and is left out.
+    const divergingRule = isEndRef(next) ? [] : [rule([n("diverging"), { not: n(["stop", "restricting"]) }], useDiverging ? aspects.diverging : aspects.approach)];
     return [
-      rule([n("diverging"), { not: n(["stop", "restricting"]) }], useDiverging ? aspects.diverging : aspects.approach),
+      ...divergingRule,
       rule([n(["advance", "clear"])], aspects.clear),
       rule([n("approach")], useAdvance ? aspects.advance : aspects.clear),
       rule([n(["stop", "restricting"])], aspects.approach),
