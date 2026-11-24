@@ -5,7 +5,7 @@
 // This file is the shared core: the registry, building and applying a
 // starter's result, the helpers starters share, and the dialog their forms
 // open in. The starters themselves are in logic-starters-sections.js (One-
-// train section, Lock turnouts under a train, Platform dwell) and
+// train section, Lock turnouts under a train) and
 // logic-starters-signals.js (Block signals, Route signal).
 //
 // Building is plain JS with no DOM, so Node tests can call it:

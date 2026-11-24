@@ -1,4 +1,4 @@
-// The One-train section, Lock turnouts under a train and Platform dwell
+// The One-train section and Lock turnouts under a train
 // starters (spec, Starters; work item 2.8): their answers, the rules they
 // write, and that those rules pass the engine cases.
 import assert from "node:assert/strict";
@@ -114,17 +114,6 @@ test("lock turnouts under a train: the starter's rules pass its case", () => {
   assert.deepEqual(runCase(data), []);
 });
 
-test("platform dwell: the starter's rules pass its case", () => {
-  const data = readCase("starter-platform-dwell.json");
-  const config = board(["Platform", "Next"], { "Platform Exit": ["R292", "R281"] });
-  const answers = { name: "Platform dwell", platform: "Platform", dwell: "3s", ahead: ["Next"], mast: "Platform Exit", aspect: "R281" };
-  const built = plain(Starters.build("platform-dwell", config, answers));
-  assert.deepEqual(built.groups, data.board.logic.layers.map((g) => ({ ...g, starter: "platform-dwell" })));
-  assert.deepEqual(runCase(data), []);
-  // Prefilled from the mast's meanings.
-  assert.equal(Starters.aspectFor(config, "Platform Exit", "clear"), "R281");
-});
-
 // ===== Validation and Explain ================================================
 
 function realBoard() {
@@ -143,7 +132,6 @@ function answersAll(config) {
       entrances: [{ block: "Left", mast: "Left Bridge", aspect: "Clear", leave: true }, { block: "Right", mast: "Right Bridge", aspect: "Clear", leave: true }],
     },
     "lock-turnouts": { name: "Turnout locks", rows: [{ turnout: "P1", block: "Bridge" }, { turnout: "P2", block: "Siding" }] },
-    "platform-dwell": { name: "Platform dwell", platform: "Platform", dwell: "30s", ahead: ["Next"], mast: "Platform Exit", aspect: "Clear" },
   };
 }
 
@@ -155,7 +143,7 @@ const checkOf = (config) => {
 test("a board built by the starters has no errors and no warnings", () => {
   const config = realBoard();
   for (const [key, answers] of Object.entries(answersAll(config))) Starters.apply(key, config, answers);
-  assert.deepEqual(plain(config.logic.layers.map((g) => g.starter)), ["one-train-section", "lock-turnouts", "platform-dwell"]);
+  assert.deepEqual(plain(config.logic.layers.map((g) => g.starter)), ["one-train-section", "lock-turnouts"]);
   assert.equal(config.logic.resources.length, 1);
   assert.deepEqual(plain(checkOf(config)), { errors: [], warnings: [] });
   // The masts joined Masts with their meanings.
@@ -170,9 +158,6 @@ test("Explain gives a sentence for each mast the starters set", () => {
   const left = plain(Engine.explainMast(table, "Left Bridge"));
   assert.ok(left.length >= 1 && left.every((s) => typeof s === "string" && s.length > 10), JSON.stringify(left));
   assert.match(left.join(" "), /Left/);
-  const platform = plain(Engine.explainMast(table, "Platform Exit")).join(" ");
-  assert.match(platform, /Platform/);
-  assert.match(platform, /Next/);
 });
 
 // ===== Starter rules =========================================================
@@ -190,13 +175,6 @@ test("problems names what is missing, in plain words", () => {
   one.entrances.pop();
   assert.ok(Starters.problems("one-train-section", config, one).includes(Sections.TEXT.entranceCount));
   assert.ok(Starters.problems("lock-turnouts", config, Starters.defaults("lock-turnouts", config)).includes(Sections.TEXT.needRowTurnout(1)));
-  const dwell = Starters.defaults("platform-dwell", config);
-  assert.ok(Starters.problems("platform-dwell", config, dwell).includes(Sections.TEXT.needPlatform));
-  dwell.platform = "Platform";
-  dwell.ahead = ["Platform"];
-  dwell.mast = "Platform Exit";
-  dwell.aspect = "Clear";
-  assert.deepEqual(plain(Starters.problems("platform-dwell", config, dwell)), [Sections.TEXT.aheadIsPlatform]);
 });
 
 test("a taken name is a problem, and the same block twice is too", () => {

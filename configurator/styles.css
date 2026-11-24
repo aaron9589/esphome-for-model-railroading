@@ -1432,7 +1432,6 @@ details.logic-view h4 {
 .starter-picture .sp-amber { fill: #f59e0b; }
 .starter-picture .sp-green { fill: #22c55e; }
 .starter-picture .sp-off { fill: #4b5563; }
-.starter-picture .sp-platform { fill: #d1d5db; }
 .starter-picture .sp-road { fill: #e5e7eb; }
 .starter-picture .sp-lock { fill: #92400e; }
 .starter-picture .sp-shackle { stroke: #92400e; stroke-width: 2; }
@@ -1721,7 +1720,7 @@ details.rule-more {
   }
 }
 
-/* Starters: One-train section, Lock turnouts, Platform dwell */
+/* Starters: One-train section, Lock turnouts */
 .starter-rows {
   display: grid;
   gap: 0.6rem;

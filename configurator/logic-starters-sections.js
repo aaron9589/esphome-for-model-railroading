@@ -1,13 +1,12 @@
-// Starters: One-train section, Lock turnouts under a train and Platform dwell (docs/field-logic-spec.md,
-// Starters; work item 2.8). Each is defined with
-// EsphomeMrLogicStarters.defineStarter (one-train-section, lock-turnouts, platform-dwell): pure
+// Starters: One-train section and Lock turnouts under a train
+// (docs/field-logic-spec.md, Starters; work item 2.8). Each is defined with
+// EsphomeMrLogicStarters.defineStarter (one-train-section, lock-turnouts): pure
 // defaults / problems / build for Node tests, and a form for the page.
 //
 // Answers, as the tests and the forms pass them:
 //   one-train-section: { name, blocks: [member], releaseFor: "3s", approachLock: "" | time,
 //     entrances: [{ block: member, mast: name, aspect, leave: bool }] }
 //   lock-turnouts:     { name, rows: [{ turnout: name, block: member }] }
-//   platform-dwell:    { name, platform: member, dwell: "30s", ahead: [member], mast: name, aspect }
 // A member is a name on this board, or { board, sensor | block } on a linked one.
 (function (global) {
   const isObject = (value) => value && typeof value === "object" && !Array.isArray(value);
@@ -46,14 +45,6 @@
     turnout: "Turnout",
     blockUnder: "Block it sits in",
     addTurnout: "Add a turnout",
-    // platform-dwell
-    dwellTitle: "Platform dwell",
-    dwellIntro: "Hold the signal at Stop for a set time after a train arrives, then clear it.",
-    platform: "Platform block",
-    dwellFor: "Hold the signal for",
-    ahead: "The block ahead, which must be clear",
-    addAhead: "Add another block ahead",
-    dwellSignal: "Signal to clear",
     // problems
     needName: "Give the section a name.",
     needBlocks: "Pick at least one block for the section.",
@@ -67,15 +58,9 @@
     needRows: "Add at least one turnout.",
     needRowTurnout: (n) => `Row ${n}: pick the turnout.`,
     needRowBlock: (n) => `Row ${n}: pick the block it sits in.`,
-    needPlatform: "Pick the platform block.",
-    needAhead: "Pick the block ahead that must be clear.",
-    aheadIsPlatform: "The block ahead cannot be the platform itself.",
-    needDwellSignal: "Pick the signal to clear.",
-    needDwellAspect: "Pick what the signal shows.",
   });
 
   const TIME = /^\d+(\.\d+)?(ms|s)$/;
-  const DWELLS = Object.freeze([5, 10, 15, 20, 30, 45, 60, 90, 120]);
   const HOLDS = Object.freeze(["5s", "10s", "20s", "30s", "60s"]);
   const RELEASES = Object.freeze(["1s", "2s", "3s", "5s", "10s", "20s"]);
 
@@ -183,37 +168,6 @@
   function locksBuild(config, a) {
     const rules = list(a.rows).map((row) => ({ trigger: { while: state(row.block, "occupied") }, checks: [], then: { lock: [row.turnout] } }));
     return { groups: [{ name: a.name, starter: "lock-turnouts", rules }] };
-  }
-
-  // ===== Platform dwell =====================================================
-
-  function dwellDefaults(config) {
-    return {
-      name: S().freeName("Platform dwell", takenNames(config, "layers")),
-      platform: "", dwell: "30s", ahead: [""], mast: "", aspect: "",
-    };
-  }
-
-  function dwellProblems(config, a) {
-    const out = [];
-    if (!String(a.name ?? "").trim()) out.push(TEXT.needGroupName);
-    if (blank(memberName(a.platform))) out.push(TEXT.needPlatform);
-    if (!TIME.test(String(a.dwell ?? ""))) out.push(TEXT.badTime(TEXT.dwellFor));
-    const ahead = list(a.ahead);
-    if (!ahead.length || ahead.some((m) => blank(memberName(m)))) out.push(TEXT.needAhead);
-    else if (ahead.some((m) => memberKey(m) === memberKey(a.platform))) out.push(TEXT.aheadIsPlatform);
-    if (blank(a.mast)) out.push(TEXT.needDwellSignal);
-    else if (blank(a.aspect)) out.push(TEXT.needDwellAspect);
-    return out;
-  }
-
-  function dwellBuild(config, a) {
-    const rule = {
-      trigger: { while: state(a.platform, "occupied"), for: a.dwell },
-      checks: list(a.ahead).map((m) => state(m, "clear")),
-      then: { mast: a.mast, aspect: a.aspect },
-    };
-    return { groups: [{ name: a.name, starter: "platform-dwell", rules: [rule] }] };
   }
 
   // ===== Forms (browser only) ===============================================
@@ -359,27 +313,6 @@
     });
   }
 
-  function dwellForm(config, ctx, ui) {
-    const a = dwellDefaults(config);
-    open("platform-dwell", TEXT.dwellTitle, TEXT.dwellIntro, config, ctx, ui, a, (body, redraw) => {
-      body.append(labelled(TEXT.groupName, textInput(a.name, (v) => { a.name = v; })),
-        labelled(TEXT.platform, picker(ui, config, "block", a.platform, (v) => { a.platform = v; }, TEXT.pickBlock, TEXT.platform)),
-        labelled(TEXT.dwellFor, choose(secondsOptions([...new Set([...DWELLS.map((n) => `${n}s`), a.dwell])]), a.dwell, (v) => { a.dwell = v; }, TEXT.dwellFor)));
-      const ahead = el("div", "starter-rows");
-      ahead.append(el("h3", "", TEXT.ahead));
-      a.ahead.forEach((member, i) => {
-        const row = el("div", "starter-row");
-        row.append(picker(ui, config, "block", member, (v) => { a.ahead[i] = v; }, TEXT.pickBlock, TEXT.ahead));
-        if (a.ahead.length > 1) row.append(button(TEXT.remove, () => { a.ahead.splice(i, 1); redraw(); }, "remove"));
-        ahead.append(row);
-      });
-      ahead.append(button(TEXT.addAhead, () => { a.ahead.push(""); redraw(); }));
-      body.append(ahead,
-        labelled(TEXT.dwellSignal, picker(ui, config, "mast", a.mast, (v) => { a.mast = v; a.aspect = proceedFor(config, v); redraw(); }, TEXT.pickSignal, TEXT.dwellSignal, false)),
-        labelled(TEXT.shows, aspectPick(config, ctx, a.mast, a.aspect, (v) => { a.aspect = v; redraw(); })));
-    });
-  }
-
   // ===== Definitions ========================================================
 
   const hasDom = typeof document !== "undefined";
@@ -389,7 +322,6 @@
     const { defineStarter } = global.EsphomeMrLogicStarters;
     defineStarter("one-train-section", { defaults: sectionDefaults, problems: sectionProblems, build: sectionBuild, form: form(sectionForm), text: TEXT });
     defineStarter("lock-turnouts", { defaults: locksDefaults, problems: locksProblems, build: locksBuild, form: form(locksForm), text: TEXT });
-    defineStarter("platform-dwell", { defaults: dwellDefaults, problems: dwellProblems, build: dwellBuild, form: form(dwellForm), text: TEXT });
   }
 
   global.EsphomeMrLogicStartersSections = { TEXT };

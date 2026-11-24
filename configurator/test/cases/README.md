@@ -170,7 +170,6 @@ These are the spec's rules made exact enough to write expected values. Where the
 | Rules: the two lock flags | `rules-two-lock-flags` |
 | Rules: lock turnouts under a train | `starter-lock-turnouts` |
 | Rules: route signal | `starter-route-signal` |
-| Rules: platform dwell | `starter-platform-dwell` |
 | Fail safe: start-up with a train in the section, and all clear | `failsafe-startup-train`, `failsafe-startup-clear` |
 | Fail safe: toggle switch boot move waits | `failsafe-toggle-boot-wait` |
 | Fail safe: remote inputs not known | `failsafe-remote-not-known` |

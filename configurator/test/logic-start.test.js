@@ -30,11 +30,11 @@ function fieldBoard(logic = {}) {
 test("the starter cards follow the spec's list, with Write a rule from scratch last", () => {
   const { cards } = S.starterCards(fieldBoard());
   assert.deepEqual(plain(cards.map((card) => card.key)), [
-    "one-train-section", "lock-turnouts", "block-signals", "route-signal", "platform-dwell", "level-crossing",
+    "one-train-section", "lock-turnouts", "block-signals", "route-signal", "level-crossing",
     "approach-lighting", "scratch",
   ]);
   assert.deepEqual(plain(cards.map((card) => card.title)), [
-    "One-train section", "Lock turnouts under a train", "Block signals", "Route signal", "Platform dwell", "Level crossing",
+    "One-train section", "Lock turnouts under a train", "Block signals", "Route signal", "Level crossing",
     "Approach lighting", "Write a rule from scratch",
   ]);
   for (const card of cards) assert.ok(card.about.length > 0, card.key);

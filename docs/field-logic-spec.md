@@ -563,10 +563,6 @@ The first active row wins; none means Stop. A moving turnout matches no row. Opt
 
 A row can instead **follow the next mast** on its route, so a control point joins the [block signals](#block-signals) tumbledown. The row then becomes one rule per indication, in the block signals order, each with the row's checks. A diverging route row picks diverging aspects for each indication, for example Medium Clear and Medium Approach. Those aspects are diverging, so the mast behind shows Approach Diverging.
 
-### Platform dwell
-
-Hold the signal at Stop for N seconds after a train arrives, then clear: "while Platform occupied for 30s, if Next clear → Clear".
-
 ### Level crossing
 
 Alternating flashing lights, optionally a gate servo, from either approach until the crossing block clears. Needs a new output type, so it is not just rules.
@@ -642,7 +638,7 @@ Scan, latch, interpreter, rule table and phase never appear on the page. Try it 
 
 ### Start simple, reveal the rest
 
-- **Starters first.** An empty Logic page in Field Logic mode shows the starters as cards with a small track picture each (gauntlet, single-line bridge, block signals, route signal, platform dwell, lock turnouts). **Write a rule from scratch** is the last card.
+- **Starters first.** An empty Logic page in Field Logic mode shows the starters as cards with a small track picture each (gauntlet, single-line bridge, block signals, route signal, lock turnouts). **Write a rule from scratch** is the last card.
 - **Advanced options are folded away.** *When … then …*, *for* times, hold after cancelling, the leaving guard and CANCEL sit under **More options** on each card. A starter's rules work without opening it.
 - **Sensible defaults everywhere.** Every field a starter fills has a default that works on a typical layout: 0.5s to ask, 3s to free, Advance Approach off, and the CATS aspects prefilled.
 - **A checklist at the top.** The page shows the next step until the board is ready: *choose a mode → add blocks and signals → try it → download*. Each step links to the part it means.
@@ -951,7 +947,6 @@ In `configurator/test/`, run through `configurator/package.json`:
   - the two lock flags: the re-sync runs only when both are clear, not when one of two clears.
   - lock turnouts under a train: the turnout is locked while its block is occupied, and unlocked once it clears
   - route signal: the first row whose turnouts and blocks match wins; a moving turnout matches no row; a row that follows the next mast joins the block signals tumbledown
-  - platform dwell: the mast clears only once the platform has been occupied for the dwell time, and only while the block ahead is clear
 - **Fail safe:**
   - the start-up scan with a train in the section (held, PASSED, releases after the delay), and with all clear
   - a toggle switch's boot move waits for the start-up scan, so a turnout under a train stays put
