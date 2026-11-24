@@ -2101,6 +2101,22 @@ function renderLogicDownload(validation) {
   code.textContent = info.version;
   version.append(code);
   box.append(title, version, hintEl(info.hint));
+  // A file, not a new tab: it opens in any browser and prints from there.
+  const summary = document.createElement("button");
+  summary.type = "button";
+  summary.className = "logic-summary-button";
+  summary.textContent = "Download summary";
+  summary.addEventListener("click", () => {
+    const html = globalThis.EsphomeMrLogicSummary.summaryHtml(state);
+    const url = URL.createObjectURL(new Blob([html], { type: "text/html;charset=utf-8" }));
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${state.board.name || "board"}-summary.html`;
+    a.click();
+    URL.revokeObjectURL(url);
+    flash("ok", `Downloaded ${a.download}. Open it in a browser to print it.`);
+  });
+  box.append(summary);
   if (info.errorsNote) box.append(messageEl("err", info.errorsNote));
   const heading = document.createElement("h4");
   heading.textContent = info.warningsTitle;
