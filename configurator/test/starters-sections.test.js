@@ -43,6 +43,7 @@ function board(sensors, masts) {
 
 // The answers that would write this case's one-train section, or null when the case is not one.
 function answersFor(data) {
+  if (!data.board) return null; // a multi-board case
   const logic = data.board.logic || {};
   const [section, ...more] = logic.resources || [];
   if (!section || more.length || (logic.layers || []).length !== 1) return null;

@@ -193,6 +193,7 @@ void MrLogicComponent::setup() {
 // The start-up scan's field: everything as it reads now.
 void MrLogicComponent::start_() {
   ::logic_core::Start start;
+  start.board = this->board_;  // plant ends' links and pairing name it
   start.logic_on = this->want_logic_();
 #ifdef USE_MQTT
   this->broker_ = mqtt::global_mqtt_client != nullptr && mqtt::global_mqtt_client->is_connected();
@@ -378,6 +379,17 @@ void MrLogicComponent::apply_(const ::logic_core::ScanOut &out) {
           t.resync();
         }
         break;
+      // Plant ends (work item 3.2 adds their links, subscriptions and topics).
+      case LogEvent::PAIRING:
+        if (e.by == "paired")
+          ESP_LOGI(TAG, "End %s: paired with %s", e.what.c_str(), e.rule.c_str());
+        else
+          ESP_LOGW(TAG, "End %s: not paired (%s); press Pair again", e.what.c_str(), e.by.c_str());
+        break;
+      case LogEvent::DISAGREES:
+        ESP_LOGW(TAG, "End %s: %s names %s, not this end; reading it as empty", e.what.c_str(), e.rule.c_str(),
+                 e.by.c_str());
+        break;
     }
   }
   if (this->board_.empty()) return;
@@ -391,6 +403,12 @@ void MrLogicComponent::apply_(const ::logic_core::ScanOut &out) {
         break;
       case Publish::RELEASE:
         this->mqtt_publish_(this->topic_("track/turnout/logic/" + this->board_ + "/" + p.resource + "/Release"), p.value);
+        break;
+      // Plant ends: published by work item 3.2, with the subscriptions.
+      case Publish::PAIRING:
+      case Publish::END_LINK:
+      case Publish::END_BLOCK:
+      case Publish::END_MAST:
         break;
     }
   }

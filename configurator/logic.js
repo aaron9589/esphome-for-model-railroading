@@ -9,6 +9,7 @@
 (function (global) {
   const SCAN_MS = 100;
   const RELEASE_WINDOW_MS = 5000; // rule 16: a release this soon after connecting was waiting on the broker
+  const PAIR_MS = 30000; // rule 28: how long an end is pairing after a press
   const TAGS = Object.freeze(["stop", "restricting", "approach", "advance", "clear"]);
   const HELD_NAMES = ["R292", "Stop"];
 
@@ -131,6 +132,26 @@
     const fieldMasts = mastOrder.filter((m) => rules.some((r) => r.then.mast === m));
     const isField = (m) => fieldMasts.includes(m);
 
+    // Plant ends (rules 23-29): each end's link and what it has heard through
+    // it, indexed by this board's track (0 is track 1). Names are unique once
+    // validated; if not, the first one wins, as in the C++ core.
+    const me = start.board === undefined ? "" : String(start.board);
+    const ends = (logic.ends || []).map((def, index) => ({
+      index,
+      name: def.name,
+      tracks: def.tracks || [],
+      link: "",
+      theirLink: undefined,
+      online: undefined,
+      block: [],
+      mast: [],
+      announce: false,
+      prevState: undefined,
+    }));
+    const endByName = (name) => ends.find((end) => end.name === name);
+    let pairGroup = []; // rule 28: { who, tracks, until }
+    const closedGroups = [];
+
     // Inputs (rule 2): a value and two latches for this board's sensors and buttons.
     const latched = new Map();
     const input = (kind, name) => {
@@ -147,6 +168,7 @@
     let broker = start.broker !== "disconnected";
     let connectAt = broker ? 0 : null;
     let publishAll = broker;
+    let endsPublishAll = broker; // rule 29: ends publish with logic on or off
     let logicOn = start.logic !== "off";
     let startupNext = logicOn;
     let pendingLogic = null;
@@ -159,6 +181,7 @@
     let fieldLocks = new Map(turnoutOrder.map((t) => [t, false]));
     let prevLocked = new Map();
     const published = new Map();
+    const endPublished = new Map();
     const edges = new Map(); // rule-read moments that need the previous scan's value
 
     for (const m of mastOrder) {
@@ -189,11 +212,14 @@
         return known(b, value) ? value === "occupied" : true;
       }
       if (logicBlocks.has(name)) {
-        // A member on this board is one of its sensors; another board's is read there.
-        return logicBlocks.get(name).some((member) =>
-          typeof member === "string" || member.board === undefined
-            ? input("sensor", typeof member === "string" ? member : member.sensor ?? member.block).value
-            : occupied(member.sensor ?? member.block, member.board));
+        // A member on this board is one of its sensors; another board's is read
+        // there; { end, track } is what that end track hears.
+        return logicBlocks.get(name).some((member) => {
+          if (typeof member === "string") return input("sensor", member).value;
+          if (member.end !== undefined) return endHears(member.end, member.track).occupied;
+          if (member.board === undefined) return input("sensor", member.sensor ?? member.block).value;
+          return occupied(member.sensor ?? member.block, member.board);
+        });
       }
       return input("sensor", name).value;
     }
@@ -204,7 +230,7 @@
     // clear). One member changing while another holds the block is no change.
     const prevBlock = new Map();
     const localMembers = (name) => logicBlocks.get(name)
-      .filter((m) => typeof m === "string" || m.board === undefined)
+      .filter((m) => typeof m === "string" || (m.board === undefined && m.end === undefined))
       .map((m) => (typeof m === "string" ? m : m.sensor ?? m.block));
     function went(name, on) {
       if (!logicBlocks.has(name)) return on ? input("sensor", name).on : input("sensor", name).off;
@@ -241,6 +267,12 @@
       if (c.all) return c.all.every(condition);
       if (c.any) return c.any.some(condition);
       if (c.not) return !condition(c.not);
+      if (c.end !== undefined) {
+        // What a plant end hears: its Block, or its Mast, which is a tag only.
+        const heard = endHears(c.end, c.track);
+        if (c.hears === "mast") return first(c) !== "diverging" && [].concat(c.is).includes(heard.tag);
+        return first(c) === "clear" ? !heard.occupied : heard.occupied;
+      }
       if (c.block !== undefined || c.sensor !== undefined) {
         const occ = occupied(c.block ?? c.sensor, c.board);
         return first(c) === "clear" ? !occ : occ;
@@ -296,6 +328,164 @@
         return true;
       }
       return false;
+    }
+
+    // --- plant ends (rules 24-29) ---
+
+    // Rule 24: "end", "board" for <board>/<end>, or "empty".
+    function linkKind(end) {
+      const link = end.link;
+      if (link === "end") return "end";
+      const at = link.lastIndexOf("/");
+      if (at <= 0 || at === link.length - 1 || link === `${me}/${end.name}`) return "empty";
+      return "board";
+    }
+
+    function setLink(end, link) {
+      if (end.link === link) return;
+      end.link = link;
+      end.theirLink = undefined;
+      end.online = undefined;
+      end.block = [];
+      end.mast = [];
+    }
+
+    // Rule 25: what an end's track hears, by this board's track number.
+    const ready = (end) => broker && end.online === true && end.theirLink === `${me}/${end.name}`;
+    function endHears(name, track) {
+      const end = endByName(name);
+      if (!end || !Number.isInteger(track) || track < 1 || track > end.tracks.length) return { occupied: true, tag: "stop" };
+      const kind = linkKind(end);
+      if (kind === "end") return { occupied: false, tag: "stop" };
+      if (kind === "empty" || !ready(end)) return { occupied: true, tag: "stop" };
+      const block = end.block[track - 1];
+      const tag = end.mast[track - 1];
+      return { occupied: block === undefined ? true : block, tag: tag === undefined ? "stop" : tag };
+    }
+
+    // Rule 26.
+    const inPairing = (end) => [pairGroup, ...closedGroups].some((g) => g.some((x) => x.who === `${me}/${end.name}`));
+    function endState(end) {
+      if (inPairing(end)) return "pairing";
+      const kind = linkKind(end);
+      if (kind !== "board") return kind;
+      if (!broker) return "unheard";
+      if (end.theirLink !== undefined && end.theirLink !== `${me}/${end.name}`) return "disagrees";
+      if (end.online !== true || end.theirLink === undefined) return "unheard";
+      return "heard";
+    }
+
+    // Rule 27: what track i (0 is track 1) of an end offers.
+    function endOffer(end, i) {
+      const track = end.tracks[i] || {};
+      const own = (track.sensors || []).some((s) => input("sensor", s).value);
+      const through = track.through;
+      if (through) {
+        if (through.end === end.name) return { occupied: own, tag: "stop" };
+        const far = endHears(through.end, through.track);
+        return { occupied: own || far.occupied, tag: far.tag };
+      }
+      if (track.mast !== undefined) {
+        const def = masts[track.mast];
+        const aspect = display.get(track.mast);
+        const tag = def && aspect && aspect !== "dark" ? tagOf(def, aspect) : undefined;
+        return { occupied: own, tag: tag || "stop" };
+      }
+      return { occupied: own, tag: "stop" };
+    }
+
+    // Rule 28: an end joins the pairing group, or is renewed in it.
+    function joinPairing(who, tracks, t) {
+      if (pairGroup.length && pairGroup.every((x) => x.until <= t)) {
+        closedGroups.push(pairGroup);
+        pairGroup = [];
+      }
+      const entry = pairGroup.find((x) => x.who === who);
+      if (entry) {
+        entry.until = t + PAIR_MS;
+        entry.tracks = tracks;
+      } else pairGroup.push({ who, tracks, until: t + PAIR_MS });
+    }
+
+    // An announcement, <board>/<end>/<tracks>. This board's own is ignored.
+    function heardPairing(text, t) {
+      const s = String(text);
+      const a = s.lastIndexOf("/");
+      const b = a > 0 ? s.lastIndexOf("/", a - 1) : -1;
+      if (b <= 0 || a - b < 2 || !/^\d{1,4}$/.test(s.slice(a + 1))) return;
+      if (s.slice(0, b) === me) return;
+      joinPairing(s.slice(0, a), parseInt(s.slice(a + 1), 10), t);
+    }
+
+    function decidePairing(out) {
+      if (pairGroup.length && pairGroup.every((x) => x.until <= n * SCAN_MS)) {
+        closedGroups.push(pairGroup);
+        pairGroup = [];
+      }
+      for (const g of closedGroups) {
+        for (const end of ends) {
+          const who = `${me}/${end.name}`;
+          if (!g.some((x) => x.who === who)) continue;
+          const others = g.filter((x) => x.who !== who);
+          if (others.length === 1 && others[0].tracks === end.tracks.length) {
+            setLink(end, others[0].who);
+            out.events.push({ pairing: end.name, result: "paired", with: others[0].who });
+          } else {
+            out.events.push({ pairing: end.name, result: !others.length ? "alone" : others.length > 1 ? "crowded" : "tracks" });
+          }
+        }
+      }
+      closedGroups.length = 0;
+    }
+
+    // Rules 23 and 29: the last part of every scan, logic on or off.
+    function finishEnds(out) {
+      decidePairing(out);
+      for (const end of ends) {
+        const st = endState(end);
+        if (st === "disagrees" && end.prevState !== "disagrees") out.events.push({ disagrees: end.name, link: end.link, theirs: end.theirLink });
+        end.prevState = st;
+      }
+      if (broker) {
+        const pub = (key, value, p) => {
+          if (!endsPublishAll && endPublished.get(key) === value) return;
+          out.publishes.push(p);
+          endPublished.set(key, value);
+        };
+        for (const end of ends) {
+          if (end.announce) out.publishes.push({ pairing: `${me}/${end.name}/${end.tracks.length}` });
+          pub(`${end.index}\u0000link`, end.link, { end: end.name, link: end.link });
+          end.tracks.forEach((_, i) => {
+            const offer = endOffer(end, i);
+            const block = offer.occupied ? "ACTIVE" : "INACTIVE";
+            pub(`${end.index}\u0000${i}\u0000block`, block, { end: end.name, track: i + 1, block });
+            pub(`${end.index}\u0000${i}\u0000mast`, offer.tag, { end: end.name, track: i + 1, mast: offer.tag });
+          });
+        }
+        endsPublishAll = false;
+      }
+      for (const end of ends) end.announce = false;
+    }
+
+    // An event on an end: its link, or what its subscriptions bring.
+    function endEvent(e, t) {
+      const end = endByName(e.end);
+      if (!end) return;
+      if (e.pair !== undefined) {
+        if (e.pair !== "pressed") return;
+        joinPairing(`${me}/${end.name}`, end.tracks.length, t);
+        end.announce = true;
+      } else if (e.link !== undefined) setLink(end, String(e.link));
+      else if (e.theirLink !== undefined) end.theirLink = e.theirLink === "" ? undefined : String(e.theirLink);
+      else if (e.online !== undefined) end.online = e.online === true;
+      else if (e.track !== undefined) {
+        // Rule 25: their track j is this board's track count + 1 - j.
+        const count = end.tracks.length;
+        if (!Number.isInteger(e.track) || e.track < 1 || e.track > count) return;
+        const i = count - e.track;
+        if (e.block !== undefined) end.block[i] = e.block === "occupied" ? true : e.block === "clear" ? false : undefined;
+        else if (e.mast !== undefined) end.mast[i] = TAGS.includes(e.mast) ? e.mast : undefined;
+      }
     }
 
     // --- triggers (rules 3, 5, 20) ---
@@ -483,6 +673,7 @@
           for (const name of echoes) out.publishes.push({ release: name, value: "CLOSED" });
         }
         recordEdges();
+        finishEnds(out);
         endScan();
         return out;
       }
@@ -626,6 +817,7 @@
       recordEdges();
       prevOut = newOut;
       publishResources(out, echoes);
+      finishEnds(out);
       endScan();
       return out;
     }
@@ -654,6 +846,8 @@
         }
         return;
       }
+      if (e.end !== undefined) return endEvent(e, t);
+      if (e.pairing !== undefined) return heardPairing(e.pairing, t);
       if (e.sensor !== undefined) return setLatched("sensor", e.sensor, e.is === "occupied");
       if (e.button !== undefined) return setLatched("button", e.button, e.is === "pressed");
       if (e.turnout !== undefined) return void turnouts.set(e.turnout, e.is);
@@ -668,6 +862,7 @@
         broker = true;
         connectAt = t;
         publishAll = true;
+        endsPublishAll = true;
       } else if (e.broker === "disconnected") broker = false;
     }
 
@@ -696,6 +891,10 @@
       for (const [name, v] of Object.entries(s.masts || {})) r.items.set(`mast\u0000${name}`, v);
     }
     for (const [m, message] of Object.entries(start.jmri || {})) jmriMessage(m, message);
+    for (const [name, link] of Object.entries(start.links || {})) {
+      const end = endByName(name);
+      if (end) end.link = String(link);
+    }
     for (const t of turnoutOrder) prevLocked.set(t, remoteLocks.get(t));
     recordEdges();
 
@@ -715,6 +914,8 @@
         holders: Object.fromEntries(resources.map((r) => [r.name, r.holder ? r.holder.ref : null])),
         locks: Object.fromEntries(turnoutOrder.map((t) => [t, fieldLocks.get(t)])),
         locked: Object.fromEntries(turnoutOrder.map((t) => [t, fieldLocks.get(t) || remoteLocks.get(t)])),
+        ends: Object.fromEntries(ends.map((end) => [end.name, endState(end)])),
+        links: Object.fromEntries(ends.map((end) => [end.name, end.link])),
       };
     }
 

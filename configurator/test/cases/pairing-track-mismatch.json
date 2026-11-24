@@ -1,0 +1,44 @@
+{
+  "name": "pairing with an end that has a different number of tracks pairs none",
+  "covers": [
+    "pairing: two ends pressed together pair; a third end in the window, or a track-count mismatch, pairs none; a window that expires leaves the link unchanged."
+  ],
+  "about": "End A has two tracks and an empty link. Pair is pressed at scan 5 (0.5 s, until 30.5 s), and east/A announces one track at scan 6 (until 30.6 s). Two announcements that are not <board>/<end>/<tracks> are ignored, or they would crowd the window. At 30.6 s the group closes: one other end, with one track, so nothing is linked and the end logs tracks.",
+  "board": {
+    "sensors": ["X", "Y"],
+    "logic": {
+      "ends": [
+        { "name": "A", "tracks": [{ "sensors": ["X"] }, { "sensors": ["Y"] }] }
+      ]
+    }
+  },
+  "start": { "board": "mid" },
+  "steps": [
+    {
+      "at": 5,
+      "do": [{ "end": "A", "pair": "pressed" }],
+      "expect": { "ends": { "A": "pairing" }, "publishes": [{ "pairing": "mid/A/2" }] }
+    },
+    {
+      "at": 6,
+      "do": [{ "pairing": "east/A/1" }]
+    },
+    {
+      "at": 7,
+      "do": [{ "pairing": "garbage" }, { "pairing": "west/B/two" }]
+    },
+    {
+      "at": 305,
+      "expect": { "ends": { "A": "pairing" }, "events": [] }
+    },
+    {
+      "at": 306,
+      "expect": {
+        "ends": { "A": "empty" },
+        "links": { "A": "" },
+        "events": [{ "pairing": "A", "result": "tracks" }],
+        "publishes": []
+      }
+    }
+  ]
+}

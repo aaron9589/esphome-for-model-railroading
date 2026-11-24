@@ -1,0 +1,80 @@
+{
+  "name": "pairing alone: the window expires and the link stays as it was",
+  "covers": [
+    "pairing: two ends pressed together pair; a third end in the window, or a track-count mismatch, pairs none; a window that expires leaves the link unchanged."
+  ],
+  "about": "End A is linked to east/A and heard. Pair is pressed at scan 10 (1 s) and again at scan 100 (10 s), which starts its 30 s again. Its own announcement comes back from the broker and is ignored. No other end pairs, so at 40 s the group closes alone, and the link is unchanged. All along, A keeps reading through its old link.",
+  "board": {
+    "sensors": ["X"],
+    "masts": {
+      "Exit": { "aspects": { "R292": "stop", "R285": "approach", "R281": "clear" } }
+    },
+    "logic": {
+      "ends": [
+        { "name": "A", "tracks": [{ "sensors": [] }, { "sensors": ["X"] }] }
+      ],
+      "layers": [
+        { "name": "Exit", "rules": [
+          { "trigger": { "while": { "block": "X", "is": "clear" } },
+            "checks": [{ "end": "A", "track": 1, "hears": "mast", "is": ["approach", "advance", "clear"] }],
+            "then": { "mast": "Exit", "aspect": "R281" } }
+        ] }
+      ]
+    }
+  },
+  "start": { "board": "mid", "links": { "A": "east/A" } },
+  "steps": [
+    {
+      "at": 1,
+      "do": [
+        { "end": "A", "online": true },
+        { "end": "A", "theirLink": "mid/A" },
+        { "end": "A", "track": 2, "mast": "clear" }
+      ],
+      "expect": { "masts": { "Exit": "R281" }, "ends": { "A": "heard" } }
+    },
+    {
+      "at": 10,
+      "do": [{ "end": "A", "pair": "pressed" }],
+      "expect": {
+        "masts": { "Exit": "R281" },
+        "ends": { "A": "pairing" },
+        "events": [],
+        "publishes": [{ "pairing": "mid/A/2" }]
+      }
+    },
+    {
+      "at": 11,
+      "do": [{ "pairing": "mid/A/2" }],
+      "expect": { "ends": { "A": "pairing" }, "events": [], "publishes": [] }
+    },
+    {
+      "at": 100,
+      "do": [{ "end": "A", "pair": "pressed" }],
+      "expect": { "ends": { "A": "pairing" }, "publishes": [{ "pairing": "mid/A/2" }] }
+    },
+    {
+      "at": 101,
+      "do": [{ "pairing": "mid/A/2" }],
+      "expect": { "ends": { "A": "pairing" } }
+    },
+    {
+      "at": 310,
+      "expect": { "masts": { "Exit": "R281" }, "ends": { "A": "pairing" }, "events": [] }
+    },
+    {
+      "at": 399,
+      "expect": { "ends": { "A": "pairing" }, "events": [] }
+    },
+    {
+      "at": 400,
+      "expect": {
+        "masts": { "Exit": "R281" },
+        "ends": { "A": "heard" },
+        "links": { "A": "east/A" },
+        "events": [{ "pairing": "A", "result": "alone" }],
+        "publishes": []
+      }
+    }
+  ]
+}

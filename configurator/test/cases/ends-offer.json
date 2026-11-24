@@ -1,0 +1,186 @@
+{
+  "name": "an end offers its Block and Mast; a pass-through offers its own sensors or the far end's Block, and the far end's Mast",
+  "covers": [
+    "an end offers its Block and Mast; a pass-through offers its own sensors OR the far end's Block, and the far end's Mast"
+  ],
+  "about": "Board mid has ends A and B, two tracks each. A1 has Home in and the Home mast. A2 and B1 are one track passing through, with the Crossing sensor. B2 names a pass-through to B1, on its own end, so it offers only its Siding sensor and stop. A's two tracks meet west's B2 and B1; B's meet east's A2 and A1 (rule 25).",
+  "board": {
+    "sensors": ["Home in", "Main", "Crossing", "Siding"],
+    "masts": {
+      "Home": { "aspects": { "R292": "stop", "R285": "approach", "R281": "clear" } }
+    },
+    "logic": {
+      "blocks": [
+        { "name": "Home block", "sensors": ["Home in", "Main"] }
+      ],
+      "ends": [
+        { "name": "A", "tracks": [
+          { "sensors": ["Home in"], "mast": "Home" },
+          { "sensors": ["Crossing"], "through": { "end": "B", "track": 1 } }
+        ] },
+        { "name": "B", "tracks": [
+          { "sensors": ["Crossing"], "through": { "end": "A", "track": 2 } },
+          { "sensors": ["Siding"], "through": { "end": "B", "track": 1 } }
+        ] }
+      ],
+      "layers": [
+        { "name": "Home", "rules": [
+          { "trigger": { "while": { "block": "Home block", "is": "clear" } }, "checks": [], "then": { "mast": "Home", "aspect": "R281" } }
+        ] }
+      ]
+    }
+  },
+  "start": {
+    "board": "mid",
+    "links": { "A": "west/B", "B": "east/A" }
+  },
+  "steps": [
+    {
+      "at": 0,
+      "expect": {
+        "events": [{ "startup": true }],
+        "writes": [{ "mast": "Home", "aspect": "R281" }],
+        "ends": { "A": "unheard", "B": "unheard" },
+        "links": { "A": "west/B", "B": "east/A" },
+        "publishes": [
+          { "end": "A", "link": "west/B" },
+          { "end": "A", "track": 1, "block": "INACTIVE" },
+          { "end": "A", "track": 1, "mast": "clear" },
+          { "end": "A", "track": 2, "block": "ACTIVE" },
+          { "end": "A", "track": 2, "mast": "stop" },
+          { "end": "B", "link": "east/A" },
+          { "end": "B", "track": 1, "block": "ACTIVE" },
+          { "end": "B", "track": 1, "mast": "stop" },
+          { "end": "B", "track": 2, "block": "INACTIVE" },
+          { "end": "B", "track": 2, "mast": "stop" }
+        ]
+      }
+    },
+    {
+      "at": 1,
+      "do": [
+        { "end": "B", "online": true },
+        { "end": "B", "theirLink": "mid/B" },
+        { "end": "B", "track": 1, "block": "clear" },
+        { "end": "B", "track": 1, "mast": "stop" },
+        { "end": "B", "track": 2, "block": "clear" },
+        { "end": "B", "track": 2, "mast": "approach" }
+      ],
+      "expect": {
+        "ends": { "A": "unheard", "B": "heard" },
+        "publishes": [
+          { "end": "A", "track": 2, "block": "INACTIVE" },
+          { "end": "A", "track": 2, "mast": "approach" }
+        ]
+      }
+    },
+    {
+      "at": 2,
+      "do": [
+        { "end": "A", "online": true },
+        { "end": "A", "theirLink": "mid/A" },
+        { "end": "A", "track": 1, "block": "clear" },
+        { "end": "A", "track": 1, "mast": "approach" },
+        { "end": "A", "track": 2, "block": "clear" },
+        { "end": "A", "track": 2, "mast": "clear" }
+      ],
+      "expect": {
+        "ends": { "A": "heard", "B": "heard" },
+        "publishes": [
+          { "end": "B", "track": 1, "block": "INACTIVE" },
+          { "end": "B", "track": 1, "mast": "approach" }
+        ]
+      }
+    },
+    {
+      "at": 3,
+      "do": [{ "sensor": "Crossing", "is": "occupied" }],
+      "expect": {
+        "publishes": [
+          { "end": "A", "track": 2, "block": "ACTIVE" },
+          { "end": "B", "track": 1, "block": "ACTIVE" }
+        ]
+      }
+    },
+    {
+      "at": 4,
+      "do": [
+        { "sensor": "Crossing", "is": "clear" },
+        { "end": "B", "track": 2, "block": "occupied" }
+      ],
+      "expect": {
+        "publishes": [
+          { "end": "B", "track": 1, "block": "INACTIVE" }
+        ]
+      }
+    },
+    {
+      "at": 5,
+      "do": [{ "end": "B", "track": 2, "mast": "clear" }],
+      "expect": {
+        "publishes": [
+          { "end": "A", "track": 2, "mast": "clear" }
+        ]
+      }
+    },
+    {
+      "at": 6,
+      "do": [{ "sensor": "Home in", "is": "occupied" }],
+      "expect": {
+        "writes": [{ "mast": "Home", "aspect": "R292" }],
+        "publishes": [
+          { "end": "A", "track": 1, "block": "ACTIVE" },
+          { "end": "A", "track": 1, "mast": "stop" }
+        ]
+      }
+    },
+    {
+      "at": 7,
+      "do": [
+        { "sensor": "Siding", "is": "occupied" },
+        { "end": "B", "track": 1, "block": "occupied" }
+      ],
+      "expect": {
+        "publishes": [
+          { "end": "B", "track": 2, "block": "ACTIVE" }
+        ]
+      }
+    },
+    {
+      "at": 8,
+      "do": [{ "sensor": "Siding", "is": "clear" }],
+      "expect": {
+        "publishes": [
+          { "end": "B", "track": 2, "block": "INACTIVE" }
+        ]
+      }
+    },
+    {
+      "at": 9,
+      "do": [{ "broker": "disconnected" }],
+      "expect": {
+        "ends": { "A": "unheard", "B": "unheard" },
+        "publishes": []
+      }
+    },
+    {
+      "at": 10,
+      "do": [{ "broker": "connected" }],
+      "expect": {
+        "ends": { "A": "heard", "B": "heard" },
+        "publishes": [
+          { "end": "A", "link": "west/B" },
+          { "end": "A", "track": 1, "block": "ACTIVE" },
+          { "end": "A", "track": 1, "mast": "stop" },
+          { "end": "A", "track": 2, "block": "ACTIVE" },
+          { "end": "A", "track": 2, "mast": "clear" },
+          { "end": "B", "link": "east/A" },
+          { "end": "B", "track": 1, "block": "INACTIVE" },
+          { "end": "B", "track": 1, "mast": "approach" },
+          { "end": "B", "track": 2, "block": "INACTIVE" },
+          { "end": "B", "track": 2, "mast": "stop" }
+        ]
+      }
+    }
+  ]
+}

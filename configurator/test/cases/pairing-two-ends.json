@@ -1,0 +1,126 @@
+{
+  "name": "two ends pressed together pair, then hear each other",
+  "covers": [
+    "pairing: two ends pressed together pair; a third end in the window, or a track-count mismatch, pairs none; a window that expires leaves the link unchanged."
+  ],
+  "about": "Pair is pressed on west's end B at scan 10 (1 s) and on east's end A at scan 20 (2 s). Each board hears the other's announcement one scan later, so west's group closes at 32.1 s and east's at 32 s. East links first, west a scan later; once each hears the other's Link they are heard, and east's Home clears because its block Joint (what A hears) is clear. Then a train on west's S holds Joint occupied across the joint.",
+  "boards": {
+    "west": {
+      "sensors": ["S"],
+      "logic": {
+        "ends": [{ "name": "B", "tracks": [{ "sensors": ["S"] }] }]
+      }
+    },
+    "east": {
+      "sensors": ["T"],
+      "masts": {
+        "Home": { "aspects": { "R292": "stop", "R281": "clear" } }
+      },
+      "logic": {
+        "blocks": [{ "name": "Joint", "sensors": [{ "end": "A", "track": 1 }] }],
+        "ends": [{ "name": "A", "tracks": [{ "sensors": ["T"] }] }],
+        "layers": [
+          { "name": "Home", "rules": [
+            { "trigger": { "while": { "block": "Joint", "is": "clear" } }, "checks": [], "then": { "mast": "Home", "aspect": "R281" } }
+          ] }
+        ]
+      }
+    }
+  },
+  "steps": [
+    {
+      "at": 0,
+      "expect": {
+        "west": {
+          "ends": { "B": "empty" },
+          "publishes": [
+            { "end": "B", "link": "" },
+            { "end": "B", "track": 1, "block": "INACTIVE" },
+            { "end": "B", "track": 1, "mast": "stop" }
+          ]
+        },
+        "east": { "ends": { "A": "empty" }, "masts": { "Home": "R292" } }
+      }
+    },
+    {
+      "at": 10,
+      "do": { "west": [{ "end": "B", "pair": "pressed" }] },
+      "expect": {
+        "west": { "ends": { "B": "pairing" }, "publishes": [{ "pairing": "west/B/1" }] },
+        "east": { "ends": { "A": "empty" } }
+      }
+    },
+    {
+      "at": 11,
+      "expect": {
+        "west": { "ends": { "B": "pairing" } },
+        "east": { "ends": { "A": "empty" } }
+      }
+    },
+    {
+      "at": 20,
+      "do": { "east": [{ "end": "A", "pair": "pressed" }] },
+      "expect": {
+        "west": { "ends": { "B": "pairing" } },
+        "east": { "ends": { "A": "pairing" }, "publishes": [{ "pairing": "east/A/1" }] }
+      }
+    },
+    {
+      "at": 319,
+      "expect": {
+        "west": { "ends": { "B": "pairing" }, "events": [] },
+        "east": { "ends": { "A": "pairing" }, "events": [] }
+      }
+    },
+    {
+      "at": 320,
+      "expect": {
+        "west": { "ends": { "B": "pairing" }, "events": [], "links": { "B": "" } },
+        "east": {
+          "ends": { "A": "unheard" },
+          "links": { "A": "west/B" },
+          "events": [{ "pairing": "A", "result": "paired", "with": "west/B" }],
+          "publishes": [{ "end": "A", "link": "west/B" }],
+          "masts": { "Home": "R292" }
+        }
+      }
+    },
+    {
+      "at": 321,
+      "expect": {
+        "west": {
+          "ends": { "B": "unheard" },
+          "links": { "B": "east/A" },
+          "events": [{ "pairing": "B", "result": "paired", "with": "east/A" }],
+          "publishes": [{ "end": "B", "link": "east/A" }]
+        },
+        "east": { "ends": { "A": "unheard" }, "masts": { "Home": "R292" } }
+      }
+    },
+    {
+      "at": 322,
+      "expect": {
+        "west": { "ends": { "B": "heard" } },
+        "east": {
+          "ends": { "A": "heard" },
+          "masts": { "Home": "R281" },
+          "writes": [{ "mast": "Home", "aspect": "R281" }]
+        }
+      }
+    },
+    {
+      "at": 330,
+      "do": { "west": [{ "sensor": "S", "is": "occupied" }] },
+      "expect": {
+        "west": { "publishes": [{ "end": "B", "track": 1, "block": "ACTIVE" }] },
+        "east": { "masts": { "Home": "R281" } }
+      }
+    },
+    {
+      "at": 331,
+      "expect": {
+        "east": { "masts": { "Home": "R292" }, "writes": [{ "mast": "Home", "aspect": "R292" }] }
+      }
+    }
+  ]
+}
