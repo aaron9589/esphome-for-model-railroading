@@ -1977,3 +1977,8 @@ details.rule-more {
   padding-left: 1.2rem;
   font-size: 0.82rem;
 }
+
+/* Download: printable summary */
+.logic-summary-button {
+  margin: 0.5rem 0 0.75rem;
+}
