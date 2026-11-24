@@ -1,16 +1,7 @@
 import assert from "node:assert/strict";
-import fs from "node:fs";
-import path from "node:path";
-import vm from "node:vm";
-import { fileURLToPath } from "node:url";
+import { loadModules, test } from "./harness.js";
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const generatorPath = path.join(__dirname, "..", "generator.js");
-const context = { crypto: globalThis.crypto };
-context.globalThis = context;
-vm.runInNewContext(fs.readFileSync(generatorPath, "utf8"), context, {
-  filename: "generator.js",
-});
+const context = loadModules("generator.js");
 
 const {
   CONFIG_MARKER,
@@ -35,16 +26,6 @@ function withCreds(config) {
   config.board.wifiPassword = "s3cret";
   config.board.mqttBroker = "192.168.1.50";
   return config;
-}
-
-function test(name, fn) {
-  try {
-    fn();
-    console.log(`ok - ${name}`);
-  } catch (err) {
-    console.error(`fail - ${name}`);
-    throw err;
-  }
 }
 
 test("My First Board preset matches sample topics and pins", () => {
@@ -1082,4 +1063,4 @@ test("mast messages: exact match, then Unlit, Held, and the aspect name", () => 
   assert.match(show, /Home \| Dark/);
 });
 
-console.log("\nAll generator tests passed.");
+if (!process.exitCode) console.log("\nAll generator tests passed.");
