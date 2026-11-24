@@ -1,0 +1,90 @@
+{
+  "name": "Three modules paired by their ends, the middle one turned round",
+  "covers": [
+    "three modules paired by their ends, the middle one turned round, behave like one board"
+  ],
+  "about": "Three plain track modules, each A1 to B1 with two blocks and a boundary with two signals, with Advance Approach. west's B meets mid's B (mid is turned round), and mid's A meets east's A; west's A and east's B are the end of the line. Eastbound runs west A to B, mid B to A, east A to B, so mid's eastbound signal is the one towards its From (M east). The signals tumble down across both joints as on one board: a train in east's block 2 gives E east Stop, M east Approach, W east Advance Approach. A train in mid's block 1 holds east's block 1 across the joint (E west Stop) and gives M east Stop and W east Approach.",
+  "modules": {
+    "west": {
+      "sensors": ["W1", "W2", "WO"],
+      "masts": ["W east", "W west"],
+      "mss": {
+        "advanceApproach": true,
+        "ends": [{ "name": "A", "tracks": 1 }, { "name": "B", "tracks": 1 }],
+        "tracks": [{
+          "from": { "end": "A", "track": 1 }, "to": { "end": "B", "track": 1 },
+          "blocks": [{ "sensors": ["W1"] }, { "sensors": ["W2"] }],
+          "boundaries": [{ "sensors": ["WO"], "towardsFrom": "W west", "towardsTo": "W east" }]
+        }]
+      }
+    },
+    "mid": {
+      "sensors": ["M1", "M2", "MO"],
+      "masts": ["M east", "M west"],
+      "mss": {
+        "advanceApproach": true,
+        "ends": [{ "name": "A", "tracks": 1 }, { "name": "B", "tracks": 1 }],
+        "tracks": [{
+          "from": { "end": "A", "track": 1 }, "to": { "end": "B", "track": 1 },
+          "blocks": [{ "sensors": ["M1"] }, { "sensors": ["M2"] }],
+          "boundaries": [{ "sensors": ["MO"], "towardsFrom": "M east", "towardsTo": "M west" }]
+        }]
+      }
+    },
+    "east": {
+      "sensors": ["E1", "E2", "EO"],
+      "masts": ["E east", "E west"],
+      "mss": {
+        "advanceApproach": true,
+        "ends": [{ "name": "A", "tracks": 1 }, { "name": "B", "tracks": 1 }],
+        "tracks": [{
+          "from": { "end": "A", "track": 1 }, "to": { "end": "B", "track": 1 },
+          "blocks": [{ "sensors": ["E1"] }, { "sensors": ["E2"] }],
+          "boundaries": [{ "sensors": ["EO"], "towardsFrom": "E west", "towardsTo": "E east" }]
+        }]
+      }
+    }
+  },
+  "start": {
+    "west": { "links": { "A": "end", "B": "mid/B" } },
+    "mid": { "links": { "A": "east/A", "B": "west/B" } },
+    "east": { "links": { "A": "mid/A", "B": "end" } }
+  },
+  "steps": [
+    {
+      "at": 15,
+      "expect": {
+        "west": { "ends": { "B": "heard" }, "masts": { "W east": "R281", "W west": "R285" } },
+        "mid": { "ends": { "A": "heard", "B": "heard" }, "masts": { "M east": "ADV_NORM", "M west": "ADV_NORM" } },
+        "east": { "ends": { "A": "heard" }, "masts": { "E east": "R285", "E west": "R281" } }
+      }
+    },
+    { "at": 16, "do": { "east": [{ "sensor": "E2", "is": "occupied" }] } },
+    {
+      "at": 30,
+      "expect": {
+        "west": { "masts": { "W east": "ADV_NORM", "W west": "R285" } },
+        "mid": { "masts": { "M east": "R285", "M west": "ADV_NORM" } },
+        "east": { "masts": { "E east": "R292", "E west": "R281" } }
+      }
+    },
+    { "at": 31, "do": { "east": [{ "sensor": "E2", "is": "clear" }], "mid": [{ "sensor": "M1", "is": "occupied" }] } },
+    {
+      "at": 45,
+      "expect": {
+        "west": { "masts": { "W east": "R285", "W west": "R285" } },
+        "mid": { "masts": { "M east": "R292", "M west": "ADV_NORM" } },
+        "east": { "masts": { "E east": "R285", "E west": "R292" } }
+      }
+    },
+    { "at": 46, "do": { "mid": [{ "sensor": "M1", "is": "clear" }] } },
+    {
+      "at": 60,
+      "expect": {
+        "west": { "masts": { "W east": "R281", "W west": "R285" } },
+        "mid": { "masts": { "M east": "ADV_NORM", "M west": "ADV_NORM" } },
+        "east": { "masts": { "E east": "R285", "E west": "R281" } }
+      }
+    }
+  ]
+}

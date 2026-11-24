@@ -152,6 +152,9 @@ function normalizeLogic(config) {
   if (logic.share !== undefined) logic.share = logic.share === true;
   // A hand-edited file can hold anything: keep only linked boards that are objects.
   const isObject = (value) => value && typeof value === "object" && !Array.isArray(value);
+  // MSS Logic's description: an object, or nothing. mss-builder.js reads the
+  // rest of it defensively and validation names what is wrong.
+  if (logic.mss !== undefined && !isObject(logic.mss)) delete logic.mss;
   if (logic.remoteBoards !== undefined) {
     logic.remoteBoards = Array.isArray(logic.remoteBoards) ? logic.remoteBoards.filter(isObject) : [];
     for (const board of logic.remoteBoards) {

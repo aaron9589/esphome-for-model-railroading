@@ -205,6 +205,35 @@ The harness is the broker between them:
 - **Timing.** What boards publish in scan *n* reaches the boards that hear it after scan *n* and before scan *n* + 1, before that step's `do` events. An end whose link changed in scan *n*, and every end of a board that connected, gets the retained messages it now hears at that time instead.
 - **Broker.** `{ "broker": "disconnected" }` on a board makes its Online `INACTIVE` (its will), and it neither sends nor hears until `{ "broker": "connected" }`, which makes it `ACTIVE` again.
 
+## MSS Logic cases
+
+`mss/` holds the cases for [MSS Logic](../../../docs/mss-emulation-spec.md) (work item 4.1). An MSS board's rule table is built from its description by `mss-builder.js`, so these cases give the **description**, not the rules: `test/mss-builder.test.js` turns each module into a configurator board, builds its rule table the way the YAML does (`logicTable`), and replays the timeline in the JS engine. The engines themselves are cross-checked by the cases above, so these are not replayed by the C++ core. As above, the expected values are worked out by hand from the spec, never from a build or a run.
+
+A case has `module` in place of `board` (or `modules`, by board name, in place of `boards`), with `name`, `covers` (a bullet of the MSS spec's Tests, word for word), `about`, `start` and `steps` as above:
+
+| Key | What |
+|---|---|
+| `sensors`, `turnouts` | the board's sensors and turnouts, by name |
+| `masts` | the board's masts by name, each with the CATS aspects R292, R285, ADV_NORM, R281, R282, R283 and R286 |
+| `mss` | `logic.mss`, in the spec's [Stored format](../../../docs/mss-emulation-spec.md#stored-format) |
+
+Built items have the builder's names: a block is `<track> block <n>`, where a track is `<From> to <To>` and a place is `A1` (end A, track 1), `J1 leg 2`, or `dead end`; a signal with no lights at a boundary is `<track> boundary <n> towards <place>`, and at a junction leg `<junction> leg <n> signal`. Their aspects are named for the indications (`Stop`, `Approach`, ...).
+
+| MSS spec bullet (Tests) | Cases |
+|---|---|
+| MSS behaviour: the four rows of MSS Appendix B | `mss-appendix-b-advance`, `mss-appendix-b-no-advance` |
+| MSS behaviour: the User Guide's train passing a block | `mss-user-guide-train` |
+| MSS behaviour: a boundary with no signal one way | `mss-no-signal-boundary` |
+| MSS behaviour: a reversed turnout in a block | `mss-reversed-turnout` |
+| Junctions: a turnout junction | `mss-junction-turnout`, `mss-junction-no-approach-diverging` |
+| Junctions: a CATS hold on a junction mast | `mss-junction-turnout` |
+| Junctions: Approach Diverging gives Advance Approach, or Clear | `mss-junction-turnout`, `mss-approach-diverging-no-advance` |
+| Junctions: a double-track crossover | `mss-crossover` |
+| Junctions: validation rejects two routes from one leg | a builder test in `test/mss-builder.test.js` |
+| Across modules: three modules, the middle one turned round | `mss-three-modules` |
+
+**Appendix B** is taken as the MSS Design Standard's table of occupancy ahead to indication: the next block occupied gives Stop; the one after it, Approach; the third, Advance Approach (Clear without it); all three clear, Clear.
+
 ## Which case covers which bullet
 
 | Spec bullet (Tests) | Cases |

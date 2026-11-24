@@ -1,0 +1,285 @@
+{
+  "name": "Approach Diverging without Advance Approach: Clear behind it",
+  "covers": [
+    "a mast showing Approach Diverging gives Advance Approach behind it, or Clear when Advance Approach is not used"
+  ],
+  "about": "The junction module of mss-junction-turnout with Approach Diverging used and Advance Approach not. Diverging set: Home shows Diverging Clear, Dist Approach Diverging (R282, meaning Approach), and Outer Clear, since Advance Approach is not used. Main set with end B at Stop: Home Approach, Dist and Outer Clear.",
+  "module": {
+    "sensors": [
+      "K1",
+      "K2",
+      "K3",
+      "O12",
+      "O23",
+      "JX",
+      "Main",
+      "Branch"
+    ],
+    "turnouts": [
+      "P1"
+    ],
+    "masts": [
+      "Outer",
+      "Dist",
+      "Home"
+    ],
+    "mss": {
+      "approachDiverging": true,
+      "ends": [
+        {
+          "name": "A",
+          "tracks": 1
+        },
+        {
+          "name": "B",
+          "tracks": 1
+        },
+        {
+          "name": "C",
+          "tracks": 1
+        }
+      ],
+      "tracks": [
+        {
+          "from": {
+            "end": "A",
+            "track": 1
+          },
+          "to": {
+            "junction": "J1",
+            "leg": 1
+          },
+          "blocks": [
+            {
+              "sensors": [
+                "K1"
+              ]
+            },
+            {
+              "sensors": [
+                "K2"
+              ]
+            },
+            {
+              "sensors": [
+                "K3"
+              ]
+            }
+          ],
+          "boundaries": [
+            {
+              "sensors": [
+                "O12"
+              ],
+              "towardsFrom": null,
+              "towardsTo": "Outer"
+            },
+            {
+              "sensors": [
+                "O23"
+              ],
+              "towardsFrom": null,
+              "towardsTo": "Dist"
+            }
+          ]
+        },
+        {
+          "from": {
+            "junction": "J1",
+            "leg": 2
+          },
+          "to": {
+            "end": "B",
+            "track": 1
+          },
+          "blocks": [
+            {
+              "sensors": [
+                "Main"
+              ]
+            }
+          ],
+          "boundaries": []
+        },
+        {
+          "from": {
+            "junction": "J1",
+            "leg": 3
+          },
+          "to": {
+            "end": "C",
+            "track": 1
+          },
+          "blocks": [
+            {
+              "sensors": [
+                "Branch"
+              ]
+            }
+          ],
+          "boundaries": []
+        }
+      ],
+      "junctions": [
+        {
+          "name": "J1",
+          "sensors": [
+            "JX"
+          ],
+          "masts": {
+            "1": "Home",
+            "2": null,
+            "3": null
+          },
+          "routes": [
+            {
+              "legs": [
+                1,
+                2
+              ],
+              "turnouts": [
+                {
+                  "turnout": "P1",
+                  "position": "closed"
+                }
+              ]
+            },
+            {
+              "legs": [
+                1,
+                3
+              ],
+              "turnouts": [
+                {
+                  "turnout": "P1",
+                  "position": "thrown"
+                }
+              ],
+              "diverging": true
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "start": {
+    "board": "jm",
+    "links": {
+      "A": "end",
+      "B": "nb/A",
+      "C": "nc/A"
+    }
+  },
+  "steps": [
+    {
+      "at": 1,
+      "do": [
+        {
+          "end": "B",
+          "theirLink": "jm/B"
+        },
+        {
+          "end": "B",
+          "online": true
+        },
+        {
+          "end": "B",
+          "track": 1,
+          "block": "clear"
+        },
+        {
+          "end": "B",
+          "track": 1,
+          "mast": "clear"
+        },
+        {
+          "end": "C",
+          "theirLink": "jm/C"
+        },
+        {
+          "end": "C",
+          "online": true
+        },
+        {
+          "end": "C",
+          "track": 1,
+          "block": "clear"
+        },
+        {
+          "end": "C",
+          "track": 1,
+          "mast": "clear"
+        }
+      ]
+    },
+    {
+      "at": 8,
+      "expect": {
+        "masts": {
+          "Home": "R281",
+          "Dist": "R281",
+          "Outer": "R281"
+        }
+      }
+    },
+    {
+      "at": 9,
+      "do": [
+        {
+          "end": "B",
+          "track": 1,
+          "mast": "stop"
+        }
+      ]
+    },
+    {
+      "at": 13,
+      "expect": {
+        "masts": {
+          "Home": "R285",
+          "Dist": "R281",
+          "Outer": "R281"
+        }
+      }
+    },
+    {
+      "at": 14,
+      "do": [
+        {
+          "turnout": "P1",
+          "is": "thrown"
+        }
+      ]
+    },
+    {
+      "at": 18,
+      "expect": {
+        "masts": {
+          "Home": "R283",
+          "Dist": "R282",
+          "Outer": "R281"
+        }
+      }
+    },
+    {
+      "at": 19,
+      "do": [
+        {
+          "end": "C",
+          "track": 1,
+          "mast": "stop"
+        }
+      ]
+    },
+    {
+      "at": 23,
+      "expect": {
+        "masts": {
+          "Home": "R286",
+          "Dist": "R282",
+          "Outer": "R281"
+        }
+      }
+    }
+  ]
+}

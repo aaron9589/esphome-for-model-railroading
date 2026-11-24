@@ -1,0 +1,39 @@
+{
+  "name": "MSS Appendix B, with Advance Approach",
+  "covers": [
+    "the four rows of MSS Appendix B (occupancy ahead to indication), with and without Advance Approach"
+  ],
+  "about": "A plain track module, A1 to B1, with four blocks (current sensors K1-K4) and an optical sensor and two signals at each block boundary. Both ends are the end of the line (Block clear, Mast stop), so E34 shows Approach with the line clear. Watching E12, which protects block 2: block 2 occupied gives Stop; block 3, Approach; block 4, Advance Approach; all three clear, Clear. The westbound signals over the same sensors show the same ladder the other way.",
+  "module": {
+    "sensors": ["K1", "K2", "K3", "K4", "O12", "O23", "O34"],
+    "masts": ["E12", "E23", "E34", "W12", "W23", "W34"],
+    "mss": {
+      "advanceApproach": true,
+      "ends": [{ "name": "A", "tracks": 1 }, { "name": "B", "tracks": 1 }],
+      "tracks": [
+        {
+          "from": { "end": "A", "track": 1 }, "to": { "end": "B", "track": 1 },
+          "blocks": [{ "sensors": ["K1"] }, { "sensors": ["K2"] }, { "sensors": ["K3"] }, { "sensors": ["K4"] }],
+          "boundaries": [
+            { "sensors": ["O12"], "towardsFrom": "W12", "towardsTo": "E12" },
+            { "sensors": ["O23"], "towardsFrom": "W23", "towardsTo": "E23" },
+            { "sensors": ["O34"], "towardsFrom": "W34", "towardsTo": "E34" }
+          ]
+        }
+      ]
+    }
+  },
+  "start": { "board": "plain", "links": { "A": "end", "B": "end" } },
+  "steps": [
+    { "at": 5, "expect": { "masts": { "E12": "R281", "E23": "ADV_NORM", "E34": "R285", "W34": "R281", "W23": "ADV_NORM", "W12": "R285" } } },
+    { "at": 6, "do": [{ "sensor": "K4", "is": "occupied" }], "expect": { "masts": { "E34": "R292", "E23": "ADV_NORM", "E12": "R281" } } },
+    { "at": 7, "expect": { "masts": { "E34": "R292", "E23": "R285", "E12": "R281" } } },
+    { "at": 8, "expect": { "masts": { "E34": "R292", "E23": "R285", "E12": "ADV_NORM" } } },
+    { "at": 11, "do": [{ "sensor": "K4", "is": "clear" }, { "sensor": "K3", "is": "occupied" }] },
+    { "at": 15, "expect": { "masts": { "E34": "R285", "E23": "R292", "E12": "R285" } } },
+    { "at": 16, "do": [{ "sensor": "K3", "is": "clear" }, { "sensor": "K2", "is": "occupied" }] },
+    { "at": 20, "expect": { "masts": { "E34": "R285", "E23": "ADV_NORM", "E12": "R292", "W34": "R285", "W23": "R292", "W12": "R285" } } },
+    { "at": 21, "do": [{ "sensor": "K2", "is": "clear" }] },
+    { "at": 25, "expect": { "masts": { "E12": "R281", "E23": "ADV_NORM", "E34": "R285", "W34": "R281", "W23": "ADV_NORM", "W12": "R285" } } }
+  ]
+}

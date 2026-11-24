@@ -1,0 +1,36 @@
+{
+  "name": "A block boundary with no signal one way passes the tumbledown across it",
+  "covers": [
+    "a boundary with no signal one way passes the tumbledown across it"
+  ],
+  "about": "The four-block module with Advance Approach, but block boundary 2 has no eastbound signal: MSS Logic makes a signal with no lights there, 'A1 to B1 boundary 2 towards B1'. E12 still reads through it, so the tumbledown carries across the boundary: a train in block 4 gives E12 Advance Approach, a train in block 3 gives it Approach.",
+  "module": {
+    "sensors": ["K1", "K2", "K3", "K4", "O12", "O23", "O34"],
+    "masts": ["E12", "E34", "W12", "W23", "W34"],
+    "mss": {
+      "advanceApproach": true,
+      "ends": [{ "name": "A", "tracks": 1 }, { "name": "B", "tracks": 1 }],
+      "tracks": [
+        {
+          "from": { "end": "A", "track": 1 }, "to": { "end": "B", "track": 1 },
+          "blocks": [{ "sensors": ["K1"] }, { "sensors": ["K2"] }, { "sensors": ["K3"] }, { "sensors": ["K4"] }],
+          "boundaries": [
+            { "sensors": ["O12"], "towardsFrom": "W12", "towardsTo": "E12" },
+            { "sensors": ["O23"], "towardsFrom": "W23", "towardsTo": null },
+            { "sensors": ["O34"], "towardsFrom": "W34", "towardsTo": "E34" }
+          ]
+        }
+      ]
+    }
+  },
+  "start": { "board": "plain", "links": { "A": "end", "B": "end" } },
+  "steps": [
+    { "at": 5, "expect": { "masts": { "E34": "R285", "A1 to B1 boundary 2 towards B1": "Advance Approach", "E12": "R281" } } },
+    { "at": 6, "do": [{ "sensor": "K4", "is": "occupied" }] },
+    { "at": 10, "expect": { "masts": { "E34": "R292", "A1 to B1 boundary 2 towards B1": "Approach", "E12": "ADV_NORM" } } },
+    { "at": 11, "do": [{ "sensor": "K4", "is": "clear" }, { "sensor": "K3", "is": "occupied" }] },
+    { "at": 15, "expect": { "masts": { "E34": "R285", "A1 to B1 boundary 2 towards B1": "Stop", "E12": "R285" } } },
+    { "at": 16, "do": [{ "sensor": "K3", "is": "clear" }] },
+    { "at": 20, "expect": { "masts": { "E34": "R285", "A1 to B1 boundary 2 towards B1": "Advance Approach", "E12": "R281" } } }
+  ]
+}

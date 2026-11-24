@@ -1,0 +1,36 @@
+{
+  "name": "The User Guide's train passing a block",
+  "covers": [
+    "the User Guide's train passing a block: the leading optical sensor, then the current sensor, then the trailing optical sensor hold the block occupied until the last car has gone"
+  ],
+  "about": "An eastbound train passes block 2 (current sensor K2, optical O12 at its entry, O23 at its exit), watched by E12, which protects it. The entry optical sensor holds block 2 before the loco draws current in it; the current sensor holds it while the entry sensor clears; when the loco has left (K2 clear) the cars that draw no power still cover the exit optical sensor, which holds block 2 until the last car has gone. Only then does E12 drop from Stop to Approach (E23 is at Stop behind the train).",
+  "module": {
+    "sensors": ["K1", "K2", "K3", "K4", "O12", "O23", "O34"],
+    "masts": ["E12", "E23", "E34", "W12", "W23", "W34"],
+    "mss": {
+      "ends": [{ "name": "A", "tracks": 1 }, { "name": "B", "tracks": 1 }],
+      "tracks": [
+        {
+          "from": { "end": "A", "track": 1 }, "to": { "end": "B", "track": 1 },
+          "blocks": [{ "sensors": ["K1"] }, { "sensors": ["K2"] }, { "sensors": ["K3"] }, { "sensors": ["K4"] }],
+          "boundaries": [
+            { "sensors": ["O12"], "towardsFrom": "W12", "towardsTo": "E12" },
+            { "sensors": ["O23"], "towardsFrom": "W23", "towardsTo": "E23" },
+            { "sensors": ["O34"], "towardsFrom": "W34", "towardsTo": "E34" }
+          ]
+        }
+      ]
+    }
+  },
+  "start": { "board": "plain", "links": { "A": "end", "B": "end" }, "sensors": { "K1": "occupied" } },
+  "steps": [
+    { "at": 5, "expect": { "masts": { "E12": "R281", "W12": "R292" } } },
+    { "at": 6, "do": [{ "sensor": "O12", "is": "occupied" }], "expect": { "masts": { "E12": "R292", "W23": "R292" } } },
+    { "at": 8, "do": [{ "sensor": "K2", "is": "occupied" }], "expect": { "masts": { "E12": "R292" } } },
+    { "at": 10, "do": [{ "sensor": "O12", "is": "clear" }, { "sensor": "K1", "is": "clear" }], "expect": { "masts": { "E12": "R292", "W12": "R285" } } },
+    { "at": 12, "do": [{ "sensor": "O23", "is": "occupied" }], "expect": { "masts": { "E12": "R292", "E23": "R292" } } },
+    { "at": 14, "do": [{ "sensor": "K3", "is": "occupied" }, { "sensor": "K2", "is": "clear" }], "expect": { "masts": { "E12": "R292", "E23": "R292" } } },
+    { "at": 16, "expect": { "masts": { "E12": "R292" } } },
+    { "at": 18, "do": [{ "sensor": "O23", "is": "clear" }], "expect": { "masts": { "E12": "R285", "E23": "R292", "W23": "R281" } } }
+  ]
+}
