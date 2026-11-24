@@ -158,6 +158,9 @@
           {
             "release": "Bridge",
             "by": "manual"
+          },
+          {
+            "resync": "P1"
           }
         ],
         "resources": {

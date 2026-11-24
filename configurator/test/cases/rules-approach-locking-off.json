@@ -132,6 +132,9 @@
           {
             "release": "Bridge",
             "by": "cancel"
+          },
+          {
+            "resync": "P1"
           }
         ],
         "masts": {

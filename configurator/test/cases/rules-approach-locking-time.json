@@ -188,6 +188,9 @@
           {
             "grant": "Bridge",
             "rule": "Gauntlet/2"
+          },
+          {
+            "resync": "P1"
           }
         ],
         "locks": {
