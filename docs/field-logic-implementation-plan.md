@@ -134,8 +134,8 @@ Level crossing is left out: it needs a new output type, and becomes its own smal
 
 | # | Work item | Class | Done when |
 |---|---|---|---|
-| 5.1 | `README.md`, `docs/README.md` and `AGENTS.md` updated for the Logic page and both modes | Sonnet | Agents and newcomers are sent to the right guide |
-| 5.2 | Newcomer read-through of both guides on a fresh machine; fixes fed back into the page hints and guides | Human, Sonnet | Questions answered in the page, not in chat |
+| 5.1 | **Docs index**: `README.md`, `docs/README.md` and `AGENTS.md` updated for the Logic page and both modes | Sonnet | Agents and newcomers are sent to the right guide |
+| 5.2 | **Newcomer read-through** of both guides on a fresh machine; fixes fed back into the page hints and guides | Human, Sonnet | Questions answered in the page, not in chat |
 | 5.3 | **Merge to `main`**: tag `logic-v1.0.0`, set `LOGIC_COMPONENT_REF`, merge `main` in a final time, one PR from `feature/logic` into `main`, then check the live configurator after the Pages deploy | Human, Sonnet | The live page offers the Logic page, and a board downloaded from it builds |
 
 ## Milestones on the branch
