@@ -34,7 +34,7 @@ This repo is a beginner path for model-railroad ESP32 boards that talk to JMRI/C
 
 ## Logic work in progress
 
-- The Logic page (field logic and MSS Logic) is built on the long-lived branch `feature/logic`, following `docs/field-logic-implementation-plan.md`. Branch each work item off `feature/logic` and PR back into it.
+- The Logic page (field logic and MSS Logic) is built on the long-lived branch `feature/logic`, following `docs/field-logic-implementation-plan.md`. Each work item has a GitHub issue (label `logic`, milestones R0–R5). Branch it off `feature/logic` as named in the issue and PR back into it. PRs into `feature/logic` do not auto-close issues, so close the issue when its PR merges.
 - Do not merge logic work into `main` until Release 5 of the plan is complete. `main` (and the live configurator) stays as today until then.
 
 ## Install and MQTT

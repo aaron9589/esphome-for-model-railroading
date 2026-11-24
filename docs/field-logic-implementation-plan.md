@@ -14,7 +14,7 @@ Builds what [field-logic-spec.md](field-logic-spec.md) (the logic engine and Fie
 ## Branching
 
 - **`feature/logic`** is the long-lived branch for everything in this plan. It starts from the specs on `spec/field-logic`.
-- **Each work item** is a short branch off `feature/logic` (for example `logic/1.2-expanders`), merged back by a PR that passes CI and review. Each release ends with a tag on the branch: `logic-r0` … `logic-r5`.
+- **Each work item** has a GitHub issue (#23–#67, labelled `logic`, one milestone per release, with its model class as a label) and is built on a short branch off `feature/logic` (for example `logic/1.2-mcp23017-expanders`), merged back by a PR that passes CI and review. GitHub only auto-closes an issue from a PR into the default branch, so close the issue by hand (`gh issue close <n>`) when its PR merges into `feature/logic`. Each release ends with a tag on the branch: `logic-r0` … `logic-r5`.
 - **`main` is not touched** until Release 5 is complete. Then one PR merges `feature/logic` into `main`, which is what puts the Logic page on the live configurator.
 - **Keep up with `main`.** Merge `main` into `feature/logic` at least weekly, and whenever a fix lands there. If a fix on `main` changes today's YAML, the golden files are updated in that merge, with sign-off.
 - **Testers** run the configurator from the branch locally (`configurator/index.html`, or `python3 -m http.server` in `configurator/`), because GitHub Pages only deploys `main`.
