@@ -522,6 +522,48 @@
     }
   }
 
+  // --- Reference integrity (spec, The Logic page). The Logic page refers to
+  // this board's sensors, turnouts and masts by name. Renaming one renames
+  // every reference; deleting one leaves its references to be reported as
+  // missing until they are fixed.
+  //
+  // A reference is { sensor | turnout | mast: name } with no `board` key (a
+  // `board` key means another board's item), or a sensor name in a `sensors`
+  // list (block members, plant end tracks). Linked boards' snapshots are other
+  // boards' names and are never touched. Returns how many were renamed.
+  const REFERENCE_KINDS = Object.freeze(["sensor", "turnout", "mast"]);
+
+  function renameReferences(config, kind, from, to) {
+    if (!REFERENCE_KINDS.includes(kind) || !config?.logic || typeof from !== "string" || !from || from === to) return 0;
+    let count = 0;
+    const walk = (value) => {
+      if (Array.isArray(value)) {
+        value.forEach(walk);
+        return;
+      }
+      if (!value || typeof value !== "object") return;
+      for (const [key, inner] of Object.entries(value)) {
+        if (key === "remoteBoards") continue;
+        if (key === kind && inner === from && value.board === undefined) {
+          value[key] = to;
+          count += 1;
+        } else if (kind === "sensor" && key === "sensors" && Array.isArray(inner)) {
+          inner.forEach((member, i) => {
+            if (member === from) {
+              inner[i] = to;
+              count += 1;
+            }
+          });
+          inner.forEach(walk);
+        } else {
+          walk(inner);
+        }
+      }
+    };
+    walk(config.logic);
+    return count;
+  }
+
   // Linked boards show only in Field Logic, so they are checked only there: a
   // problem the person cannot see must not block the download.
   function validateLinkedBoards(config, errors, warnings) {
@@ -692,6 +734,7 @@
     logicBlocks,
     blockMember,
     memberKey,
+    renameReferences,
     blockLambda,
     emitBlocks,
     remoteOccupiedExpr,

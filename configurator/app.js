@@ -374,6 +374,27 @@ function normalizeTopics(config) {
   }
 }
 
+// References on the Logic page follow a rename once the name is finished
+// (change), not on every key: a half-typed name can pass through another
+// item's name. A name that another item of the same kind has, before or
+// after, is ambiguous, so its references are left for validation to report.
+function followRename(nameField, kind, item, items) {
+  const input = nameField.querySelector("input");
+  let before = item.name;
+  input.addEventListener("focus", () => {
+    before = item.name;
+  });
+  input.addEventListener("change", () => {
+    const after = item.name;
+    const shared = (name) => items.some((other) => other !== item && other.name === name);
+    if (before !== after && !shared(before) && !shared(after)) {
+      if (window.EsphomeMrLogicYaml?.renameReferences(state, kind, before, after)) persist();
+    }
+    before = after;
+  });
+  return nameField;
+}
+
 function followName(item, kind, card) {
   if (!item.topicCustom) {
     item.topic = topicFor(kind, item.name);
@@ -869,7 +890,7 @@ function renderBlocks() {
     });
     topicField.querySelector("input").dataset.role = "topic";
     fields.append(
-      field("Name", block.name, (v) => {
+      followRename(field("Name", block.name, (v) => {
         block.name = v;
         title.textContent = v || `Sensor ${index + 1}`;
         followName(block, "block", card);
@@ -879,7 +900,7 @@ function renderBlocks() {
         placeholder: "Kiama/Up XOver",
         full: true,
         hint: "Name in the logs. The topic is filled in from this.",
-      }),
+      }), "sensor", block, state.blocks),
       topicField,
       field("Pin", sensorPinValue(block), (v) => {
         setSensorPin(block, v);
@@ -1265,7 +1286,7 @@ function renderPointCard(point, index) {
   topicField.querySelector("input").dataset.role = "topic";
 
   fields.append(
-    field("Name", point.name, (v) => {
+    followRename(field("Name", point.name, (v) => {
       point.name = v;
       title.textContent = v || `Turnout ${index + 1}`;
       followName(point, "point", card);
@@ -1275,7 +1296,7 @@ function renderPointCard(point, index) {
       placeholder: "Kiama/Up Loop",
       full: true,
       hint: "Name on the calibration page.",
-    }),
+    }), "turnout", point, state.points),
     topicField,
     linkedField(
       "Position report",
@@ -1808,7 +1829,7 @@ function renderSignals() {
     });
     topicField.querySelector("input").dataset.role = "topic";
     fields.append(
-      field("Name", mast.name, (v) => {
+      followRename(field("Name", mast.name, (v) => {
         mast.name = v;
         title.textContent = v || `Mast ${mastIndex + 1}`;
         followName(mast, "signal", card);
@@ -1818,7 +1839,7 @@ function renderSignals() {
         placeholder: "KJN-42.26",
         full: true,
         hint: "Name in the logs. The topic is filled in from this.",
-      }),
+      }), "mast", mast, signals.masts),
       topicField,
       field("Drive", gpio ? "gpio" : "addressable", (v) => {
         mast.mode = v === "gpio" ? "gpio" : "addressable";
