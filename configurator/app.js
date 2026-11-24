@@ -2089,9 +2089,14 @@ function renderJmriSummary() {
     })(),
     masts: `${plural(only("masts").masts, "signal mast")}.`,
     logic: (() => {
-      const n = only("logic").sensors;
-      const online = state.board.mqttEnabled !== false && globalThis.EsphomeMr.sharesWithOtherBoards(state) ? 1 : 0;
-      const parts = [...(online ? ["This board's Online sensor"] : []), ...(n > online ? [plural(n - online, "block")] : [])];
+      // From the same list the XML is built from. A block whose topic JMRI
+      // cannot reach is left out, and listed under the boxes.
+      const left = generateJmriXml(state, { sensors: false, turnouts: false, masts: false, logic: true }).skipped;
+      const items = (globalThis.EsphomeMrLogicYaml.jmriSensors(state) || [])
+        .filter((item) => !left.some((line) => line.startsWith(`${item.label}:`)));
+      const online = items.some((item) => item.kind === "online");
+      const blocks = items.filter((item) => item.kind === "block").length;
+      const parts = [...(online ? ["This board's Online sensor"] : []), ...(blocks ? [plural(blocks, "block")] : [])];
       if (!parts.length) return "Nothing yet.";
       const text = parts.join(" and ");
       return `${text[0].toUpperCase()}${text.slice(1)}.`;

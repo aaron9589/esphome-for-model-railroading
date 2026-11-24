@@ -41,7 +41,7 @@ Boards that share or run logic need a name that no other board at a meet has. Th
 
 The board's network name changes, so the next flash must be by USB (Step 6).
 
-**Copied a file?** If you made this board from another board's `board.yaml`, click **New suffix**. Two boards must never share a suffix.
+**Copied a file?** If you made this board from another board's `board.yaml`, click **New suffix**. Two boards must never share a suffix. This changes the network name too, so flash by USB next.
 
 > **Screenshot placeholder:** Board page with the board name field ending in `-k7m4x2`, and the New suffix button beside it.
 
@@ -55,7 +55,7 @@ Both kinds of sensor go on the **Sensors** page, and both are wired the same way
 2. Add **Int 2 East** and **Int 2 West** the same way.
 3. Leave **Debounce** at `500ms`. It bridges the gap between two cars passing an optical sensor.
 
-For an optical sensor, use a module with a digital output (often labelled `DO` or `OUT`) that goes low when it sees something. Power it from the ESP's 3.3V pin, and wire `OUT` to the sensor pin and `GND` to GND. Check the module's own notes before you power it.
+For an optical sensor, use a module with a digital output (often labelled `DO` or `OUT`) that goes low when it sees something. The ESP pin has no pull-up of its own, so the module must drive the wire itself, as a current detector does (see [detector wiring](README.md)). Most modules with a `DO` pin have their own pull-up and do. A bare sensor with no module board needs a pull-up resistor. Power the module from the ESP's 3.3V pin, and wire `OUT` to the sensor pin and `GND` to GND. Check the module's own notes before you power it. (An expander pin does have a pull-up, so either kind works there.)
 
 > **Screenshot placeholder:** Sensors page with Int 2 current, Int 2 East and Int 2 West, each with its pin.
 
@@ -126,7 +126,7 @@ If a message says a block *uses sensor "…", which is not on the Sensors page*,
 
 ## Step 6: Flash the board and watch MQTT
 
-1. Download the YAML and install it, as in the [First Board Setup Guide](first-board-setup-guide.md). If you added a suffix in Step 1, install by USB (**Install → Plug into this computer**). Otherwise **Install → Wirelessly** is fine.
+1. Download the YAML and install it, as in the [First Board Setup Guide](first-board-setup-guide.md). If you clicked **Add a suffix** or **New suffix** in Step 1, install by USB (**Install → Plug into this computer**). Otherwise install wirelessly, as usual.
 2. Open **MQTTX**, connect to `127.0.0.1:1883` with no username, and subscribe to `trains/#`.
 
 Success looks like:
