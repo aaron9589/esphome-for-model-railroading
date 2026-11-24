@@ -3,6 +3,6 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node test/generator.test.js"
+    "test": "node test/run.js"
   }
 }
