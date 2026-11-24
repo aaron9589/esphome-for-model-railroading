@@ -724,7 +724,7 @@ The engine is one JS module (for example `configurator/logic.js`). It runs the s
 Built in work item 2.6, except the plant end checks, which come with plant ends (Release 3). Each message links to the page and part where it is fixed. Where the list above is not exact, the configurator does this:
 
 - A rule reads a mast through its trigger, checks and Cancel, and through the release of the section it takes. A mast on another board never makes a cycle here.
-- A Block signals group is one whose `starter` is `block-signals`. Each mast's block is the first block (or sensor) its rules check is clear, and the masts run in the order their rules are listed.
+- A Block signals group is one whose `starter` is `block-signals`. Each mast's block is the block (or sensor) its rules' When needs clear, as the starter writes it, else the first one an Only if checks is clear. The masts run in the order their rules are listed.
 - Masts entries are checked too: the mast is on the Signal Masts page, each aspect given a meaning, ticked diverging or chosen as the stop aspect exists, and the approach lighting block exists.
 - A rule button's pin needs a pull-up, like a turnout's button, and a clash is an error.
 
@@ -949,6 +949,9 @@ In `configurator/test/`, run through `configurator/package.json`:
   - who wins a mast: first active rule within a layer, most restrictive across layers, in tag order
   - block signals: the worked example's four rows; the tumbledown with and without Advance Approach; Approach Diverging behind a diverging aspect, and Approach there when Approach Diverging is not used; a remote next mast going offline leaves Approach; a reversed or moving turnout in a block gives Stop
   - the two lock flags: the re-sync runs only when both are clear, not when one of two clears.
+  - lock turnouts under a train: the turnout is locked while its block is occupied, and unlocked once it clears
+  - route signal: the first row whose turnouts and blocks match wins; a moving turnout matches no row; a row that follows the next mast joins the block signals tumbledown
+  - platform dwell: the mast clears only once the platform has been occupied for the dwell time, and only while the block ahead is clear
 - **Fail safe:**
   - the start-up scan with a train in the section (held, PASSED, releases after the delay), and with all clear
   - a toggle switch's boot move waits for the start-up scan, so a turnout under a train stays put

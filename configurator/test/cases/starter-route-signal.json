@@ -1,0 +1,572 @@
+{
+  "name": "route signal: first matching route wins, a moving turnout matches none, and a route that follows the next signal",
+  "covers": [
+    "route signal: the first row whose turnouts and blocks match wins; a moving turnout matches no row; a row that follows the next mast joins the block signals tumbledown"
+  ],
+  "about": "Home is a route signal at turnout P1, with three routes in order: P1 closed into Main, following Main 1/2 (a block signal that reads East Home, which CATS drives); P1 thrown with Branch and Branch 2 clear, Medium Clear (R283); P1 thrown with Branch clear, Medium Approach (R286). Advance Approach is used. Masts read the masts ahead as the previous scan wrote them, so Home follows Main 1/2 one scan later. With P1 thrown and both branch blocks clear, routes 2 and 3 both match and route 2, listed first, wins. P1 moving matches no route, so Home shows Stop.",
+  "board": {
+    "sensors": [
+      "Main",
+      "Main 2",
+      "Branch",
+      "Branch 2"
+    ],
+    "turnouts": [
+      "P1"
+    ],
+    "masts": {
+      "Home": {
+        "aspects": {
+          "R292": "stop",
+          "R285": "approach",
+          "ADV_NORM": "advance",
+          "R281": "clear",
+          "R286": "approach",
+          "R283": "clear"
+        },
+        "diverging": [
+          "R286",
+          "R283"
+        ]
+      },
+      "Main 1/2": {
+        "aspects": {
+          "R292": "stop",
+          "R285": "approach",
+          "ADV_NORM": "advance",
+          "R281": "clear"
+        }
+      },
+      "East Home": {
+        "aspects": {
+          "R292": "stop",
+          "R285": "approach",
+          "ADV_NORM": "advance",
+          "R281": "clear"
+        }
+      }
+    },
+    "logic": {
+      "layers": [
+        {
+          "name": "Main",
+          "rules": [
+            {
+              "trigger": {
+                "while": {
+                  "block": "Main 2",
+                  "is": "clear"
+                }
+              },
+              "checks": [
+                {
+                  "mast": "East Home",
+                  "is": "diverging"
+                },
+                {
+                  "not": {
+                    "mast": "East Home",
+                    "is": [
+                      "stop",
+                      "restricting"
+                    ]
+                  }
+                }
+              ],
+              "then": {
+                "mast": "Main 1/2",
+                "aspect": "R285"
+              }
+            },
+            {
+              "trigger": {
+                "while": {
+                  "block": "Main 2",
+                  "is": "clear"
+                }
+              },
+              "checks": [
+                {
+                  "mast": "East Home",
+                  "is": [
+                    "advance",
+                    "clear"
+                  ]
+                }
+              ],
+              "then": {
+                "mast": "Main 1/2",
+                "aspect": "R281"
+              }
+            },
+            {
+              "trigger": {
+                "while": {
+                  "block": "Main 2",
+                  "is": "clear"
+                }
+              },
+              "checks": [
+                {
+                  "mast": "East Home",
+                  "is": "approach"
+                }
+              ],
+              "then": {
+                "mast": "Main 1/2",
+                "aspect": "ADV_NORM"
+              }
+            },
+            {
+              "trigger": {
+                "while": {
+                  "block": "Main 2",
+                  "is": "clear"
+                }
+              },
+              "checks": [
+                {
+                  "mast": "East Home",
+                  "is": [
+                    "stop",
+                    "restricting"
+                  ]
+                }
+              ],
+              "then": {
+                "mast": "Main 1/2",
+                "aspect": "R285"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Home",
+          "rules": [
+            {
+              "trigger": {
+                "while": {
+                  "block": "Main",
+                  "is": "clear"
+                }
+              },
+              "checks": [
+                {
+                  "turnout": "P1",
+                  "is": "closed"
+                },
+                {
+                  "mast": "Main 1/2",
+                  "is": "diverging"
+                },
+                {
+                  "not": {
+                    "mast": "Main 1/2",
+                    "is": [
+                      "stop",
+                      "restricting"
+                    ]
+                  }
+                }
+              ],
+              "then": {
+                "mast": "Home",
+                "aspect": "R285"
+              }
+            },
+            {
+              "trigger": {
+                "while": {
+                  "block": "Main",
+                  "is": "clear"
+                }
+              },
+              "checks": [
+                {
+                  "turnout": "P1",
+                  "is": "closed"
+                },
+                {
+                  "mast": "Main 1/2",
+                  "is": [
+                    "advance",
+                    "clear"
+                  ]
+                }
+              ],
+              "then": {
+                "mast": "Home",
+                "aspect": "R281"
+              }
+            },
+            {
+              "trigger": {
+                "while": {
+                  "block": "Main",
+                  "is": "clear"
+                }
+              },
+              "checks": [
+                {
+                  "turnout": "P1",
+                  "is": "closed"
+                },
+                {
+                  "mast": "Main 1/2",
+                  "is": "approach"
+                }
+              ],
+              "then": {
+                "mast": "Home",
+                "aspect": "ADV_NORM"
+              }
+            },
+            {
+              "trigger": {
+                "while": {
+                  "block": "Main",
+                  "is": "clear"
+                }
+              },
+              "checks": [
+                {
+                  "turnout": "P1",
+                  "is": "closed"
+                },
+                {
+                  "mast": "Main 1/2",
+                  "is": [
+                    "stop",
+                    "restricting"
+                  ]
+                }
+              ],
+              "then": {
+                "mast": "Home",
+                "aspect": "R285"
+              }
+            },
+            {
+              "trigger": {
+                "while": {
+                  "block": "Branch",
+                  "is": "clear"
+                }
+              },
+              "checks": [
+                {
+                  "turnout": "P1",
+                  "is": "thrown"
+                },
+                {
+                  "block": "Branch 2",
+                  "is": "clear"
+                }
+              ],
+              "then": {
+                "mast": "Home",
+                "aspect": "R283"
+              }
+            },
+            {
+              "trigger": {
+                "while": {
+                  "block": "Branch",
+                  "is": "clear"
+                }
+              },
+              "checks": [
+                {
+                  "turnout": "P1",
+                  "is": "thrown"
+                }
+              ],
+              "then": {
+                "mast": "Home",
+                "aspect": "R286"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "start": {
+    "jmri": {
+      "East Home": "R281; Lit; Unheld"
+    }
+  },
+  "steps": [
+    {
+      "at": 0,
+      "expect": {
+        "masts": {
+          "Main 1/2": "R281",
+          "Home": "R285"
+        }
+      }
+    },
+    {
+      "at": 1,
+      "expect": {
+        "masts": {
+          "Main 1/2": "R281",
+          "Home": "R281"
+        }
+      }
+    },
+    {
+      "at": 10,
+      "do": [
+        {
+          "jmri": "East Home",
+          "message": "R285; Lit; Unheld"
+        }
+      ],
+      "expect": {
+        "masts": {
+          "Main 1/2": "ADV_NORM",
+          "Home": "R281"
+        }
+      }
+    },
+    {
+      "at": 11,
+      "expect": {
+        "masts": {
+          "Main 1/2": "ADV_NORM",
+          "Home": "R281"
+        }
+      }
+    },
+    {
+      "at": 20,
+      "do": [
+        {
+          "sensor": "Main 2",
+          "is": "occupied"
+        }
+      ],
+      "expect": {
+        "masts": {
+          "Main 1/2": "R292",
+          "Home": "R281"
+        }
+      }
+    },
+    {
+      "at": 21,
+      "expect": {
+        "masts": {
+          "Main 1/2": "R292",
+          "Home": "R285"
+        }
+      }
+    },
+    {
+      "at": 30,
+      "do": [
+        {
+          "sensor": "Main 2",
+          "is": "clear"
+        }
+      ],
+      "expect": {
+        "masts": {
+          "Main 1/2": "ADV_NORM",
+          "Home": "R285"
+        }
+      }
+    },
+    {
+      "at": 31,
+      "expect": {
+        "masts": {
+          "Main 1/2": "ADV_NORM",
+          "Home": "R281"
+        }
+      }
+    },
+    {
+      "at": 40,
+      "do": [
+        {
+          "jmri": "East Home",
+          "message": "R292; Lit; Unheld"
+        }
+      ],
+      "expect": {
+        "masts": {
+          "Main 1/2": "R285",
+          "Home": "R281"
+        }
+      }
+    },
+    {
+      "at": 41,
+      "expect": {
+        "masts": {
+          "Main 1/2": "R285",
+          "Home": "ADV_NORM"
+        }
+      }
+    },
+    {
+      "at": 50,
+      "do": [
+        {
+          "sensor": "Main",
+          "is": "occupied"
+        }
+      ],
+      "expect": {
+        "masts": {
+          "Main 1/2": "R285",
+          "Home": "R292"
+        }
+      }
+    },
+    {
+      "at": 51,
+      "do": [
+        {
+          "sensor": "Main",
+          "is": "clear"
+        }
+      ],
+      "expect": {
+        "masts": {
+          "Home": "ADV_NORM"
+        }
+      }
+    },
+    {
+      "at": 60,
+      "do": [
+        {
+          "turnout": "P1",
+          "is": "moving"
+        }
+      ],
+      "expect": {
+        "masts": {
+          "Home": "R292"
+        },
+        "writes": [
+          {
+            "mast": "Home",
+            "aspect": "R292"
+          }
+        ]
+      }
+    },
+    {
+      "at": 61,
+      "do": [
+        {
+          "turnout": "P1",
+          "is": "thrown"
+        }
+      ],
+      "expect": {
+        "masts": {
+          "Home": "R283"
+        },
+        "writes": [
+          {
+            "mast": "Home",
+            "aspect": "R283"
+          }
+        ]
+      }
+    },
+    {
+      "at": 70,
+      "do": [
+        {
+          "sensor": "Branch 2",
+          "is": "occupied"
+        }
+      ],
+      "expect": {
+        "masts": {
+          "Home": "R286"
+        },
+        "writes": [
+          {
+            "mast": "Home",
+            "aspect": "R286"
+          }
+        ]
+      }
+    },
+    {
+      "at": 80,
+      "do": [
+        {
+          "sensor": "Branch 2",
+          "is": "clear"
+        }
+      ],
+      "expect": {
+        "masts": {
+          "Home": "R283"
+        },
+        "writes": [
+          {
+            "mast": "Home",
+            "aspect": "R283"
+          }
+        ]
+      }
+    },
+    {
+      "at": 90,
+      "do": [
+        {
+          "sensor": "Branch",
+          "is": "occupied"
+        }
+      ],
+      "expect": {
+        "masts": {
+          "Home": "R292"
+        }
+      }
+    },
+    {
+      "at": 100,
+      "do": [
+        {
+          "sensor": "Branch",
+          "is": "clear"
+        },
+        {
+          "turnout": "P1",
+          "is": "moving"
+        }
+      ],
+      "expect": {
+        "masts": {
+          "Home": "R292"
+        },
+        "writes": []
+      }
+    },
+    {
+      "at": 101,
+      "do": [
+        {
+          "turnout": "P1",
+          "is": "closed"
+        }
+      ],
+      "expect": {
+        "masts": {
+          "Main 1/2": "R285",
+          "Home": "ADV_NORM"
+        }
+      }
+    }
+  ]
+}

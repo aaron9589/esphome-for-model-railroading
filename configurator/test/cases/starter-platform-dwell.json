@@ -1,0 +1,189 @@
+{
+  "name": "platform dwell: the signal clears after the dwell, and only while the block ahead is clear",
+  "covers": [
+    "platform dwell: the mast clears only once the platform has been occupied for the dwell time, and only while the block ahead is clear"
+  ],
+  "about": "Platform dwell with a 3 second dwell: while Platform occupied for 3s, if Next clear, Platform Exit shows R281. A train that stays 2 seconds does not clear it. One that stays 3 seconds does, on the scan the dwell is up. Next occupied takes the clear away at once, and Next clear gives it back while the train is still there.",
+  "board": {
+    "sensors": [
+      "Platform",
+      "Next"
+    ],
+    "masts": {
+      "Platform Exit": {
+        "aspects": {
+          "R292": "stop",
+          "R281": "clear"
+        }
+      }
+    },
+    "logic": {
+      "layers": [
+        {
+          "name": "Platform dwell",
+          "rules": [
+            {
+              "trigger": {
+                "while": {
+                  "block": "Platform",
+                  "is": "occupied"
+                },
+                "for": "3s"
+              },
+              "checks": [
+                {
+                  "block": "Next",
+                  "is": "clear"
+                }
+              ],
+              "then": {
+                "mast": "Platform Exit",
+                "aspect": "R281"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "steps": [
+    {
+      "at": 1,
+      "expect": {
+        "masts": {
+          "Platform Exit": "R292"
+        }
+      }
+    },
+    {
+      "at": 2,
+      "do": [
+        {
+          "sensor": "Platform",
+          "is": "occupied"
+        }
+      ],
+      "expect": {
+        "masts": {
+          "Platform Exit": "R292"
+        }
+      }
+    },
+    {
+      "at": 21,
+      "expect": {
+        "masts": {
+          "Platform Exit": "R292"
+        }
+      }
+    },
+    {
+      "at": 22,
+      "do": [
+        {
+          "sensor": "Platform",
+          "is": "clear"
+        }
+      ],
+      "expect": {
+        "masts": {
+          "Platform Exit": "R292"
+        }
+      }
+    },
+    {
+      "at": 40,
+      "expect": {
+        "masts": {
+          "Platform Exit": "R292"
+        }
+      }
+    },
+    {
+      "at": 41,
+      "do": [
+        {
+          "sensor": "Platform",
+          "is": "occupied"
+        }
+      ],
+      "expect": {
+        "masts": {
+          "Platform Exit": "R292"
+        }
+      }
+    },
+    {
+      "at": 70,
+      "expect": {
+        "masts": {
+          "Platform Exit": "R292"
+        },
+        "writes": []
+      }
+    },
+    {
+      "at": 71,
+      "expect": {
+        "masts": {
+          "Platform Exit": "R281"
+        },
+        "writes": [
+          {
+            "mast": "Platform Exit",
+            "aspect": "R281"
+          }
+        ]
+      }
+    },
+    {
+      "at": 72,
+      "expect": {
+        "masts": {
+          "Platform Exit": "R281"
+        },
+        "writes": []
+      }
+    },
+    {
+      "at": 80,
+      "do": [
+        {
+          "sensor": "Next",
+          "is": "occupied"
+        }
+      ],
+      "expect": {
+        "masts": {
+          "Platform Exit": "R292"
+        },
+        "writes": [
+          {
+            "mast": "Platform Exit",
+            "aspect": "R292"
+          }
+        ]
+      }
+    },
+    {
+      "at": 90,
+      "do": [
+        {
+          "sensor": "Next",
+          "is": "clear"
+        }
+      ],
+      "expect": {
+        "masts": {
+          "Platform Exit": "R281"
+        },
+        "writes": [
+          {
+            "mast": "Platform Exit",
+            "aspect": "R281"
+          }
+        ]
+      }
+    }
+  ]
+}
