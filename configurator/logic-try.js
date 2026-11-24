@@ -29,6 +29,32 @@
       turnout: "Not known: counts as neither closed nor thrown",
       mast: "Not known: counts as Stop",
     }),
+    endReadsAs: Object.freeze({
+      block: "Not known: counts as occupied",
+      mast: "Not known: counts as Stop",
+      none: "Not paired: the track beyond counts as occupied, and its signal as Stop",
+      unheard: "Paired but not heard: the track beyond counts as occupied, and its signal as Stop",
+    }),
+    endLink: (end) => `End ${end}: the board beyond`,
+    endBlock: (end, track) => `End ${end}, track ${track}: the block beyond`,
+    endMast: (end, track) => `End ${end}, track ${track}: the signal beyond`,
+    endLinkValues: Object.freeze({
+      none: "Not paired",
+      end: "End of the line",
+      heard: "Paired and heard",
+      unheard: "Paired, not heard",
+    }),
+    endStates: Object.freeze({
+      pairing: "Pairing",
+      empty: "Not paired",
+      end: "End of the line",
+      unheard: "Paired, not heard",
+      disagrees: "The other end names a different end",
+      heard: "Paired and heard",
+    }),
+    drivenByNeighbour: (end) => `End ${end} has a pretend neighbour. Turn it off to set this by hand.`,
+    pretendBlock: (end, track, at) => `Pretend neighbour at end ${end}, track ${track}, block ${at}`,
+    pretendSignal: (end, track, at) => `Pretend neighbour signal ${at} at end ${end}, track ${track}`,
     fromBoard: (name, board) => `${name} (from ${board})`,
     setByJmri: (name) => `${name} (what JMRI or CATS sends)`,
     meanings: Object.freeze({ stop: "Stop", restricting: "Restricting", approach: "Approach", advance: "Advance Approach", clear: "Clear" }),
@@ -113,6 +139,7 @@
   function describeInput(input, board) {
     const parts = input.key.split(SEP);
     let info;
+    if (input.info) return { key: input.key, ...input.info };
     if (parts.length === 3) {
       const [b, kind, name] = parts;
       const values = kind === "mast" ? [...input.values] : [...input.values, "unknown"];
@@ -126,9 +153,20 @@
   }
 
   // "Not known" in words, for a remote input.
-  const readsAs = (info) => (info.remote ? TEXT.readsAs[info.kind] : "");
+  function readsAs(info, value = info.value) {
+    if (info.kind === "end") {
+      if (info.what === "link") return value === "none" || value === "unheard" ? TEXT.endReadsAs[value] : "";
+      return value === "unknown" ? TEXT.endReadsAs[info.what] : "";
+    }
+    return info.remote ? TEXT.readsAs[info.kind] : "";
+  }
 
   function valueLabel(info, value) {
+    if (info.kind === "end") {
+      if (info.what === "link") return TEXT.endLinkValues[value] || String(value);
+      if (info.what === "mast") return value === "unknown" ? TEXT.values.unknown : TEXT.meanings[value] || String(value);
+      return TEXT.values[value] || String(value);
+    }
     if (TEXT.values[value] && !(info.kind === "mast" && value !== "unknown" && value !== "none")) return TEXT.values[value];
     return String(value);
   }
@@ -152,12 +190,57 @@
    *   setBlock(ref, occupied), blockOccupied(ref)   a train in a block, or not
    *   shapes                 the track shapes of the groups a starter wrote
    *   board                  the engine board
+   *
+   * Plant ends (work item 3.4, spec: "Try it treats each end's two values as
+   * remote inputs"). Each end the rules read is an input for its link (not
+   * paired, end of the line, paired and heard, paired but not heard) and, per
+   * track, the block beyond (clear, occupied, not known) and the signal beyond
+   * (a meaning, or not known). It starts as the checker does: paired, heard,
+   * clear, Stop. A pretend neighbour (setNeighbour) takes those inputs over:
+   *
+   *   neighbours()           [{ end, on, tracks: [{ track, direction: "into" | "away",
+   *                          blocks: [{ at, ref, occupied }], signals: [{ at, tag, meaning }],
+   *                          offers: { block, mast }, hears: { occupied, tag } }] }]
+   *   setNeighbour(end, on, { scan })     the pretend neighbour on or off
+   *   turnNeighbour(end, track, { scan }) which way its trains run
+   *   neighbourPath(end, track)           its blocks, in the order a train runs
+   *   setBlock / blockOccupied also take { pretend: end, track, at } for its blocks
    */
   function createSession(source, options = {}) {
     const board = boardOf(source);
     if (!board || !list(board.logic?.layers).length) return null;
-    const baseInputs = C().inputsOf(board).map((input) => ({ ...input }));
-    const start = options.start || startOf(board, baseInputs);
+    const checkerInputs = C().inputsOf(board);
+    const baseInputs = checkerInputs.filter((input) => !C().isEndKey(input.key)).map((input) => ({ ...input }));
+    const readEnds = new Set(checkerInputs.filter((input) => C().isEndKey(input.key)).map((input) => input.key));
+    const start = options.start ? { ...options.start } : startOf(board, baseInputs);
+    const endDefs = list(board.logic?.ends).filter((end) => isObject(end) && typeof end.name === "string" && end.name);
+    if (endDefs.length && start.board === undefined) start.board = C().SELF;
+    const me = String(start.board ?? "");
+    const endInputs = [];
+    const hidden = new Set();
+    for (const end of endDefs) {
+      const tracks = list(end.tracks);
+      const linkKey = ["~end", end.name, "link"].join(SEP);
+      const linkValues = ["none", "end", "heard", "unheard"];
+      endInputs.push({ key: linkKey, values: linkValues, start: "heard", endName: end.name, info: { kind: "end", what: "link", end: end.name, label: TEXT.endLink(end.name), remote: true, values: linkValues } });
+      let anyRead = false;
+      tracks.forEach((_, i) => {
+        const k = i + 1;
+        for (const what of ["block", "mast"]) {
+          const key = C().endKey(end.name, k, what);
+          const vals = what === "block" ? ["clear", "occupied", "unknown"] : ["unknown", ...E().TAGS];
+          endInputs.push({
+            key, values: vals, start: what === "block" ? "clear" : "stop", endName: end.name,
+            info: { kind: "end", what, end: end.name, track: k, label: what === "block" ? TEXT.endBlock(end.name, k) : TEXT.endMast(end.name, k), remote: true, values: vals },
+          });
+          if (readEnds.has(key)) anyRead = true;
+          else hidden.add(key);
+        }
+      });
+      if (!anyRead) hidden.add(linkKey);
+    }
+    const endDef = (name) => endDefs.find((end) => end.name === name);
+    const linkKeyOf = (name) => ["~end", name, "link"].join(SEP);
     const extras = [];
     const infos = new Map();
     let engine;
@@ -166,17 +249,111 @@
     let version = 0;
     const online = new Map();
 
-    const allInputs = () => [...baseInputs, ...extras];
+    const allInputs = () => [...baseInputs, ...endInputs, ...extras];
     const byKey = (key) => allInputs().find((input) => input.key === key);
     const infoOf = (input) => {
       if (!infos.has(input.key)) infos.set(input.key, describeInput(input, board));
       return infos.get(input.key);
     };
 
+    // ----- the pretend neighbours -----
+    // Per end, per track of it: three blocks in a row away from the joint
+    // (at 1 is the nearest), each with a signal that guards a train entering
+    // it. Plain block signals: a signal shows Stop while its block is
+    // occupied, and otherwise one step more permissive than the signal ahead
+    // (Stop gives Approach, Approach gives Advance Approach, Advance Approach
+    // and Clear give Clear). A track the board signals itself (it has a mast
+    // or passes through) carries trains "into" this board: they run from
+    // block 3 to block 1, and the signal ahead of block 1 is what the board
+    // offers. Any other track carries them "away": from block 1 to block 3,
+    // with an open line past it. The neighbour offers this board its nearest
+    // block and that block's signal.
+    const NEXT = { stop: "approach", restricting: "approach", approach: "advance", advance: "clear", clear: "clear" };
+    const neighbourState = new Map(endDefs.map((end) => [end.name, {
+      on: false,
+      dir: list(end.tracks).map((track) => (isObject(track) && (track.mast !== undefined || track.through) ? "into" : "away")),
+      blocks: list(end.tracks).map(() => [false, false, false]),
+    }]));
+    const heard = new Map(); // "<end>\0<track>" -> what this board offers the neighbour
+    const shown = new Map(); // an end input's key -> what the engine was last told
+    const lastSignature = new Map();
+    const heardBy = (name, k) => heard.get(`${name}${SEP}${k}`) || { occupied: true, tag: "stop" };
+
+    function neighbourSignals(name, k) {
+      const nb = neighbourState.get(name);
+      const occ = nb.blocks[k - 1];
+      const tags = [null, null, null];
+      if (nb.dir[k - 1] === "away") {
+        let ahead = "clear";
+        for (let i = 2; i >= 0; i -= 1) {
+          tags[i] = occ[i] ? "stop" : NEXT[ahead];
+          ahead = tags[i];
+        }
+      } else {
+        const us = heardBy(name, k);
+        let ahead = us.occupied ? "stop" : us.tag;
+        for (let i = 0; i < 3; i += 1) {
+          tags[i] = occ[i] ? "stop" : NEXT[ahead];
+          ahead = tags[i];
+        }
+      }
+      return tags;
+    }
+    const neighbourOffer = (name, k) => ({ block: neighbourState.get(name).blocks[k - 1][0] ? "occupied" : "clear", mast: neighbourSignals(name, k)[0] });
+
+    // Tell the engine everything an end hears: its link, and for a heard link each track's block and signal.
+    function deliver(end) {
+      const nb = neighbourState.get(end.name);
+      const link = nb.on ? "heard" : values.get(linkKeyOf(end.name));
+      const events = [];
+      if (link === "none") events.push({ end: end.name, link: "" });
+      else if (link === "end") events.push({ end: end.name, link: "end" });
+      else {
+        events.push({ end: end.name, link: `neighbour/${end.name}` });
+        if (link === "heard") events.push({ end: end.name, theirLink: `${me}/${end.name}` }, { end: end.name, online: true });
+        else events.push({ end: end.name, online: false });
+      }
+      shown.set(linkKeyOf(end.name), link);
+      const count = list(end.tracks).length;
+      for (let k = 1; k <= count; k += 1) {
+        const blockKey = C().endKey(end.name, k, "block");
+        const mastKey = C().endKey(end.name, k, "mast");
+        const offer = nb.on ? neighbourOffer(end.name, k) : { block: values.get(blockKey), mast: values.get(mastKey) };
+        shown.set(blockKey, offer.block);
+        shown.set(mastKey, offer.mast);
+        if (link === "heard") events.push({ end: end.name, track: count + 1 - k, block: offer.block }, { end: end.name, track: count + 1 - k, mast: offer.mast });
+      }
+      for (const e of events) engine.event(e);
+    }
+
+    function pushNeighbours() {
+      for (const end of endDefs) {
+        if (!neighbourState.get(end.name).on) continue;
+        const signature = JSON.stringify(list(end.tracks).map((_, i) => neighbourOffer(end.name, i + 1)));
+        if (lastSignature.get(end.name) === signature) continue;
+        lastSignature.set(end.name, signature);
+        deliver(end);
+      }
+    }
+
+    function noteHeard(result) {
+      for (const p of list(result?.publishes)) {
+        if (p.end === undefined || p.track === undefined) continue;
+        const key = `${p.end}${SEP}${p.track}`;
+        const entry = heard.get(key) || { occupied: true, tag: "stop" };
+        if (p.block !== undefined) entry.occupied = p.block === "ACTIVE";
+        if (p.mast !== undefined) entry.tag = p.mast;
+        heard.set(key, entry);
+      }
+    }
+
     let lastScan = null;
     const scanOnce = () => {
+      pushNeighbours();
       lastScan = engine.scan();
       noteLog(lastScan);
+      noteHeard(lastScan);
+      pushNeighbours();
       return lastScan;
     };
     function noteLog(result) {
@@ -198,6 +375,11 @@
     function bootFresh() {
       engine = E().createEngine(board, start);
       values = new Map(allInputs().map((input) => [input.key, input.start]));
+      shown.clear();
+      lastSignature.clear();
+      heard.clear();
+      for (const nb of neighbourState.values()) nb.blocks = nb.blocks.map(() => [false, false, false]);
+      for (const end of endDefs) deliver(end);
       log = [];
       online.clear();
       for (const [name, other] of Object.entries(start.remote || {})) online.set(name, other.online !== false);
@@ -212,8 +394,12 @@
 
     // ----- inputs -----
 
+    const drivenBy = (input) => (input.endName !== undefined && neighbourState.get(input.endName).on ? input.endName : null);
     function inputs() {
-      return allInputs().map((input) => ({ ...infoOf(input), value: values.get(input.key) }));
+      return allInputs().filter((input) => !hidden.has(input.key)).map((input) => {
+        const driven = drivenBy(input);
+        return { ...infoOf(input), value: driven ? shown.get(input.key) : values.get(input.key), ...(driven ? { driven: true } : {}) };
+      });
     }
 
     function makeInput(kind, name, b) {
@@ -259,6 +445,14 @@
       if (!input) throw new Error(`There is no input ${key.replace(SEP, " ")}.`);
       const info = infoOf(input);
       if (!info.values.includes(value)) throw new Error(`${info.label} cannot be ${value}.`);
+      if (input.endName !== undefined) {
+        if (drivenBy(input)) throw new Error(TEXT.drivenByNeighbour(input.endName));
+        values.set(key, value);
+        deliver(endDef(input.endName));
+        version += 1;
+        if (scan) scanOnce();
+        return;
+      }
       if (info.jmri && value === "none") return;
       engine.event(input.event(value));
       setValue(input, value);
@@ -284,6 +478,14 @@
     function noteEvent(e) {
       let key;
       let value;
+      if (e.end !== undefined) {
+        const count = list(endDef(e.end)?.tracks).length;
+        if (e.track === undefined || !count) return;
+        const what = e.block !== undefined ? "block" : e.mast !== undefined ? "mast" : null;
+        const endKey = what ? C().endKey(e.end, count + 1 - e.track, what) : null;
+        if (endKey && byKey(endKey)) values.set(endKey, what === "block" ? e.block : e.mast === "" ? "unknown" : e.mast);
+        return;
+      }
       if (e.board !== undefined) {
         if (e.online !== undefined) online.set(e.board, e.online === true);
         else if (e.mast !== undefined) { key = [e.board, "mast", e.mast].join(SEP); value = e.aspect === "" ? "unknown" : e.aspect; }
@@ -350,6 +552,8 @@
       if (logicBlocks.has(ref)) {
         return logicBlocks.get(ref).map((member) => (typeof member === "string"
           ? { kind: "sensor", name: member }
+          : member.end !== undefined
+            ? { kind: "end", end: member.end, track: member.track }
           : member.board !== undefined
             ? { board: member.board, kind: member.block !== undefined ? "block" : "sensor", name: member.block ?? member.sensor }
             : { kind: "sensor", name: member.sensor ?? member.block }));
@@ -357,20 +561,92 @@
       return [{ kind: "sensor", name: ref }];
     }
 
-    const keyOfMember = (m) => find(m.kind, m.name, m.board);
+    const keyOfMember = (m) => (m.kind === "end" ? C().endKey(m.end, m.track, "block") : find(m.kind, m.name, m.board));
+    // What an end track's block reads to the rules: the safe way unless paired and heard.
+    function endOccupied(name, k) {
+      if (!endDef(name) || !byKey(C().endKey(name, k, "block"))) return true;
+      const link = neighbourState.get(name).on ? "heard" : values.get(linkKeyOf(name));
+      if (link === "end") return false;
+      if (link !== "heard") return true;
+      const value = neighbourState.get(name).on ? shown.get(C().endKey(name, k, "block")) : values.get(C().endKey(name, k, "block"));
+      return value !== "clear";
+    }
     const isOn = (m) => {
+      if (m.kind === "end") return endOccupied(m.end, m.track);
       const value = values.get(keyOfMember(m));
       return value === "occupied" || value === "unknown";
     };
 
-    // A train in a block: its first detector (usually its own current sensor).
+    const isPretend = (ref) => isObject(ref) && ref.pretend !== undefined;
+
+    // A train in a block: its first detector on this board (usually its own current sensor), or a pretend neighbour's block.
     function setBlock(ref, occupied, { scan = false } = {}) {
-      const [primary] = members(ref);
+      if (isPretend(ref)) {
+        const nb = neighbourState.get(ref.pretend);
+        if (nb?.blocks[ref.track - 1]?.[ref.at - 1] === undefined) return;
+        nb.blocks[ref.track - 1][ref.at - 1] = occupied === true;
+        version += 1;
+        if (scan) scanOnce();
+        return;
+      }
+      const primary = members(ref).find((m) => m.kind !== "end");
       if (!primary) return;
       setInput(keyOfMember(primary), occupied ? "occupied" : "clear", { scan });
     }
 
-    const blockOccupied = (ref) => members(ref).some(isOn);
+    const blockOccupied = (ref) => (isPretend(ref)
+      ? neighbourState.get(ref.pretend)?.blocks[ref.track - 1]?.[ref.at - 1] === true
+      : members(ref).some(isOn));
+
+    // ----- the pretend neighbours, for the page -----
+
+    function neighbours() {
+      return endDefs.map((end) => {
+        const nb = neighbourState.get(end.name);
+        return {
+          end: end.name,
+          on: nb.on,
+          tracks: list(end.tracks).map((_, i) => {
+            const k = i + 1;
+            const tags = neighbourSignals(end.name, k);
+            return {
+              track: k,
+              direction: nb.dir[i],
+              blocks: nb.blocks[i].map((occupied, j) => ({ at: j + 1, ref: { pretend: end.name, track: k, at: j + 1 }, occupied })),
+              signals: tags.map((tag, j) => ({ at: j + 1, tag, meaning: TEXT.meanings[tag] || tag })),
+              offers: neighbourOffer(end.name, k),
+              hears: heardBy(end.name, k),
+            };
+          }),
+        };
+      });
+    }
+
+    function setNeighbour(name, on, { scan = true } = {}) {
+      const nb = neighbourState.get(name);
+      if (!nb) throw new Error(`There is no end ${name}.`);
+      if (nb.on === (on === true)) return;
+      nb.on = on === true;
+      lastSignature.delete(name);
+      deliver(endDef(name));
+      version += 1;
+      if (scan) scanOnce();
+    }
+
+    function turnNeighbour(name, track, { scan = true } = {}) {
+      const nb = neighbourState.get(name);
+      if (!nb?.dir[track - 1]) return;
+      nb.dir[track - 1] = nb.dir[track - 1] === "into" ? "away" : "into";
+      version += 1;
+      if (scan) scanOnce();
+    }
+
+    // Its blocks in the order a train runs through them.
+    function neighbourPath(name, track) {
+      const nb = neighbourState.get(name);
+      const refs = [1, 2, 3].map((at) => ({ pretend: name, track, at }));
+      return nb?.dir[track - 1] === "into" ? refs.reverse() : refs;
+    }
 
     function setTurnout(ref, position, { scan = true } = {}) {
       const name = isObject(ref) ? ref.turnout : ref;
@@ -417,6 +693,8 @@
       return {
         time: engine.time(),
         masts, rules, sections, turnouts,
+        ends: endDefs.map((end) => ({ name: end.name, state: state.ends?.[end.name], text: TEXT.endStates[state.ends?.[end.name]] || "" })),
+        neighbours: neighbours(),
         waiting: engine.checkerView().order.map(ruleWords),
         log: log.map((entry) => ({ ...entry })),
         version,
@@ -427,6 +705,7 @@
     const session = {
       board, inputs, find, setInput, setBoardOnline, boards: () => [...online].map(([name, up]) => ({ name, online: up })), event, step, advance, play, reset, view,
       setBlock, blockOccupied, setTurnout, turnoutPosition, members,
+      neighbours, setNeighbour, turnNeighbour, neighbourPath,
       get shapes() { return shapesOf(source); },
       get time() { return engine.time(); },
       state: () => engine.state(),
@@ -442,7 +721,7 @@
   // or { type: "mast", name, dir: 1 | -1, external?: true }. A block is a
   // string or { board, sensor | block }. Groups with no known shape give none.
 
-  const refName = (ref) => (isObject(ref) ? TEXT.fromBoard(ref.block ?? ref.sensor ?? ref.turnout ?? ref.mast ?? "", ref.board) : String(ref ?? ""));
+  const refName = (ref) => (isObject(ref) && ref.pretend !== undefined ? TEXT.pretendBlock(ref.pretend, ref.track, ref.at) : isObject(ref) ? TEXT.fromBoard(ref.block ?? ref.sensor ?? ref.turnout ?? ref.mast ?? "", ref.board) : String(ref ?? ""));
   const refOf = (cond) => {
     if (!isObject(cond)) return cond;
     const kind = ["block", "sensor", "turnout", "mast"].find((k) => cond[k] !== undefined);
@@ -556,7 +835,8 @@
    */
   function defaultPause(session) {
     const masts = Object.keys(session.board.masts || {}).length;
-    return session.longestFor() + (masts + 2) * E().SCAN_MS;
+    const pretend = session.neighbours().reduce((n, end) => n + (end.on ? end.tracks.length * 4 : 0), 0);
+    return session.longestFor() + (masts + 2 + pretend) * E().SCAN_MS;
   }
 
   /**
@@ -565,9 +845,11 @@
    * pause after each. Returns the steps, from the way things were before it:
    *   { label, time, blocks: [{ name, occupied }], masts: [{ name, aspect, meaning, tag }] }
    * The train is gone at the end. Options: length (1), pause (ms; default
-   * defaultPause), masts (names to record; default every signal).
+   * defaultPause), masts (names to record; default every signal), neighbours
+   * (which pretend neighbours' signals to record, [{ end, track }]; each step
+   * then has `neighbours: [{ end, track, signals: [{ at, tag, meaning }] }]`).
    */
-  function runTrain(session, { path, length = 1, pause, masts } = {}) {
+  function runTrain(session, { path, length = 1, pause, masts, neighbours } = {}) {
     const route = list(path);
     const wait = Number.isFinite(pause) ? pause : defaultPause(session);
     const size = Math.max(1, Math.floor(length) || 1);
@@ -580,6 +862,7 @@
         time: shown.time,
         blocks: route.map((ref, i) => ({ name: names[i], occupied: session.blockOccupied(ref) })),
         masts: shown.masts.filter((m) => !masts || masts.includes(m.name)).map(({ name, aspect, meaning, tag }) => ({ name, aspect, meaning, tag })),
+        ...(neighbours ? { neighbours: shown.neighbours.flatMap((n) => n.tracks.filter((t) => neighbours.some((x) => x.end === n.end && x.track === t.track)).map((t) => ({ end: n.end, track: t.track, signals: t.signals }))) } : {}),
       });
     };
     const settle = (label) => {
@@ -602,7 +885,19 @@
     return steps;
   }
 
+  /**
+   * `ownPath` (block refs, in the direction of travel) carried across the
+   * joint of an end's track into the pretend neighbour, or the neighbour's
+   * blocks first when its trains run into this board.
+   */
+  function crossPath(session, ownPath, { end, track }) {
+    const there = session.neighbours().find((n) => n.end === end)?.tracks.find((t) => t.track === track);
+    if (!there) return list(ownPath);
+    const refs = session.neighbourPath(end, track);
+    return there.direction === "into" ? [...refs, ...list(ownPath)] : [...list(ownPath), ...refs];
+  }
+
   global.EsphomeMrLogicTry = {
-    TEXT, createSession, shapesOf, stripLayout, trainPath, runTrain, defaultPause, readsAs, valueLabel, refName,
+    crossPath, TEXT, createSession, shapesOf, stripLayout, trainPath, runTrain, defaultPause, readsAs, valueLabel, refName,
   };
 })(typeof globalThis !== "undefined" ? globalThis : window);

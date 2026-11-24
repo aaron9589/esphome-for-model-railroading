@@ -2090,8 +2090,10 @@ function renderMessages() {
 function renderLogicDownload(validation) {
   const box = document.getElementById("logic-download");
   const info = globalThis.EsphomeMrLogicUiStart?.downloadLogic(state, validation);
-  box.hidden = !info;
+  const mss = !!globalThis.EsphomeMrMssCard && globalThis.EsphomeMr.logicMode(state) === "mss";
+  box.hidden = !info && !mss;
   box.replaceChildren();
+  if (!info && mss) return renderMssCardButton(box);
   if (!info) return;
   const title = document.createElement("h3");
   title.textContent = info.title;
@@ -2101,6 +2103,8 @@ function renderLogicDownload(validation) {
   code.textContent = info.version;
   version.append(code);
   box.append(title, version, hintEl(info.hint));
+  // MSS Logic prints a module card in place of the summary.
+  if (mss) box.append(mssCardButton());
   // A file, not a new tab: it opens in any browser and prints from there.
   const summary = document.createElement("button");
   summary.type = "button";
@@ -2116,7 +2120,7 @@ function renderLogicDownload(validation) {
     URL.revokeObjectURL(url);
     flash("ok", `Downloaded ${a.download}. Open it in a browser to print it.`);
   });
-  box.append(summary);
+  if (!mss) box.append(summary);
   if (info.errorsNote) box.append(messageEl("err", info.errorsNote));
   const heading = document.createElement("h4");
   heading.textContent = info.warningsTitle;
@@ -2130,6 +2134,31 @@ function renderLogicDownload(validation) {
   }
   for (const warning of info.warnings) box.append(messageEl("warn", warning.text, warning.link));
   box.append(hintEl(info.warningsHint));
+}
+
+// MSS Logic's Download box: the module card, a file that prints from any browser.
+function renderMssCardButton(box) {
+  const title = document.createElement("h3");
+  title.textContent = "Module card";
+  box.append(title, mssCardButton());
+}
+
+function mssCardButton() {
+  const card = document.createElement("button");
+  card.type = "button";
+  card.className = "logic-summary-button";
+  card.textContent = "Download module card";
+  card.addEventListener("click", () => {
+    const html = globalThis.EsphomeMrMssCard.cardHtml(state);
+    const url = URL.createObjectURL(new Blob([html], { type: "text/html;charset=utf-8" }));
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${state.board.name || "board"}-module-card.html`;
+    a.click();
+    URL.revokeObjectURL(url);
+    flash("ok", `Downloaded ${a.download}. Open it in a browser to print it.`);
+  });
+  return card;
 }
 
 // One problem. With a link ({ view, part }), a Show link opens that page and

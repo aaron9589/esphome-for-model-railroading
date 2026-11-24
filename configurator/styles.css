@@ -1883,6 +1883,16 @@ details.rule-more {
   stroke-width: 4;
 }
 
+.try-joint {
+  stroke: var(--muted);
+  stroke-width: 3;
+  stroke-dasharray: 4 3;
+}
+
+.try-neighbour-track {
+  margin: 0.5rem 0 1rem;
+}
+
 .try-label {
   fill: var(--ink);
   font-size: 11px;
