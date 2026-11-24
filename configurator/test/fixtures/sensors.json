@@ -1,0 +1,52 @@
+{
+  "board": {
+    "name": "sensor-board",
+    "module": "esp32dev",
+    "wifiSsid": "layout-wifi",
+    "wifiPassword": "not-a-real-password",
+    "mqttBroker": "layout-mqtt.local",
+    "mqttEnabled": true,
+    "apPassword": "GoldenFixtureHotspot",
+    "apiKey": "Z29sZGVuLWZpeHR1cmUta2V5LW5vdC1hLXNlY3JldCE="
+  },
+  "blocks": [
+    {
+      "name": "Kiama/Up Main",
+      "topic": "trains/track/sensor/Kiama/Up Main",
+      "gpio": "GPIO14",
+      "inverted": true,
+      "debounce": "500ms"
+    },
+    {
+      "name": "Kiama/Down Main",
+      "topic": "trains/track/sensor/Kiama/Down Main",
+      "gpio": "GPIO27",
+      "inverted": false,
+      "debounce": "250ms"
+    },
+    {
+      "name": "Yard Ladder",
+      "topic": "trains/track/sensor/Yard Ladder",
+      "gpio": "GPIO34",
+      "inverted": true,
+      "debounce": "500ms"
+    },
+    {
+      "name": "Fiddle Yard",
+      "topic": "trains/fiddle/occupancy",
+      "gpio": "GPIO35",
+      "inverted": true,
+      "debounce": "1s"
+    }
+  ],
+  "points": [],
+  "pcaBoards": [
+    {
+      "sda": "GPIO21",
+      "scl": "GPIO22"
+    }
+  ],
+  "signals": {
+    "masts": []
+  }
+}

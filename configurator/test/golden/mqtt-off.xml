@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<layout-config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://jmri.org/xml/schema/layout-4-19-2.xsd">
+  <!-- standalone-board: MQTT items from the ESPHome for Model Railroading Board Configurator. -->
+  <!-- In PanelPro: File > Load table content and panels, then File > Store table content and panels to keep them. -->
+</layout-config>

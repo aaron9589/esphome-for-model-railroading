@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<layout-config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://jmri.org/xml/schema/layout-4-19-2.xsd">
+  <!-- sensor-board: MQTT items from the ESPHome for Model Railroading Board Configurator. -->
+  <!-- In PanelPro: File > Load table content and panels, then File > Store table content and panels to keep them. -->
+  <!-- These topics expect the JMRI MQTT Channel to be "trains/". -->
+  <sensors class="jmri.jmrix.mqtt.configurexml.MqttSensorManagerXml">
+    <sensor inverted="false">
+      <systemName>MSKiama/Up Main</systemName>
+    </sensor>
+    <sensor inverted="false">
+      <systemName>MSKiama/Down Main</systemName>
+    </sensor>
+    <sensor inverted="false">
+      <systemName>MSYard Ladder</systemName>
+    </sensor>
+  </sensors>
+</layout-config>

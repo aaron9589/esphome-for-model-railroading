@@ -1,0 +1,78 @@
+{
+  "board": {
+    "name": "gpio-servo-board",
+    "module": "nodemcu-32s",
+    "wifiSsid": "layout-wifi",
+    "wifiPassword": "not-a-real-password",
+    "mqttBroker": "layout-mqtt.local",
+    "mqttEnabled": true,
+    "apPassword": "GoldenFixtureHotspot",
+    "apiKey": "Z29sZGVuLWZpeHR1cmUta2V5LW5vdC1hLXNlY3JldCE="
+  },
+  "pca9685": false,
+  "blocks": [
+    {
+      "name": "Station Road",
+      "topic": "trains/track/sensor/Station Road",
+      "gpio": "GPIO14",
+      "inverted": true,
+      "debounce": "500ms"
+    }
+  ],
+  "pcaBoards": [
+    {
+      "sda": "GPIO21",
+      "scl": "GPIO22"
+    }
+  ],
+  "points": [
+    {
+      "name": "Station/Loop",
+      "topic": "trains/track/turnout/Station/Loop",
+      "channel": 0,
+      "travelTime": "10s",
+      "controls": [
+        {
+          "action": "latch-thrown",
+          "buttonPin": "GPIO4",
+          "closedLight": "GPIO16",
+          "openLight": "GPIO13"
+        }
+      ],
+      "servoPin": "GPIO18",
+      "lockEnabled": true
+    },
+    {
+      "name": "Station/Siding",
+      "topic": "trains/track/turnout/Station/Siding",
+      "channel": 0,
+      "travelTime": "10s",
+      "controls": [
+        {
+          "action": "latch-closed",
+          "buttonPin": "GPIO5",
+          "closedLight": "",
+          "openLight": ""
+        },
+        {
+          "action": "toggle",
+          "buttonPin": "GPIO23",
+          "closedLight": "",
+          "openLight": ""
+        }
+      ],
+      "servoPin": "GPIO19"
+    },
+    {
+      "name": "Station/Dock",
+      "topic": "trains/track/turnout/Station/Dock",
+      "channel": 0,
+      "travelTime": "10s",
+      "controls": [],
+      "servoPin": "GPIO25"
+    }
+  ],
+  "signals": {
+    "masts": []
+  }
+}

@@ -1,0 +1,94 @@
+{
+  "board": {
+    "name": "old-board",
+    "boardType": "esp32dev",
+    "wifiSsid": "layout-wifi",
+    "wifiPassword": "not-a-real-password",
+    "mqttBroker": "layout-mqtt.local",
+    "fallbackHotspot": true,
+    "apiEnabled": true,
+    "otaPassword": "old-ota",
+    "apPassword": "GoldenFixtureHotspot",
+    "apiKey": "Z29sZGVuLWZpeHR1cmUta2V5LW5vdC1hLXNlY3JldCE="
+  },
+  "i2c": {
+    "sda": "GPIO21",
+    "scl": "GPIO22"
+  },
+  "blocks": [
+    {
+      "name": "Old Block",
+      "topic": "trains/track/sensor/Old Block",
+      "gpio": "gpio14",
+      "inverted": true,
+      "debounce": "500ms"
+    }
+  ],
+  "points": [
+    {
+      "name": "Old Points",
+      "topic": "trains/track/turnout/Old Points",
+      "channel": 0,
+      "travelTime": "10s",
+      "controls": [
+        {
+          "action": "toggle",
+          "buttonPin": "gpio4",
+          "lightPin": "gpio13",
+          "lightOn": "closed"
+        }
+      ]
+    }
+  ],
+  "signals": {
+    "mode": "addressable",
+    "pin": "gpio16",
+    "numLeds": 2,
+    "masts": [
+      {
+        "name": "Old Mast",
+        "start": 0,
+        "lamps": [
+          {
+            "name": "Red",
+            "count": 1
+          },
+          {
+            "name": "Green",
+            "count": 1
+          }
+        ],
+        "aspects": [
+          {
+            "label": "Stop",
+            "state": "Stop",
+            "lamps": [
+              {
+                "color": "red",
+                "mode": "steady"
+              },
+              {
+                "color": "off",
+                "mode": "steady"
+              }
+            ]
+          },
+          {
+            "label": "Clear",
+            "state": "Clear",
+            "lamps": [
+              {
+                "color": "off",
+                "mode": "steady"
+              },
+              {
+                "color": "green",
+                "mode": "steady"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

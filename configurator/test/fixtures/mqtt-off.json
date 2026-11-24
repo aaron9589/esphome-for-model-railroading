@@ -1,0 +1,48 @@
+{
+  "board": {
+    "name": "standalone-board",
+    "module": "nodemcu-32s",
+    "wifiSsid": "layout-wifi",
+    "wifiPassword": "not-a-real-password",
+    "mqttBroker": "layout-mqtt.local",
+    "mqttEnabled": false,
+    "apPassword": "GoldenFixtureHotspot",
+    "apiKey": "Z29sZGVuLWZpeHR1cmUta2V5LW5vdC1hLXNlY3JldCE="
+  },
+  "blocks": [
+    {
+      "name": "Loop Track",
+      "topic": "trains/track/sensor/Loop Track",
+      "gpio": "GPIO14",
+      "inverted": true,
+      "debounce": "500ms"
+    }
+  ],
+  "pcaBoards": [
+    {
+      "sda": "GPIO21",
+      "scl": "GPIO22"
+    }
+  ],
+  "points": [
+    {
+      "name": "Loop Points",
+      "topic": "trains/track/turnout/Loop Points",
+      "channel": 0,
+      "travelTime": "10s",
+      "controls": [
+        {
+          "action": "toggle",
+          "buttonPin": "GPIO4",
+          "closedLight": "GPIO16",
+          "openLight": "GPIO13"
+        }
+      ],
+      "lockEnabled": true,
+      "lockDefault": "locked"
+    }
+  ],
+  "signals": {
+    "masts": []
+  }
+}

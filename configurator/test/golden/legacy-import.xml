@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<layout-config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://jmri.org/xml/schema/layout-4-19-2.xsd">
+  <!-- old-board: MQTT items from the ESPHome for Model Railroading Board Configurator. -->
+  <!-- In PanelPro: File > Load table content and panels, then File > Store table content and panels to keep them. -->
+  <!-- These topics expect the JMRI MQTT Channel to be "trains/". -->
+  <sensors class="jmri.jmrix.mqtt.configurexml.MqttSensorManagerXml">
+    <sensor inverted="false">
+      <systemName>MSOld Block</systemName>
+    </sensor>
+    <sensor inverted="false">
+      <systemName>MSOld Points/Thrown</systemName>
+    </sensor>
+  </sensors>
+  <turnouts class="jmri.jmrix.mqtt.configurexml.MqttTurnoutManagerXml">
+    <turnout feedback="ONESENSOR" sensor1="MSOld Points/Thrown" inverted="false" automate="Default">
+      <systemName>MTOld Points</systemName>
+    </turnout>
+  </turnouts>
+  <!-- Signal masts need the CATS signal template in the JMRI profile (resources/signals/cats-masts). -->
+  <signalmasts class="jmri.managers.configurexml.DefaultSignalMastManagerXml">
+    <mqttsignalmast class="jmri.jmrix.mqtt.configurexml.MqttSignalMastXml">
+      <systemName>IF$mqm:cats-masts:cats-virtual(Old Mast)</systemName>
+      <userName>Old Mast</userName>
+      <unlit allowed="no" />
+    </mqttsignalmast>
+  </signalmasts>
+</layout-config>

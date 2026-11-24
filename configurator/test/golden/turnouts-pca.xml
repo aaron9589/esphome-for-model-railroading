@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<layout-config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://jmri.org/xml/schema/layout-4-19-2.xsd">
+  <!-- junction-board: MQTT items from the ESPHome for Model Railroading Board Configurator. -->
+  <!-- In PanelPro: File > Load table content and panels, then File > Store table content and panels to keep them. -->
+  <!-- These topics expect the JMRI MQTT Channel to be "trains/". -->
+  <sensors class="jmri.jmrix.mqtt.configurexml.MqttSensorManagerXml">
+    <sensor inverted="false">
+      <systemName>MSJunction Track</systemName>
+    </sensor>
+    <sensor inverted="false">
+      <systemName>MSJunction/Up Loop/Thrown</systemName>
+    </sensor>
+    <sensor inverted="false">
+      <systemName>MSJunction/Up Loop/Locked</systemName>
+    </sensor>
+    <sensor inverted="false">
+      <systemName>MSJunction/Down Loop/Thrown</systemName>
+    </sensor>
+    <sensor inverted="false">
+      <systemName>MSJunction/Siding/Thrown</systemName>
+    </sensor>
+    <sensor inverted="false">
+      <systemName>MSJunction/Siding/Locked</systemName>
+    </sensor>
+  </sensors>
+  <turnouts class="jmri.jmrix.mqtt.configurexml.MqttTurnoutManagerXml">
+    <turnout feedback="ONESENSOR" sensor1="MSJunction/Up Loop/Thrown" inverted="false" automate="Default">
+      <systemName>MTJunction/Up Loop</systemName>
+    </turnout>
+    <turnout feedback="ONESENSOR" sensor1="MSJunction/Down Loop/Thrown" inverted="false" automate="Default">
+      <systemName>MTJunction/Down Loop</systemName>
+    </turnout>
+    <turnout feedback="ONESENSOR" sensor1="MSJunction/Siding/Thrown" inverted="false" automate="Default">
+      <systemName>MTJunction/Siding</systemName>
+    </turnout>
+  </turnouts>
+</layout-config>
