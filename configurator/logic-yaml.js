@@ -1167,6 +1167,32 @@
     lines.push(`${indent}      lambda: 'return id(${LOGIC_ID}).started();'`);
   }
 
+  // --- The component is on the board (Field Logic): it runs the turnouts'
+  // re-sync, so the Lock topic's UNLOCKED handler only clears the flag.
+  function hasComponent(config) {
+    return fieldMode(config);
+  }
+
+  // --- binary_sensor: a rule-locked turnout's lock report. The field lock is
+  // a global the component writes, so this follows both flags and publishes
+  // the report on each change, retained like the Remote lock's. On connect
+  // sends it too, so a change before the broker was up is not lost.
+  function emitLockReports(lines, config) {
+    if (!mqttOn(config)) return;
+    const locked = lockedTurnoutNames(config);
+    for (const point of M().uniqueIds(config.points || [])) {
+      if (!locked.has(point.name)) continue;
+      const flags = M().lockFlags(config, point, true);
+      lines.push("  - platform: template");
+      lines.push(`    id: ${point.id}_lock_report`);
+      lines.push("    internal: true");
+      lines.push(`    lambda: 'return ${flags.join(" || ")};'`);
+      lines.push("    on_state:");
+      lines.push("      then:");
+      publish(lines, "        ", M().lockedTopic(point.topic), [`return x ? "ACTIVE" : "INACTIVE";`]);
+    }
+  }
+
   // --- globals: each rule-locked turnout's field lock, and each virtual
   // mast's aspect. Neither is saved: the start-up scan works them out again.
   function emitLogicGlobals(lines, config) {
@@ -1317,6 +1343,12 @@
         lines.push(`      throw_closed: ${point.id}_throw_closed`);
         lines.push(`      throw_thrown: ${point.id}_throw_thrown`);
         if (locked.has(point.name)) lines.push(`      field_locked: ${point.id}_field_locked`);
+        // The component watches the remote lock too, and runs the re-sync
+        // when the two together go from locked to unlocked.
+        const remote = mqtt && point.lockEnabled === true;
+        if (remote) lines.push(`      remote_locked: ${point.id}_locked`);
+        const latch = M().latchIndex(point);
+        if (latch >= 0 && (remote || locked.has(point.name))) lines.push(`      resync: ${point.id}_latch_${latch + 1}`);
       }
     }
     if (!mqtt) return;
@@ -1388,6 +1420,8 @@
     emitBootMast,
     emitBootWait,
     emitLogicGlobals,
+    hasComponent,
+    emitLockReports,
     emitLogicScripts,
     emitLogicButtons,
     emitLogicSwitch,

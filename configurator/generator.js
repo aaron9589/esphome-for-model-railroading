@@ -350,6 +350,29 @@ function lockActive(point, mqtt) {
   return mqtt && point.lockEnabled === true;
 }
 
+// A rule locks this point (Field Logic): it has a field-lock global.
+function fieldLocked(config, point) {
+  return logicHooks(config).lockedTurnoutNames(config)?.has(point.name) === true;
+}
+
+// The point's lock flags as C++ reads: the remote lock (its Lock topic) and
+// the field lock (a rule). The point is locked while either is set.
+function lockFlags(config, point, mqtt) {
+  const flags = [];
+  if (lockActive(point, mqtt)) flags.push(`id(${point.id}_locked)`);
+  if (fieldLocked(config, point)) flags.push(`id(${point.id}_field_locked)`);
+  return flags;
+}
+
+function lockedExpr(flags) {
+  return flags.length === 1 ? flags[0] : `(${flags.join(" || ")})`;
+}
+
+// The lock report: Remote lock, or a rule that locks the point.
+function hasLockReport(config, point) {
+  return point.lockEnabled === true || fieldLocked(config, point);
+}
+
 function variantFor(moduleName) {
   return MODULE_VARIANTS[moduleName] || "esp32";
 }
@@ -964,7 +987,7 @@ function validateConfig(config) {
   if (board.mqttEnabled !== false) {
     for (const point of config.points || []) {
       const reports = [[thrownTopic(point.topic), "position"]];
-      if (point.lockEnabled === true) reports.push([lockedTopic(point.topic), "lock"]);
+      if (hasLockReport(config, point)) reports.push([lockedTopic(point.topic), "lock"]);
       for (const [report, what] of reports) {
         for (const block of config.blocks || []) {
           if (report && block.topic === report) {
@@ -1080,7 +1103,7 @@ function generateJmriXml(config, include = {}) {
         sensors.push(feedback);
         turnouts.push({ address: found.address, feedback });
         // The lock report, for CATS's Turnout Locked Report.
-        if (point.lockEnabled === true) sensors.push(jmriAddress(lockedTopic(point.topic), "sensor").address);
+        if (hasLockReport(config, point)) sensors.push(jmriAddress(lockedTopic(point.topic), "sensor").address);
       }
     }
   }
@@ -1295,12 +1318,12 @@ function emitThrowScript(lines, point, thrown, publish, config) {
   logicHooks(config).emitThrowEnd(lines, config, point, thrown);
 }
 
-function emitButtonAllowed(lines, point, lock) {
+function emitButtonAllowed(lines, point, flags) {
   lines.push("        - if:");
   lines.push("            condition:");
-  if (lock) {
+  if (flags.length) {
     lines.push("              and:");
-    lines.push(`                - lambda: 'return !id(${point.id}_locked);'`);
+    lines.push(`                - lambda: 'return !${lockedExpr(flags)};'`);
     lines.push("                - not:");
     lines.push("                    or:");
     lines.push("                      - script.is_running:");
@@ -1318,7 +1341,7 @@ function emitButtonAllowed(lines, point, lock) {
   lines.push("            then:");
 }
 
-function emitButton(lines, point, control, index, lock) {
+function emitButton(lines, point, control, index, flags) {
   if (!control.buttonPin) return;
   lines.push("  - platform: gpio");
   lines.push("    pin:");
@@ -1347,8 +1370,8 @@ function emitButton(lines, point, control, index, lock) {
   // A second press during the 2s wait starts the other throw while the first
   // backoff write is still pending, and that write leaves the servo short of
   // the end it was sent to. Ignore every button on this point until both
-  // throw scripts have finished. A remote lock holds them too.
-  emitButtonAllowed(lines, point, lock);
+  // throw scripts have finished. A lock (remote or a rule's) holds them too.
+  emitButtonAllowed(lines, point, flags);
   if (control.action === "closed" || control.action === "thrown") {
     lines.push("              - script.execute:");
     lines.push(`                  id: ${point.id}_throw_${control.action}`);
@@ -1373,7 +1396,7 @@ function emitButton(lines, point, control, index, lock) {
 // backoff write would leave the servo short). Each run reads the switch when it
 // starts, so the point ends up wherever the switch was left. force is the boot
 // call: it moves the servo even when the switch matches the saved position.
-function emitLatchScript(lines, point, index, lock) {
+function emitLatchScript(lines, point, index, flags) {
   const control = point.controls[index];
   const button = `${point.id}_button_${index + 1}`;
   const onIsThrown = control.action === "latch-thrown";
@@ -1387,9 +1410,10 @@ function emitLatchScript(lines, point, index, lock) {
   lines.push(`            lambda: 'return id(${button}).has_state() && !id(${point.id}_throw_closed).is_running() && !id(${point.id}_throw_thrown).is_running();'`);
   lines.push("      - lambda: |-");
   lines.push(`          bool want = ${onIsThrown ? "" : "!"}id(${button}).state;`);
-  if (lock) {
-    lines.push("          // A remote lock holds the point where it is.");
-    lines.push(`          if (id(${point.id}_locked)) want = id(${point.id}_thrown);`);
+  if (flags.length) {
+    const remoteOnly = flags.length === 1 && flags[0] === `id(${point.id}_locked)`;
+    lines.push(`          // ${remoteOnly ? "A remote lock" : "A lock (remote or a rule's)"} holds the point where it is.`);
+    lines.push(`          if (${flags.join(" || ")}) want = id(${point.id}_thrown);`);
   }
   lines.push(`          bool moving = want != id(${point.id}_thrown);`);
   lines.push("          if (!moving && !force) return;");
@@ -1876,18 +1900,17 @@ function emitSignalTextSensors(lines, masts, fieldMasts) {
   }
 }
 
-function emitThrowCommand(lines, point, thrown) {
+function emitThrowCommand(lines, point, thrown, flags) {
   const which = thrown ? "thrown" : "closed";
   const payload = thrown ? "THROWN" : "CLOSED";
-  const lock = point.lockEnabled === true;
   lines.push("      - if:");
   lines.push("          condition:");
-  if (lock) {
+  if (flags.length) {
     lines.push("            and:");
     lines.push("              - text_sensor.state:");
     lines.push(`                  id: ${point.id}`);
     lines.push(`                  state: '${payload}'`);
-    lines.push(`              - lambda: 'return !id(${point.id}_locked);'`);
+    lines.push(`              - lambda: 'return !${lockedExpr(flags)};'`);
   } else {
     lines.push("            text_sensor.state:");
     lines.push(`              id: ${point.id}`);
@@ -1899,16 +1922,22 @@ function emitThrowCommand(lines, point, thrown) {
   lines.push("                announce: true");
 }
 
-function emitLockedPublish(lines, indent, point) {
+// The lock report follows the combined lock: either flag set is ACTIVE.
+function emitLockedPublish(lines, indent, point, flags) {
   lines.push(`${indent}- mqtt.publish:`);
   lines.push(`${indent}    topic: ${yamlQuote(lockedTopic(point.topic))}`);
   lines.push(`${indent}    payload: !lambda |-`);
-  lines.push(`${indent}      return id(${point.id}_locked) ? "ACTIVE" : "INACTIVE";`);
+  lines.push(`${indent}      return ${lockedExpr(flags)} ? "ACTIVE" : "INACTIVE";`);
   lines.push(`${indent}    retain: true`);
   lines.push(`${indent}    qos: 2`);
 }
 
-function emitLockSensor(lines, point) {
+// On a Field Logic board the component runs the re-sync, when the remote and
+// field locks together go from locked to unlocked, and a rule-locked point's
+// report comes from its lock report sensor, on any change of either flag.
+function emitLockSensor(lines, point, config, flags) {
+  const componentResyncs = logicHooks(config).hasComponent(config) === true;
+  const reportsHere = !fieldLocked(config, point);
   lines.push("  - platform: mqtt_subscribe");
   lines.push(`    name: ${yamlQuote(entityName(`${point.name} lock`))}`);
   lines.push(`    id: ${point.id}_lock`);
@@ -1926,14 +1955,14 @@ function emitLockSensor(lines, point) {
   lines.push(`                format: ${yamlQuote(`${point.name} lock -> LOCKED`)}`);
   lines.push("                level: INFO");
   lines.push("                tag: point_control");
-  emitLockedPublish(lines, "            ", point);
+  if (reportsHere) emitLockedPublish(lines, "            ", point, flags);
   lines.push("      - if:");
   lines.push("          condition:");
   lines.push("            text_sensor.state:");
   lines.push(`              id: ${point.id}_lock`);
   lines.push("              state: 'UNLOCKED'");
   lines.push("          then:");
-  const latch = latchIndex(point);
+  const latch = componentResyncs ? -1 : latchIndex(point);
   if (latch >= 0) {
     // A toggle switch moved while locked disagrees with the point. Catch up on
     // unlock so the switch never lies. Only on a real unlock, so a repeated or
@@ -1949,19 +1978,20 @@ function emitLockSensor(lines, point) {
   lines.push(`                format: ${yamlQuote(`${point.name} lock -> UNLOCKED`)}`);
   lines.push("                level: INFO");
   lines.push("                tag: point_control");
-  emitLockedPublish(lines, "            ", point);
+  if (reportsHere) emitLockedPublish(lines, "            ", point, flags);
 }
 
-function emitPointTextSensors(lines, points) {
+function emitPointTextSensors(lines, points, config) {
   for (const point of points) {
     lines.push("  - platform: mqtt_subscribe");
     lines.push(`    name: ${yamlQuote(entityName(`${point.name} last command`))}`);
     lines.push(`    id: ${point.id}`);
     lines.push(`    topic: ${yamlQuote(point.topic)}`);
     lines.push("    on_value:");
-    emitThrowCommand(lines, point, true);
-    emitThrowCommand(lines, point, false);
-    if (point.lockEnabled === true) emitLockSensor(lines, point);
+    const flags = lockFlags(config, point, true);
+    emitThrowCommand(lines, point, true, flags);
+    emitThrowCommand(lines, point, false, flags);
+    if (point.lockEnabled === true) emitLockSensor(lines, point, config, flags);
   }
 }
 
@@ -2174,7 +2204,7 @@ function generateYaml(config) {
         lines.push(`          return id(${point.id}_thrown) ? "ACTIVE" : "INACTIVE";`);
         lines.push("        retain: true");
         lines.push("        qos: 2");
-        if (point.lockEnabled === true) emitLockedPublish(lines, "    ", point);
+        if (hasLockReport(config, point)) emitLockedPublish(lines, "    ", point, lockFlags(config, point, true));
       }
       lines.push(...sharedOnConnect);
     }
@@ -2275,6 +2305,7 @@ function generateYaml(config) {
   const hasButtons = points.some((point) => (point.controls || []).some((control) => control.buttonPin));
   const logicBlockSensors = [];
   logicHooks(config).emitBlocks(logicBlockSensors, config);
+  logicHooks(config).emitLockReports(logicBlockSensors, config);
   if (blocks.length || hasButtons || logicBlockSensors.length) {
     lines.push("");
     lines.push("binary_sensor:");
@@ -2331,7 +2362,7 @@ function generateYaml(config) {
       }
     }
     for (const point of points) {
-      (point.controls || []).forEach((control, index) => emitButton(lines, point, control, index, lockActive(point, mqtt)));
+      (point.controls || []).forEach((control, index) => emitButton(lines, point, control, index, lockFlags(config, point, mqtt)));
     }
     lines.push(...logicBlockSensors);
   }
@@ -2420,7 +2451,7 @@ function generateYaml(config) {
       emitThrowScript(lines, point, false, mqtt, config);
       emitThrowScript(lines, point, true, mqtt, config);
       const latch = latchIndex(point);
-      if (latch >= 0) emitLatchScript(lines, point, latch, lockActive(point, mqtt));
+      if (latch >= 0) emitLatchScript(lines, point, latch, lockFlags(config, point, mqtt));
     }
     for (const mast of masts) {
       if (mastShows(mast)) emitShowScript(lines, mast, config);
@@ -2468,7 +2499,7 @@ function generateYaml(config) {
     lines.push("");
     lines.push("text_sensor:");
     if (mqtt) {
-      if (points.length) emitPointTextSensors(lines, points);
+      if (points.length) emitPointTextSensors(lines, points, config);
       // A mast that rules set keeps its subscription, without a handler: the
       // logic component reads JMRI's messages for it.
       if (masts.length) emitSignalTextSensors(lines, masts, logicHooks(config).fieldMastNames(config));
@@ -2523,6 +2554,8 @@ function generateYaml(config) {
     thrownTopic,
     lockTopic,
     lockedTopic,
+    lockFlags,
+    latchIndex,
     SIGNAL_COLORS,
     SIGNAL_COLOR_ORDER,
     CATS_ASPECTS,
