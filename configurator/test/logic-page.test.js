@@ -6,7 +6,7 @@ import path from "node:path";
 import { configuratorDir, loadModules, test } from "./harness.js";
 
 // Every Logic page file, in index.html's order.
-export const LOGIC_UI_FILES = ["generator.js", "logic-yaml.js", "logic.js", "logic-checker.js", "logic-ui.js", "logic-ui-masts.js", "logic-ui-rules.js", "logic-ui-views.js", "logic-ui-start.js", "logic-starters.js", "logic-starters-sections.js", "logic-starters-signals.js", "logic-summary.js"];
+export const LOGIC_UI_FILES = ["generator.js", "logic-yaml.js", "logic.js", "logic-checker.js", "logic-try.js", "logic-ui.js", "logic-ui-masts.js", "logic-ui-rules.js", "logic-ui-views.js", "logic-ui-start.js", "logic-ui-try.js", "logic-starters.js", "logic-starters-sections.js", "logic-starters-signals.js", "logic-summary.js"];
 const context = loadModules(...LOGIC_UI_FILES);
 const { generateYaml, logicMode, myFirstBoardPreset, normalizeConfig, parseConfigFromYaml, sharesWithOtherBoards } =
   context.EsphomeMr;
@@ -141,13 +141,13 @@ test("the checklist leads with choosing a mode, and ends with Download", () => {
   const keys = (steps) => [...steps].map((step) => `${step.key}${step.done ? "+" : ""}`);
   assert.deepEqual(keys(checklistSteps(config, { blocks: false })), ["mode", "download"]);
   config.logic = { mode: "field" };
-  assert.deepEqual(keys(checklistSteps(config, { blocks: true })), ["mode+", "blocks", "download"]);
+  assert.deepEqual(keys(checklistSteps(config, { blocks: true })), ["mode+", "blocks", "tryIt", "download"]);
   config.logic.blocks = [{ name: "Int 2" }];
   // Blocks and signals: done once there are blocks and a group of rules.
-  assert.deepEqual(keys(checklistSteps(config, { blocks: true })), ["mode+", "blocks", "download"]);
+  assert.deepEqual(keys(checklistSteps(config, { blocks: true })), ["mode+", "blocks", "tryIt", "download"]);
   config.logic.layers = [{ name: "Group 1", rules: [] }];
-  assert.deepEqual(keys(checklistSteps(config, { blocks: true })), ["mode+", "blocks+", "download"]);
-  assert.equal(FEATURES.tryIt, false);
+  assert.deepEqual(keys(checklistSteps(config, { blocks: true })), ["mode+", "blocks+", "tryIt", "download"]);
+  assert.equal(FEATURES.tryIt, true);
 });
 
 test("Starts on stays hidden until Release 2", () => {
