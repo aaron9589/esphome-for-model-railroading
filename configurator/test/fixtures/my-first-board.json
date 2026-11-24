@@ -1,0 +1,39 @@
+{
+  "board": {
+    "name": "my-first-board",
+    "module": "nodemcu-32s",
+    "wifiSsid": "layout-wifi",
+    "wifiPassword": "not-a-real-password",
+    "mqttBroker": "layout-mqtt.local",
+    "mqttEnabled": true,
+    "apPassword": "GoldenFixtureHotspot",
+    "apiKey": "Z29sZGVuLWZpeHR1cmUta2V5LW5vdC1hLXNlY3JldCE="
+  },
+  "blocks": [
+    {
+      "name": "Kiama/Up XOver",
+      "topic": "trains/track/sensor/Kiama/Up XOver",
+      "gpio": "GPIO14",
+      "inverted": true,
+      "debounce": "500ms"
+    }
+  ],
+  "points": [
+    {
+      "name": "Kiama/Up Loop",
+      "topic": "trains/track/turnout/Kiama/Up Loop",
+      "channel": 0,
+      "travelTime": "10s",
+      "controls": []
+    }
+  ],
+  "pcaBoards": [
+    {
+      "sda": "GPIO21",
+      "scl": "GPIO22"
+    }
+  ],
+  "signals": {
+    "masts": []
+  }
+}

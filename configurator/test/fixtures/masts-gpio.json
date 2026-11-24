@@ -1,0 +1,139 @@
+{
+  "board": {
+    "name": "led-signal-board",
+    "module": "nodemcu-32s",
+    "wifiSsid": "layout-wifi",
+    "wifiPassword": "not-a-real-password",
+    "mqttBroker": "layout-mqtt.local",
+    "mqttEnabled": true,
+    "apPassword": "GoldenFixtureHotspot",
+    "apiKey": "Z29sZGVuLWZpeHR1cmUta2V5LW5vdC1hLXNlY3JldCE="
+  },
+  "blocks": [
+    {
+      "name": "Platform 1",
+      "topic": "trains/track/sensor/Platform 1",
+      "gpio": "GPIO14",
+      "inverted": true,
+      "debounce": "500ms"
+    }
+  ],
+  "points": [],
+  "pcaBoards": [
+    {
+      "sda": "GPIO21",
+      "scl": "GPIO22"
+    }
+  ],
+  "signals": {
+    "masts": [
+      {
+        "name": "Platform 1 Starter",
+        "topic": "trains/track/signalmast/Platform 1 Starter",
+        "topicCustom": false,
+        "mode": "gpio",
+        "pin": "GPIO16",
+        "lamps": [
+          {
+            "name": "Red",
+            "count": 1,
+            "pin": "GPIO18"
+          },
+          {
+            "name": "Yellow",
+            "count": 1,
+            "pin": "GPIO19"
+          },
+          {
+            "name": "Green",
+            "count": 1,
+            "pin": "GPIO23"
+          }
+        ],
+        "aspects": [
+          {
+            "label": "Stop",
+            "states": [
+              "R292"
+            ],
+            "startup": true,
+            "lamps": [
+              {
+                "color": "red",
+                "mode": "steady"
+              },
+              {
+                "color": "off",
+                "mode": "steady"
+              },
+              {
+                "color": "off",
+                "mode": "steady"
+              }
+            ]
+          },
+          {
+            "label": "Caution",
+            "states": [
+              "R285"
+            ],
+            "lamps": [
+              {
+                "color": "off",
+                "mode": "steady"
+              },
+              {
+                "color": "amber",
+                "mode": "steady"
+              },
+              {
+                "color": "off",
+                "mode": "steady"
+              }
+            ]
+          },
+          {
+            "label": "Clear",
+            "states": [
+              "R281"
+            ],
+            "lamps": [
+              {
+                "color": "off",
+                "mode": "steady"
+              },
+              {
+                "color": "off",
+                "mode": "steady"
+              },
+              {
+                "color": "green",
+                "mode": "steady"
+              }
+            ]
+          },
+          {
+            "label": "Restricted",
+            "states": [
+              "R290"
+            ],
+            "lamps": [
+              {
+                "color": "red",
+                "mode": "blink"
+              },
+              {
+                "color": "off",
+                "mode": "steady"
+              },
+              {
+                "color": "off",
+                "mode": "steady"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

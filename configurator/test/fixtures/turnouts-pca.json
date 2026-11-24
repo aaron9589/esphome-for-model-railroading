@@ -1,0 +1,93 @@
+{
+  "board": {
+    "name": "junction-board",
+    "module": "nodemcu-32s",
+    "wifiSsid": "layout-wifi",
+    "wifiPassword": "not-a-real-password",
+    "mqttBroker": "layout-mqtt.local",
+    "mqttEnabled": true,
+    "apPassword": "GoldenFixtureHotspot",
+    "apiKey": "Z29sZGVuLWZpeHR1cmUta2V5LW5vdC1hLXNlY3JldCE="
+  },
+  "blocks": [
+    {
+      "name": "Junction Track",
+      "topic": "trains/track/sensor/Junction Track",
+      "gpio": "GPIO14",
+      "inverted": true,
+      "debounce": "500ms"
+    }
+  ],
+  "pcaBoards": [
+    {
+      "sda": "GPIO21",
+      "scl": "GPIO22"
+    },
+    {
+      "sda": "GPIO25",
+      "scl": "GPIO26"
+    }
+  ],
+  "points": [
+    {
+      "name": "Junction/Up Loop",
+      "topic": "trains/track/turnout/Junction/Up Loop",
+      "channel": 0,
+      "travelTime": "10s",
+      "controls": [
+        {
+          "action": "toggle",
+          "buttonPin": "GPIO4",
+          "closedLight": "GPIO16",
+          "openLight": "GPIO13"
+        }
+      ],
+      "pcaBoard": 0,
+      "lockEnabled": true,
+      "lockDefault": "locked"
+    },
+    {
+      "name": "Junction/Down Loop",
+      "topic": "trains/track/turnout/Junction/Down Loop",
+      "channel": 1,
+      "travelTime": "6s",
+      "controls": [
+        {
+          "action": "closed",
+          "buttonPin": "GPIO5",
+          "closedLight": "GPIO17",
+          "openLight": ""
+        },
+        {
+          "action": "thrown",
+          "buttonPin": "GPIO18",
+          "closedLight": "",
+          "openLight": "GPIO19"
+        }
+      ],
+      "pcaBoard": 0
+    },
+    {
+      "name": "Junction/Siding",
+      "topic": "trains/track/turnout/Junction/Siding",
+      "channel": 0,
+      "travelTime": "10s",
+      "controls": [],
+      "pcaBoard": 1,
+      "lockEnabled": true,
+      "lockDefault": "unlocked"
+    },
+    {
+      "name": "Goods Shed",
+      "topic": "trains/goods/shed",
+      "channel": 3,
+      "pcaBoard": 1,
+      "travelTime": "10s",
+      "lockEnabled": true,
+      "controls": []
+    }
+  ],
+  "signals": {
+    "masts": []
+  }
+}

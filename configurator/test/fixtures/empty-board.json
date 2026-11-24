@@ -1,0 +1,23 @@
+{
+  "board": {
+    "name": "empty-s3",
+    "module": "esp32-s3-devkitc-1",
+    "wifiSsid": "layout-wifi",
+    "wifiPassword": "not-a-real-password",
+    "mqttBroker": "192.168.1.50",
+    "mqttEnabled": true,
+    "apPassword": "GoldenFixtureHotspot",
+    "apiKey": "Z29sZGVuLWZpeHR1cmUta2V5LW5vdC1hLXNlY3JldCE="
+  },
+  "blocks": [],
+  "points": [],
+  "pcaBoards": [
+    {
+      "sda": "GPIO21",
+      "scl": "GPIO22"
+    }
+  ],
+  "signals": {
+    "masts": []
+  }
+}

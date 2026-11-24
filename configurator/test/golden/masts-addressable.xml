@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<layout-config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://jmri.org/xml/schema/layout-4-19-2.xsd">
+  <!-- signal-board: MQTT items from the ESPHome for Model Railroading Board Configurator. -->
+  <!-- In PanelPro: File > Load table content and panels, then File > Store table content and panels to keep them. -->
+  <!-- These topics expect the JMRI MQTT Channel to be "trains/". -->
+  <!-- Signal masts need the CATS signal template in the JMRI profile (resources/signals/cats-masts). -->
+  <signalmasts class="jmri.managers.configurexml.DefaultSignalMastManagerXml">
+    <mqttsignalmast class="jmri.jmrix.mqtt.configurexml.MqttSignalMastXml">
+      <systemName>IF$mqm:cats-masts:cats-virtual(KJN-42.26)</systemName>
+      <userName>KJN-42.26</userName>
+      <unlit allowed="no" />
+    </mqttsignalmast>
+  </signalmasts>
+</layout-config>

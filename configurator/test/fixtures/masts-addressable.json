@@ -1,0 +1,224 @@
+{
+  "board": {
+    "name": "signal-board",
+    "module": "nodemcu-32s",
+    "wifiSsid": "layout-wifi",
+    "wifiPassword": "not-a-real-password",
+    "mqttBroker": "layout-mqtt.local",
+    "mqttEnabled": true,
+    "apPassword": "GoldenFixtureHotspot",
+    "apiKey": "Z29sZGVuLWZpeHR1cmUta2V5LW5vdC1hLXNlY3JldCE="
+  },
+  "blocks": [],
+  "points": [],
+  "pcaBoards": [
+    {
+      "sda": "GPIO21",
+      "scl": "GPIO22"
+    }
+  ],
+  "signals": {
+    "masts": [
+      {
+        "name": "KJN-42.26",
+        "topic": "trains/track/signalmast/KJN-42.26",
+        "topicCustom": false,
+        "mode": "addressable",
+        "pin": "GPIO16",
+        "lamps": [
+          {
+            "name": "Marker",
+            "count": 1
+          },
+          {
+            "name": "Upper",
+            "count": 1
+          },
+          {
+            "name": "Lower",
+            "count": 1
+          },
+          {
+            "name": "Route",
+            "count": 3
+          }
+        ],
+        "aspects": [
+          {
+            "label": "Stop",
+            "states": [
+              "R292; Lit; Unheld",
+              "R292"
+            ],
+            "startup": true,
+            "lamps": [
+              {
+                "color": "red",
+                "mode": "steady"
+              },
+              {
+                "color": "red",
+                "mode": "steady"
+              },
+              {
+                "color": "red",
+                "mode": "steady"
+              },
+              {
+                "color": "off",
+                "mode": "steady"
+              }
+            ]
+          },
+          {
+            "label": "Caution",
+            "states": [
+              "R285"
+            ],
+            "lamps": [
+              {
+                "color": "red",
+                "mode": "steady"
+              },
+              {
+                "color": "amber",
+                "mode": "steady"
+              },
+              {
+                "color": "red",
+                "mode": "steady"
+              },
+              {
+                "color": "off",
+                "mode": "steady"
+              }
+            ]
+          },
+          {
+            "label": "Medium Clear",
+            "states": [
+              "R282"
+            ],
+            "lamps": [
+              {
+                "color": "red",
+                "mode": "steady"
+              },
+              {
+                "color": "green",
+                "mode": "steady"
+              },
+              {
+                "color": "amber",
+                "mode": "blink"
+              },
+              {
+                "color": "white",
+                "mode": "steady"
+              }
+            ]
+          },
+          {
+            "label": "Clear",
+            "states": [
+              "R281"
+            ],
+            "lamps": [
+              {
+                "color": "red",
+                "mode": "steady"
+              },
+              {
+                "color": "green",
+                "mode": "steady"
+              },
+              {
+                "color": "red",
+                "mode": "steady"
+              },
+              {
+                "color": "off",
+                "mode": "steady"
+              }
+            ]
+          },
+          {
+            "label": "Low Speed",
+            "states": [
+              "R290"
+            ],
+            "lamps": [
+              {
+                "color": "red",
+                "mode": "steady"
+              },
+              {
+                "color": "red",
+                "mode": "steady"
+              },
+              {
+                "color": "amber",
+                "mode": "pulse"
+              },
+              {
+                "color": "off",
+                "mode": "steady"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Dwarf (Yard)",
+        "topic": "trains/track/signalmast/Dwarf (Yard)",
+        "topicCustom": true,
+        "mode": "addressable",
+        "pin": "GPIO17",
+        "lamps": [
+          {
+            "name": "Top",
+            "count": 1
+          },
+          {
+            "name": "Bottom",
+            "count": 1
+          }
+        ],
+        "aspects": [
+          {
+            "label": "Stop",
+            "states": [
+              "R292"
+            ],
+            "lamps": [
+              {
+                "color": "red",
+                "mode": "steady"
+              },
+              {
+                "color": "red",
+                "mode": "steady"
+              }
+            ]
+          },
+          {
+            "label": "Shunt",
+            "states": [
+              "R290"
+            ],
+            "lamps": [
+              {
+                "color": "white",
+                "mode": "steady"
+              },
+              {
+                "color": "red",
+                "mode": "blink"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}
