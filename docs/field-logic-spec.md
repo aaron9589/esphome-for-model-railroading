@@ -763,7 +763,7 @@ Spike A built an `mr_logic` external component around the C++ core and compiled 
 
 **Decided**
 
-- **Where the code lives.** ESPHome copies only an external component's top-level source files into the build; it descends into subfolders only for its own core. So `components/mr_logic/` holds the core (`logic_core.*`, `logic_table.*`, `logic_json.h`, no ESPHome includes) beside the adapter (`mr_logic.*`) and `__init__.py`. The core's namespace is `logic_core`: ESPHome's generated `main.cpp` has `using namespace esphome;`, so a core namespace called `mr_logic` clashes with the component's `esphome::mr_logic`.
+- **Where the code lives.** ESPHome copies only an external component's top-level source files into the build; it descends into subfolders only for its own core. So `components/mr_logic/` holds the core (`logic_core.*` and `logic_table.*`, no ESPHome includes) beside the adapter (`mr_logic.*`) and `__init__.py`. The core's namespace is `logic_core`: ESPHome's generated `main.cpp` has `using namespace esphome;`, so a core namespace called `mr_logic` clashes with the component's `esphome::mr_logic`.
 - **The rule table is one JSON string** in the YAML (`mr_logic: table:`), in the engine cases' board format, so the configurator, `logic.js`, the cases and the board share one format, and the version code can be a hash of it. The alternative, a nested YAML schema, was measured on a 200-rule table: `esphome config` took 0.19 s with the string, 0.28 s nested, and 0.18 s with no logic at all. Both are fast; the nested table also made the YAML four times as long (3,752 lines against 952) and needed the format written again as a Python schema.
 - **The component writes typed globals and runs scripts by id.** Codegen binds each engine name to this board's objects with generated lambdas: a mast's `<m>_aspect` global and `<m>_show.execute(true)`, a turnout's `<id>_field_locked` global. The existing YAML keeps reading the same globals as today, so logic adds nothing to a foundational item's YAML beyond the hooks this spec lists, and the component does not depend on the globals' or scripts' C++ types (restoring globals are a different type).
 - **Moving is polled, not hooked.** Once per scan the component reads `is_running()` on a turnout's two throw scripts, and its `_thrown` global. A throw takes seconds, so a 100 ms poll misses nothing, and the throw scripts need no new hooks for the engine.
@@ -772,15 +772,15 @@ Spike A built an `mr_logic` external component around the C++ core and compiled 
 - **Detectors settled** means every bound sensor has a state. With the 500 ms Debounce that is about half a second after boot. The start-up scan waits for it, or for 3 s at most; a sensor with no state by then counts as occupied.
 - **`_show` is `mode: restart`**, which is safe because the engine writes a mast only when its aspect changes (the `scan-publish-on-change` case).
 
-**The core must be made compact before boards use it.** The core as built (2.3) keeps names as strings, looks them up by name, copies the board into the engine, and parses the JSON into a tree first. Measured on a computer (64-bit, so pointers are twice the ESP32's):
+**The core is compact (work item 2.3b).** The first core (2.3) kept names as strings, looked them up by name, copied the board into the engine, and read the JSON into a tree first: about 350 KB of heap for 200 rules. Now `logic_table.cpp` reads the JSON once, straight into a compiled table (every name once in one string, conditions as a flat array of indices, values as small enums), and the engine refers to that table. Measured on a computer (64-bit, so pointers are twice the ESP32's):
 
-| Table | JSON | Board in memory | Engine (with its own copy) | Peak while reading | Mean scan |
-|---|---|---|---|---|---|
-| Gauntlet, 2 rules | 652 B | 1.9 KB | 3.9 KB | 15.8 KB | 1.4 µs |
-| 48 rules, 50 masts | 12.6 KB | 49 KB | 65 KB | 240 KB | 39 µs |
-| 200 rules, 50 masts | 36.9 KB | 145 KB | 202 KB | 747 KB | 254 µs |
+| Table | JSON | Table + engine | Peak while reading | Mean scan |
+|---|---|---|---|---|
+| Gauntlet, 2 rules | 652 B | 1.6 KB (was 5.8 KB) | 1.0 KB (was 15.8 KB) | 0.5 µs (was 1.4 µs) |
+| 48 rules, 50 masts | 12.6 KB | 10.5 KB (was 114 KB) | 12.2 KB (was 240 KB) | 1.5 µs (was 39 µs) |
+| 200 rules, 50 masts | 36.9 KB | 29.9 KB (was 347 KB) | 35.8 KB (was 747 KB) | 12.5 µs (was 254 µs) |
 
-An ESP32 with Wi-Fi, MQTT and the web server running typically has 100 to 150 KB of heap free, so only small boards would fit. Work item 2.3b changes the core to compile the table once at boot into compact arrays (items by index, values as small enums, the engine referring to the table instead of copying it), reading the JSON string straight from flash without building a tree. `logic.js` and the cases do not change; the cross-check and the cases prove the compact core still behaves the same.
+An ESP32 with Wi-Fi, MQTT and the web server running typically has 100 to 150 KB of heap free, so a 200-rule board fits with room to spare. The cases and the JS cross-check prove the compact core behaves exactly as before.
 
 **Flash and RAM on the ESP32** (ESPHome 2026.10.2, `esphome compile`): the gauntlet board without logic used 53,488 B of static RAM and 1,039,391 B of flash. With the component bound to its sensors, masts and turnout: 53,680 B (+192 B) and 1,081,075 B (+41.7 KB). A 200-rule table adds its JSON string to flash (+34.5 KB) and no static RAM.
 

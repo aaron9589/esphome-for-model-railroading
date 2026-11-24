@@ -1,5 +1,9 @@
-// See logic_core.h. Each function here has a namesake in configurator/logic.js;
-// keep the two in step. Rule numbers refer to configurator/test/cases/README.md.
+// See logic_core.h. Rule numbers refer to configurator/test/cases/README.md.
+// Each function here has a counterpart in configurator/logic.js; keep the two
+// in step. Names are resolved once by the compiler (logic_table.cpp), so the
+// JS lookups by name live there: stopAspect, statesOf, tagOf, remoteKind and
+// remoteItem. Here, occupied() is occupied_ref() and remote_occupied(), and
+// mastReading() and turnoutState() are inside condition().
 #include "logic_core.h"
 
 #include <algorithm>
@@ -9,39 +13,21 @@ namespace logic_core {
 namespace {
 
 const char *const TAG_NAMES[] = {"stop", "restricting", "approach", "advance", "clear"};
-const char *const HELD_NAMES[] = {"R292", "Stop"};
 
-std::string key(const char *kind, const std::string &name) { return std::string(kind) + '\0' + name; }
-
-bool contains(const std::vector<std::string> &list, const std::string &value) {
-  return std::find(list.begin(), list.end(), value) != list.end();
-}
+// Remote item values (Engine::remote_values_): not known yet, then by kind.
+constexpr int16_t R_UNSET = -1;
+constexpr int16_t R_NOT_ASPECT = -2;  // a mast's /State that is none of its aspects
+constexpr int16_t R_CLEAR = 0, R_OCCUPIED = 1;
 
 std::string trim(const std::string &s) {
   size_t a = s.find_first_not_of(" \t\r\n");
   if (a == std::string::npos) return "";
-  size_t b = s.find_last_not_of(" \t\r\n");
-  return s.substr(a, b - a + 1);
+  return s.substr(a, s.find_last_not_of(" \t\r\n") - a + 1);
 }
 
-Tag tag_of(const MastDef &mast, const std::string &aspect) {
-  for (const auto &a : mast.aspects)
-    if (a.first == aspect) return a.second;
-  return TAG_NONE;
-}
-
-std::vector<std::string> states_of(const MastDef &mast, const std::string &aspect) {
-  std::vector<std::string> out;
-  auto it = mast.states.find(aspect);
-  if (it == mast.states.end()) {
-    out.push_back(aspect + "; Lit; Unheld");
-    return out;
-  }
-  for (const auto &s : it->second) {
-    std::string t = trim(s);
-    if (!t.empty()) out.push_back(t);
-  }
-  return out;
+template <typename T>
+size_t vec_bytes(const std::vector<T> &v) {
+  return v.capacity() * sizeof(T);
 }
 
 }  // namespace
@@ -54,101 +40,40 @@ Tag tag_from_name(const std::string &name) {
 
 const char *tag_name(Tag tag) { return tag == TAG_NONE ? "" : TAG_NAMES[tag]; }
 
-std::string stop_aspect(const MastDef &mast) {
-  if (!mast.stop.empty() && tag_of(mast, mast.stop) != TAG_NONE) return mast.stop;
-  for (const char *name : HELD_NAMES)
-    if (tag_of(mast, name) == TAG_STOP) return name;
-  for (const auto &a : mast.aspects)
-    if (a.second == TAG_STOP) return a.first;
-  return mast.aspects.empty() ? std::string() : mast.aspects.front().first;
-}
-
-bool pick_aspect(const MastDef &mast, const std::string &x, std::string *out) {
-  std::vector<std::pair<std::string, std::string>> by_name;  // first wins
-  auto find_name = [&](const std::string &name) -> const std::string * {
-    for (const auto &p : by_name)
-      if (p.first == name) return &p.second;
-    return nullptr;
-  };
-  for (const auto &a : mast.aspects) {
-    for (const auto &state : states_of(mast, a.first)) {
-      if (x == state) {
-        *out = a.first;
-        return true;
-      }
-      std::string name = trim(state.substr(0, state.find(';')));
-      if (!name.empty() && !find_name(name)) by_name.emplace_back(name, a.first);
-    }
-  }
-  if (x.find("; Unlit") != std::string::npos) {
-    *out = "dark";
-    return true;
-  }
-  if (x.find("; Held") != std::string::npos) {
-    for (const char *name : HELD_NAMES) {
-      if (const std::string *a = find_name(name)) {
-        *out = *a;
-        return true;
-      }
-    }
-    *out = "dark";
-    return true;
-  }
-  std::string name = x.substr(0, x.find(';'));
-  while (!name.empty() && name.back() == ' ') name.pop_back();
-  if (const std::string *a = find_name(name)) {
-    *out = *a;
-    return true;
-  }
-  return false;
+size_t Table::bytes() const {
+  size_t n = names.chars.capacity() + vec_bytes(names.starts) + vec_bytes(nodes) + vec_bytes(kids) + vec_bytes(seq) + vec_bytes(aspects) +
+             vec_bytes(states) + vec_bytes(block_refs) + vec_bytes(members) + vec_bytes(locks) + vec_bytes(sensors) +
+             vec_bytes(buttons) + vec_bytes(turnouts) + vec_bytes(masts) + vec_bytes(remote_boards) +
+             vec_bytes(remote_masts) + vec_bytes(remote_items) + vec_bytes(blocks) + vec_bytes(resources) +
+             vec_bytes(rules) + vec_bytes(layers);
+  for (const auto &s : states) n += s.text.capacity() > 15 ? s.text.capacity() + 1 : 0;
+  return n;
 }
 
 // --- set-up ---------------------------------------------------------------
 
-Engine::Engine(Board board, const Start &start) : board_(std::move(board)) {
-  for (const auto &layer : board_.layers) {
-    std::vector<int> list;
-    for (size_t i = 0; i < layer.rules.size(); i++) {
-      Rule rule;
-      rule.def = &layer.rules[i];
-      rule.ref = layer.name + "/" + std::to_string(i + 1);
-      rule.index = static_cast<int>(rules_.size());
-      list.push_back(rule.index);
-      rules_.push_back(rule);
-    }
-    layer_rules_.push_back(list);
-  }
-  for (const auto &def : board_.resources) {
-    Resource res;
-    res.def = &def;
-    resources_.push_back(res);
-  }
-  for (auto &rule : rules_) {
-    const std::string &reserve = rule.def->then.reserve;
-    if (reserve.empty()) continue;
-    for (size_t i = 0; i < resources_.size(); i++) {
-      // Names are unique once validated; if not, the first one wins, as in logic.js.
-      if (resources_[i].def->name == reserve) {
-        rule.resource = static_cast<int>(i);
-        resources_[i].rules.push_back(rule.index);
-        break;
-      }
-    }
-  }
-  for (const auto &m : board_.masts) {
-    for (const auto &rule : rules_) {
-      if (rule.def->then.mast == m.name) {
-        field_masts_.push_back(m.name);
-        break;
-      }
-    }
-  }
-  for (const auto &t : board_.turnouts) {
-    turnouts_[t] = "closed";
-    remote_locks_[t] = false;
-    field_locks_[t] = false;
-  }
-  for (const auto &b : board_.remote) remote_[b.name] = Remote();
+Engine::Engine(const Table &table, const Start &start) : t_(table) {
+  const size_t rules = t_.rules.size(), resources = t_.resources.size(), masts = t_.masts.size();
+  rules_.resize(rules);
+  res_.resize(resources);
+  res_rules_.resize(resources);
+  for (size_t r = 0; r < rules; r++)
+    if (t_.rules[r].resource != NONE) res_rules_[t_.rules[r].resource].push_back(static_cast<uint16_t>(r));
+  field_.assign(masts, false);
+  for (const auto &rule : t_.rules)
+    if (rule.mast != NONE) field_[rule.mast] = true;
+  sensors_.resize(t_.sensors.size());
+  buttons_.resize(t_.buttons.size());
+  turnouts_.assign(t_.turnouts.size(), T_NONE);
+  for (size_t i = 0; i < t_.declared_turnouts; i++) turnouts_[i] = T_CLOSED;
+  remote_locks_.assign(t_.turnouts.size(), false);
+  field_locks_.assign(t_.turnouts.size(), false);
+  prev_locked_.assign(t_.turnouts.size(), false);
+  online_.assign(t_.remote_boards.size(), -1);
+  remote_values_.assign(t_.remote_items.size(), R_UNSET);
+  edges_.assign(t_.nodes.size(), 2);
+  prev_block_.assign(t_.blocks.size(), false);
+  published_.assign(resources * 2, -1);
 
   broker_ = start.broker_connected;
   connect_at_ = broker_ ? 0 : -1;
@@ -156,226 +81,303 @@ Engine::Engine(Board board, const Start &start) : board_(std::move(board)) {
   logic_on_ = start.logic_on;
   startup_next_ = logic_on_;
 
-  for (const auto &m : board_.masts) {
-    display_[m.name] = (!m.startup.empty() && tag_of(m, m.startup) != TAG_NONE) ? m.startup : "";
-    if (is_field(m.name)) {
-      jmri_shown_[m.name] = "";
-      holds_[m.name] = false;
-      prev_out_[m.name] = stop_aspect(m);
-      if (logic_on_) display_[m.name] = stop_aspect(m);
+  jmri_shown_.assign(masts, SHOWS_NOTHING);
+  display_.assign(masts, SHOWS_NOTHING);
+  prev_out_.assign(masts, SHOWS_NOTHING);
+  holds_.assign(masts, false);
+  for (size_t m = 0; m < masts; m++) {
+    display_[m] = t_.masts[m].startup;  // -1 (nothing) when it has none
+    if (field_[m]) {
+      prev_out_[m] = t_.masts[m].stop;
+      if (logic_on_) display_[m] = t_.masts[m].stop;
     }
   }
 
-  for (const auto &rule : rules_) {
-    const Trigger &t = rule.def->trigger;
+  for (size_t r = 0; r < rules; r++) {
+    const Trigger &t = t_.rules[r].trigger;
     if (t.when) {
-      for (const auto &m : t.seq) track(m);
-    } else if (t.present) {
+      for (uint16_t i = 0; i < t.seq_count; i++) track(t_.seq[t.seq_first + i]);
+    } else if (t.present && t.cond != NONE) {
       track(t.cond);
     }
-    if (rule.def->has_cancel) track(rule.def->cancel);
+    if (t_.rules[r].cancel != NONE) track(t_.rules[r].cancel);
   }
-  for (const auto &res : resources_) {
-    if (res.def->release.when)
-      for (const auto &m : res.def->release.seq) track(m);
-  }
-  for (auto &rule : rules_) reset_trigger(rule);
-  for (auto &res : resources_) reset_release(res);
+  for (const auto &res : t_.resources)
+    if (res.release.when)
+      for (uint16_t i = 0; i < res.release.seq_count; i++) track(t_.seq[res.release.seq_first + i]);
+  for (size_t r = 0; r < rules; r++) reset_trigger(static_cast<uint16_t>(r));
+  for (size_t i = 0; i < resources; i++) reset_release(static_cast<uint16_t>(i));
 
-  for (const auto &s : start.sensors_occupied) input("sensor", s.first).value = s.second;
-  for (const auto &t : start.turnouts) turnouts_[t.first] = t.second;
-  for (const auto &t : start.remote_locks) remote_locks_[t.first] = t.second;
-  for (const auto &rs : start.remote) {
-    auto it = remote_.find(rs.board);
-    if (it == remote_.end()) continue;
-    if (rs.online >= 0) it->second.online = rs.online;
-    for (const auto &s : rs.sensors) it->second.items[key(remote_kind(rs.board, s.first).c_str(), s.first)] = s.second;
-    for (const auto &s : rs.turnouts) it->second.items[key("turnout", s.first)] = s.second;
-    for (const auto &s : rs.masts) it->second.items[key("mast", s.first)] = s.second;
+  for (const auto &s : start.sensors_occupied) {
+    int16_t i = find(t_.sensors, s.first);
+    if (i >= 0) sensors_[i].value = s.second;
   }
-  for (const auto &j : start.jmri) jmri_message(j.first, j.second);
-  for (const auto &t : board_.turnouts) prev_locked_[t] = remote_locks_[t];
+  for (const auto &s : start.turnouts) {
+    int16_t i = find(t_.turnouts, s.first);
+    if (i < 0) continue;
+    const std::string &v = s.second;
+    turnouts_[i] = v == "closed" ? T_CLOSED : v == "thrown" ? T_THROWN : v == "moving" ? T_MOVING : T_OTHER;
+  }
+  for (const auto &s : start.remote_locks) {
+    int16_t i = find(t_.turnouts, s.first);
+    if (i >= 0) remote_locks_[i] = s.second;
+  }
+  for (const auto &rs : start.remote) {
+    int16_t b = find(t_.remote_boards, rs.board);
+    if (b < 0) continue;
+    if (rs.online >= 0) online_[b] = rs.online;
+    for (const auto &s : rs.sensors) {
+      Event e;
+      e.kind = Event::REMOTE_ITEM;
+      e.board = rs.board;
+      e.item_kind = "sensor";
+      e.name = s.first;
+      e.value = s.second;
+      event(e);
+    }
+    for (const auto &s : rs.turnouts) {
+      Event e;
+      e.kind = Event::REMOTE_ITEM;
+      e.board = rs.board;
+      e.item_kind = "turnout";
+      e.name = s.first;
+      e.value = s.second;
+      event(e);
+    }
+    for (const auto &s : rs.masts) {
+      Event e;
+      e.kind = Event::REMOTE_MAST;
+      e.board = rs.board;
+      e.name = s.first;
+      e.value = s.second;
+      event(e);
+    }
+  }
+  for (const auto &j : start.jmri) {
+    int16_t m = find_mast(j.first);
+    if (m >= 0) jmri_message(static_cast<uint16_t>(m), j.second);
+  }
+  for (size_t i = 0; i < t_.declared_turnouts; i++) prev_locked_[i] = remote_locks_[i];
   record_edges();
 }
 
-void Engine::track(const Cond &c) { tracked_.push_back(&c); }
+void Engine::track(uint16_t node) { tracked_.push_back(node); }
+
+size_t Engine::bytes() const {
+  size_t n = vec_bytes(rules_) + vec_bytes(res_) + vec_bytes(res_rules_) + vec_bytes(sensors_) + vec_bytes(buttons_) +
+             vec_bytes(turnouts_) + vec_bytes(online_) + vec_bytes(remote_values_) + vec_bytes(edges_) +
+             vec_bytes(tracked_) + vec_bytes(jmri_shown_) + vec_bytes(display_) + vec_bytes(prev_out_) +
+             vec_bytes(published_);
+  for (const auto &v : res_rules_) n += vec_bytes(v);
+  // vector<bool> packs bits.
+  n += (field_.size() + remote_locks_.size() * 3 + prev_block_.size() + holds_.size()) / 8 + 6 * 16;
+  return n;
+}
 
 // --- lookups --------------------------------------------------------------
 
-const MastDef *Engine::mast(const std::string &name) const {
-  for (const auto &m : board_.masts)
-    if (m.name == name) return &m;
-  return nullptr;
+int16_t Engine::find(const std::vector<uint16_t> &list, const std::string &name) const {
+  for (size_t i = 0; i < list.size(); i++)
+    if (t_.names.equals(list[i], name)) return static_cast<int16_t>(i);
+  return -1;
 }
 
-const RemoteBoardDef *Engine::remote_board(const std::string &name) const {
-  for (const auto &b : board_.remote)
-    if (b.name == name) return &b;
-  return nullptr;
+int16_t Engine::find_mast(const std::string &name) const {
+  for (size_t i = 0; i < t_.masts.size(); i++)
+    if (t_.names.equals(t_.masts[i].name, name)) return static_cast<int16_t>(i);
+  return -1;
 }
 
-const MastDef *Engine::remote_mast(const std::string &board, const std::string &name) const {
-  const RemoteBoardDef *b = remote_board(board);
-  if (!b) return nullptr;
-  for (const auto &m : b->masts)
-    if (m.name == name) return &m;
-  return nullptr;
+int16_t Engine::find_remote_item(uint16_t board, uint8_t kind, const std::string &name) const {
+  for (size_t i = 0; i < t_.remote_items.size(); i++) {
+    const RemoteItem &it = t_.remote_items[i];
+    if (it.board != board || !t_.names.equals(it.name, name)) continue;
+    bool sensor_like = kind == RemoteItem::SENSOR || kind == RemoteItem::BLOCK;
+    bool item_sensor_like = it.kind == RemoteItem::SENSOR || it.kind == RemoteItem::BLOCK;
+    if (sensor_like ? item_sensor_like : it.kind == kind) return static_cast<int16_t>(i);
+  }
+  return -1;
 }
 
-const BlockDef *Engine::logic_block(const std::string &name) const {
-  for (const auto &b : board_.blocks)
-    if (b.name == name) return &b;
-  return nullptr;
+int16_t Engine::aspect_index(const Mast &m, const std::string &name) const {
+  for (uint16_t i = 0; i < m.aspect_count; i++)
+    if (t_.names.equals(t_.aspects[m.aspect_first + i].name, name)) return static_cast<int16_t>(i);
+  return -1;
 }
 
-bool Engine::is_field(const std::string &name) const { return contains(field_masts_, name); }
-
-Engine::Latch &Engine::input(const char *kind, const std::string &name) { return latched_[key(kind, name)]; }
-
-std::string Engine::remote_kind(const std::string &board, const std::string &name) const {
-  const RemoteBoardDef *b = remote_board(board);
-  return (b && contains(b->blocks, name)) ? "block" : "sensor";
+Tag Engine::aspect_tag(const Mast &m, int16_t a) const {
+  return (a < 0 || a >= static_cast<int16_t>(m.aspect_count)) ? TAG_NONE : t_.aspects[m.aspect_first + a].tag;
 }
 
-bool Engine::remote_value(const std::string &board, const std::string &kind, const std::string &name,
-                          std::string *out) const {
-  auto it = remote_.find(board);
-  if (it == remote_.end()) return false;
-  auto v = it->second.items.find(key(kind.c_str(), name));
-  if (v == it->second.items.end()) return false;
-  *out = v->second;
-  return true;
+std::string Engine::aspect_text(uint16_t mast, int16_t a) const {
+  if (a == SHOWS_DARK) return "dark";
+  if (a < 0) return "";
+  return t_.names[t_.aspects[t_.masts[mast].aspect_first + a].name];
+}
+
+// Rule 18, today's handler.
+int16_t Engine::pick_aspect(uint16_t mast, const std::string &x) const {
+  const Mast &m = t_.masts[mast];
+  std::vector<std::pair<std::string, int16_t>> by_name;  // first wins
+  auto note = [&](const std::string &state, int16_t a) {
+    std::string name = trim(state.substr(0, state.find(';')));
+    if (name.empty()) return;
+    for (const auto &p : by_name)
+      if (p.first == name) return;
+    by_name.emplace_back(name, a);
+  };
+  for (uint16_t a = 0; a < m.aspect_count; a++) {
+    const Aspect &asp = t_.aspects[m.aspect_first + a];
+    if (!asp.custom_states) {
+      std::string state = t_.names[asp.name] + "; Lit; Unheld";
+      if (x == state) return static_cast<int16_t>(a);
+      note(state, static_cast<int16_t>(a));
+      continue;
+    }
+    for (uint16_t s = 0; s < m.states_count; s++) {
+      const StateString &st = t_.states[m.states_first + s];
+      if (st.aspect != static_cast<int16_t>(a)) continue;
+      if (x == st.text) return static_cast<int16_t>(a);
+      note(st.text, static_cast<int16_t>(a));
+    }
+  }
+  auto named = [&](const std::string &name) -> int16_t {
+    for (const auto &p : by_name)
+      if (p.first == name) return p.second;
+    return IGNORED;
+  };
+  if (x.find("; Unlit") != std::string::npos) return SHOWS_DARK;
+  if (x.find("; Held") != std::string::npos) {
+    for (const char *name : {"R292", "Stop"}) {
+      int16_t a = named(name);
+      if (a != IGNORED) return a;
+    }
+    return SHOWS_DARK;
+  }
+  std::string name = x.substr(0, x.find(';'));
+  while (!name.empty() && name.back() == ' ') name.pop_back();
+  return named(name);
 }
 
 // Rule 14.
-bool Engine::known(const std::string &board, bool has) const {
-  auto it = remote_.find(board);
-  return broker_ && it != remote_.end() && it->second.online == 1 && has;
-}
+bool Engine::known(uint16_t board, bool has) const { return broker_ && board != NONE && online_[board] == 1 && has; }
 
 // --- reading inputs -------------------------------------------------------
 
-bool Engine::occupied(const std::string &name, bool remote, const std::string &board) {
-  if (remote) {
-    std::string value;
-    bool has = remote_value(board, remote_kind(board, name), name, &value);
-    return known(board, has) ? value == "occupied" : true;
-  }
-  if (const BlockDef *block = logic_block(name)) {
-    for (const auto &m : block->members) {
-      // A member on this board is one of its sensors; another board's is read there.
-      if (m.remote ? occupied(m.name, true, m.board) : input("sensor", m.name).value) return true;
-    }
-    return false;
-  }
-  return input("sensor", name).value;
+bool Engine::remote_occupied(uint16_t item) {
+  if (item == NONE) return true;
+  int16_t v = remote_values_[item];
+  return known(t_.remote_items[item].board, v != R_UNSET) ? v == R_OCCUPIED : true;
 }
 
-bool Engine::went(const std::string &name, bool on) {
-  const BlockDef *block = logic_block(name);
-  if (!block) return on ? input("sensor", name).on : input("sensor", name).off;
-  auto it = prev_block_.find(name);
-  bool prev = it != prev_block_.end() && it->second;
-  bool now = occupied(name, false, "");
+bool Engine::occupied_ref(uint16_t item, bool logic_block) {
+  if (item == NONE) return false;
+  if (!logic_block) return sensors_[item].value;
+  const LogicBlock &b = t_.blocks[item];
+  for (uint16_t i = 0; i < b.count; i++) {
+    const Member &m = t_.members[b.first + i];
+    if (m.remote ? remote_occupied(m.item) : sensors_[m.item].value) return true;
+  }
+  return false;
+}
+
+bool Engine::went(uint16_t item, bool logic_block, bool on) {
+  if (item == NONE) return false;
+  if (!logic_block) return on ? sensors_[item].on : sensors_[item].off;
+  bool prev = prev_block_[item];
+  bool now = occupied_ref(item, true);
   bool pulsed = false;
-  for (const auto &m : block->members)
-    if (!m.remote && input("sensor", m.name).on) pulsed = true;
+  const LogicBlock &b = t_.blocks[item];
+  for (uint16_t i = 0; i < b.count; i++) {
+    const Member &m = t_.members[b.first + i];
+    if (!m.remote && sensors_[m.item].on) pulsed = true;
+  }
   return on ? (!prev && (now || pulsed)) : (!now && (prev || pulsed));
 }
 
-bool Engine::turnout_is(const std::string &name, bool remote, const std::string &board, const std::string &is) {
-  if (!remote) {
-    auto it = turnouts_.find(name);
-    return it != turnouts_.end() && it->second == is;
-  }
-  std::string value;
-  bool has = remote_value(board, "turnout", name, &value);
-  return known(board, has) && value == is;
-}
-
-// Rule 13.
-void Engine::mast_reading(const std::string &name, bool remote, const std::string &board, const MastDef **def,
-                          std::string *aspect, Tag *tag) {
-  std::string a;
-  if (remote) {
-    *def = remote_mast(board, name);
-    std::string value;
-    bool has = remote_value(board, "mast", name, &value);
-    a = known(board, has) ? value : "";
-  } else {
-    *def = mast(name);
-    a = is_field(name) ? prev_out_[name] : display_[name];
-  }
-  Tag t = (*def && !a.empty() && a != "dark") ? tag_of(**def, a) : TAG_NONE;
-  if (t == TAG_NONE) {
-    *aspect = "";
-    *tag = TAG_STOP;
-  } else {
-    *aspect = a;
-    *tag = t;
-  }
-}
-
-bool Engine::condition(const Cond &c) {
+bool Engine::condition(uint16_t index) {
+  const Node &c = t_.nodes[index];
   switch (c.kind) {
-    case Cond::ALL:
-      for (const auto &k : c.kids)
-        if (!condition(k)) return false;
+    case Node::ALL:
+      for (uint16_t i = 0; i < c.count; i++)
+        if (!condition(t_.kids[c.first + i])) return false;
       return true;
-    case Cond::ANY:
-      for (const auto &k : c.kids)
-        if (condition(k)) return true;
+    case Node::ANY:
+      for (uint16_t i = 0; i < c.count; i++)
+        if (condition(t_.kids[c.first + i])) return true;
       return false;
-    case Cond::NOT:
-      return c.kids.empty() ? true : !condition(c.kids.front());
-    case Cond::BLOCK: {
-      bool occ = occupied(c.name, c.remote, c.board);
-      return (!c.is.empty() && c.is.front() == "clear") ? !occ : occ;
+    case Node::NOT:
+      return c.count == 0 ? true : !condition(t_.kids[c.first]);
+    case Node::BLOCK: {
+      bool occ = c.remote ? remote_occupied(c.item) : occupied_ref(c.item, c.logic_block);
+      return c.is == Node::IS_CLEAR ? !occ : occ;
     }
-    case Cond::TURNOUT:
-      return !c.is.empty() && turnout_is(c.name, c.remote, c.board, c.is.front());
-    case Cond::MAST: {
-      const MastDef *def = nullptr;
-      std::string aspect;
-      Tag tag;
-      mast_reading(c.name, c.remote, c.board, &def, &aspect, &tag);
-      if (!c.is.empty() && c.is.front() == "diverging") return !aspect.empty() && def && contains(def->diverging, aspect);
-      return contains(c.is, tag_name(tag));
+    case Node::TURNOUT: {
+      uint8_t want = c.is == Node::IS_CLOSED   ? T_CLOSED
+                     : c.is == Node::IS_THROWN ? T_THROWN
+                     : c.is == Node::IS_MOVING ? T_MOVING
+                                               : 0xFF;
+      if (!c.remote) return c.item != NONE && turnouts_[c.item] == want;
+      if (c.item == NONE) return false;
+      int16_t v = remote_values_[c.item];
+      return known(t_.remote_items[c.item].board, v != R_UNSET) && v == want;
     }
-    case Cond::BUTTON:
-      return input("button", c.name).value;
+    case Node::MAST: {
+      // Rule 13: what the mast reads as, or nothing (stop).
+      const Mast *def = nullptr;
+      int16_t a = -1;
+      if (c.remote) {
+        if (c.item != NONE) {
+          const RemoteItem &it = t_.remote_items[c.item];
+          def = it.mast == NONE ? nullptr : &t_.remote_masts[it.mast];
+          int16_t v = remote_values_[c.item];
+          if (known(it.board, v != R_UNSET)) a = v;
+        }
+      } else if (c.item != NONE) {
+        def = &t_.masts[c.item];
+        a = field_[c.item] ? prev_out_[c.item] : display_[c.item];
+      }
+      Tag tag = def ? aspect_tag(*def, a) : TAG_NONE;
+      if (c.is == Node::IS_DIVERGING) return tag != TAG_NONE && t_.aspects[def->aspect_first + a].diverging;
+      if (c.is != Node::IS_TAGS) return false;
+      if (tag == TAG_NONE) tag = TAG_STOP;
+      return (c.tags >> tag) & 1;
+    }
+    case Node::BUTTON:
+      return c.item != NONE && buttons_[c.item].value;
   }
   return false;
 }
 
-bool Engine::moment(const Cond &m) {
-  if (!m.remote && m.kind == Cond::BUTTON) return !m.is.empty() && m.is.front() == "pressed" && input("button", m.name).on;
-  if (!m.remote && m.kind == Cond::BLOCK) return went(m.name, m.is.empty() || m.is.front() != "clear");
-  auto e = edges_.find(&m);
-  return condition(m) && e != edges_.end() && !e->second;
+bool Engine::moment(uint16_t index) {
+  const Node &m = t_.nodes[index];
+  if (!m.remote && m.kind == Node::BUTTON) return m.is == Node::IS_PRESSED && m.item != NONE && buttons_[m.item].on;
+  if (!m.remote && m.kind == Node::BLOCK) return went(m.item, m.logic_block, m.is != Node::IS_CLEAR);
+  return condition(index) && edges_[index] == 0;
 }
 
-bool Engine::same_input_in_order(const Cond &prev, const Cond &next) {
-  if (prev.kind != Cond::BLOCK || next.kind != Cond::BLOCK || prev.remote || next.remote) return false;
-  if (prev.name != next.name || logic_block(prev.name)) return false;
-  const Latch &s = input("sensor", prev.name);
-  const std::string a = prev.is.empty() ? "" : prev.is.front();
-  const std::string b = next.is.empty() ? "" : next.is.front();
-  if (a == "occupied" && b == "clear") return s.on && s.off && !s.value;
-  if (a == "clear" && b == "occupied") return s.on && s.off && s.value;
+// { sensor: X } and { block: X } are one input.
+bool Engine::same_input_in_order(uint16_t pi, uint16_t ni) {
+  const Node &prev = t_.nodes[pi], &next = t_.nodes[ni];
+  if (prev.kind != Node::BLOCK || next.kind != Node::BLOCK) return false;
+  if (prev.remote || next.remote) return false;
+  if (prev.item != next.item || prev.logic_block || next.logic_block || prev.item == NONE) return false;
+  const Latch &s = sensors_[prev.item];
+  if (prev.is == Node::IS_OCCUPIED && next.is == Node::IS_CLEAR) return s.on && s.off && !s.value;
+  if (prev.is == Node::IS_CLEAR && next.is == Node::IS_OCCUPIED) return s.on && s.off && s.value;
   return false;
 }
 
-bool Engine::advance(const std::vector<Cond> &seq, size_t *p) {
+bool Engine::advance(uint16_t first, uint16_t count, uint16_t *p) {
   bool moved = false;
-  while (*p < seq.size()) {
-    const Cond &m = seq[*p];
+  while (*p < count) {
+    uint16_t m = t_.seq[first + *p];
     if (!moment(m)) break;
-    if (moved && !same_input_in_order(seq[*p - 1], m)) break;
+    if (moved && !same_input_in_order(t_.seq[first + *p - 1], m)) break;
     *p += 1;
     moved = true;
   }
-  if (*p == seq.size()) {
+  if (*p == count) {
     *p = 0;
     return true;
   }
@@ -384,36 +386,38 @@ bool Engine::advance(const std::vector<Cond> &seq, size_t *p) {
 
 // --- triggers and releases (rules 3, 5, 9, 20) ------------------------------
 
-void Engine::reset_trigger(Rule &rule) {
-  rule.trig = TrigState();
-  rule.phase = IDLE;
+void Engine::reset_trigger(uint16_t r) {
+  rules_[r].trig = TrigState();
+  rules_[r].phase = IDLE;
 }
 
-void Engine::reset_release(Resource &res) {
-  res.rel_run_true = -1;
-  res.rel_seq_p = 0;
-  res.rel_done = false;
+void Engine::reset_release(uint16_t i) {
+  res_[i].rel_run_true = -1;
+  res_[i].rel_seq_p = 0;
+  res_[i].rel_done = false;
 }
 
-bool Engine::held(const Resource &res) const { return res.holder >= 0 || res.startup_held; }
+bool Engine::held(uint16_t i) const { return res_[i].holder != NONE || res_[i].startup_held; }
 
-void Engine::eval_trigger(Rule &rule, const Ctx &ctx) {
-  const Trigger &t = rule.def->trigger;
-  TrigState &st = rule.trig;
+void Engine::eval_trigger(uint16_t r, const Ctx &ctx) {
+  const Rule &rule = t_.rules[r];
+  RuleState &rs = rules_[r];
+  const Trigger &t = rule.trigger;
+  TrigState &st = rs.trig;
   bool is_true;
   if (t.when) {
-    if (advance(t.seq, &st.seq_p)) {
+    if (advance(t.seq_first, t.seq_count, &st.seq_p)) {
       st.request = true;
-      if (rule.resource < 0) st.fired = true;
+      if (rule.resource == NONE) st.fired = true;
     }
-    is_true = rule.resource >= 0 ? st.request : st.fired;
+    is_true = rule.resource != NONE ? st.request : st.fired;
     st.fired = false;
   } else {
-    bool raw = t.present && condition(t.cond);
+    bool raw = t.present && t.cond != NONE && condition(t.cond);
     if (t.leaving_guard) {
       if (!raw)
         st.guard = false;
-      else if (!ctx.startup && st.prev_raw == 0 && rule.resource >= 0 && ctx.held_at_start[rule.resource])
+      else if (!ctx.startup && st.prev_raw == 0 && rule.resource != NONE && ctx.held_at_start[rule.resource])
         st.guard = true;
     }
     st.prev_raw = raw ? 1 : 0;
@@ -430,24 +434,25 @@ void Engine::eval_trigger(Rule &rule, const Ctx &ctx) {
   }
   if (is_true && st.since < 0) st.since = n_;
   if (!is_true) st.since = -1;
-  rule.true_now = is_true;
-  rule.checks_now = true;
-  for (const auto &c : rule.def->checks) {
-    if (!condition(c)) {
-      rule.checks_now = false;
+  rs.true_now = is_true;
+  rs.checks_now = true;
+  for (uint16_t i = 0; i < rule.checks_count; i++) {
+    if (!condition(t_.kids[rule.checks_first + i])) {
+      rs.checks_now = false;
       break;
     }
   }
 }
 
-void Engine::eval_release(Resource &res) {
-  const Trigger &t = res.def->release;
+void Engine::eval_release(uint16_t i) {
+  const Trigger &t = t_.resources[i].release;
+  ResState &res = res_[i];
   if (t.when) {
-    res.release_now = held(res) ? (advance(t.seq, &res.rel_seq_p) || res.rel_done) : false;
+    res.release_now = held(i) ? (advance(t.seq_first, t.seq_count, &res.rel_seq_p) || res.rel_done) : false;
     if (res.release_now) res.rel_done = true;
     return;
   }
-  bool raw = t.present && condition(t.cond);
+  bool raw = t.present && t.cond != NONE && condition(t.cond);
   if (raw) {
     if (res.rel_run_true < 0) res.rel_run_true = n_;
   } else {
@@ -456,47 +461,52 @@ void Engine::eval_release(Resource &res) {
   res.release_now = raw && (n_ - res.rel_run_true) * SCAN_MS >= t.for_ms;
 }
 
-void Engine::free_res(Resource &res) {
-  if (res.holder >= 0) {
+void Engine::free_res(uint16_t i) {
+  ResState &res = res_[i];
+  if (res.holder != NONE) {
     rules_[res.holder].phase = IDLE;
-    res.holder = -1;
+    res.holder = NONE;
   }
   res.startup_held = false;
   res.rel_seq_p = 0;
   res.rel_done = false;
 }
 
-bool Engine::block_occupied_or_went(const Resource &res) {
-  for (const auto &b : res.def->blocks)
-    if (occupied(b, false, "") || went(b, true)) return true;
+bool Engine::block_occupied_or_went(uint16_t i) {
+  const Resource &res = t_.resources[i];
+  for (uint16_t b = 0; b < res.blocks_count; b++) {
+    const BlockRef &ref = t_.block_refs[res.blocks_first + b];
+    if (occupied_ref(ref.item, ref.logic_block) || went(ref.item, ref.logic_block, true)) return true;
+  }
   return false;
 }
 
-bool Engine::blocks_clear(const Resource &res) {
-  for (const auto &b : res.def->blocks)
-    if (occupied(b, false, "")) return false;
+bool Engine::blocks_clear(uint16_t i) {
+  const Resource &res = t_.resources[i];
+  for (uint16_t b = 0; b < res.blocks_count; b++) {
+    const BlockRef &ref = t_.block_refs[res.blocks_first + b];
+    if (occupied_ref(ref.item, ref.logic_block)) return false;
+  }
   return true;
 }
 
-bool Engine::mast_held(const Rule &rule) const {
-  const std::string &m = rule.def->then.mast;
-  if (m.empty()) return false;
-  auto it = holds_.find(m);
-  return it != holds_.end() && it->second;
+bool Engine::mast_held(uint16_t r) const {
+  uint16_t m = t_.rules[r].mast;
+  return m != NONE && holds_[m];
 }
 
-bool Engine::is_active(const Rule &rule) const {
-  return rule.resource >= 0 ? rule.phase == ACTIVE : (rule.true_now && rule.checks_now);
+bool Engine::is_active(uint16_t r) const {
+  return t_.rules[r].resource != NONE ? rules_[r].phase == ACTIVE : (rules_[r].true_now && rules_[r].checks_now);
 }
 
-bool Engine::locks_held(const Rule &rule) const {
-  return rule.resource >= 0 ? rule.phase != IDLE : (rule.true_now && rule.checks_now);
+bool Engine::locks_held(uint16_t r) const {
+  return t_.rules[r].resource != NONE ? rules_[r].phase != IDLE : (rules_[r].true_now && rules_[r].checks_now);
 }
 
-std::string Engine::resource_state(const Resource &res) const {
-  if (res.startup_held) return "PASSED";
-  if (res.holder < 0) return "IDLE";
-  switch (rules_[res.holder].phase) {
+const char *Engine::resource_state(uint16_t i) const {
+  if (res_[i].startup_held) return "PASSED";
+  if (res_[i].holder == NONE) return "IDLE";
+  switch (rules_[res_[i].holder].phase) {
     case ACTIVE: return "ACTIVE";
     case PASSED: return "PASSED";
     case CANCELLING: return "CANCELLING";
@@ -506,42 +516,40 @@ std::string Engine::resource_state(const Resource &res) const {
 
 // --- writes and publishes (rules 21, 22) ----------------------------------
 
-void Engine::finish(ScanOut *out, const std::map<std::string, std::string> &new_out,
-                    const std::map<std::string, bool> &new_locks, bool has_out) {
-  if (has_out) {
-    for (const auto &m : field_masts_) {
-      auto it = new_out.find(m);
-      if (it == new_out.end()) continue;
-      if (display_[m] != it->second) out->writes.push_back(Write{false, m, it->second, false});
-      display_[m] = it->second;
+void Engine::finish(ScanOut *out, const std::vector<int16_t> *new_out, const std::vector<bool> &new_locks) {
+  if (new_out) {
+    for (size_t m = 0; m < t_.masts.size(); m++) {
+      if (!field_[m]) continue;
+      int16_t a = (*new_out)[m];
+      if (display_[m] != a) out->writes.push_back(Write{false, t_.names[t_.masts[m].name], aspect_text(m, a), false});
+      display_[m] = a;
     }
   }
-  for (const auto &t : board_.turnouts) {
-    bool now = new_locks.at(t);
-    if (field_locks_[t] != now) out->writes.push_back(Write{true, t, "", now});
-  }
+  for (size_t t = 0; t < t_.declared_turnouts; t++)
+    if (field_locks_[t] != new_locks[t]) out->writes.push_back(Write{true, t_.names[t_.turnouts[t]], "", new_locks[t]});
   field_locks_ = new_locks;
-  for (const auto &t : board_.turnouts) {
+  for (size_t t = 0; t < t_.declared_turnouts; t++) {
     bool locked = field_locks_[t] || remote_locks_[t];
-    if (prev_locked_[t] && !locked) out->events.push_back(LogEvent{LogEvent::RESYNC, t, "", ""});
+    if (prev_locked_[t] && !locked) out->events.push_back(LogEvent{LogEvent::RESYNC, t_.names[t_.turnouts[t]], "", ""});
     prev_locked_[t] = locked;
   }
 }
 
 void Engine::publish_resources(ScanOut *out, const std::vector<std::string> &echoes) {
   if (!broker_) return;
-  for (const auto &res : resources_) {
-    const std::pair<Publish::Kind, std::string> values[] = {
-        {Publish::HELD, held(res) ? "ACTIVE" : "INACTIVE"},
-        {Publish::STATE, resource_state(res)},
-    };
-    for (const auto &v : values) {
-      std::string id = res.def->name + '\0' + (v.first == Publish::HELD ? "held" : "state");
-      auto it = published_.find(id);
-      if (publish_all_ || it == published_.end() || it->second != v.second) {
-        out->publishes.push_back(Publish{v.first, res.def->name, v.second});
-        published_[id] = v.second;
-      }
+  for (size_t i = 0; i < t_.resources.size(); i++) {
+    const std::string &name = t_.names[t_.resources[i].name];
+    // Held: 0 INACTIVE, 1 ACTIVE. State: 2 IDLE, 3 ACTIVE, 4 PASSED, 5 CANCELLING.
+    int8_t held_v = held(static_cast<uint16_t>(i)) ? 1 : 0;
+    const char *state = resource_state(static_cast<uint16_t>(i));
+    int8_t state_v = state[0] == 'I' ? 2 : state[0] == 'A' ? 3 : state[0] == 'P' ? 4 : 5;
+    if (publish_all_ || published_[2 * i] != held_v) {
+      out->publishes.push_back(Publish{Publish::HELD, name, held_v ? "ACTIVE" : "INACTIVE"});
+      published_[2 * i] = held_v;
+    }
+    if (publish_all_ || published_[2 * i + 1] != state_v) {
+      out->publishes.push_back(Publish{Publish::STATE, name, state});
+      published_[2 * i + 1] = state_v;
     }
   }
   for (const auto &name : echoes) out->publishes.push_back(Publish{Publish::RELEASE, name, "CLOSED"});
@@ -549,31 +557,28 @@ void Engine::publish_resources(ScanOut *out, const std::vector<std::string> &ech
 }
 
 void Engine::record_edges() {
-  for (const Cond *m : tracked_) edges_[m] = condition(*m);
-  for (const auto &b : board_.blocks) prev_block_[b.name] = occupied(b.name, false, "");
+  for (uint16_t m : tracked_) edges_[m] = condition(m) ? 1 : 0;
+  for (size_t b = 0; b < t_.blocks.size(); b++) prev_block_[b] = occupied_ref(static_cast<uint16_t>(b), true);
 }
 
 void Engine::end_scan() {
-  for (auto &l : latched_) l.second.on = l.second.off = false;
+  for (auto &l : sensors_) l.on = l.off = false;
+  for (auto &l : buttons_) l.on = l.off = false;
   n_ += 1;
 }
 
 void Engine::switch_off(ScanOut *out, const std::vector<std::string> &echoes) {
-  for (auto &res : resources_) {
-    if (held(res)) {
-      out->events.push_back(LogEvent{LogEvent::RELEASE, res.def->name, "", "switch"});
-      free_res(res);
+  for (size_t i = 0; i < t_.resources.size(); i++) {
+    if (held(static_cast<uint16_t>(i))) {
+      out->events.push_back(LogEvent{LogEvent::RELEASE, t_.names[t_.resources[i].name], "", "switch"});
+      free_res(static_cast<uint16_t>(i));
     }
   }
-  for (auto &rule : rules_) reset_trigger(rule);
-  std::map<std::string, std::string> new_out;
-  for (const auto &m : field_masts_) {
-    const std::string &shown = jmri_shown_[m];
-    new_out[m] = shown.empty() ? stop_aspect(*mast(m)) : shown;
-  }
-  std::map<std::string, bool> no_locks;
-  for (const auto &t : board_.turnouts) no_locks[t] = false;
-  finish(out, new_out, no_locks, true);
+  for (size_t r = 0; r < t_.rules.size(); r++) reset_trigger(static_cast<uint16_t>(r));
+  std::vector<int16_t> new_out(t_.masts.size(), SHOWS_NOTHING);
+  for (size_t m = 0; m < t_.masts.size(); m++)
+    if (field_[m]) new_out[m] = jmri_shown_[m] == SHOWS_NOTHING ? t_.masts[m].stop : jmri_shown_[m];
+  finish(out, &new_out, std::vector<bool>(t_.turnouts.size(), false));
   publish_resources(out, echoes);
   logic_on_ = false;
 }
@@ -582,13 +587,14 @@ void Engine::switch_off(ScanOut *out, const std::vector<std::string> &echoes) {
 
 ScanOut Engine::scan() {
   ScanOut out;
-  if (pending_logic_ == "on" && !logic_on_) {
+  if (pending_logic_ == 1 && !logic_on_) {
     logic_on_ = true;
     startup_next_ = true;
   }
-  bool switching_off = pending_logic_ == "off" && logic_on_;
-  pending_logic_.clear();
+  bool switching_off = pending_logic_ == 0 && logic_on_;
+  pending_logic_ = -1;
   if (switching_off || !logic_on_) {
+    // No section to release while logic is off, but each press is answered.
     std::vector<std::string> echoes;
     if (broker_)
       for (const auto &p : pending_releases_) echoes.push_back(p.first);
@@ -596,9 +602,7 @@ ScanOut Engine::scan() {
     if (switching_off) {
       switch_off(&out, echoes);
     } else {
-      std::map<std::string, bool> no_locks;
-      for (const auto &t : board_.turnouts) no_locks[t] = false;
-      finish(&out, {}, no_locks, false);
+      finish(&out, nullptr, std::vector<bool>(t_.turnouts.size(), false));
       for (const auto &name : echoes) out.publishes.push_back(Publish{Publish::RELEASE, name, "CLOSED"});
     }
     record_edges();
@@ -608,166 +612,183 @@ ScanOut Engine::scan() {
 
   Ctx ctx;
   ctx.startup = startup_next_;
-  for (const auto &res : resources_) ctx.held_at_start.push_back(held(res));
+  for (size_t i = 0; i < t_.resources.size(); i++) ctx.held_at_start.push_back(held(static_cast<uint16_t>(i)));
   startup_next_ = false;
-  std::vector<std::string> force_stop;
-  std::vector<bool> released_now(resources_.size(), false);
+  std::vector<bool> force_stop(t_.masts.size(), false);
+  std::vector<bool> released_now(t_.resources.size(), false);
   std::vector<std::string> echoes;
 
   // 6.1: start-up, then manual releases.
   if (ctx.startup) {
     out.events.push_back(LogEvent{LogEvent::STARTUP, "", "", ""});
-    for (auto &rule : rules_) reset_trigger(rule);
-    for (auto &res : resources_) {
-      free_res(res);
-      reset_release(res);
+    for (size_t r = 0; r < t_.rules.size(); r++) reset_trigger(static_cast<uint16_t>(r));
+    for (size_t i = 0; i < t_.resources.size(); i++) {
+      free_res(static_cast<uint16_t>(i));
+      reset_release(static_cast<uint16_t>(i));
     }
-    for (const auto &m : field_masts_) prev_out_[m] = stop_aspect(*mast(m));
-    for (auto &res : resources_) {
-      for (const auto &b : res.def->blocks) {
-        if (occupied(b, false, "")) {
-          res.startup_held = true;
-          out.events.push_back(LogEvent{LogEvent::PASS, res.def->name, "", ""});
+    for (size_t m = 0; m < t_.masts.size(); m++)
+      if (field_[m]) prev_out_[m] = t_.masts[m].stop;
+    for (size_t i = 0; i < t_.resources.size(); i++) {
+      const Resource &res = t_.resources[i];
+      for (uint16_t b = 0; b < res.blocks_count; b++) {
+        const BlockRef &ref = t_.block_refs[res.blocks_first + b];
+        if (occupied_ref(ref.item, ref.logic_block)) {
+          res_[i].startup_held = true;
+          out.events.push_back(LogEvent{LogEvent::PASS, t_.names[res.name], "", ""});
           break;
         }
       }
     }
   }
-  for (size_t i = 0; i < resources_.size(); i++) {
-    Resource &res = resources_[i];
+  for (size_t i = 0; i < t_.resources.size(); i++) {
+    const std::string &name = t_.names[t_.resources[i].name];
     for (const auto &press : pending_releases_) {
-      if (press.first != res.def->name) continue;
-      if (broker_) echoes.push_back(res.def->name);
+      if (press.first != name) continue;
+      if (broker_) echoes.push_back(name);
       if (press.second) {
-        out.events.push_back(LogEvent{LogEvent::IGNORED, res.def->name, "", ""});
+        out.events.push_back(LogEvent{LogEvent::IGNORED, name, "", ""});
         continue;
       }
-      out.events.push_back(LogEvent{LogEvent::RELEASE, res.def->name, "", "manual"});
-      free_res(res);
+      out.events.push_back(LogEvent{LogEvent::RELEASE, name, "", "manual"});
+      free_res(static_cast<uint16_t>(i));
       released_now[i] = true;
-      for (int r : res.rules) {
-        const std::string &m = rules_[r].def->then.mast;
-        if (m.empty()) continue;
+      for (uint16_t r : res_rules_[i]) {
+        uint16_t m = t_.rules[r].mast;
+        if (m == NONE) continue;
         holds_[m] = false;
-        force_stop.push_back(m);
+        force_stop[m] = true;
       }
     }
   }
   pending_releases_.clear();
 
   // 6.2: releases read this scan, a start-up hold's release, then each rule.
-  for (auto &res : resources_) eval_release(res);
-  for (auto &res : resources_) {
-    if (res.startup_held && res.release_now) {
-      out.events.push_back(LogEvent{LogEvent::RELEASE, res.def->name, "", "release"});
-      free_res(res);
+  for (size_t i = 0; i < t_.resources.size(); i++) eval_release(static_cast<uint16_t>(i));
+  for (size_t i = 0; i < t_.resources.size(); i++) {
+    if (res_[i].startup_held && res_[i].release_now) {
+      out.events.push_back(LogEvent{LogEvent::RELEASE, t_.names[t_.resources[i].name], "", "release"});
+      free_res(static_cast<uint16_t>(i));
     }
   }
-  for (auto &rule : rules_) {
-    eval_trigger(rule, ctx);
-    if (rule.resource < 0) continue;
-    Resource &res = resources_[rule.resource];
-    if (res.holder != rule.index) continue;
-    const std::string &name = res.def->name;
-    if (rule.phase == ACTIVE) {
-      const Trigger &t = rule.def->trigger;
+  for (size_t ri = 0; ri < t_.rules.size(); ri++) {
+    const uint16_t r = static_cast<uint16_t>(ri);
+    eval_trigger(r, ctx);
+    const Rule &rule = t_.rules[r];
+    RuleState &rs = rules_[r];
+    if (rule.resource == NONE) continue;
+    const uint16_t i = rule.resource;
+    if (res_[i].holder != r) continue;
+    const std::string &name = t_.names[t_.resources[i].name];
+    if (rs.phase == ACTIVE) {
       bool cancel = false;
-      if (t.when) {
-        if (rule.def->has_cancel && moment(rule.def->cancel)) {
+      if (rule.trigger.when) {
+        if (rule.cancel != NONE && moment(rule.cancel)) {
           cancel = true;
-          rule.trig.request = false;
+          rs.trig.request = false;
         }
-      } else if (!rule.true_now) {
+      } else if (!rs.true_now) {
         cancel = true;
       }
-      if (!cancel && mast_held(rule)) {
+      if (!cancel && mast_held(r)) {
         cancel = true;
-        if (t.when) rule.trig.request = true;
+        if (rule.trigger.when) rs.trig.request = true;
       }
       if (cancel) {
-        out.events.push_back(LogEvent{LogEvent::CANCEL, name, rule.ref, ""});
-        if (res.def->approach_lock_ms > 0) {
-          rule.phase = CANCELLING;
-          rule.cancel_at = n_;
+        out.events.push_back(LogEvent{LogEvent::CANCEL, name, t_.rule_ref(r), ""});
+        if (t_.resources[i].approach_lock_ms > 0) {
+          rs.phase = CANCELLING;
+          rs.cancel_at = n_;
         } else {
           out.events.push_back(LogEvent{LogEvent::RELEASE, name, "", "cancel"});
-          free_res(res);
+          free_res(i);
           continue;
         }
       }
     }
-    if ((rule.phase == ACTIVE || rule.phase == CANCELLING) && block_occupied_or_went(res)) {
-      rule.phase = PASSED;
-      out.events.push_back(LogEvent{LogEvent::PASS, name, rule.ref, ""});
+    if ((rs.phase == ACTIVE || rs.phase == CANCELLING) && block_occupied_or_went(i)) {
+      rs.phase = PASSED;
+      out.events.push_back(LogEvent{LogEvent::PASS, name, t_.rule_ref(r), ""});
     }
-    if (rule.phase == CANCELLING && (n_ - rule.cancel_at) * SCAN_MS >= res.def->approach_lock_ms) {
+    if (rs.phase == CANCELLING && (n_ - rs.cancel_at) * SCAN_MS >= t_.resources[i].approach_lock_ms) {
       out.events.push_back(LogEvent{LogEvent::RELEASE, name, "", "time"});
-      free_res(res);
+      free_res(i);
       continue;
     }
-    if (rule.phase == PASSED && res.release_now) {
+    if (rs.phase == PASSED && res_[i].release_now) {
       out.events.push_back(LogEvent{LogEvent::RELEASE, name, "", "release"});
-      free_res(res);
+      free_res(i);
     }
   }
 
   // 6.3: grants, longest waiting first, then list order.
-  for (size_t i = 0; i < resources_.size(); i++) {
-    Resource &res = resources_[i];
-    if (held(res) || released_now[i] || !blocks_clear(res)) continue;
-    int best = -1;
-    for (int r : res.rules) {
-      const Rule &rule = rules_[r];
-      if (rule.phase != IDLE || !rule.true_now || !rule.checks_now || mast_held(rule)) continue;
-      if (best < 0 || rule.trig.since < rules_[best].trig.since ||
-          (rule.trig.since == rules_[best].trig.since && rule.index < rules_[best].index))
+  for (size_t ii = 0; ii < t_.resources.size(); ii++) {
+    const uint16_t i = static_cast<uint16_t>(ii);
+    if (held(i) || released_now[i] || !blocks_clear(i)) continue;
+    uint16_t best = NONE;
+    for (uint16_t r : res_rules_[i]) {
+      const RuleState &rs = rules_[r];
+      if (rs.phase != IDLE || !rs.true_now || !rs.checks_now || mast_held(r)) continue;
+      if (best == NONE || rs.trig.since < rules_[best].trig.since || (rs.trig.since == rules_[best].trig.since && r < best))
         best = r;
     }
-    if (best < 0) continue;
-    Rule &rule = rules_[best];
-    rule.phase = ACTIVE;
-    res.holder = best;
-    res.rel_seq_p = 0;
-    res.rel_done = false;
-    if (rule.def->trigger.when) {
-      rule.trig.request = false;
-      rule.trig.since = -1;
+    if (best == NONE) continue;
+    RuleState &rs = rules_[best];
+    rs.phase = ACTIVE;
+    res_[i].holder = best;
+    res_[i].rel_seq_p = 0;
+    res_[i].rel_done = false;
+    if (t_.rules[best].trigger.when) {
+      rs.trig.request = false;
+      rs.trig.since = -1;
     }
-    out.events.push_back(LogEvent{LogEvent::GRANT, res.def->name, rule.ref, ""});
+    out.events.push_back(LogEvent{LogEvent::GRANT, t_.names[t_.resources[i].name], t_.rule_ref(best), ""});
   }
 
   // 6.4: who wins each mast (rule 12), approach lighting, then the locks.
-  std::map<std::string, std::string> new_out;
-  for (const auto &m : field_masts_) {
-    const MastDef &def = *mast(m);
-    const std::string stop = stop_aspect(def);
-    std::vector<std::string> answers;
-    for (const auto &layer : layer_rules_) {
-      bool sets = false;
-      const Rule *winner = nullptr;
-      for (int r : layer) {
-        if (rules_[r].def->then.mast != m) continue;
-        sets = true;
-        if (!winner && is_active(rules_[r])) winner = &rules_[r];
+  std::vector<int16_t> new_out(t_.masts.size(), SHOWS_NOTHING);
+  for (size_t mi = 0; mi < t_.masts.size(); mi++) {
+    if (!field_[mi]) continue;
+    const Mast &def = t_.masts[mi];
+    const int16_t stop = def.stop;
+    int16_t pick = -100;
+    auto consider = [&](int16_t a) {
+      if (pick == -100 || aspect_tag(def, a) < aspect_tag(def, pick)) pick = a;
+    };
+    uint16_t layer = NONE;
+    bool sets = false;
+    int16_t winner = -100;
+    auto close_layer = [&]() {
+      if (sets) consider(winner != -100 ? winner : stop);
+    };
+    for (size_t ri = 0; ri < t_.rules.size(); ri++) {
+      const Rule &rule = t_.rules[ri];
+      if (rule.layer != layer) {
+        close_layer();
+        layer = rule.layer;
+        sets = false;
+        winner = -100;
       }
-      if (!sets) continue;
+      if (rule.mast != mi) continue;
+      sets = true;
       // Fail safe: an aspect the mast does not have is its stop aspect.
-      answers.push_back(winner && tag_of(def, winner->def->then.aspect) != TAG_NONE ? winner->def->then.aspect : stop);
+      if (winner == -100 && is_active(static_cast<uint16_t>(ri))) winner = aspect_tag(def, rule.aspect) != TAG_NONE ? rule.aspect : stop;
     }
-    if (holds_[m] || contains(force_stop, m)) answers.push_back(stop);
-    std::string pick = answers.empty() ? stop : answers.front();
-    for (const auto &a : answers)
-      if (tag_of(def, a) < tag_of(def, pick)) pick = a;
-    if (!def.approach_light.empty() && !occupied(def.approach_light, false, "")) pick = "dark";
-    new_out[m] = pick;
+    close_layer();
+    if (holds_[mi] || force_stop[mi]) consider(stop);
+    if (pick == -100) pick = stop;
+    if (def.approach_light != NONE) {
+      const BlockRef &ref = t_.block_refs[def.approach_light];
+      if (!occupied_ref(ref.item, ref.logic_block)) pick = SHOWS_DARK;
+    }
+    new_out[mi] = pick;
   }
-  std::map<std::string, bool> new_locks;
-  for (const auto &t : board_.turnouts) new_locks[t] = false;
-  for (const auto &rule : rules_) {
-    if (!locks_held(rule)) continue;
-    for (const auto &t : rule.def->then.lock) new_locks[t] = true;
+  std::vector<bool> new_locks(t_.turnouts.size(), false);
+  for (size_t r = 0; r < t_.rules.size(); r++) {
+    if (!locks_held(static_cast<uint16_t>(r))) continue;
+    const Rule &rule = t_.rules[r];
+    for (uint16_t l = 0; l < rule.locks_count; l++) new_locks[t_.locks[rule.locks_first + l]] = true;
   }
-  finish(&out, new_out, new_locks, true);
+  finish(&out, &new_out, new_locks);
   record_edges();
   prev_out_ = new_out;
   publish_resources(&out, echoes);
@@ -777,55 +798,87 @@ ScanOut Engine::scan() {
 
 // --- events ---------------------------------------------------------------
 
-void Engine::set_latched(const char *kind, const std::string &name, bool value) {
-  Latch &v = input(kind, name);
-  if (v.value == value) return;
-  v.value = value;
-  if (value)
-    v.on = true;
-  else
-    v.off = true;
-}
-
 void Engine::event(const Event &e) {
-  int64_t t = n_ * SCAN_MS;
+  int64_t now = n_ * SCAN_MS;
   switch (e.kind) {
     case Event::REMOTE_ONLINE: {
-      auto it = remote_.find(e.board);
-      if (it != remote_.end()) it->second.online = e.flag ? 1 : 0;
+      int16_t b = find(t_.remote_boards, e.board);
+      if (b >= 0) online_[b] = e.flag ? 1 : 0;
       return;
     }
     case Event::REMOTE_MAST: {
-      auto it = remote_.find(e.board);
-      if (it != remote_.end()) it->second.items[key("mast", e.name)] = e.value;
+      int16_t b = find(t_.remote_boards, e.board);
+      if (b < 0) return;
+      int16_t i = find_remote_item(b, RemoteItem::MAST, e.name);
+      if (i < 0) return;
+      if (e.value.empty()) {
+        remote_values_[i] = R_UNSET;
+        return;
+      }
+      const RemoteItem &it = t_.remote_items[i];
+      int16_t a = it.mast == NONE ? -1 : aspect_index(t_.remote_masts[it.mast], e.value);
+      remote_values_[i] = a >= 0 ? a : R_NOT_ASPECT;
       return;
     }
     case Event::REMOTE_ITEM: {
-      auto it = remote_.find(e.board);
-      if (it == remote_.end()) return;
-      std::string kind = e.item_kind == "turnout" ? "turnout" : remote_kind(e.board, e.name);
-      std::string k = key(kind.c_str(), e.name);
-      if (e.value == "unknown")
-        it->second.items.erase(k);
+      int16_t b = find(t_.remote_boards, e.board);
+      if (b < 0) return;
+      bool turnout = e.item_kind == "turnout";
+      int16_t i = find_remote_item(b, turnout ? RemoteItem::TURNOUT : RemoteItem::SENSOR, e.name);
+      if (i < 0) return;
+      const std::string &v = e.value;
+      if (v == "unknown")
+        remote_values_[i] = R_UNSET;
+      else if (turnout)
+        remote_values_[i] = v == "closed" ? T_CLOSED : v == "thrown" ? T_THROWN : v == "moving" ? T_MOVING : T_OTHER;
       else
-        it->second.items[k] = e.value;
+        remote_values_[i] = v == "occupied" ? R_OCCUPIED : R_CLEAR;
       return;
     }
-    case Event::SENSOR: return set_latched("sensor", e.name, e.value == "occupied");
-    case Event::BUTTON: return set_latched("button", e.name, e.value == "pressed");
-    case Event::TURNOUT: turnouts_[e.name] = e.value; return;
-    case Event::REMOTE_LOCK: remote_locks_[e.name] = e.value == "locked"; return;
-    case Event::JMRI: return jmri_message(e.name, e.value);
+    case Event::SENSOR:
+    case Event::BUTTON: {
+      bool sensor = e.kind == Event::SENSOR;
+      int16_t i = find(sensor ? t_.sensors : t_.buttons, e.name);
+      if (i < 0) return;  // nothing reads it
+      Latch &l = sensor ? sensors_[i] : buttons_[i];
+      bool value = e.value == (sensor ? "occupied" : "pressed");
+      if (l.value == value) return;
+      l.value = value;
+      if (value)
+        l.on = true;
+      else
+        l.off = true;
+      return;
+    }
+    case Event::TURNOUT: {
+      int16_t i = find(t_.turnouts, e.name);
+      if (i < 0) return;
+      const std::string &v = e.value;
+      turnouts_[i] = v == "closed" ? T_CLOSED : v == "thrown" ? T_THROWN : v == "moving" ? T_MOVING : T_OTHER;
+      return;
+    }
+    case Event::REMOTE_LOCK: {
+      int16_t i = find(t_.turnouts, e.name);
+      if (i >= 0) remote_locks_[i] = e.value == "locked";
+      return;
+    }
+    case Event::JMRI: {
+      int16_t m = find_mast(e.name);
+      if (m >= 0) jmri_message(static_cast<uint16_t>(m), e.value);
+      return;
+    }
     case Event::RELEASE: {
-      bool ignored = e.value == "mqtt" && connect_at_ >= 0 && t - connect_at_ < RELEASE_WINDOW_MS;
+      bool ignored = e.value == "mqtt" && connect_at_ >= 0 && now - connect_at_ < RELEASE_WINDOW_MS;
       pending_releases_.emplace_back(e.name, ignored);
       return;
     }
-    case Event::LOGIC: pending_logic_ = e.value; return;
+    case Event::LOGIC:
+      pending_logic_ = e.value == "on" ? 1 : e.value == "off" ? 0 : -1;
+      return;
     case Event::BROKER:
       if (e.value == "connected") {
         broker_ = true;
-        connect_at_ = t;
+        connect_at_ = now;
         publish_all_ = true;
       } else if (e.value == "disconnected") {
         broker_ = false;
@@ -835,44 +888,42 @@ void Engine::event(const Event &e) {
 }
 
 // Rules 15 and 17.
-void Engine::jmri_message(const std::string &mast_name, const std::string &message) {
-  const MastDef *def = mast(mast_name);
-  if (!def) return;
-  std::string pick;
-  bool picked = pick_aspect(*def, message, &pick);
-  if (is_field(mast_name)) {
-    holds_[mast_name] = message.find("; Held") != std::string::npos;
-    if (picked) jmri_shown_[mast_name] = pick;
-    if (!logic_on_ && picked) display_[mast_name] = pick;
-  } else if (picked) {
-    display_[mast_name] = pick;
+void Engine::jmri_message(uint16_t m, const std::string &message) {
+  int16_t pick = pick_aspect(m, message);
+  if (field_[m]) {
+    holds_[m] = message.find("; Held") != std::string::npos;
+    if (pick != IGNORED) jmri_shown_[m] = pick;
+    if (!logic_on_ && pick != IGNORED) display_[m] = pick;
+  } else if (pick != IGNORED) {
+    display_[m] = pick;
   }
 }
 
 State Engine::state() const {
   State s;
   s.logic_on = logic_on_;
-  for (const auto &m : board_.masts) s.masts.emplace_back(m.name, display_.at(m.name));
-  for (const auto &rule : rules_) {
+  for (size_t m = 0; m < t_.masts.size(); m++) s.masts.emplace_back(t_.names[t_.masts[m].name], aspect_text(m, display_[m]));
+  for (size_t r = 0; r < t_.rules.size(); r++) {
     const char *phase = "idle";
     if (logic_on_) {
-      switch (rule.phase) {
+      switch (rules_[r].phase) {
         case ACTIVE: phase = "active"; break;
         case PASSED: phase = "passed"; break;
         case CANCELLING: phase = "cancelling"; break;
         default:
-          phase = (rule.resource >= 0 && rule.true_now && rule.checks_now) ? "waiting" : "idle";
+          phase = (t_.rules[r].resource != NONE && rules_[r].true_now && rules_[r].checks_now) ? "waiting" : "idle";
       }
     }
-    s.rules.emplace_back(rule.ref, phase);
+    s.rules.emplace_back(t_.rule_ref(static_cast<uint16_t>(r)), phase);
   }
-  for (const auto &res : resources_) {
-    s.resources.emplace_back(res.def->name, resource_state(res));
-    s.holders.emplace_back(res.def->name, res.holder >= 0 ? rules_[res.holder].ref : "");
+  for (size_t i = 0; i < t_.resources.size(); i++) {
+    const std::string &name = t_.names[t_.resources[i].name];
+    s.resources.emplace_back(name, resource_state(static_cast<uint16_t>(i)));
+    s.holders.emplace_back(name, res_[i].holder != NONE ? t_.rule_ref(res_[i].holder) : "");
   }
-  for (const auto &t : board_.turnouts) {
-    s.locks.emplace_back(t, field_locks_.at(t));
-    s.locked.emplace_back(t, field_locks_.at(t) || remote_locks_.at(t));
+  for (size_t t = 0; t < t_.declared_turnouts; t++) {
+    s.locks.emplace_back(t_.names[t_.turnouts[t]], field_locks_[t]);
+    s.locked.emplace_back(t_.names[t_.turnouts[t]], field_locks_[t] || remote_locks_[t]);
   }
   return s;
 }

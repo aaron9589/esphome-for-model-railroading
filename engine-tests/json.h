@@ -1,5 +1,5 @@
-// A small JSON reader: the rule table on the board, and the engine cases in
-// engine-tests. No exceptions, no ESPHome. Objects keep their key order.
+// A small JSON reader for engine-tests: the cases and the cross-check traces.
+// The board itself never builds a JSON tree (logic_table.cpp). Key order is kept.
 #pragma once
 
 #include <cstdio>
