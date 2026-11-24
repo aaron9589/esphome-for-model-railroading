@@ -374,6 +374,57 @@ function normalizeTopics(config) {
   }
 }
 
+// References on the Logic page follow a rename once the name is finished
+// (change), not on every key: a half-typed name can pass through another
+// item's name. A name that another item of the same kind has, before or
+// after, is ambiguous, so its references are left for validation to report.
+// An emptied name is not finished: the next name typed takes the references.
+// A rename still being typed when the page closes or reloads is applied then.
+let pendingRename = null;
+
+function applyRename() {
+  const pending = pendingRename;
+  if (!pending) return false;
+  const { kind, item, list, before } = pending;
+  if (!list().includes(item)) {
+    pendingRename = null;
+    return false;
+  }
+  const after = item.name;
+  if (!String(after || "").trim()) return false;
+  pendingRename = null;
+  const taken = (name) =>
+    list().some((other) => other !== item && other.name === name) ||
+    (kind === "mast" && (state.logic?.masts || []).some((mast) => mast?.virtual && mast.name === name));
+  if (before === after || taken(before) || taken(after)) return false;
+  return !!window.EsphomeMrLogicYaml?.renameReferences(state, kind, before, after);
+}
+
+window.addEventListener("pagehide", () => {
+  if (applyRename()) persist();
+});
+
+function followRename(nameField, kind, item, list) {
+  const input = nameField.querySelector("input");
+  // The name before this edit. The field's own input handler has already
+  // changed item.name when ours runs, so it is kept here.
+  let settled = item.name;
+  const start = () => {
+    if (pendingRename?.item !== item) pendingRename = { kind, item, list, before: settled };
+  };
+  input.addEventListener("focus", start);
+  input.addEventListener("input", start);
+  input.addEventListener("change", () => {
+    if (pendingRename?.item !== item) return;
+    if (applyRename()) {
+      persist();
+      updatePreview();
+    }
+    if (!pendingRename) settled = item.name;
+  });
+  return nameField;
+}
+
 function followName(item, kind, card) {
   if (!item.topicCustom) {
     item.topic = topicFor(kind, item.name);
@@ -869,7 +920,7 @@ function renderBlocks() {
     });
     topicField.querySelector("input").dataset.role = "topic";
     fields.append(
-      field("Name", block.name, (v) => {
+      followRename(field("Name", block.name, (v) => {
         block.name = v;
         title.textContent = v || `Sensor ${index + 1}`;
         followName(block, "block", card);
@@ -879,7 +930,7 @@ function renderBlocks() {
         placeholder: "Kiama/Up XOver",
         full: true,
         hint: "Name in the logs. The topic is filled in from this.",
-      }),
+      }), "sensor", block, () => state.blocks),
       topicField,
       field("Pin", sensorPinValue(block), (v) => {
         setSensorPin(block, v);
@@ -1265,7 +1316,7 @@ function renderPointCard(point, index) {
   topicField.querySelector("input").dataset.role = "topic";
 
   fields.append(
-    field("Name", point.name, (v) => {
+    followRename(field("Name", point.name, (v) => {
       point.name = v;
       title.textContent = v || `Turnout ${index + 1}`;
       followName(point, "point", card);
@@ -1275,7 +1326,7 @@ function renderPointCard(point, index) {
       placeholder: "Kiama/Up Loop",
       full: true,
       hint: "Name on the calibration page.",
-    }),
+    }), "turnout", point, () => state.points),
     topicField,
     linkedField(
       "Position report",
@@ -1808,7 +1859,7 @@ function renderSignals() {
     });
     topicField.querySelector("input").dataset.role = "topic";
     fields.append(
-      field("Name", mast.name, (v) => {
+      followRename(field("Name", mast.name, (v) => {
         mast.name = v;
         title.textContent = v || `Mast ${mastIndex + 1}`;
         followName(mast, "signal", card);
@@ -1818,7 +1869,7 @@ function renderSignals() {
         placeholder: "KJN-42.26",
         full: true,
         hint: "Name in the logs. The topic is filled in from this.",
-      }),
+      }), "mast", mast, () => state.signals?.masts || []),
       topicField,
       field("Drive", gpio ? "gpio" : "addressable", (v) => {
         mast.mode = v === "gpio" ? "gpio" : "addressable";
