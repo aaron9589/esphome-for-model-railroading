@@ -130,6 +130,7 @@ class MrLogicComponent : public Component {
   std::vector<RemoteTurnout> remote_turnouts_;
   bool broker_{false};
   bool switch_published_{false};
+  std::string light_published_;  // the light state this board last published
   uint32_t boot_ms_{0};
   uint32_t last_scan_ms_{0};
   uint32_t scans_{0};

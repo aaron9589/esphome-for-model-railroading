@@ -48,7 +48,9 @@ void MrLogicComponent::add_sensor(const std::string &name, binary_sensor::Binary
   // Inputs are recorded as they arrive, so a pulse between scans is not lost.
   sensor->add_on_state_callback([this, index](bool occupied) {
     SensorBinding &s = this->sensors_[index];
-    if (!s.expander_bad) this->feed_sensor_(s, occupied);
+    // A reading from a hub that has just failed is not trusted, even before the next scan notices.
+    if (s.expander != nullptr && (s.expander->is_failed() || s.expander->status_has_warning())) return;
+    this->feed_sensor_(s, occupied);
   });
 }
 
@@ -63,11 +65,11 @@ void MrLogicComponent::add_mast(const std::string &name, std::function<void(int)
     e.name = name;
     e.value = message;
     this->event_(e);
-    // With logic off there is no scan: the message shows at once, as today.
-    if (!this->engine_->logic_on()) {
-      for (auto &m : this->masts_)
-        if (m.name == name) this->show_(m, this->engine_->shows(name));
-    }
+    // With logic off, or on a mast no rule sets, there is no scan to wait for:
+    // the message shows at once, as today. With logic on, a field-controlled
+    // mast's shows() is unchanged, so this does nothing.
+    for (auto &m : this->masts_)
+      if (m.name == name) this->show_(m, this->engine_->shows(name));
   });
 }
 
@@ -270,13 +272,6 @@ void MrLogicComponent::scan_() {
     this->event_(e);
     this->switch_published_ = false;
   }
-  if (this->broker_ && !this->switch_published_ && !this->board_.empty()) {
-    // Retained, so JMRI shows the real state after a reboot or a change here.
-    this->mqtt_publish_(this->topic_("track/light/logic/" + this->board_), this->engine_->logic_on() ? "ON" : "OFF");
-    if (!this->version_.empty())
-      this->mqtt_publish_(this->topic_("track/logic/" + this->board_ + "/Version"), this->version_);
-    this->switch_published_ = true;
-  }
 #endif
   for (auto &s : this->sensors_) {
     if (s.expander == nullptr) continue;
@@ -316,6 +311,17 @@ void MrLogicComponent::scan_() {
   ::logic_core::ScanOut out = this->engine_->scan();
   const uint32_t took = micros() - started;
   this->apply_(out);
+#ifdef USE_MQTT
+  // After the scan, so the switch's new state is what goes out. Retained, so
+  // JMRI shows the real state after a reboot or a change here.
+  if (this->broker_ && !this->switch_published_ && !this->board_.empty()) {
+    this->light_published_ = this->engine_->logic_on() ? "ON" : "OFF";
+    this->mqtt_publish_(this->topic_("track/light/logic/" + this->board_), this->light_published_);
+    if (!this->version_.empty())
+      this->mqtt_publish_(this->topic_("track/logic/" + this->board_ + "/Version"), this->version_);
+    this->switch_published_ = true;
+  }
+#endif
   this->scans_++;
   if (took > this->slowest_us_) {
     this->slowest_us_ = took;
@@ -400,6 +406,10 @@ void MrLogicComponent::mqtt_setup_() {
       this->topic_("track/light/logic/" + this->board_),
       [this](const std::string &, const std::string &payload) {
         if (this->switch_ == nullptr) return;
+        // After a (re)connect the broker hands back the last retained state,
+        // which may be older than a change made here meanwhile: wait until
+        // this board has published its own. Its own echo changes nothing.
+        if (!this->switch_published_ || payload == this->light_published_) return;
         if (payload == "ON" && !this->switch_->state) this->switch_->turn_on();
         if (payload == "OFF" && this->switch_->state) this->switch_->turn_off();
       },

@@ -13,6 +13,9 @@ on:
       - "engine-tests/esphome/**"
       - "configurator/generator.js"
       - "configurator/logic-yaml.js"
+      # make-gauntlet.mjs reads a fixture and a case.
+      - "configurator/test/fixtures/**"
+      - "configurator/test/cases/**"
       - ".github/workflows/component.yml"
   schedule:
     - cron: "17 4 * * 1"
@@ -44,6 +47,7 @@ jobs:
           python-version: "3.13"
 
       - name: Install ESPHome
+        id: esphome
         run: |
           if [ "${{ github.event_name }}" = "schedule" ]; then
             pip install esphome
@@ -51,6 +55,7 @@ jobs:
             pip install "esphome==${ESPHOME_PINNED}"
           fi
           esphome version
+          echo "version=$(esphome version | awk '{print $2}')" >> "$GITHUB_OUTPUT"
 
       # The fixture is made from the configurator's generator, so a generator
       # change that breaks the component's bindings shows up here.
@@ -66,7 +71,9 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.platformio
-          key: platformio-${{ runner.os }}-${{ github.event_name == 'schedule' && 'latest' || env.ESPHOME_PINNED }}
+          # One cache per ESPHome version, so a new toolchain is saved too.
+          key: platformio-${{ runner.os }}-${{ steps.esphome.outputs.version }}
+          restore-keys: platformio-${{ runner.os }}-
 
       - name: esphome compile
         working-directory: engine-tests/esphome

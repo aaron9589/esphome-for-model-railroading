@@ -62,7 +62,8 @@ const section = [
   "  id: logic",
   `  board: ${config.board.name}`,
   "  version: test0001",
-  `  table: '${JSON.stringify(table)}'`,
+  // A single-quoted YAML scalar: a ' inside is written twice.
+  `  table: '${JSON.stringify(table).replace(/'/g, "''")}'`,
   "  logic_switch: field_logic",
   "  sensors:",
   ...ids(config.blocks).flatMap((b) => [`    - name: ${M.yamlQuote(b.name)}`, `      sensor: ${b.id}_sensor`]),
