@@ -1,8 +1,8 @@
 # Engine cases
 
-Shared test cases for the logic engine: the JS engine (`configurator/logic.js`, work item 2.2) and the C++ core (`engine-tests/`, 2.3) must both pass every one. Each file is one board and one timeline: inputs in, expected state out, scan by scan.
+Shared test cases for the logic engine: the JS engine (`configurator/logic.js`, work item 2.2) and the C++ core (`engine-tests/`, 2.3) must both pass every one. Each file is one board and one timeline: inputs in, expected state out, scan by scan. A [multi-board case](#multi-board-cases) is several boards wired by their plant ends, with one timeline.
 
-The expected values are **worked out by hand from the spec** ([field-logic-spec.md](../../../docs/field-logic-spec.md)), never by running an engine. A case that an engine fails is a bug in the engine or a question about the spec, never something to regenerate. `test/engine-cases.test.js` checks that every case refers only to things its board has, and that every Scan, Rules and Fail safe bullet in the spec's Tests section is covered by at least one case.
+The expected values are **worked out by hand from the spec** ([field-logic-spec.md](../../../docs/field-logic-spec.md)), never by running an engine. A case that an engine fails is a bug in the engine or a question about the spec, never something to regenerate. `test/engine-cases.test.js` checks that every case refers only to things its board has, and that every Scan, Rules, Fail safe and Plant ends bullet in the spec's Tests section is covered by at least one case.
 
 ## A case
 
@@ -28,7 +28,7 @@ The expected values are **worked out by hand from the spec** ([field-logic-spec.
 | `turnouts` | this board's turnouts, by name |
 | `masts` | this board's masts: `{ "<name>": { "aspects": { "<aspect>": "<tag>" }, ... } }` |
 | `remote` | other boards: `{ "<board>": { "sensors": [], "blocks": [], "turnouts": [], "masts": {} } }` |
-| `logic` | the Logic page, in the spec's [Stored format](../../../docs/field-logic-spec.md#stored-format): `blocks`, `buttons`, `resources`, `layers` |
+| `logic` | the Logic page, in the spec's [Stored format](../../../docs/field-logic-spec.md#stored-format): `blocks`, `buttons`, `resources`, `layers`, `ends` |
 
 A mast has:
 - `aspects`, in order, each with its tag (`stop`, `restricting`, `approach`, `advance`, `clear`).
@@ -41,11 +41,18 @@ A mast that some rule's `then` names is **field-controlled**. Any other mast on 
 
 Wherever a block is named (`"block": "Bridge"`, a resource's `blocks`), a sensor's name works too: a sensor is a block of one.
 
+A [plant end](../../../docs/field-logic-spec.md#plant-ends) is `{ "name": "A", "tracks": [ … ] }` in `logic.ends`, its tracks in order, numbered from 1, left to right looking out through the end. A track is one of:
+- `{ "sensors": ["Home in"], "mast": "Home" }`: its end sensors, and the first mast facing inward (a mast on this board, real or virtual);
+- `{ "sensors": [], "through": { "end": "B", "track": 2 } }`: a pass-through to track 2 of end B.
+
+`sensors` are this board's sensors, not blocks **(decided:** the spec says sensors, and a block could hold what the end hears, which an end must never offer back**)**. Either key may be left out. An end's `pairPin` and `ledPin` are for the board, not the engine. Its link is not in `board`: it lives on the board (see `start` and the events).
+
 ### Rules
 
 As in the spec's Stored format, with these shapes:
 
 - **Condition** (a state, read by *while*): `{ "block": "Left", "is": "occupied" | "clear" }`, `{ "sensor": … }`, `{ "turnout": "P1", "is": "closed" | "thrown" }`, `{ "mast": "Home", "is": "<tag>" | ["<tag>", …] | "diverging" }`, `{ "button": "Depart", "is": "pressed" }`. Add `"board": "<name>"` for another board's item. Combine with `{ "all": [ … ] }`, `{ "any": [ … ] }`, `{ "not": … }`.
+- **What a plant end hears:** `{ "end": "A", "track": 1, "hears": "block", "is": "occupied" | "clear" }` and `{ "end": "A", "track": 1, "hears": "mast", "is": "<tag>" | ["<tag>", …] }`. A heard Mast is a tag only, so `"is": "diverging"` is never true there. In a block's `sensors`, `{ "end": "A", "track": 1 }` is the Block that track hears **(decided:** the spec gives `{ "end": "A", "track": 1 }` and no way to say which of the two values; `hears` says it, because `clear` is both a block state and a tag**)**.
 - **Moment** (a change, read by *when* and *then*): the same shapes. `"is": "occupied"` means *went* occupied, and `"is": "pressed"` means was pressed.
 - **Trigger:** `{ "while": <condition>, "for": "0.5s", "leavingGuard": true }`, or `{ "when": <moment>, "then": [<moment>, …] }`. `for` and `leavingGuard` are optional.
 - **Checks:** a list of conditions, all of which must hold.
@@ -68,6 +75,8 @@ The field at power-on, before the first scan. Everything is optional.
 | `jmri` | `{ "<mast>": "<message>" }`: the retained JMRI message each mast has; others none |
 | `remote` | `{ "<board>": { "online": true, "sensors": {}, "turnouts": {}, "masts": {} } }`; anything not listed is not known |
 | `remoteLocks` | `{ "<turnout>": "locked" }`; others unlocked |
+| `board` | this board's name, as in its topics; default `""` |
+| `links` | `{ "<end>": "<board>/<end>" \| "end" \| "" }`, each end's saved link; others empty |
 
 ### `steps`
 
@@ -89,6 +98,13 @@ Each step is `{ "at": n, "do": [ … ], "expect": { … } }`, with `at` going up
 | `{ "board": "south", "sensor": "S1", "is": "occupied" \| "clear" \| "unknown" }` | its `/State` (`unknown`: an empty message). `"block"` the same |
 | `{ "board": "south", "turnout": "T1", "is": "closed" \| "thrown" \| "moving" \| "unknown" }` | its `/Thrown` and `/Moving` |
 | `{ "board": "south", "mast": "Home", "aspect": "R281" }` | its `/State`; `""` is not known |
+| `{ "end": "A", "link": "south/B" \| "end" \| "" }` | this end's link is set: on the board's web page, or on its `Link` topic |
+| `{ "end": "A", "theirLink": "mid/A" }` | the linked end's `Link` topic; `""` is not known |
+| `{ "end": "A", "online": true \| false }` | the linked board's Online topic |
+| `{ "end": "A", "track": 2, "block": "occupied" \| "clear" \| "unknown" }` | the linked end's track 2 `Block`, numbered as **that** end numbers it |
+| `{ "end": "A", "track": 2, "mast": "<tag>" }` | its `Mast`; anything but one of the five tags is not known |
+| `{ "end": "A", "pair": "pressed" }` | Pair is pressed for end A: its button on the web page, or its pin |
+| `{ "pairing": "south/B/2" }` | an announcement heard on `trains/track/end/pairing` |
 
 **Expect** (each key checks only the items it lists):
 
@@ -104,6 +120,8 @@ Each step is `{ "at": n, "do": [ … ], "expect": { … } }`, with `at` going up
 | `events` | the exact list of what this scan logged, in order |
 | `writes` | the exact list of outputs this scan wrote |
 | `publishes` | the exact list of what this scan published |
+| `ends` | `{ "<end>": "pairing" \| "empty" \| "end" \| "unheard" \| "disagrees" \| "heard" }` (rule 26) |
+| `links` | `{ "<end>": "<link>" }` |
 
 `events`:
 - `{ "startup": true }`
@@ -113,10 +131,12 @@ Each step is `{ "at": n, "do": [ … ], "expect": { … } }`, with `at` going up
 - `{ "release": "<resource>", "by": "release" \| "cancel" \| "time" \| "manual" \| "switch" }`
 - `{ "ignored": "release", "resource": "<resource>" }`: an MQTT release in the first 5 seconds after connecting
 - `{ "resync": "<turnout>" }`: the turnout went from locked (either flag) to unlocked.
+- `{ "pairing": "<end>", "result": "paired", "with": "<board>/<end>" }`, or `"result": "crowded" | "tracks" | "alone"` (rule 28). `paired` is logged at `INFO`, the others at `WARN`
+- `{ "disagrees": "<end>", "link": "<board>/<end>", "theirs": "<their link>" }`: the end's state became `disagrees` (`WARN`).
 
 `writes`: `{ "mast": "<mast>", "aspect": "<aspect>" | "dark" }` and `{ "lock": "<turnout>", "on": true | false }`.
 
-`publishes`: `{ "resource": "<name>", "held": "ACTIVE" | "INACTIVE" }`, `{ "resource": "<name>", "state": "<State>" }`, `{ "release": "<resource>", "value": "CLOSED" }`.
+`publishes`: `{ "resource": "<name>", "held": "ACTIVE" | "INACTIVE" }`, `{ "resource": "<name>", "state": "<State>" }`, `{ "release": "<resource>", "value": "CLOSED" }`, and for plant ends `{ "pairing": "<board>/<end>/<tracks>" }`, `{ "end": "<end>", "link": "<link>" }`, `{ "end": "<end>", "track": n, "block": "ACTIVE" | "INACTIVE" }`, `{ "end": "<end>", "track": n, "mast": "<tag>" }`.
 
 ## How a scan works, exactly
 
@@ -151,6 +171,40 @@ These are the spec's rules made exact enough to write expected values. Where the
 21. **Locks.** `locks` is the field lock: any active lock rule, or a holding reserving rule, locks. `locked` is the field lock or the remote lock. When `locked` goes from true to false, the scan logs `resync`: that is when the board moves a toggle-switch turnout to match its switch. One flag clearing while the other is set does nothing, and nor does a repeated `UNLOCKED`.
 22. **Writes and publishes** happen only on change, from the end of one scan to the end of the next. On a broker connect (including at start), the next scan publishes every resource's Held and State. Nothing is published while disconnected. Order: masts in board order, then locks in turnout order; resources in list order, Held before State, then release echoes.
 
+### Plant ends
+
+23. **Ends work with logic on or off (decided:** an end is detection and a link, like a [block](../../../docs/field-logic-spec.md#blocks), which does not depend on the switch**).** Every scan, after everything above and after the edges for the next scan's moments are taken: the pairing decisions (rule 28), each end's state (rule 26), then its offers (rule 27), published on change (rule 29). So a link set in scan *n* is read from scan *n* + 1.
+24. **A link** is `""` (empty), `end`, or `<board>/<end>`, split at the last `/`. Anything else, and a link to this same end, counts as empty **(decided:** a link to itself would hear its own offers**)**. Setting a new link forgets everything heard through the end, which then waits for the new neighbour's messages **(decided:** they belong to another board**)**. Setting the same link again changes nothing. The link is not in `board`, so it is not in the rule table and cannot change the version code.
+25. **What an end hears.** Track *k* of an end with *N* tracks meets the linked end's track *N* + 1 − *k*: an event names the linked end's track, and the engine finds its own. A track number outside 1 … *N* is ignored. A heard value is known while the link is `<board>/<end>`, this board is connected, the linked board's Online is `ACTIVE`, the linked end's Link is exactly `<this board>/<this end>`, and the value has come. Reading track *k*:
+    - link `end`: Block clear, Mast `stop`;
+    - empty, not known, or disagreeing: Block occupied, Mast `stop`;
+    - otherwise what was heard. A track or end that does not exist reads occupied and `stop`.
+
+    An end that is pairing keeps reading through its old link until the group is decided.
+26. **An end's state**, in this order: `pairing` while it is in a pairing group that has not been decided; `empty`; `end`; `unheard` while this board is disconnected; `disagrees` when the linked end's Link has come and names anything but this end; `unheard` until the linked board's Online is `ACTIVE` and its Link has come; else `heard`. A Link that is `""` has not come **(decided:** an end with nothing to say is not heard, rather than a disagreement**)**. An end whose state becomes `disagrees` logs `disagrees` once.
+27. **What an end offers**, per track, from this scan's outputs:
+    - Block `ACTIVE` while any of its sensors is occupied; on a pass-through, also while the far track hears occupied (rule 25).
+    - Mast: the tag of what its mast shows now, `stop` for nothing, dark or an aspect with no tag (as rule 13); a pass-through's is what the far track hears; a track with neither is `stop` **(decided)**.
+    - A pass-through to a track of the **same** end offers its own sensors and `stop` **(decided:** an end never offers what it hears through itself, so two paired ends cannot hold each other occupied**)**. A pass-through goes one step only: the far track's heard values, never its offer.
+28. **Pairing.** Pressing Pair puts the end in the pairing group for 30 s from the press, and the next scan publishes the announcement `<board>/<end>/<tracks>` (if connected; otherwise it is not sent). An announcement heard puts that end in the group for 30 s from when it is heard; one naming this board is its own echo and is ignored, since this board's ends join by their press. An end already in the group has its 30 s start again. An announcement that is not `<board>/<end>/<tracks>`, with a whole number of tracks, is ignored **(decided)**. The group is open while any member's 30 s is running; an end that joins after it has closed starts a new group. At the first scan at or after the group closes, each of this board's ends in it, in end order:
+    - exactly one other end, with as many tracks: link set to it, `paired`;
+    - exactly one other, with a different number of tracks: `tracks`;
+    - more than one other: `crowded`;
+    - none: `alone`.
+
+    Only `paired` changes the link **(decided:** the spec's "exactly two ends pairing at once" is worked out over the whole group, ends whose 30 s overlap one after another, not over each end's own 30 s, so every board in the group reaches the same answer. A group closes 30 s after its last press**)**.
+29. **End publishes** follow rule 22, after the resources: for each end in order, its announcement, its Link (`""` too: an empty retained message clears the topic), then each track's Block and Mast. All of them again on connect, logic on or off.
+
+## Multi-board cases
+
+A multi-board case has `boards` in place of `board`: `{ "<name>": <board>, … }`, each board as above. `start` is `{ "<name>": <start>, … }`, each board's `start` as above, with `board` set to its name. A step's `do` and `expect` are `{ "<name>": [ … ] }` and `{ "<name>": { … } }`. Scan *n* runs on every board, in `boards` order.
+
+The harness is the broker between them:
+- **Retained messages.** Each board's end publishes are kept, by board, end and track. A connected board's Online is `ACTIVE` from the start.
+- **Subscriptions.** Each end whose link (`links` in its state after the scan) is `<board>/<end>` hears that board's Online, that end's Link, and each of its tracks' Block and Mast, as the end events above. Every connected board hears the pairing topic, its own announcements too.
+- **Timing.** What boards publish in scan *n* reaches the boards that hear it after scan *n* and before scan *n* + 1, before that step's `do` events. An end whose link changed in scan *n*, and every end of a board that connected, gets the retained messages it now hears at that time instead.
+- **Broker.** `{ "broker": "disconnected" }` on a board makes its Online `INACTIVE` (its will), and it neither sends nor hears until `{ "broker": "connected" }`, which makes it `ACTIVE` again.
+
 ## Which case covers which bullet
 
 | Spec bullet (Tests) | Cases |
@@ -179,3 +233,9 @@ These are the spec's rules made exact enough to write expected values. Where the
 | Fail safe: a stale hold stays at Stop until released | `failsafe-stale-hold` |
 | Fail safe: start-up counts a leaving-guard train as waiting | `failsafe-startup-leaving-guard` |
 | Fail safe: switching off and on | `failsafe-switch-off-on` |
+| Plant ends: an end offers its Block and Mast; a pass-through | `ends-offer` |
+| Plant ends: two paired ends cannot hold each other occupied | `ends-no-echo` |
+| Plant ends: an empty, unheard or disagreeing link; `end` | `ends-links` |
+| Plant ends: track numbering at a joint, with one board turned round | `ends-three-boards-turned` |
+| Plant ends: changing a link changes no rule and not the version code | `ends-link-change` |
+| Plant ends: pairing | `pairing-two-ends`, `pairing-third-end`, `pairing-track-mismatch`, `pairing-expires` |
