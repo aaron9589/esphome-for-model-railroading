@@ -766,6 +766,12 @@ details.note-settings[open] summary {
   color: var(--danger);
 }
 
+.msg-link {
+  color: inherit;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
 pre {
   margin: 0;
   background: #111827;

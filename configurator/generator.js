@@ -734,9 +734,17 @@ function pinProblem(pin, role) {
   return `${role} pin ${name} is not in the pin list`;
 }
 
+// errors and warnings are plain sentences. links maps a sentence to where it
+// is fixed: { view } is a page ("board", "blocks", "points", "signals",
+// "logic"), and { part } an element id on it (the Logic page's parts:
+// logic-mode, logic-settings, logic-linked, logic-blocks, logic-masts,
+// logic-buttons, logic-sections, logic-groups).
 function validateConfig(config) {
   const warnings = [];
   const errors = [];
+  const links = new Map();
+  // Links each message added to `list` since `from` to `where`.
+  const linkSince = (list, from, where) => list.slice(from).forEach((text) => links.has(text) || links.set(text, where));
   const board = config.board || {};
 
   if (!board.name || !/^[a-z0-9-]+$/.test(board.name)) {
@@ -753,6 +761,8 @@ function validateConfig(config) {
   if (String(board.apPassword || "").length > 0 && String(board.apPassword).length < 8) {
     errors.push("Hotspot password must be at least 8 characters.");
   }
+  const boardErrors = errors.length;
+  const boardWarnings = warnings.length;
   if (board.nameSuffix) {
     const typed = typedBoardName(board);
     if (!typed) {
@@ -766,6 +776,8 @@ function validateConfig(config) {
   if (!board.nameSuffix && (config.logic?.mode || config.logic?.share === true)) {
     warnings.push("Board name has no suffix. Boards that share or run logic need a unique name: click Add a suffix on the Board page. The name changes, so flash the board next by USB.");
   }
+  linkSince(errors, boardErrors, { view: "board" });
+  linkSince(warnings, boardWarnings, { view: "board" });
 
   const pins = new Map();
   function notePin(pin, owner) {
@@ -810,6 +822,7 @@ function validateConfig(config) {
     notePin(pin, block.name);
   }
 
+  const expanderErrors = errors.length;
   if (expanders.length) {
     const names = new Set();
     const pcaBoards = pcaBoardsOf(config);
@@ -859,6 +872,8 @@ function validateConfig(config) {
       }
     });
   }
+
+  linkSince(errors, expanderErrors, { view: "blocks", part: "expanders-card" });
 
   if ((config.points || []).length) {
     const usePca = config.pca9685 !== false;
@@ -998,7 +1013,21 @@ function validateConfig(config) {
     }
   }
 
-  logicHooks(config).validate(config, errors, warnings);
+  // Rule buttons (Logic page): a pin of their own, like every other pin.
+  for (const button of logicHooks(config).buttonPins(config) || []) {
+    // Wired to GND like a turnout's button, so it needs the pin's pull-up.
+    const issue = pinProblem(button.pin, "button");
+    let text = "";
+    if (issue) text = `Button "${button.name}" ${issue}.`;
+    else if (pins.has(button.pin)) text = `Button "${button.name}" is on ${button.pin}, which "${pins.get(button.pin)}" already uses. A pin can do one job: pick another pin for the button.`;
+    else pins.set(button.pin, `button ${button.name}`);
+    if (text) {
+      errors.push(text);
+      links.set(text, button.where);
+    }
+  }
+
+  logicHooks(config).validate(config, errors, warnings, links);
 
   const ids = new Set();
   for (const block of uniqueIds(config.blocks || [])) {
@@ -1014,7 +1043,7 @@ function validateConfig(config) {
     ids.add(mast.id);
   }
 
-  return { warnings, errors };
+  return { warnings, errors, links };
 }
 
 function entityName(name) {

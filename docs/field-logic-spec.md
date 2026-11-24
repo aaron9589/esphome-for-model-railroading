@@ -721,6 +721,13 @@ The engine is one JS module (for example `configurator/logic.js`). It runs the s
 - A board name whose typed part is over 19 characters, once the suffix is on: error (the `<board> setup` hotspot name must fit in 32).
 - Sensor and turnout names cannot start with `logic/` or `board/`. No sensor may be named `<sensor>/State`, `<turnout>/Thrown`, `<turnout>/Locked` or `<turnout>/Moving`. Today's configurator already rejects `/Thrown` and `/Locked`.
 
+Built in work item 2.6, except the plant end checks, which come with plant ends (Release 3). Each message links to the page and part where it is fixed. Where the list above is not exact, the configurator does this:
+
+- A rule reads a mast through its trigger, checks and Cancel, and through the release of the section it takes. A mast on another board never makes a cycle here.
+- A Block signals group is one whose `starter` is `block-signals`. Each mast's block is the first block (or sensor) its rules check is clear, and the masts run in the order their rules are listed.
+- Masts entries are checked too: the mast is on the Signal Masts page, each aspect given a meaning, ticked diverging or chosen as the stop aspect exists, and the approach lighting block exists.
+- A rule button's pin needs a pull-up, like a turnout's button, and a clash is an error.
+
 ## Generated YAML (shape)
 
 Everything below is emitted only for what the Logic page declares: the interpreter and switch only with a logic mode, the shared publishes only with Share with other boards, a block only if declared. The YAML has two parts: the interpreter (the executive: an external component, the same on every board) and the rule table (this board's data).
