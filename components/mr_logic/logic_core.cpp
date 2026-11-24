@@ -4,9 +4,17 @@
 // JS lookups by name live there: stopAspect, statesOf, tagOf, remoteKind and
 // remoteItem. Here, occupied() is occupied_ref() and remote_occupied(), and
 // mastReading() and turnoutState() are inside condition().
+//
+// Plant ends: linkKind is link_kind(), setLink set_link(), ready ready(),
+// endHears end_hears(), inPairing in_pairing(), endState end_state(),
+// endOffer end_offer(), joinPairing join_pairing(), heardPairing
+// heard_pairing(), decidePairing decide_pairing(), finishEnds finish_ends()
+// and endEvent end_event(). endByName is find_end() for events; the compiler
+// resolves the names in the table.
 #include "logic_core.h"
 
 #include <algorithm>
+#include <cstdlib>
 
 namespace logic_core {
 
@@ -45,7 +53,7 @@ size_t Table::bytes() const {
              vec_bytes(states) + vec_bytes(block_refs) + vec_bytes(members) + vec_bytes(locks) + vec_bytes(sensors) +
              vec_bytes(buttons) + vec_bytes(turnouts) + vec_bytes(masts) + vec_bytes(remote_boards) +
              vec_bytes(remote_masts) + vec_bytes(remote_items) + vec_bytes(blocks) + vec_bytes(resources) +
-             vec_bytes(rules) + vec_bytes(layers);
+             vec_bytes(rules) + vec_bytes(layers) + vec_bytes(ends) + vec_bytes(end_tracks) + vec_bytes(end_sensors);
   for (const auto &s : states) n += s.text.capacity() > 15 ? s.text.capacity() + 1 : 0;
   return n;
 }
@@ -80,6 +88,16 @@ Engine::Engine(const Table &table, const Start &start) : t_(table) {
   publish_all_ = broker_;
   logic_on_ = start.logic_on;
   startup_next_ = logic_on_;
+  board_ = start.board;
+  ends_publish_all_ = broker_;
+  ends_.resize(t_.ends.size());
+  for (size_t e = 0; e < t_.ends.size(); e++) {
+    const size_t tracks = t_.ends[e].tracks_count;
+    ends_[e].block.assign(tracks, -1);
+    ends_[e].mast.assign(tracks, -1);
+    ends_[e].published_block.assign(tracks, -1);
+    ends_[e].published_mast.assign(tracks, -1);
+  }
 
   jmri_shown_.assign(masts, SHOWS_NOTHING);
   display_.assign(masts, SHOWS_NOTHING);
@@ -157,6 +175,10 @@ Engine::Engine(const Table &table, const Start &start) : t_(table) {
     int16_t m = find_mast(j.first);
     if (m >= 0) jmri_message(static_cast<uint16_t>(m), j.second);
   }
+  for (const auto &l : start.links) {
+    int16_t e = find_end(l.first);
+    if (e >= 0) ends_[e].link = l.second;
+  }
   for (size_t i = 0; i < t_.declared_turnouts; i++) prev_locked_[i] = remote_locks_[i];
   record_edges();
 }
@@ -167,8 +189,10 @@ size_t Engine::bytes() const {
   size_t n = vec_bytes(rules_) + vec_bytes(res_) + vec_bytes(res_rules_) + vec_bytes(sensors_) + vec_bytes(buttons_) +
              vec_bytes(turnouts_) + vec_bytes(online_) + vec_bytes(remote_values_) + vec_bytes(edges_) +
              vec_bytes(tracked_) + vec_bytes(jmri_shown_) + vec_bytes(display_) + vec_bytes(prev_out_) +
-             vec_bytes(published_);
+             vec_bytes(published_) + vec_bytes(ends_) + vec_bytes(pair_group_);
   for (const auto &v : res_rules_) n += vec_bytes(v);
+  for (const auto &e : ends_)
+    n += e.link.capacity() + e.their_link.capacity() + e.published_link.capacity() + 4 * e.block.capacity();
   // vector<bool> packs bits.
   n += (field_.size() + remote_locks_.size() * 3 + prev_block_.size() + holds_.size()) / 8 + 6 * 16;
   return n;
@@ -276,7 +300,14 @@ bool Engine::occupied_ref(uint16_t item, bool logic_block) {
   const LogicBlock &b = t_.blocks[item];
   for (uint16_t i = 0; i < b.count; i++) {
     const Member &m = t_.members[b.first + i];
-    if (m.remote ? remote_occupied(m.item) : sensors_[m.item].value) return true;
+    if (m.remote == Member::END) {
+      bool occ = true;
+      Tag tag = TAG_STOP;
+      end_hears(m.item, m.board, &occ, &tag);
+      if (occ) return true;
+    } else if (m.remote == Member::REMOTE ? remote_occupied(m.item) : sensors_[m.item].value) {
+      return true;
+    }
   }
   return false;
 }
@@ -345,6 +376,14 @@ bool Engine::condition(uint16_t index) {
     }
     case Node::BUTTON:
       return c.item != NONE && buttons_[c.item].value;
+    case Node::END: {
+      // What a plant end hears: its Block, or its Mast, which is a tag only.
+      bool occ = true;
+      Tag tag = TAG_STOP;
+      end_hears(c.item, c.first, &occ, &tag);
+      if (c.hears_mast) return c.is == Node::IS_TAGS && ((c.tags >> tag) & 1);
+      return c.is == Node::IS_CLEAR ? !occ : occ;
+    }
   }
   return false;
 }
@@ -382,6 +421,238 @@ bool Engine::advance(uint16_t first, uint16_t count, uint16_t *p) {
     return true;
   }
   return false;
+}
+
+// --- plant ends (README rules 24-29) --------------------------------------
+
+int16_t Engine::find_end(const std::string &name) const {
+  for (size_t i = 0; i < t_.ends.size(); i++)
+    if (t_.names.equals(t_.ends[i].name, name)) return static_cast<int16_t>(i);
+  return -1;
+}
+
+std::string Engine::who(uint16_t e) const { return board_ + "/" + t_.names[t_.ends[e].name]; }
+
+// Rule 24.
+Engine::Link Engine::link_kind(uint16_t e) const {
+  const std::string &link = ends_[e].link;
+  if (link == "end") return LINK_END;
+  size_t at = link.rfind('/');
+  if (at == std::string::npos || at == 0 || at == link.size() - 1 || link == who(e)) return LINK_EMPTY;
+  return LINK_BOARD;
+}
+
+void Engine::set_link(uint16_t e, const std::string &link) {
+  EndState &s = ends_[e];
+  if (s.link == link) return;
+  s.link = link;
+  s.their_link.clear();
+  s.online = -1;
+  std::fill(s.block.begin(), s.block.end(), -1);
+  std::fill(s.mast.begin(), s.mast.end(), -1);
+}
+
+// Rule 25. An empty their_link is never this end's address.
+bool Engine::ready(uint16_t e) const { return broker_ && ends_[e].online == 1 && ends_[e].their_link == who(e); }
+
+void Engine::end_hears(uint16_t e, int32_t track, bool *occupied, Tag *tag) const {
+  *occupied = true;
+  *tag = TAG_STOP;
+  if (e == NONE || track < 1 || track > static_cast<int32_t>(t_.ends[e].tracks_count)) return;
+  Link kind = link_kind(e);
+  if (kind == LINK_END) {
+    *occupied = false;
+    return;
+  }
+  if (kind == LINK_EMPTY || !ready(e)) return;
+  const int8_t block = ends_[e].block[track - 1], mast = ends_[e].mast[track - 1];
+  *occupied = block != 0;
+  if (mast >= 0) *tag = static_cast<Tag>(mast);
+}
+
+// Rule 26.
+bool Engine::in_pairing(uint16_t e) const {
+  const std::string me = who(e);
+  for (const auto &x : pair_group_)
+    if (x.who == me) return true;
+  for (const auto &g : closed_groups_)
+    for (const auto &x : g)
+      if (x.who == me) return true;
+  return false;
+}
+
+Engine::EndStateKind Engine::end_state(uint16_t e) const {
+  if (in_pairing(e)) return E_PAIRING;
+  Link kind = link_kind(e);
+  if (kind == LINK_EMPTY) return E_EMPTY;
+  if (kind == LINK_END) return E_END;
+  if (!broker_) return E_UNHEARD;
+  const EndState &s = ends_[e];
+  if (!s.their_link.empty() && s.their_link != who(e)) return E_DISAGREES;
+  if (s.online != 1 || s.their_link.empty()) return E_UNHEARD;
+  return E_HEARD;
+}
+
+// Rule 27: what track i (0 is track 1) of an end offers.
+void Engine::end_offer(uint16_t e, uint16_t i, bool *occupied, Tag *tag) const {
+  const EndTrack &track = t_.end_tracks[t_.ends[e].tracks_first + i];
+  bool own = false;
+  for (uint16_t k = 0; k < track.sensors_count; k++)
+    if (sensors_[t_.end_sensors[track.sensors_first + k]].value) own = true;
+  *occupied = own;
+  *tag = TAG_STOP;
+  if (track.through) {
+    if (track.through_end != NONE && t_.ends[track.through_end].name == t_.ends[e].name) return;
+    bool far = true;
+    end_hears(track.through_end, track.through_track, &far, tag);
+    *occupied = own || far;
+    return;
+  }
+  if (track.mast != NONE) {
+    Tag shown = aspect_tag(t_.masts[track.mast], display_[track.mast]);
+    if (shown != TAG_NONE) *tag = shown;
+  }
+}
+
+// Rule 28: an end joins the pairing group, or is renewed in it.
+void Engine::join_pairing(const std::string &w, int32_t tracks, int64_t t) {
+  bool closed = !pair_group_.empty();
+  for (const auto &x : pair_group_)
+    if (x.until > t) closed = false;
+  if (closed) {
+    closed_groups_.push_back(std::move(pair_group_));
+    pair_group_.clear();
+  }
+  for (auto &x : pair_group_) {
+    if (x.who != w) continue;
+    x.until = t + PAIR_MS;
+    x.tracks = tracks;
+    return;
+  }
+  pair_group_.push_back(PairEntry{w, tracks, t + PAIR_MS});
+}
+
+// An announcement, <board>/<end>/<tracks>. This board's own is ignored.
+void Engine::heard_pairing(const std::string &s, int64_t t) {
+  size_t a = s.rfind('/');
+  if (a == std::string::npos || a == 0) return;
+  size_t b = s.rfind('/', a - 1);
+  if (b == std::string::npos || b == 0 || a - b < 2) return;
+  const std::string tracks = s.substr(a + 1);
+  if (tracks.empty() || tracks.size() > 4) return;
+  for (char c : tracks)
+    if (c < '0' || c > '9') return;
+  if (b == board_.size() && s.compare(0, b, board_) == 0) return;
+  join_pairing(s.substr(0, a), static_cast<int32_t>(std::strtol(tracks.c_str(), nullptr, 10)), t);
+}
+
+void Engine::decide_pairing(ScanOut *out) {
+  bool closed = !pair_group_.empty();
+  for (const auto &x : pair_group_)
+    if (x.until > n_ * static_cast<int64_t>(SCAN_MS)) closed = false;
+  if (closed) {
+    closed_groups_.push_back(std::move(pair_group_));
+    pair_group_.clear();
+  }
+  for (const auto &g : closed_groups_) {
+    for (size_t ei = 0; ei < t_.ends.size(); ei++) {
+      const uint16_t e = static_cast<uint16_t>(ei);
+      const std::string w = who(e);
+      bool in = false;
+      size_t others = 0;
+      const PairEntry *other = nullptr;
+      for (const auto &x : g) {
+        if (x.who == w) {
+          in = true;
+        } else {
+          others++;
+          if (!other) other = &x;
+        }
+      }
+      if (!in) continue;
+      const std::string name = t_.names[t_.ends[e].name];
+      if (others == 1 && other->tracks == static_cast<int32_t>(t_.ends[e].tracks_count)) {
+        set_link(e, other->who);
+        out->events.push_back(LogEvent{LogEvent::PAIRING, name, other->who, "paired"});
+      } else {
+        out->events.push_back(LogEvent{LogEvent::PAIRING, name, "", others == 0 ? "alone" : others > 1 ? "crowded" : "tracks"});
+      }
+    }
+  }
+  closed_groups_.clear();
+}
+
+// Rules 23 and 29: the last part of every scan, logic on or off.
+void Engine::finish_ends(ScanOut *out) {
+  decide_pairing(out);
+  for (size_t ei = 0; ei < t_.ends.size(); ei++) {
+    const uint16_t e = static_cast<uint16_t>(ei);
+    EndStateKind st = end_state(e);
+    if (st == E_DISAGREES && ends_[e].prev_state != E_DISAGREES)
+      out->events.push_back(LogEvent{LogEvent::DISAGREES, t_.names[t_.ends[e].name], ends_[e].link, ends_[e].their_link});
+    ends_[e].prev_state = static_cast<int8_t>(st);
+  }
+  if (broker_) {
+    for (size_t ei = 0; ei < t_.ends.size(); ei++) {
+      const uint16_t e = static_cast<uint16_t>(ei);
+      EndState &s = ends_[e];
+      const std::string name = t_.names[t_.ends[e].name];
+      const uint16_t tracks = t_.ends[e].tracks_count;
+      if (s.announce) out->publishes.push_back(Publish{Publish::PAIRING, "", who(e) + "/" + std::to_string(tracks), 0});
+      if (ends_publish_all_ || !s.link_published || s.published_link != s.link) {
+        out->publishes.push_back(Publish{Publish::END_LINK, name, s.link, 0});
+        s.link_published = true;
+        s.published_link = s.link;
+      }
+      for (uint16_t i = 0; i < tracks; i++) {
+        bool occ = false;
+        Tag tag = TAG_STOP;
+        end_offer(e, i, &occ, &tag);
+        const int8_t block = occ ? 1 : 0;
+        if (ends_publish_all_ || s.published_block[i] != block) {
+          out->publishes.push_back(Publish{Publish::END_BLOCK, name, occ ? "ACTIVE" : "INACTIVE", static_cast<uint16_t>(i + 1)});
+          s.published_block[i] = block;
+        }
+        if (ends_publish_all_ || s.published_mast[i] != tag) {
+          out->publishes.push_back(Publish{Publish::END_MAST, name, tag_name(tag), static_cast<uint16_t>(i + 1)});
+          s.published_mast[i] = tag;
+        }
+      }
+    }
+    ends_publish_all_ = false;
+  }
+  for (auto &s : ends_) s.announce = false;
+}
+
+// An event on an end: its link, or what its subscriptions bring.
+void Engine::end_event(const Event &e, int64_t t) {
+  int16_t found = find_end(e.name);
+  if (found < 0) return;
+  const uint16_t i = static_cast<uint16_t>(found);
+  EndState &s = ends_[i];
+  switch (e.kind) {
+    case Event::END_PAIR:
+      if (e.value != "pressed") return;
+      join_pairing(who(i), t_.ends[i].tracks_count, t);
+      s.announce = true;
+      return;
+    case Event::END_LINK: set_link(i, e.value); return;
+    case Event::END_THEIR_LINK: s.their_link = e.value; return;
+    case Event::END_ONLINE: s.online = e.flag ? 1 : 0; return;
+    case Event::END_BLOCK:
+    case Event::END_MAST: {
+      // Rule 25: their track j is this board's track count + 1 - j.
+      const int32_t count = t_.ends[i].tracks_count;
+      if (e.track < 1 || e.track > count) return;
+      const size_t k = static_cast<size_t>(count - e.track);
+      if (e.kind == Event::END_BLOCK)
+        s.block[k] = e.value == "occupied" ? 1 : e.value == "clear" ? 0 : -1;
+      else
+        s.mast[k] = tag_from_name(e.value);  // TAG_NONE (-1): not heard
+      return;
+    }
+    default: return;
+  }
 }
 
 // --- triggers and releases (rules 3, 5, 9, 20) ------------------------------
@@ -606,6 +877,7 @@ ScanOut Engine::scan() {
       for (const auto &name : echoes) out.publishes.push_back(Publish{Publish::RELEASE, name, "CLOSED"});
     }
     record_edges();
+    finish_ends(&out);
     end_scan();
     return out;
   }
@@ -792,6 +1064,7 @@ ScanOut Engine::scan() {
   record_edges();
   prev_out_ = new_out;
   publish_resources(&out, echoes);
+  finish_ends(&out);
   end_scan();
   return out;
 }
@@ -801,6 +1074,17 @@ ScanOut Engine::scan() {
 void Engine::event(const Event &e) {
   int64_t now = n_ * SCAN_MS;
   switch (e.kind) {
+    case Event::END_PAIR:
+    case Event::END_LINK:
+    case Event::END_THEIR_LINK:
+    case Event::END_ONLINE:
+    case Event::END_BLOCK:
+    case Event::END_MAST:
+      end_event(e, now);
+      return;
+    case Event::PAIRING:
+      heard_pairing(e.value, now);
+      return;
     case Event::REMOTE_ONLINE: {
       int16_t b = find(t_.remote_boards, e.board);
       if (b >= 0) online_[b] = e.flag ? 1 : 0;
@@ -880,6 +1164,7 @@ void Engine::event(const Event &e) {
         broker_ = true;
         connect_at_ = now;
         publish_all_ = true;
+        ends_publish_all_ = true;
       } else if (e.value == "disconnected") {
         broker_ = false;
       }
@@ -929,6 +1214,11 @@ State Engine::state() const {
   for (size_t t = 0; t < t_.declared_turnouts; t++) {
     s.locks.emplace_back(t_.names[t_.turnouts[t]], field_locks_[t]);
     s.locked.emplace_back(t_.names[t_.turnouts[t]], field_locks_[t] || remote_locks_[t]);
+  }
+  static const char *const END_STATES[] = {"pairing", "empty", "end", "unheard", "disagrees", "heard"};
+  for (size_t e = 0; e < t_.ends.size(); e++) {
+    s.ends.emplace_back(t_.names[t_.ends[e].name], END_STATES[end_state(static_cast<uint16_t>(e))]);
+    s.links.emplace_back(t_.names[t_.ends[e].name], ends_[e].link);
   }
   return s;
 }

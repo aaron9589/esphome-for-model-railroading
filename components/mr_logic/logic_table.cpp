@@ -128,6 +128,18 @@ class Reader {
     skip();
     return false;
   }
+  // A number, or false (skipped) for anything else.
+  bool number(double *out) {
+    char c = peek();
+    if (c != '-' && (c < '0' || c > '9')) {
+      skip();
+      return false;
+    }
+    char *end = nullptr;
+    *out = std::strtod(p_, &end);
+    p_ = end;
+    return true;
+  }
   // A string, or "" for anything else (skipped).
   std::string text() {
     std::string out;
@@ -193,6 +205,15 @@ class Reader {
 struct RawMember {
   uint16_t name;
   uint16_t board;  // NONE: this board
+  uint16_t end = NONE;  // { end, track }: what a plant end hears
+  uint16_t track = 0;
+};
+struct RawTrack {
+  std::vector<uint16_t> sensors;
+  uint16_t mast = NONE;
+  bool through = false;
+  uint16_t through_end = NONE;  // a name
+  uint16_t through_track = 0;
 };
 struct RawRemote {
   uint16_t name;
@@ -230,6 +251,7 @@ class Compiler {
   std::vector<uint16_t> approach_lights_;  // per mast: a name, or NONE
   std::vector<RawRule> raw_rules_;
   std::vector<uint16_t> resource_names_;
+  std::vector<std::vector<RawTrack>> end_tracks_;
 
   uint16_t intern(const std::string &s) { return t_.names.intern(s); }
   // Per node, while compiling: the item's name and its board's.
@@ -243,6 +265,13 @@ class Compiler {
     uint32_t ms = 0;
     if (!parse_ms(text, &ms)) bad_time(text, where);
     return ms;
+  }
+  // A track number: a whole number from 1, or 0 for anything else, which no
+  // end has (logic.js: Number.isInteger and in range).
+  uint16_t read_track() {
+    double v = 0;
+    if (!r_.number(&v) || v < 1 || v > 65535 || v != static_cast<double>(static_cast<uint32_t>(v))) return 0;
+    return static_cast<uint16_t>(v);
   }
   std::vector<uint16_t> read_names() {
     std::vector<uint16_t> out;
@@ -405,10 +434,66 @@ class Compiler {
       } else if (key == "layers") {
         bool f2 = true;
         while (r_.element(&f2)) read_layer();
+      } else if (key == "ends") {
+        bool f2 = true;
+        while (r_.element(&f2)) read_end();
       } else {
         r_.skip();
       }
     }
+  }
+
+  // A plant end: { name, tracks: [{ sensors, mast } or { sensors, through: { end, track } }] }.
+  // A track that is not an object has neither (logic.js reads it as {}).
+  void read_end() {
+    End e;
+    e.name = intern("");
+    std::vector<RawTrack> tracks;
+    bool first = true;
+    std::string key;
+    while (r_.member(&first, &key)) {
+      if (key == "name") {
+        e.name = read_name();
+      } else if (key == "tracks") {
+        bool f2 = true;
+        while (r_.element(&f2)) {
+          RawTrack track;
+          if (r_.peek() != '{') {
+            r_.skip();
+            tracks.push_back(track);
+            continue;
+          }
+          bool f3 = true;
+          std::string k;
+          while (r_.member(&f3, &k)) {
+            if (k == "sensors") {
+              track.sensors = read_names();
+            } else if (k == "mast") {
+              track.mast = read_name();
+            } else if (k == "through" && r_.peek() == '{') {
+              track.through = true;
+              bool f4 = true;
+              std::string k2;
+              while (r_.member(&f4, &k2)) {
+                if (k2 == "end")
+                  track.through_end = read_name();
+                else if (k2 == "track")
+                  track.through_track = read_track();
+                else
+                  r_.skip();
+              }
+            } else {
+              r_.skip();
+            }
+          }
+          tracks.push_back(std::move(track));
+        }
+      } else {
+        r_.skip();
+      }
+    }
+    t_.ends.push_back(e);
+    end_tracks_.push_back(std::move(tracks));
   }
 
   void read_block() {
@@ -438,11 +523,15 @@ class Compiler {
               block = read_name();
             else if (k == "board")
               m.board = read_name();
+            else if (k == "end")
+              m.end = read_name();
+            else if (k == "track")
+              m.track = read_track();
             else
               r_.skip();
           }
           m.name = sensor != NONE ? sensor : block;
-          if (m.name != NONE) members.push_back(m);
+          if (m.name != NONE || m.end != NONE) members.push_back(m);
         }
       } else {
         r_.skip();
@@ -582,7 +671,8 @@ class Compiler {
     uint16_t neg = NONE;
     bool has_all = false, has_any = false, has_not = false;
     uint16_t block = NONE, sensor = NONE, turnout = NONE, mast = NONE, button = NONE;
-    uint16_t board_name = NONE, item_name = NONE;
+    uint16_t board_name = NONE, item_name = NONE, end = NONE, track = 0;
+    std::string hears;
     std::vector<std::string> is;
     bool first = true;
     std::string key;
@@ -607,6 +697,12 @@ class Compiler {
         button = read_name();
       } else if (key == "board") {
         board_name = read_name();
+      } else if (key == "end") {
+        end = read_name();
+      } else if (key == "track") {
+        track = read_track();
+      } else if (key == "hears") {
+        hears = r_.text();
       } else if (key == "is") {
         if (r_.peek() == '[') {
           bool f2 = true;
@@ -631,6 +727,22 @@ class Compiler {
       kids(Node::ANY, any);
     } else if (has_not) {
       kids(Node::NOT, std::vector<uint16_t>(1, neg));
+    } else if (end != NONE) {
+      // What a plant end hears; another board's name means nothing here.
+      n.kind = Node::END;
+      item_name = end;
+      n.first = track;
+      n.hears_mast = hears == "mast" ? 1 : 0;
+      if (n.hears_mast) {
+        n.is = first_is == "diverging" ? Node::IS_DIVERGING : Node::IS_TAGS;
+        for (const auto &v : is) {
+          Tag tag = tag_from_name(v);
+          if (tag != TAG_NONE && n.is == Node::IS_TAGS) n.tags |= static_cast<uint8_t>(1u << tag);
+        }
+      } else {
+        n.is = first_is == "clear" ? Node::IS_CLEAR : first_is == "occupied" ? Node::IS_OCCUPIED : Node::IS_OTHER;
+      }
+      board_name = NONE;
     } else if (block != NONE || sensor != NONE) {
       n.kind = Node::BLOCK;
       item_name = block != NONE ? block : sensor;
@@ -708,6 +820,11 @@ class Compiler {
     t_.remote_items.push_back(it);
     return static_cast<uint16_t>(t_.remote_items.size() - 1);
   }
+  uint16_t end_index(uint16_t name) const {
+    for (size_t i = 0; i < t_.ends.size(); i++)
+      if (t_.ends[i].name == name) return static_cast<uint16_t>(i);
+    return NONE;
+  }
   uint16_t mast_index(uint16_t name) const {
     for (size_t i = 0; i < t_.masts.size(); i++)
       if (t_.masts[i].name == name) return static_cast<uint16_t>(i);
@@ -720,13 +837,15 @@ class Compiler {
     for (size_t i = 0; i < t_.blocks.size(); i++) {
       t_.blocks[i].first = static_cast<uint16_t>(t_.members.size());
       for (const auto &m : block_members_[i]) {
-        if (m.board == NONE) {
+        if (m.end != NONE) {
+          t_.members.push_back({end_index(m.end), m.track, Member::END});
+        } else if (m.board == NONE) {
           // A member on this board is one of its sensors.
-          t_.members.push_back({add_to(&t_.sensors, m.name), NONE, 0});
+          t_.members.push_back({add_to(&t_.sensors, m.name), NONE, Member::LOCAL});
         } else {
           // A board not listed gives no item, which reads occupied.
           uint16_t board = remote_board(m.board);
-          t_.members.push_back({remote_item(board, RemoteItem::SENSOR, m.name), board, 1});
+          t_.members.push_back({remote_item(board, RemoteItem::SENSOR, m.name), board, Member::REMOTE});
         }
       }
       t_.blocks[i].count = static_cast<uint16_t>(t_.members.size() - t_.blocks[i].first);
@@ -735,6 +854,10 @@ class Compiler {
       Node &n = t_.nodes[ni];
       const uint16_t name = node_names_[ni].first, board_name = node_names_[ni].second;
       if (n.kind <= Node::NOT) continue;
+      if (n.kind == Node::END) {
+        n.item = end_index(name);
+        continue;
+      }
       if (board_name != NONE && n.kind != Node::BUTTON) {
         n.board = remote_board(board_name);
         uint8_t kind = n.kind == Node::TURNOUT ? RemoteItem::TURNOUT : n.kind == Node::MAST ? RemoteItem::MAST : RemoteItem::SENSOR;
@@ -758,6 +881,21 @@ class Compiler {
       t_.resources[i].blocks_first = static_cast<uint16_t>(t_.block_refs.size());
       for (uint16_t name : resource_blocks_[i]) t_.block_refs.push_back(block_ref(name));
       t_.resources[i].blocks_count = static_cast<uint16_t>(t_.block_refs.size() - t_.resources[i].blocks_first);
+    }
+    for (size_t e = 0; e < t_.ends.size(); e++) {
+      t_.ends[e].tracks_first = static_cast<uint16_t>(t_.end_tracks.size());
+      for (const RawTrack &raw : end_tracks_[e]) {
+        EndTrack track;
+        track.sensors_first = static_cast<uint16_t>(t_.end_sensors.size());
+        for (uint16_t name : raw.sensors) t_.end_sensors.push_back(add_to(&t_.sensors, name));
+        track.sensors_count = static_cast<uint16_t>(t_.end_sensors.size() - track.sensors_first);
+        track.mast = raw.mast == NONE ? NONE : mast_index(raw.mast);
+        track.through = raw.through;
+        track.through_end = raw.through_end == NONE ? NONE : end_index(raw.through_end);
+        track.through_track = raw.through_track;
+        t_.end_tracks.push_back(track);
+      }
+      t_.ends[e].tracks_count = static_cast<uint16_t>(t_.end_tracks.size() - t_.ends[e].tracks_first);
     }
     for (size_t i = 0; i < t_.masts.size(); i++) {
       if (approach_lights_[i] == NONE) continue;
@@ -787,7 +925,8 @@ class Compiler {
     const size_t sizes[] = {t_.nodes.size(), t_.names.size(), t_.names.chars.size(), t_.rules.size(), t_.kids.size(),
                             t_.seq.size(), t_.aspects.size(), t_.states.size(), t_.block_refs.size(), t_.members.size(),
                             t_.locks.size(), t_.remote_items.size(), t_.sensors.size(), t_.turnouts.size(),
-                            t_.buttons.size(), t_.masts.size(), t_.remote_masts.size(), t_.resources.size()};
+                            t_.buttons.size(), t_.masts.size(), t_.remote_masts.size(), t_.resources.size(),
+                            t_.ends.size(), t_.end_tracks.size(), t_.end_sensors.size()};
     for (size_t n : sizes)
       if (n >= NONE) error_ = "the table is too big";
   }
@@ -849,6 +988,9 @@ bool compile_table(const char *json, Table *out, std::string *error) {
   fit(&t.resources);
   fit(&t.rules);
   fit(&t.layers);
+  fit(&t.ends);
+  fit(&t.end_tracks);
+  fit(&t.end_sensors);
   *out = std::move(t);
   return true;
 }

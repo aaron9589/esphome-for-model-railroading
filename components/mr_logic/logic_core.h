@@ -25,8 +25,10 @@ const char *tag_name(Tag tag);
 static constexpr uint16_t NONE = 0xFFFF;
 
 // A condition or a moment. ALL / ANY / NOT have kids, a range in Table::kids.
+// END is what a plant end's track hears: item is the end (NONE: no such end),
+// `first` its track number (0: not a track), and hears_mast says which value.
 struct Node {
-  enum Kind : uint8_t { ALL, ANY, NOT, BLOCK, TURNOUT, MAST, BUTTON };
+  enum Kind : uint8_t { ALL, ANY, NOT, BLOCK, TURNOUT, MAST, BUTTON, END };
   // What `is` asks for. A mast's tags are in `tags` (a bit per Tag).
   enum Is : uint8_t { IS_OCCUPIED, IS_CLEAR, IS_CLOSED, IS_THROWN, IS_MOVING, IS_PRESSED, IS_DIVERGING, IS_TAGS, IS_OTHER };
   uint8_t kind = BLOCK;
@@ -36,6 +38,7 @@ struct Node {
   uint16_t board = NONE;  // another board's item: its remote board
   uint16_t item = NONE;  // by kind: sensor / logic block, turnout, mast, button; or remote item
   uint8_t remote = 0;  // another board's item
+  uint8_t hears_mast = 0;  // END: the Mast it hears, not the Block
   uint16_t first = 0, count = 0;  // kids
 };
 
@@ -76,9 +79,10 @@ struct BlockRef {
 };
 
 struct Member {
-  uint16_t item;  // a sensor, or a remote item (NONE: on a board not listed, read occupied)
-  uint16_t board;  // the remote board, NONE when not listed
-  uint8_t remote;  // another board's item
+  enum Kind : uint8_t { LOCAL, REMOTE, END };
+  uint16_t item;  // a sensor; a remote item (NONE: on a board not listed, read occupied); or an end (NONE: none)
+  uint16_t board;  // REMOTE: the remote board, NONE when not listed. END: the track number (0: none)
+  uint8_t remote;  // its Kind
 };
 
 struct LogicBlock {
@@ -92,6 +96,22 @@ struct RemoteItem {
   uint16_t name;
   uint8_t kind;
   uint16_t mast = NONE;  // MAST: its definition in Table::remote_masts
+};
+
+// A plant end's track (README rules 25-27). Its sensors are a range in
+// Table::end_sensors. A pass-through names the far end (an index, NONE: none)
+// and track (0: none).
+struct EndTrack {
+  uint16_t sensors_first = 0, sensors_count = 0;
+  uint16_t mast = NONE;  // a declared mast
+  bool through = false;
+  uint16_t through_end = NONE;
+  uint16_t through_track = 0;
+};
+
+struct End {
+  uint16_t name = 0;
+  uint16_t tracks_first = 0, tracks_count = 0;  // a range in Table::end_tracks
 };
 
 struct Resource {
@@ -158,6 +178,9 @@ struct Table {
   std::vector<Resource> resources;
   std::vector<Rule> rules;  // layers in order, rules in order
   std::vector<uint16_t> layers;  // names
+  std::vector<End> ends;
+  std::vector<EndTrack> end_tracks;
+  std::vector<uint16_t> end_sensors;  // sensor indices
 
   std::string name(uint16_t i) const { return names[i]; }
   std::string rule_ref(uint16_t r) const { return names[layers[rules[r].layer]] + "/" + std::to_string(rules[r].number); }
@@ -173,6 +196,8 @@ struct RemoteStart {
 };
 
 struct Start {
+  std::string board;  // this board's name, as in its topics
+  std::vector<std::pair<std::string, std::string>> links;  // end, its saved link
   bool logic_on = true;
   bool broker_connected = true;
   std::map<std::string, bool> sensors_occupied;
@@ -186,17 +211,23 @@ struct Event {
   enum Kind : uint8_t {
     SENSOR, BUTTON, TURNOUT, REMOTE_LOCK, JMRI, RELEASE, LOGIC, BROKER,
     REMOTE_ONLINE, REMOTE_ITEM, REMOTE_MAST,
+    // Plant ends: name is this board's end. END_BLOCK and END_MAST carry the
+    // linked end's track number, as it numbers it. PAIRING is an announcement.
+    END_PAIR, END_LINK, END_THEIR_LINK, END_ONLINE, END_BLOCK, END_MAST, PAIRING,
   };
   Kind kind = SENSOR;
   std::string name;
   std::string value;
   std::string board;
   std::string item_kind;  // REMOTE_ITEM: sensor, block or turnout
-  bool flag = false;  // REMOTE_ONLINE
+  bool flag = false;  // REMOTE_ONLINE, END_ONLINE
+  int32_t track = 0;  // END_BLOCK, END_MAST
 };
 
 struct LogEvent {
-  enum Kind : uint8_t { STARTUP, GRANT, CANCEL, PASS, RELEASE, IGNORED, RESYNC };
+  // PAIRING: what is the end, by the result, rule the end it paired with.
+  // DISAGREES: what is the end, rule its link, by the linked end's link.
+  enum Kind : uint8_t { STARTUP, GRANT, CANCEL, PASS, RELEASE, IGNORED, RESYNC, PAIRING, DISAGREES };
   Kind kind;
   std::string what;
   std::string rule;  // empty: none (a start-up pass)
@@ -211,10 +242,12 @@ struct Write {
 };
 
 struct Publish {
-  enum Kind : uint8_t { HELD, STATE, RELEASE };
+  // END_*: resource is the end's name, and track its track. PAIRING: value only.
+  enum Kind : uint8_t { HELD, STATE, RELEASE, PAIRING, END_LINK, END_BLOCK, END_MAST };
   Kind kind;
   std::string resource;
   std::string value;
+  uint16_t track = 0;
 };
 
 struct ScanOut {
@@ -231,6 +264,8 @@ struct State {
   std::vector<std::pair<std::string, std::string>> holders;  // "" for none
   std::vector<std::pair<std::string, bool>> locks;
   std::vector<std::pair<std::string, bool>> locked;
+  std::vector<std::pair<std::string, std::string>> ends;  // README rule 26
+  std::vector<std::pair<std::string, std::string>> links;
 };
 
 class Engine {
@@ -257,6 +292,7 @@ class Engine {
 
   static constexpr uint32_t SCAN_MS = 100;
   static constexpr uint32_t RELEASE_WINDOW_MS = 5000;
+  static constexpr uint32_t PAIR_MS = 30000;
 
  private:
   enum Phase : uint8_t { IDLE, ACTIVE, PASSED, CANCELLING };
@@ -286,6 +322,25 @@ class Engine {
     bool startup = false;
     std::vector<bool> held_at_start;
   };
+  // A plant end: its link and what has been heard through it, per track of
+  // this board (index 0 is track 1); and what was last published.
+  struct EndState {
+    std::string link, their_link;  // their_link "": not heard
+    int8_t online = -1;
+    std::vector<int8_t> block, mast;  // -1 not heard; block 0 / 1; mast a Tag
+    bool announce = false;
+    int8_t prev_state = -1;
+    bool link_published = false;
+    std::string published_link;
+    std::vector<int8_t> published_block, published_mast;  // -1 not yet
+  };
+  struct PairEntry {
+    std::string who;
+    int32_t tracks;
+    int64_t until;
+  };
+  enum Link : uint8_t { LINK_EMPTY, LINK_END, LINK_BOARD };
+  enum EndStateKind : uint8_t { E_PAIRING, E_EMPTY, E_END, E_UNHEARD, E_DISAGREES, E_HEARD };
 
   const Table &t_;
   std::vector<RuleState> rules_;
@@ -313,6 +368,12 @@ class Engine {
   std::vector<int16_t> jmri_shown_, display_, prev_out_;  // per mast: aspect, SHOWS_NOTHING or SHOWS_DARK
   std::vector<bool> holds_;
   std::vector<int8_t> published_;  // per resource: held, then state; -1 not yet
+
+  std::string board_;
+  std::vector<EndState> ends_;
+  std::vector<PairEntry> pair_group_;
+  std::vector<std::vector<PairEntry>> closed_groups_;
+  bool ends_publish_all_ = true;
 
   int16_t find(const std::vector<uint16_t> &list, const std::string &name) const;
   int16_t find_mast(const std::string &name) const;
@@ -347,6 +408,21 @@ class Engine {
   void jmri_message(uint16_t mast, const std::string &message);
   std::string aspect_text(uint16_t mast, int16_t a) const;
   void track(uint16_t node);
+  // Plant ends (README rules 23-29).
+  int16_t find_end(const std::string &name) const;
+  std::string who(uint16_t end) const;
+  Link link_kind(uint16_t end) const;
+  void set_link(uint16_t end, const std::string &link);
+  bool ready(uint16_t end) const;
+  void end_hears(uint16_t end, int32_t track, bool *occupied, Tag *tag) const;
+  bool in_pairing(uint16_t end) const;
+  EndStateKind end_state(uint16_t end) const;
+  void end_offer(uint16_t end, uint16_t i, bool *occupied, Tag *tag) const;
+  void join_pairing(const std::string &who, int32_t tracks, int64_t t);
+  void heard_pairing(const std::string &text, int64_t t);
+  void decide_pairing(ScanOut *out);
+  void finish_ends(ScanOut *out);
+  void end_event(const Event &e, int64_t t);
 };
 
 }  // namespace logic_core

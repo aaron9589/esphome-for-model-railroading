@@ -242,6 +242,12 @@ inline Value str(const std::string &s) {
   v.str = s;
   return v;
 }
+inline Value number(double d) {
+  Value v;
+  v.type = Value::NUM;
+  v.num = d;
+  return v;
+}
 inline Value boolean(bool b) {
   Value v;
   v.type = Value::BOOL;
