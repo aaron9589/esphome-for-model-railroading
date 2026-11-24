@@ -2088,7 +2088,14 @@ function renderJmriSummary() {
       return `${plural(c.turnouts, "turnout")}, ${each} position sensor${locks ? `, plus ${plural(locks, "lock sensor")}` : ""}.`;
     })(),
     masts: `${plural(only("masts").masts, "signal mast")}.`,
-    logic: only("logic").sensors ? "This board's Online sensor." : "Nothing yet.",
+    logic: (() => {
+      const n = only("logic").sensors;
+      const online = state.board.mqttEnabled !== false && globalThis.EsphomeMr.sharesWithOtherBoards(state) ? 1 : 0;
+      const parts = [...(online ? ["This board's Online sensor"] : []), ...(n > online ? [plural(n - online, "block")] : [])];
+      if (!parts.length) return "Nothing yet.";
+      const text = parts.join(" and ");
+      return `${text[0].toUpperCase()}${text.slice(1)}.`;
+    })(),
   };
   for (const hint of document.querySelectorAll("[data-jmri-hint]")) {
     hint.textContent = hints[hint.dataset.jmriHint];
