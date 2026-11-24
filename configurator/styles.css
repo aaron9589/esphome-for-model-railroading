@@ -925,6 +925,22 @@ button.mini {
   background: #374151;
 }
 
+/* The Logic page's pictures: smaller, inline, and not clickable. */
+.mini-mast.is-static {
+  display: inline-flex;
+  vertical-align: middle;
+  gap: 0.2rem;
+  padding: 0.3rem 0.25rem;
+  min-width: 1.3rem;
+}
+
+.mini-mast.is-static .mini-lamp {
+  display: block;
+  width: 0.7rem;
+  height: 0.7rem;
+  cursor: default;
+}
+
 .mini-lamp.is-selected {
   outline: 2px solid #60a5fa;
   outline-offset: 2px;
@@ -1234,4 +1250,473 @@ button.mini {
 
 .block-add-member {
   max-width: 100%;
+}
+
+/* Logic page: Who uses what and the control table */
+details.logic-view summary {
+  cursor: pointer;
+  font-weight: 650;
+  color: var(--accent);
+}
+
+details.logic-view[open] summary {
+  margin-bottom: 0.65rem;
+}
+
+details.logic-view h4 {
+  margin: 0.9rem 0 0.4rem;
+  font-size: 0.85rem;
+  font-weight: 650;
+}
+
+.logic-view-scroll {
+  max-width: 100%;
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.logic-view-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.logic-view-table th,
+.logic-view-table td {
+  padding: 0.4rem 0.6rem;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+  vertical-align: top;
+}
+
+.logic-view-table thead th {
+  background: var(--bg);
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.logic-view-table tbody th {
+  font-weight: 600;
+}
+
+.logic-view-table tbody tr:last-child th,
+.logic-view-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.logic-view-table tr.is-shared {
+  background: var(--warn-bg);
+}
+
+.logic-shared-badge {
+  display: inline-block;
+  padding: 0.05rem 0.45rem;
+  border-radius: 999px;
+  background: var(--warn-bg);
+  border: 1px solid #fcd34d;
+  color: var(--warn-ink);
+  font-size: 0.72rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.logic-control {
+  min-width: 64rem;
+}
+
+.logic-control tbody th {
+  white-space: nowrap;
+}
+
+.logic-control tbody th .mini-mast {
+  vertical-align: middle;
+}
+
+/* Logic page: Starters and Download */
+.starter-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 0.75rem;
+}
+
+.starter-grid.is-compact {
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.starter-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.35rem;
+  padding: 0.75rem;
+  text-align: left;
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-radius: 10px;
+  color: var(--ink);
+  font: inherit;
+  cursor: pointer;
+}
+
+.starter-card:hover:not(:disabled) {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.starter-card:disabled {
+  cursor: default;
+  opacity: 0.65;
+}
+
+.starter-about {
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.35;
+}
+
+.starter-soon {
+  font-size: 0.72rem;
+  color: var(--warn-ink);
+  background: var(--warn-bg);
+  border-radius: 999px;
+  padding: 0.1rem 0.5rem;
+}
+
+.starter-grid.is-compact .starter-card {
+  padding: 0.5rem;
+}
+
+.starter-grid.is-compact .starter-about {
+  display: none;
+}
+
+.starter-grid.is-compact .starter-picture {
+  width: 90px;
+  height: 36px;
+}
+
+.starter-picture-wrap {
+  display: block;
+  line-height: 0;
+}
+
+.starter-fold > summary {
+  cursor: pointer;
+  color: var(--muted);
+}
+
+.starter-picture {
+  max-width: 100%;
+  height: auto;
+}
+
+.starter-picture line,
+.starter-picture path {
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.starter-picture .sp-track { stroke: #6b7280; stroke-width: 2.5; }
+.starter-picture .sp-section { stroke: #60a5fa; stroke-width: 5; opacity: 0.7; }
+.starter-picture .sp-joint { stroke: #374151; stroke-width: 1.5; }
+.starter-picture .sp-post { stroke: #374151; stroke-width: 1.5; }
+.starter-picture .sp-head { fill: #1f2937; }
+.starter-picture .sp-train { fill: #1d4ed8; }
+.starter-picture .sp-red { fill: #ef4444; }
+.starter-picture .sp-amber { fill: #f59e0b; }
+.starter-picture .sp-green { fill: #22c55e; }
+.starter-picture .sp-off { fill: #4b5563; }
+.starter-picture .sp-platform { fill: #d1d5db; }
+.starter-picture .sp-road { fill: #e5e7eb; }
+.starter-picture .sp-lock { fill: #92400e; }
+.starter-picture .sp-shackle { stroke: #92400e; stroke-width: 2; }
+.starter-picture .sp-blank { fill: none; stroke: #9ca3af; stroke-width: 1.5; stroke-dasharray: 4 3; }
+.starter-picture .sp-plus { stroke: #6b7280; stroke-width: 3; }
+
+.logic-download .hint {
+  display: block;
+}
+
+.logic-download .logic-version code {
+  font-family: var(--mono);
+  font-size: 1.25rem;
+  letter-spacing: 0.08em;
+}
+
+.logic-download h4 {
+  margin: 1rem 0 0.5rem;
+}
+
+.logic-download .msg {
+  margin-bottom: 0.4rem;
+}
+
+/* Logic page: Masts and Buttons */
+#logic-masts .row-card,
+#logic-buttons .row-card {
+  box-shadow: none;
+}
+
+.logic-mast .fields > p,
+.mast-explain,
+.mast-aspects-field {
+  grid-column: 1 / -1;
+}
+
+.logic-mast .fields > p {
+  margin: 0;
+}
+
+.mast-badge {
+  display: inline-block;
+  padding: 0.05rem 0.45rem;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 0.75rem;
+  font-weight: 600;
+  vertical-align: middle;
+}
+
+.mast-aspects {
+  list-style: none;
+  margin: 0.35rem 0 0.5rem;
+  padding: 0;
+  display: grid;
+  gap: 0.35rem;
+}
+
+.mast-aspects li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem 0.6rem;
+  padding: 0.35rem 0.6rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.mast-aspects li.is-missing {
+  border-style: dashed;
+  color: var(--muted);
+}
+
+.mast-aspect-name {
+  flex: 1 1 6rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+input.mast-aspect-name {
+  max-width: 14rem;
+}
+
+.mast-aspects select {
+  max-width: 100%;
+}
+
+label.mast-diverging {
+  flex-direction: row;
+  align-items: center;
+  gap: 0.3rem;
+  white-space: nowrap;
+}
+
+.mast-aspects .remove {
+  margin-left: auto;
+}
+
+.mast-explain ul {
+  margin: 0;
+  padding: 0.5rem 0.75rem 0.5rem 1.6rem;
+  background: var(--accent-soft);
+  border-radius: 8px;
+  font-size: 0.88rem;
+}
+
+.mast-explain li + li {
+  margin-top: 0.25rem;
+}
+
+#logic-masts .logic-subhead {
+  margin: 1.1rem 0 0.4rem;
+}
+
+/* Logic page: Sections and Groups */
+#logic-sections .row-card,
+#logic-groups .row-card {
+  box-shadow: none;
+}
+
+.logic-group > .logic-rule {
+  margin-top: 0.75rem;
+  background: var(--bg);
+}
+
+.logic-group > button {
+  margin-top: 0.25rem;
+}
+
+.rule-sentence {
+  margin: 0 0 0.75rem;
+  padding: 0.5rem 0.75rem;
+  background: var(--accent-soft);
+  border-radius: 8px;
+  font-size: 0.88rem;
+}
+
+.rule-part {
+  display: grid;
+  gap: 0.4rem;
+  margin: 0 0 0.85rem;
+}
+
+.rule-part-title {
+  font-size: 0.82rem;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.rule-part > p.hint {
+  margin: 0;
+}
+
+.rule-part > button,
+.rule-moments > button {
+  justify-self: start;
+}
+
+.rule-when {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 0.4rem;
+}
+
+.rule-when > select {
+  width: auto;
+}
+
+.rule-when > .rule-leaf,
+.rule-when > .rule-combo {
+  flex: 1 1 16rem;
+}
+
+.rule-leaf,
+.rule-branch,
+.rule-signal {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  min-width: 0;
+}
+
+.rule-leaf select,
+.rule-signal select {
+  width: auto;
+  max-width: 100%;
+}
+
+.rule-branch > :first-child {
+  flex: 1 1 14rem;
+  min-width: 0;
+}
+
+.rule-word {
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.rule-combo {
+  display: grid;
+  gap: 0.4rem;
+  padding: 0.5rem 0.6rem;
+  border: 1px solid var(--line-strong);
+  border-left-width: 3px;
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.rule-combo.is-not {
+  border-left-color: var(--danger);
+}
+
+.rule-combo-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.rule-combo-head select {
+  width: auto;
+}
+
+.rule-combo > button {
+  justify-self: start;
+}
+
+.rule-meanings,
+.rule-lock-boxes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.75rem;
+}
+
+label.rule-tick {
+  flex-direction: row;
+  align-items: center;
+  gap: 0.3rem;
+  white-space: nowrap;
+}
+
+label.rule-tick input {
+  width: auto;
+}
+
+.rule-locks {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.rule-moments {
+  display: grid;
+  gap: 0.4rem;
+  margin-top: 0.35rem;
+}
+
+details.rule-more summary {
+  cursor: pointer;
+  font-weight: 650;
+  color: var(--accent);
+}
+
+details.rule-more[open] summary {
+  margin-bottom: 0.65rem;
+}
+
+details.rule-more {
+  grid-column: 1 / -1;
+}
+
+.rule-cancel {
+  display: grid;
+  gap: 0.4rem;
+}
+
+@media (max-width: 640px) {
+  .rule-leaf select,
+  .rule-signal select,
+  .rule-when > select {
+    width: 100%;
+  }
 }

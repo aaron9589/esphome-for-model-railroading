@@ -5,10 +5,12 @@ import fs from "node:fs";
 import path from "node:path";
 import { configuratorDir, loadModules, test } from "./harness.js";
 
-const context = loadModules("generator.js", "logic-yaml.js", "logic-ui.js");
+// Every Logic page file, in index.html's order.
+export const LOGIC_UI_FILES = ["generator.js", "logic-yaml.js", "logic.js", "logic-ui.js", "logic-ui-masts.js", "logic-ui-rules.js", "logic-ui-views.js", "logic-ui-start.js"];
+const context = loadModules(...LOGIC_UI_FILES);
 const { generateYaml, logicMode, myFirstBoardPreset, normalizeConfig, parseConfigFromYaml, sharesWithOtherBoards } =
   context.EsphomeMr;
-const { FEATURES, TEXT, checklistSteps, logicNavHint, modeChoices } = context.EsphomeMrLogicUi;
+const { FEATURES, TEXT, allText, checklistSteps, logicNavHint, modeChoices } = context.EsphomeMrLogicUi;
 
 function board() {
   const config = myFirstBoardPreset();
@@ -30,9 +32,23 @@ function strings(value, where = "TEXT") {
   return Object.entries(value).flatMap(([key, inner]) => strings(inner, `${where}.${key}`));
 }
 
-test("no Logic page label uses a spec-only term", () => {
-  const found = strings(TEXT).filter(([, text]) => SPEC_ONLY.test(text));
+test("no Logic page label uses a spec-only term, in any part", () => {
+  const found = [...allText()].flatMap(([where, text]) => strings(text, where)).filter(([, text]) => SPEC_ONLY.test(text));
   assert.deepEqual(found, []);
+});
+
+test("every part file hands its TEXT to the lint", () => {
+  const linted = new Set([...allText()].map(([, text]) => text));
+  for (const name of ["Masts", "Rules", "Views", "Start"]) {
+    const { TEXT: own } = context[`EsphomeMrLogicUi${name}`];
+    assert.ok(Object.keys(own).length === 0 || linted.has(own), `EsphomeMrLogicUi${name}.TEXT is not registered with a part`);
+  }
+});
+
+test("index.html loads every Logic page file, in order, before app.js", () => {
+  const html = fs.readFileSync(path.join(configuratorDir, "index.html"), "utf8");
+  const scripts = [...html.matchAll(/<script src="\.\/([^"]+)"><\/script>/g)].map((m) => m[1]);
+  assert.deepEqual(scripts, [...LOGIC_UI_FILES, "app.js"]);
 });
 
 test("the Logic section in index.html uses plain words too", () => {
@@ -126,6 +142,9 @@ test("the checklist leads with choosing a mode, and ends with Download", () => {
   config.logic = { mode: "field" };
   assert.deepEqual(keys(checklistSteps(config, { blocks: true })), ["mode+", "blocks", "download"]);
   config.logic.blocks = [{ name: "Int 2" }];
+  // Blocks and signals: done once there are blocks and a group of rules.
+  assert.deepEqual(keys(checklistSteps(config, { blocks: true })), ["mode+", "blocks", "download"]);
+  config.logic.layers = [{ name: "Group 1", rules: [] }];
   assert.deepEqual(keys(checklistSteps(config, { blocks: true })), ["mode+", "blocks+", "download"]);
   assert.equal(FEATURES.tryIt, false);
 });

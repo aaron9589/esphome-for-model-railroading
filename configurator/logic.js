@@ -741,7 +741,16 @@
   const where = (name, b) => (b === undefined ? name : `${name} on ${b}`);
   const orList = (words) => (words.length < 2 ? words.join("") : `${words.slice(0, -1).join(", ")} or ${words[words.length - 1]}`);
 
+  // A state, and how long it must have held: blocks and sensors say it in
+  // their own words; anything else has the time added after it.
   function sayCondition(c, forText) {
+    const said = sayState(c, forText);
+    const own = c.block !== undefined || c.sensor !== undefined;
+    if (!forText || own || !said) return said;
+    return c.all || c.any || c.not ? `${said}, for ${duration(forText)}` : `${said} for ${duration(forText)}`;
+  }
+
+  function sayState(c, forText) {
     if (c.all) return sayAll(c.all);
     if (c.any) return `either ${c.any.map((x) => sayCondition(x)).join(c.any.some((x) => x.all) ? ", or " : " or ")}`;
     if (c.not) {

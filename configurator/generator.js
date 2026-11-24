@@ -160,6 +160,9 @@ function normalizeLogic(config) {
       }
       if (!isObject(board.logic)) board.logic = {};
       board.logic.blocks = Array.isArray(board.logic.blocks) ? board.logic.blocks.filter(isObject) : [];
+      board.logic.masts = Array.isArray(board.logic.masts) ? board.logic.masts.filter(isObject) : [];
+      if (!isObject(board.signals)) board.signals = {};
+      board.signals.masts = Array.isArray(board.signals.masts) ? board.signals.masts.filter(isObject) : [];
     }
   }
   // Blocks: a name, a topic that follows the name until it is edited, and
@@ -1015,9 +1018,24 @@ function validateConfig(config) {
 
   // Rule buttons (Logic page): a pin of their own, like every other pin.
   for (const button of logicHooks(config).buttonPins(config) || []) {
+    let text = "";
+    if (button.expander !== undefined) {
+      // On an expander: checked like a sensor on one, sharing its pins.
+      const expander = expanders.find((e) => e.name === button.expander);
+      const pin = Number(button.pin);
+      const key = expander ? `${expander.name}\u0000${pin}` : "";
+      if (!expander) text = `Button "${button.name}" is on expander "${button.expander}", which is not on the Sensors page. Pick another pin for the button.`;
+      else if (!Number.isInteger(pin) || pin < 0 || pin > 15) text = `Button "${button.name}" needs an expander pin from A0 to B7.`;
+      else if (expanderPins.has(key)) text = `${expander.name} pin ${expanderPinLabel(pin)} is used by "${expanderPins.get(key)}" and button "${button.name}". A pin can do one job: pick another pin for the button.`;
+      else expanderPins.set(key, `button ${button.name}`);
+      if (text) {
+        errors.push(text);
+        links.set(text, button.where);
+      }
+      continue;
+    }
     // Wired to GND like a turnout's button, so it needs the pin's pull-up.
     const issue = pinProblem(button.pin, "button");
-    let text = "";
     if (issue) text = `Button "${button.name}" ${issue}.`;
     else if (pins.has(button.pin)) text = `Button "${button.name}" is on ${button.pin}, which "${pins.get(button.pin)}" already uses. A pin can do one job: pick another pin for the button.`;
     else pins.set(button.pin, `button ${button.name}`);
