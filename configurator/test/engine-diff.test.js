@@ -29,10 +29,29 @@ function random(seed) {
   };
 }
 
-// Every kind of event the board can see, for this board's items.
-function candidates(board) {
+// Every kind of event the board can see, for this board's items. `me` is its
+// name, for plant ends: links and announcements that name it, and others.
+function candidates(board, me = "") {
   const list = [];
   const logic = board.logic || {};
+  const TAG_WORDS = ["stop", "restricting", "approach", "advance", "clear"];
+  for (const end of logic.ends || []) {
+    const e = end.name;
+    const count = (end.tracks || []).length;
+    for (const link of ["", "end", "east/A", "north/C", `${me}/${e}`, "nope", "/A", "east/"]) list.push({ end: e, link });
+    // Their link: right, wrong, and not heard; twice as often as the rest.
+    for (const theirLink of [`${me}/${e}`, `${me}/${e}`, "west/Z", ""]) list.push({ end: e, theirLink });
+    list.push({ end: e, online: true }, { end: e, online: true }, { end: e, online: false });
+    for (let track = 0; track <= count + 1; track++) {
+      for (const block of ["occupied", "clear", "clear", "unknown"]) list.push({ end: e, track, block });
+      for (const mast of [...TAG_WORDS, "", "Clear"]) list.push({ end: e, track, mast });
+    }
+    list.push({ end: e, track: 1.5, block: "occupied" }, { end: e, pair: "released" });
+    // Pair presses and one other end most often, so pairing succeeds as well as fails.
+    for (let k = 0; k < 4; k++) list.push({ end: e, pair: "pressed" }, { pairing: `east/A/${count}` });
+    for (const pairing of [`east/A/${count}`, `north/C/${count}`, "east/A/9", `${me}/${e}/${count}`, "garbage", "a/b/c/1", "x//1", "x/y/12345"]) list.push({ pairing });
+  }
+  list.push({ end: "Nowhere", link: "east/A" });
   for (const s of board.sensors || []) list.push({ sensor: s, is: "occupied" }, { sensor: s, is: "clear" });
   for (const b of logic.buttons || []) list.push({ button: b.name, is: "pressed" }, { button: b.name, is: "released" });
   for (const t of board.turnouts || []) {
@@ -58,15 +77,21 @@ function candidates(board) {
   return list;
 }
 
-function trace(board, seed) {
+function trace(board, seed, me) {
   const next = random(seed);
-  const pool = candidates(board);
+  // Pair presses and announcements come only in the first 9 s, as at a meet,
+  // so that every pairing group closes and is decided within the run.
+  const rare = (e) => e.pair !== undefined || e.pairing !== undefined;
+  const all = candidates(board, me);
+  const pool = all.filter((e) => !rare(e));
+  const pairing = all.filter(rare);
   const scans = [];
   for (let i = 0; i < SCANS; i++) {
     const events = [];
     // Mostly quiet scans, with bursts, as on a layout.
     const count = next() < 0.6 ? 0 : 1 + Math.floor(next() * 3);
     for (let k = 0; k < count && pool.length; k++) events.push(pool[Math.floor(next() * pool.length)]);
+    if (pairing.length && i < 90 && next() < 0.03) events.push(pairing[Math.floor(next() * pairing.length)]);
     if (next() < 0.01) events.push({ logic: next() < 0.5 ? "off" : "on" });
     if (next() < 0.01) events.push({ broker: next() < 0.5 ? "disconnected" : "connected" });
     scans.push(events);
@@ -77,7 +102,11 @@ function trace(board, seed) {
 // Boards with shapes the cases do not use, so the two engines are compared on
 // them too: blocks of local, keyed and remote members, both keys for one
 // sensor in one sequence, is lists, a when trigger with a cancel, a button,
-// lock rules, approach lighting, and a resource no rule reserves.
+// lock rules, approach lighting, and a resource no rule reserves. "plant
+// ends": every kind of end track (a mast set by rules, a JMRI mast, a dark
+// mast, none, pass-throughs good and bad, a track that is not an object), a
+// block and a section reaching across an end, and rules reading what ends hear
+// by Block, by Mast and as moments.
 const S2 = { aspects: { R292: "stop", R285: "approach", R281: "clear", R283: "clear" }, diverging: ["R283"] };
 const EXTRA_BOARDS = {
   "mixed shapes": {
@@ -123,6 +152,65 @@ const EXTRA_BOARDS = {
     },
     start: { remote: { south: { online: true } } },
   },
+  "plant ends": {
+    board: {
+      sensors: ["In", "Main", "Out", "Loop"],
+      turnouts: ["P1"],
+      masts: { Home: S2, JM: S2, Dim: { ...S2, approachLight: "Main" }, Spare: S2 },
+      logic: {
+        blocks: [
+          { name: "Approach", sensors: ["In", { end: "A", track: 1 }] },
+          { name: "Beyond", sensors: [{ end: "B", track: 2 }] },
+          { name: "Ghost", sensors: [{ end: "B", track: 7 }, { end: "Q", track: 1 }] },
+        ],
+        resources: [{ name: "Main line", blocks: ["Main", "Beyond"], release: { while: { block: "Beyond", is: "clear" }, for: "0.3s" } }],
+        ends: [
+          { name: "A", tracks: [{ sensors: ["In"], mast: "Home" }, { sensors: ["Loop"], through: { end: "B", track: 1 } }, null, { mast: "JM" }] },
+          { name: "B", tracks: [
+            { sensors: ["Loop"], through: { end: "A", track: 2 } },
+            { sensors: ["Out"], mast: "Dim" },
+            { sensors: ["Out"], through: { end: "B", track: 1 } },
+            { through: { end: "Q", track: 1 } },
+            { through: { end: "A", track: 9 } },
+            { through: {} },
+          ], pairPin: "GPIO32" },
+          { name: "C", tracks: [{ mast: "Nowhere" }] },
+        ],
+        layers: [
+          { name: "Signals", rules: [
+            { trigger: { while: { block: "Approach", is: "clear" } }, checks: [{ end: "A", track: 4, hears: "mast", is: ["approach", "advance", "clear"] }],
+              then: { mast: "Home", aspect: "R281", reserve: "Main line", lock: ["P1"] } },
+            { trigger: { while: { block: "Approach", is: "clear" } }, checks: [{ not: { end: "A", track: 4, hears: "mast", is: "stop" } }, { end: "B", track: 2, hears: "mast", is: "diverging" }],
+              then: { mast: "Home", aspect: "R285" } },
+            { trigger: { while: { end: "B", track: 3, hears: "block", is: "clear" }, for: "0.2s" }, checks: [{ end: "C", track: 1, hears: "block", is: "occupied" }, { block: "Ghost", is: "occupied" }],
+              then: { mast: "Dim", aspect: "R281" } },
+          ] },
+          { name: "Moments", rules: [
+            { trigger: { when: { end: "A", track: 2, hears: "block", is: "occupied" }, then: [{ end: "A", track: 2, hears: "block", is: "clear" }] }, checks: [],
+              then: { mast: "Spare", aspect: "R285" } },
+            { trigger: { while: { any: [{ end: "B", track: 1, hears: "mast", is: ["clear"] }, { end: "Z", track: 1, hears: "block", is: "clear" }, { end: "A", track: "1", is: "clear" }] } }, checks: [],
+              then: { mast: "Spare", aspect: "R281" } },
+          ] },
+        ],
+      },
+    },
+    start: { board: "mid", links: { A: "west/B", B: "east/A", Nowhere: "x/y" } },
+  },
+  // One end, so that pairing with east/A often succeeds, then is heard.
+  pairing: {
+    board: {
+      sensors: ["S"],
+      masts: { Home: S2 },
+      logic: {
+        blocks: [{ name: "Next", sensors: ["S", { end: "A", track: 1 }] }],
+        ends: [{ name: "A", tracks: [{ sensors: ["S"], mast: "Home" }, {}] }],
+        layers: [{ name: "Home", rules: [
+          { trigger: { while: { block: "Next", is: "clear" } }, checks: [{ end: "A", track: 1, hears: "mast", is: ["approach", "clear"] }], then: { mast: "Home", aspect: "R281" } },
+        ] }],
+      },
+    },
+    start: { board: "solo" },
+  },
 };
 
 function runJs(board, start, scans) {
@@ -151,8 +239,13 @@ if (!bin) {
 } else {
   assert.ok(fs.existsSync(bin), `ENGINE_TESTS_BIN ${bin} does not exist`);
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "engine-diff-"));
+  // A multi-board case gives each of its boards, with its own start and name.
   const boards = fs.readdirSync(casesDir).filter((f) => f.endsWith(".json")).sort()
-    .map((file) => [file, JSON.parse(fs.readFileSync(path.join(casesDir, file), "utf8"))]);
+    .flatMap((file) => {
+      const data = JSON.parse(fs.readFileSync(path.join(casesDir, file), "utf8"));
+      if (!data.boards) return [[file, data]];
+      return Object.entries(data.boards).map(([name, board]) => [`${file} (${name})`, { board, start: { ...(data.start?.[name] || {}), board: name } }]);
+    });
   for (const [name, data] of Object.entries(EXTRA_BOARDS)) boards.push([name, data]);
   for (const [file, { board, start = {} }] of boards) {
     const runs = file in EXTRA_BOARDS ? TRACES * 10 : TRACES;
@@ -161,7 +254,7 @@ if (!bin) {
         // A seed per file name and run, so every board gets its own events.
         let seed = run * 7919;
         for (const ch of file) seed = (Math.imul(seed, 31) + ch.charCodeAt(0)) >>> 0;
-        const scans = trace(board, seed);
+        const scans = trace(board, seed, start.board);
         const tracePath = path.join(dir, `${file.replace(/\W+/g, "-")}-${run}.json`);
         fs.writeFileSync(tracePath, JSON.stringify({ board, start, scans }));
         const cpp = JSON.parse(execFileSync(bin, ["--trace", tracePath], { encoding: "utf8", maxBuffer: 64 << 20 }));
