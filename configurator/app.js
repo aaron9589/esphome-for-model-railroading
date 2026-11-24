@@ -276,6 +276,7 @@ document.getElementById("btn-copy").addEventListener("click", async () => {
 // Returns false (after showing why) when the text is not one of ours.
 function importText(text, source) {
   try {
+    const previousSuffix = state.board?.nameSuffix;
     state = parseConfigFromYaml(text);
     normalizeTopics(state);
     // Prefer credentials from the imported file when present; otherwise keep browser-saved ones.
@@ -289,9 +290,10 @@ function importText(text, source) {
     saveCredentials(extractCredentials(state.board));
     persist();
     render();
-    // A copy of a file for a second board would share this board's identity.
-    flash("ok", state.board.nameSuffix
-      ? `Imported ${source}. If this is a copy for another board, click New suffix on the Board page.`
+    // A copy of another board's file would share that board's identity. Not
+    // said when re-importing this browser's own board.
+    flash("ok", state.board.nameSuffix && state.board.nameSuffix !== previousSuffix
+      ? `Imported ${source}. If you are setting up a second board from this file, click New suffix on the Board page.`
       : `Imported ${source}.`);
     return true;
   } catch (err) {
@@ -640,17 +642,17 @@ function boardNameFields() {
     input.replaceWith(row);
     row.append(input, tail);
     fields.push(suffixAction("New suffix",
-      "Only for a copy of another board's file. Two boards must never share a suffix. The board's network name changes, so flash it next by USB or to the old name.",
+      "Only for a copy of another board's file. Two boards must never share a suffix. The board's network name changes, so flash it next by USB.",
       () => {
         newNameSuffix(b);
-        return `New suffix -${b.nameSuffix}. Flash this board by USB next, or to its old name.`;
+        return `New suffix -${b.nameSuffix}. Flash this board by USB next: its network name has changed.`;
       }));
   } else {
     fields.push(suffixAction("Add a suffix",
-      "Adds six characters, such as -k7m4x2, so this board's name is unique at a meet. Boards that share or run logic need one. The board's network name changes, so flash it next by USB or to the old name.",
+      "Adds six characters, such as -k7m4x2, so this board's name is unique at a meet. Boards that share or run logic need one. The board's network name changes, so flash it next by USB.",
       () => {
         addNameSuffix(b);
-        return `Added -${b.nameSuffix}. Flash this board by USB next, or to its old name.`;
+        return `Added -${b.nameSuffix}. Flash this board by USB next: its network name has changed.`;
       }));
   }
   return fields;

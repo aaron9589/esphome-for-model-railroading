@@ -513,7 +513,7 @@ function validateConfig(config) {
     warnings.push("Hotspot name is longer than 32 characters. Shorten the board name.");
   }
   if (!board.nameSuffix && (config.logic?.mode || config.logic?.share === true)) {
-    warnings.push("Board name has no suffix. Boards that share or run logic need a unique name: click Add a suffix on the Board page. Renaming changes the board's network name, so flash it next by USB or to the old name.");
+    warnings.push("Board name has no suffix. Boards that share or run logic need a unique name: click Add a suffix on the Board page. The name changes, so flash the board next by USB.");
   }
 
   const pins = new Map();
