@@ -730,7 +730,7 @@ Everything below is emitted only for what the Logic page declares: the interpret
 The rule table is written into `board.yaml` as data for the component. The version code is a hash of the rule table. Existing pieces (`<m>_aspect`, `<m>_show`, `<block>_sensor`) are reused, and no new lamp code is needed. `<m>_aspect` holds an aspect index, `-1` for nothing shown yet, or `-2` for dark.
 
 - The [scan](#the-scan) runs every 100 ms inside the component: read, evaluate, write, publish and log. It does nothing while logic is off.
-- State, all `restore_value: false`. It lives in the component. Where existing YAML needs it (a turnout's lock check, a mast's aspect and `_show` script), the component either writes typed ESPHome `globals` it is given by id, or the YAML reads it through the component; the implementation plan's first spike picks one. The names below are the ones the YAML uses either way:
+- State, all `restore_value: false`. It lives in the component. Where existing YAML needs it (a turnout's lock check, a mast's aspect and `_show` script), the component writes the typed ESPHome `globals` it is given by id (decided in [The component](#the-component-spike-a)). The names below are the ones the YAML uses either way:
   - per input: its value, its two latches and, for a remote input, whether it is known
   - per resource: holder, phase, and per reserving rule its waiting-since time
   - per field-controlled mast: `<m>_held` (the Held flag from the last JMRI message) and `<m>_remote` (the aspect JMRI last picked, `-1` if none)
@@ -756,6 +756,35 @@ The rule table is written into `board.yaml` as data for the component. The versi
   - retained publishes of the Held, State, Version and switch topics
   - `/Moving` from each throw script, `ACTIVE` at the start and `INACTIVE` after the back-off.
 - `on_boot`: field-controlled masts at their stop aspect, then the [start-up scan](#start-up-scan) after the existing startup aspect step (priority below -150). Toggle switch boot moves wait for it.
+
+## The component (Spike A)
+
+Spike A built an `mr_logic` external component around the C++ core and compiled it for an ESP32 with ESPHome 2026.10.2 (work item 0.4). What it decided, and what still needs a board on the bench:
+
+**Decided**
+
+- **Where the code lives.** ESPHome copies only an external component's top-level source files into the build; it descends into subfolders only for its own core. So `components/mr_logic/` holds the core (`logic_core.*`, `logic_table.*`, `logic_json.h`, no ESPHome includes) beside the adapter (`mr_logic.*`) and `__init__.py`. The core's namespace is `logic_core`: ESPHome's generated `main.cpp` has `using namespace esphome;`, so a core namespace called `mr_logic` clashes with the component's `esphome::mr_logic`.
+- **The rule table is one JSON string** in the YAML (`mr_logic: table:`), in the engine cases' board format, so the configurator, `logic.js`, the cases and the board share one format, and the version code can be a hash of it. The alternative, a nested YAML schema, was measured on a 200-rule table: `esphome config` took 0.19 s with the string, 0.28 s nested, and 0.18 s with no logic at all. Both are fast; the nested table also made the YAML four times as long (3,752 lines against 952) and needed the format written again as a Python schema.
+- **The component writes typed globals and runs scripts by id.** Codegen binds each engine name to this board's objects with generated lambdas: a mast's `<m>_aspect` global and `<m>_show.execute(true)`, a turnout's `<id>_field_locked` global. The existing YAML keeps reading the same globals as today, so logic adds nothing to a foundational item's YAML beyond the hooks this spec lists, and the component does not depend on the globals' or scripts' C++ types (restoring globals are a different type).
+- **Moving is polled, not hooked.** Once per scan the component reads `is_running()` on a turnout's two throw scripts, and its `_thrown` global. A throw takes seconds, so a 100 ms poll misses nothing, and the throw scripts need no new hooks for the engine.
+- **Inputs are recorded as they arrive.** Binary sensors and the `mqtt_subscribe` text sensors feed the engine through `add_on_state_callback`, so a pulse between two scans is not lost. ESPHome queues MQTT events to the main loop, so callbacks never run during a scan.
+- **The scan** runs in `loop()` every 100 ms by `millis()`. A late loop runs one scan, not a burst to catch up, and a scan longer than the cycle is logged at `WARN`.
+- **Detectors settled** means every bound sensor has a state. With the 500 ms Debounce that is about half a second after boot. The start-up scan waits for it, or for 3 s at most; a sensor with no state by then counts as occupied.
+- **`_show` is `mode: restart`**, which is safe because the engine writes a mast only when its aspect changes (the `scan-publish-on-change` case).
+
+**The core must be made compact before boards use it.** The core as built (2.3) keeps names as strings, looks them up by name, copies the board into the engine, and parses the JSON into a tree first. Measured on a computer (64-bit, so pointers are twice the ESP32's):
+
+| Table | JSON | Board in memory | Engine (with its own copy) | Peak while reading | Mean scan |
+|---|---|---|---|---|---|
+| Gauntlet, 2 rules | 652 B | 1.9 KB | 3.9 KB | 15.8 KB | 1.4 µs |
+| 48 rules, 50 masts | 12.6 KB | 49 KB | 65 KB | 240 KB | 39 µs |
+| 200 rules, 50 masts | 36.9 KB | 145 KB | 202 KB | 747 KB | 254 µs |
+
+An ESP32 with Wi-Fi, MQTT and the web server running typically has 100 to 150 KB of heap free, so only small boards would fit. Work item 2.3b changes the core to compile the table once at boot into compact arrays (items by index, values as small enums, the engine referring to the table instead of copying it), reading the JSON string straight from flash without building a tree. `logic.js` and the cases do not change; the cross-check and the cases prove the compact core still behaves the same.
+
+**Flash and RAM on the ESP32** (ESPHome 2026.10.2, `esphome compile`): the gauntlet board without logic used 53,488 B of static RAM and 1,039,391 B of flash. With the component bound to its sensors, masts and turnout: 53,680 B (+192 B) and 1,081,075 B (+41.7 KB). A 200-rule table adds its JSON string to flash (+34.5 KB) and no static RAM.
+
+**Still to measure on a board** (the spike's hardware half): scan time on the ESP32, the 100 ms loop's jitter while MQTT connects, free heap with about 40 `mqtt_subscribe` text sensors, and the boot order on the bench. The boot order to try: the startup-aspect step (`on_boot` priority -150) runs only while the logic switch is off; the latch scripts (-200) wait until the component's start-up scan has run; the component's setup priority is `DATA`, after the sensors and scripts it reads.
 
 ## Stored format
 

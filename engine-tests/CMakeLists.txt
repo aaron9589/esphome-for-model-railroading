@@ -1,4 +1,4 @@
-# Builds the logic engine's C++ core (components/mr_logic/core) on a computer,
+# Builds the logic engine's C++ core (components/mr_logic/logic_core.*) on a computer,
 # with no ESPHome, and replays the shared engine cases against it.
 #   cmake -S engine-tests -B engine-tests/build && cmake --build engine-tests/build
 #   ctest --test-dir engine-tests/build --output-on-failure
@@ -10,7 +10,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 # The core must build as the board builds it: no exceptions, no RTTI.
-add_library(mr_logic_core STATIC ../components/mr_logic/core/logic_core.cpp)
+add_library(mr_logic_core STATIC ../components/mr_logic/logic_core.cpp ../components/mr_logic/logic_table.cpp)
 target_compile_options(mr_logic_core PRIVATE -Wall -Wextra -Werror -fno-exceptions -fno-rtti)
 
 add_executable(engine_tests main.cpp)

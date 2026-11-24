@@ -10,7 +10,7 @@
 #include <utility>
 #include <vector>
 
-namespace mr_logic {
+namespace logic_core {
 
 // Most restrictive first.
 enum Tag : int8_t { TAG_NONE = -1, TAG_STOP = 0, TAG_RESTRICTING, TAG_APPROACH, TAG_ADVANCE, TAG_CLEAR };
@@ -305,4 +305,4 @@ class Engine {
   void track(const Cond &c);
 };
 
-}  // namespace mr_logic
+}  // namespace logic_core

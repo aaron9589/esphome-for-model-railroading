@@ -1,5 +1,5 @@
-// A small JSON reader for the engine cases: enough for configurator/test/cases,
-// so the tests need nothing outside this repo. Objects keep their key order.
+// A small JSON reader: the rule table on the board, and the engine cases in
+// engine-tests. No exceptions, no ESPHome. Objects keep their key order.
 #pragma once
 
 #include <cstdio>
@@ -8,6 +8,7 @@
 #include <utility>
 #include <vector>
 
+namespace logic_core {
 namespace json {
 
 struct Value {
@@ -255,3 +256,4 @@ inline Value object(std::vector<std::pair<std::string, Value>> fields) {
 }
 
 }  // namespace json
+}  // namespace logic_core

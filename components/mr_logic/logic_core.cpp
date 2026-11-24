@@ -4,7 +4,7 @@
 
 #include <algorithm>
 
-namespace mr_logic {
+namespace logic_core {
 
 namespace {
 
@@ -877,4 +877,4 @@ State Engine::state() const {
   return s;
 }
 
-}  // namespace mr_logic
+}  // namespace logic_core
