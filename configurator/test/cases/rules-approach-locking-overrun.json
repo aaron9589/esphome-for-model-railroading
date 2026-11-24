@@ -1,0 +1,215 @@
+{
+  "name": "approach locking: a block occupied during the time means the train ran past",
+  "covers": [
+    "approach locking: off frees at once; on holds for the time, then frees; a block occupied during that time goes to PASSED; manual release ends it"
+  ],
+  "about": "After the cancel, the bridge becomes occupied while the section is still held: the train could not stop. The rule goes to PASSED and releases normally; the 10s time no longer matters.",
+  "board": {
+    "sensors": [
+      "Left",
+      "Bridge",
+      "Right"
+    ],
+    "masts": {
+      "Left Bridge": {
+        "aspects": {
+          "R292": "stop",
+          "R281": "clear"
+        }
+      },
+      "Right Bridge": {
+        "aspects": {
+          "R292": "stop",
+          "R281": "clear"
+        }
+      }
+    },
+    "logic": {
+      "resources": [
+        {
+          "name": "Bridge",
+          "blocks": [
+            "Bridge"
+          ],
+          "release": {
+            "while": {
+              "block": "Bridge",
+              "is": "clear"
+            },
+            "for": "3s"
+          },
+          "approachLock": "10s"
+        }
+      ],
+      "layers": [
+        {
+          "name": "Gauntlet",
+          "rules": [
+            {
+              "trigger": {
+                "while": {
+                  "block": "Left",
+                  "is": "occupied"
+                },
+                "for": "0.5s"
+              },
+              "checks": [],
+              "then": {
+                "mast": "Left Bridge",
+                "aspect": "R281",
+                "reserve": "Bridge",
+                "lock": [
+                  "P1"
+                ]
+              }
+            },
+            {
+              "trigger": {
+                "while": {
+                  "block": "Right",
+                  "is": "occupied"
+                },
+                "for": "0.5s"
+              },
+              "checks": [],
+              "then": {
+                "mast": "Right Bridge",
+                "aspect": "R281",
+                "reserve": "Bridge"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    "turnouts": [
+      "P1"
+    ]
+  },
+  "steps": [
+    {
+      "at": 1,
+      "do": [
+        {
+          "sensor": "Left",
+          "is": "occupied"
+        }
+      ]
+    },
+    {
+      "at": 6,
+      "expect": {
+        "events": [
+          {
+            "grant": "Bridge",
+            "rule": "Gauntlet/1"
+          }
+        ],
+        "locks": {
+          "P1": true
+        },
+        "masts": {
+          "Left Bridge": "R281"
+        }
+      }
+    },
+    {
+      "at": 10,
+      "do": [
+        {
+          "sensor": "Left",
+          "is": "clear"
+        }
+      ]
+    },
+    {
+      "at": 15,
+      "expect": {
+        "events": [
+          {
+            "cancel": "Bridge",
+            "rule": "Gauntlet/1"
+          }
+        ],
+        "masts": {
+          "Left Bridge": "R292"
+        },
+        "resources": {
+          "Bridge": "CANCELLING"
+        },
+        "rules": {
+          "Gauntlet/1": "cancelling"
+        },
+        "locks": {
+          "P1": true
+        }
+      }
+    },
+    {
+      "at": 30,
+      "do": [
+        {
+          "sensor": "Bridge",
+          "is": "occupied"
+        }
+      ],
+      "expect": {
+        "events": [
+          {
+            "pass": "Bridge",
+            "rule": "Gauntlet/1"
+          }
+        ],
+        "resources": {
+          "Bridge": "PASSED"
+        },
+        "locks": {
+          "P1": true
+        },
+        "masts": {
+          "Left Bridge": "R292"
+        }
+      }
+    },
+    {
+      "at": 40,
+      "do": [
+        {
+          "sensor": "Bridge",
+          "is": "clear"
+        }
+      ]
+    },
+    {
+      "at": 69,
+      "expect": {
+        "resources": {
+          "Bridge": "PASSED"
+        }
+      }
+    },
+    {
+      "at": 70,
+      "expect": {
+        "events": [
+          {
+            "release": "Bridge",
+            "by": "release"
+          }
+        ],
+        "resources": {
+          "Bridge": "IDLE"
+        },
+        "locks": {
+          "P1": false
+        }
+      }
+    },
+    {
+      "at": 115,
+      "expect": {
+        "events": []
+      }
+    }
+  ]
+}

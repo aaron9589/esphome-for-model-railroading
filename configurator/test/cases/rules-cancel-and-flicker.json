@@ -1,0 +1,236 @@
+{
+  "name": "a flicker shorter than 0.5s neither asks nor cancels; backing out cancels",
+  "covers": [
+    "cancel before passing; a trigger flicker shorter than its *for* neither starts nor cancels a request"
+  ],
+  "about": "Left reads occupied for 0.2s: nothing. A train arrives and is granted; a 0.3s detector gap does not cancel. The train then backs out of Left before reaching the bridge: once Left has been clear for 0.5s the rule is cancelled and the bridge freed at once (approach locking off).",
+  "board": {
+    "sensors": [
+      "Left",
+      "Bridge",
+      "Right"
+    ],
+    "masts": {
+      "Left Bridge": {
+        "aspects": {
+          "R292": "stop",
+          "R281": "clear"
+        }
+      },
+      "Right Bridge": {
+        "aspects": {
+          "R292": "stop",
+          "R281": "clear"
+        }
+      }
+    },
+    "logic": {
+      "resources": [
+        {
+          "name": "Bridge",
+          "blocks": [
+            "Bridge"
+          ],
+          "release": {
+            "while": {
+              "block": "Bridge",
+              "is": "clear"
+            },
+            "for": "3s"
+          }
+        }
+      ],
+      "layers": [
+        {
+          "name": "Gauntlet",
+          "rules": [
+            {
+              "trigger": {
+                "while": {
+                  "block": "Left",
+                  "is": "occupied"
+                },
+                "for": "0.5s"
+              },
+              "checks": [],
+              "then": {
+                "mast": "Left Bridge",
+                "aspect": "R281",
+                "reserve": "Bridge"
+              }
+            },
+            {
+              "trigger": {
+                "while": {
+                  "block": "Right",
+                  "is": "occupied"
+                },
+                "for": "0.5s"
+              },
+              "checks": [],
+              "then": {
+                "mast": "Right Bridge",
+                "aspect": "R281",
+                "reserve": "Bridge"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "steps": [
+    {
+      "at": 1,
+      "do": [
+        {
+          "sensor": "Left",
+          "is": "occupied"
+        }
+      ]
+    },
+    {
+      "at": 3,
+      "do": [
+        {
+          "sensor": "Left",
+          "is": "clear"
+        }
+      ]
+    },
+    {
+      "at": 6,
+      "expect": {
+        "events": [],
+        "rules": {
+          "Gauntlet/1": "idle"
+        },
+        "masts": {
+          "Left Bridge": "R292"
+        }
+      }
+    },
+    {
+      "at": 8,
+      "expect": {
+        "rules": {
+          "Gauntlet/1": "idle"
+        },
+        "resources": {
+          "Bridge": "IDLE"
+        }
+      }
+    },
+    {
+      "at": 10,
+      "do": [
+        {
+          "sensor": "Left",
+          "is": "occupied"
+        }
+      ]
+    },
+    {
+      "at": 14,
+      "expect": {
+        "rules": {
+          "Gauntlet/1": "idle"
+        }
+      }
+    },
+    {
+      "at": 15,
+      "expect": {
+        "events": [
+          {
+            "grant": "Bridge",
+            "rule": "Gauntlet/1"
+          }
+        ],
+        "masts": {
+          "Left Bridge": "R281"
+        }
+      }
+    },
+    {
+      "at": 20,
+      "do": [
+        {
+          "sensor": "Left",
+          "is": "clear"
+        }
+      ]
+    },
+    {
+      "at": 23,
+      "do": [
+        {
+          "sensor": "Left",
+          "is": "occupied"
+        }
+      ]
+    },
+    {
+      "at": 25,
+      "expect": {
+        "rules": {
+          "Gauntlet/1": "active"
+        },
+        "events": []
+      }
+    },
+    {
+      "at": 30,
+      "expect": {
+        "rules": {
+          "Gauntlet/1": "active"
+        },
+        "masts": {
+          "Left Bridge": "R281"
+        }
+      }
+    },
+    {
+      "at": 40,
+      "do": [
+        {
+          "sensor": "Left",
+          "is": "clear"
+        }
+      ]
+    },
+    {
+      "at": 44,
+      "expect": {
+        "rules": {
+          "Gauntlet/1": "active"
+        },
+        "events": []
+      }
+    },
+    {
+      "at": 45,
+      "expect": {
+        "events": [
+          {
+            "cancel": "Bridge",
+            "rule": "Gauntlet/1"
+          },
+          {
+            "release": "Bridge",
+            "by": "cancel"
+          }
+        ],
+        "masts": {
+          "Left Bridge": "R292"
+        },
+        "resources": {
+          "Bridge": "IDLE"
+        },
+        "rules": {
+          "Gauntlet/1": "idle"
+        }
+      }
+    }
+  ]
+}

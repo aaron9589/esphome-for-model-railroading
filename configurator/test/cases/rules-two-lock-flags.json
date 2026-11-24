@@ -1,0 +1,209 @@
+{
+  "name": "the two lock flags: re-sync only when both are clear",
+  "covers": [
+    "the two lock flags: the re-sync runs only when both are clear, not when one of two clears."
+  ],
+  "about": "P1 is locked by a rule while Bridge is occupied, and by its remote Lock topic. The re-sync runs only when the second of the two clears, and a repeated UNLOCKED does nothing.",
+  "board": {
+    "sensors": [
+      "Bridge"
+    ],
+    "turnouts": [
+      "P1"
+    ],
+    "logic": {
+      "layers": [
+        {
+          "name": "Locks",
+          "rules": [
+            {
+              "trigger": {
+                "while": {
+                  "block": "Bridge",
+                  "is": "occupied"
+                }
+              },
+              "checks": [],
+              "then": {
+                "lock": [
+                  "P1"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "steps": [
+    {
+      "at": 0,
+      "expect": {
+        "locks": {
+          "P1": false
+        },
+        "locked": {
+          "P1": false
+        }
+      }
+    },
+    {
+      "at": 1,
+      "do": [
+        {
+          "remoteLock": "P1",
+          "is": "locked"
+        }
+      ],
+      "expect": {
+        "locks": {
+          "P1": false
+        },
+        "locked": {
+          "P1": true
+        },
+        "events": []
+      }
+    },
+    {
+      "at": 2,
+      "do": [
+        {
+          "sensor": "Bridge",
+          "is": "occupied"
+        }
+      ],
+      "expect": {
+        "locks": {
+          "P1": true
+        },
+        "locked": {
+          "P1": true
+        },
+        "events": []
+      }
+    },
+    {
+      "at": 5,
+      "do": [
+        {
+          "remoteLock": "P1",
+          "is": "unlocked"
+        }
+      ],
+      "expect": {
+        "locks": {
+          "P1": true
+        },
+        "locked": {
+          "P1": true
+        },
+        "events": []
+      }
+    },
+    {
+      "at": 10,
+      "do": [
+        {
+          "sensor": "Bridge",
+          "is": "clear"
+        }
+      ],
+      "expect": {
+        "locks": {
+          "P1": false
+        },
+        "locked": {
+          "P1": false
+        },
+        "events": [
+          {
+            "resync": "P1"
+          }
+        ]
+      }
+    },
+    {
+      "at": 20,
+      "do": [
+        {
+          "sensor": "Bridge",
+          "is": "occupied"
+        }
+      ],
+      "expect": {
+        "locks": {
+          "P1": true
+        },
+        "events": []
+      }
+    },
+    {
+      "at": 25,
+      "do": [
+        {
+          "remoteLock": "P1",
+          "is": "locked"
+        }
+      ],
+      "expect": {
+        "locked": {
+          "P1": true
+        },
+        "events": []
+      }
+    },
+    {
+      "at": 30,
+      "do": [
+        {
+          "sensor": "Bridge",
+          "is": "clear"
+        }
+      ],
+      "expect": {
+        "locks": {
+          "P1": false
+        },
+        "locked": {
+          "P1": true
+        },
+        "events": []
+      }
+    },
+    {
+      "at": 35,
+      "do": [
+        {
+          "remoteLock": "P1",
+          "is": "unlocked"
+        }
+      ],
+      "expect": {
+        "locked": {
+          "P1": false
+        },
+        "events": [
+          {
+            "resync": "P1"
+          }
+        ]
+      }
+    },
+    {
+      "at": 40,
+      "do": [
+        {
+          "remoteLock": "P1",
+          "is": "unlocked"
+        }
+      ],
+      "expect": {
+        "locked": {
+          "P1": false
+        },
+        "events": []
+      }
+    }
+  ]
+}

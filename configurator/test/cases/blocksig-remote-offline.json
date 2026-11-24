@@ -1,0 +1,239 @@
+{
+  "name": "a next mast on another board going offline leaves Approach",
+  "covers": [
+    "block signals: the worked example's four rows; the tumbledown with and without Advance Approach; Approach Diverging behind a diverging aspect, and Approach there when Approach Diverging is not used; a remote next mast going offline leaves Approach; a reversed or moving turnout in a block gives Stop"
+  ],
+  "about": "Exit's next mast is on board south. While south is offline, its mast is empty, or this board is off the broker, Exit reads it as Stop and shows Approach.",
+  "board": {
+    "sensors": [
+      "X"
+    ],
+    "masts": {
+      "Exit": {
+        "aspects": {
+          "R292": "stop",
+          "R285": "approach",
+          "R281": "clear"
+        }
+      }
+    },
+    "remote": {
+      "south": {
+        "masts": {
+          "Home": {
+            "aspects": {
+              "R292": "stop",
+              "R285": "approach",
+              "R281": "clear"
+            }
+          }
+        }
+      }
+    },
+    "logic": {
+      "layers": [
+        {
+          "name": "Up",
+          "rules": [
+            {
+              "trigger": {
+                "while": {
+                  "block": "X",
+                  "is": "clear"
+                }
+              },
+              "checks": [
+                {
+                  "board": "south",
+                  "mast": "Home",
+                  "is": "diverging"
+                },
+                {
+                  "not": {
+                    "board": "south",
+                    "mast": "Home",
+                    "is": [
+                      "stop",
+                      "restricting"
+                    ]
+                  }
+                }
+              ],
+              "then": {
+                "mast": "Exit",
+                "aspect": "R285"
+              }
+            },
+            {
+              "trigger": {
+                "while": {
+                  "block": "X",
+                  "is": "clear"
+                }
+              },
+              "checks": [
+                {
+                  "board": "south",
+                  "mast": "Home",
+                  "is": [
+                    "advance",
+                    "clear"
+                  ]
+                }
+              ],
+              "then": {
+                "mast": "Exit",
+                "aspect": "R281"
+              }
+            },
+            {
+              "trigger": {
+                "while": {
+                  "block": "X",
+                  "is": "clear"
+                }
+              },
+              "checks": [
+                {
+                  "board": "south",
+                  "mast": "Home",
+                  "is": "approach"
+                }
+              ],
+              "then": {
+                "mast": "Exit",
+                "aspect": "R281"
+              }
+            },
+            {
+              "trigger": {
+                "while": {
+                  "block": "X",
+                  "is": "clear"
+                }
+              },
+              "checks": [
+                {
+                  "board": "south",
+                  "mast": "Home",
+                  "is": [
+                    "stop",
+                    "restricting"
+                  ]
+                }
+              ],
+              "then": {
+                "mast": "Exit",
+                "aspect": "R285"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "start": {
+    "remote": {
+      "south": {
+        "online": true,
+        "masts": {
+          "Home": "R281"
+        }
+      }
+    }
+  },
+  "steps": [
+    {
+      "at": 0,
+      "expect": {
+        "masts": {
+          "Exit": "R281"
+        }
+      }
+    },
+    {
+      "at": 5,
+      "do": [
+        {
+          "board": "south",
+          "online": false
+        }
+      ],
+      "expect": {
+        "masts": {
+          "Exit": "R285"
+        }
+      }
+    },
+    {
+      "at": 10,
+      "do": [
+        {
+          "board": "south",
+          "online": true
+        }
+      ],
+      "expect": {
+        "masts": {
+          "Exit": "R281"
+        }
+      }
+    },
+    {
+      "at": 15,
+      "do": [
+        {
+          "board": "south",
+          "mast": "Home",
+          "aspect": ""
+        }
+      ],
+      "expect": {
+        "masts": {
+          "Exit": "R285"
+        }
+      }
+    },
+    {
+      "at": 20,
+      "do": [
+        {
+          "board": "south",
+          "mast": "Home",
+          "aspect": "R281"
+        }
+      ],
+      "expect": {
+        "masts": {
+          "Exit": "R281"
+        }
+      }
+    },
+    {
+      "at": 25,
+      "do": [
+        {
+          "broker": "disconnected"
+        }
+      ],
+      "expect": {
+        "masts": {
+          "Exit": "R285"
+        }
+      }
+    },
+    {
+      "at": 30,
+      "do": [
+        {
+          "broker": "connected"
+        }
+      ],
+      "expect": {
+        "masts": {
+          "Exit": "R281"
+        }
+      }
+    }
+  ]
+}

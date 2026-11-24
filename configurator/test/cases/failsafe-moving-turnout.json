@@ -1,0 +1,201 @@
+{
+  "name": "a moving turnout, here or on another board, matches neither position",
+  "covers": [
+    "a moving turnout, local or remote, matches neither position"
+  ],
+  "about": "A and B clear on P1 closed and thrown, C and D on south's T1. While either turnout is moving, neither of its masts clears.",
+  "board": {
+    "turnouts": [
+      "P1"
+    ],
+    "masts": {
+      "A": {
+        "aspects": {
+          "R292": "stop",
+          "R281": "clear"
+        }
+      },
+      "B": {
+        "aspects": {
+          "R292": "stop",
+          "R281": "clear"
+        }
+      },
+      "C": {
+        "aspects": {
+          "R292": "stop",
+          "R281": "clear"
+        }
+      },
+      "D": {
+        "aspects": {
+          "R292": "stop",
+          "R281": "clear"
+        }
+      }
+    },
+    "remote": {
+      "south": {
+        "turnouts": [
+          "T1"
+        ]
+      }
+    },
+    "logic": {
+      "layers": [
+        {
+          "name": "Positions",
+          "rules": [
+            {
+              "trigger": {
+                "while": {
+                  "turnout": "P1",
+                  "is": "closed"
+                }
+              },
+              "checks": [],
+              "then": {
+                "mast": "A",
+                "aspect": "R281"
+              }
+            },
+            {
+              "trigger": {
+                "while": {
+                  "turnout": "P1",
+                  "is": "thrown"
+                }
+              },
+              "checks": [],
+              "then": {
+                "mast": "B",
+                "aspect": "R281"
+              }
+            },
+            {
+              "trigger": {
+                "while": {
+                  "board": "south",
+                  "turnout": "T1",
+                  "is": "closed"
+                }
+              },
+              "checks": [],
+              "then": {
+                "mast": "C",
+                "aspect": "R281"
+              }
+            },
+            {
+              "trigger": {
+                "while": {
+                  "board": "south",
+                  "turnout": "T1",
+                  "is": "thrown"
+                }
+              },
+              "checks": [],
+              "then": {
+                "mast": "D",
+                "aspect": "R281"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "start": {
+    "remote": {
+      "south": {
+        "online": true,
+        "turnouts": {
+          "T1": "closed"
+        }
+      }
+    }
+  },
+  "steps": [
+    {
+      "at": 0,
+      "expect": {
+        "masts": {
+          "A": "R281",
+          "B": "R292",
+          "C": "R281",
+          "D": "R292"
+        }
+      }
+    },
+    {
+      "at": 5,
+      "do": [
+        {
+          "turnout": "P1",
+          "is": "moving"
+        }
+      ],
+      "expect": {
+        "masts": {
+          "A": "R292",
+          "B": "R292",
+          "C": "R281",
+          "D": "R292"
+        }
+      }
+    },
+    {
+      "at": 10,
+      "do": [
+        {
+          "turnout": "P1",
+          "is": "thrown"
+        }
+      ],
+      "expect": {
+        "masts": {
+          "A": "R292",
+          "B": "R281",
+          "C": "R281",
+          "D": "R292"
+        }
+      }
+    },
+    {
+      "at": 15,
+      "do": [
+        {
+          "board": "south",
+          "turnout": "T1",
+          "is": "moving"
+        }
+      ],
+      "expect": {
+        "masts": {
+          "A": "R292",
+          "B": "R281",
+          "C": "R292",
+          "D": "R292"
+        }
+      }
+    },
+    {
+      "at": 20,
+      "do": [
+        {
+          "board": "south",
+          "turnout": "T1",
+          "is": "thrown"
+        }
+      ],
+      "expect": {
+        "masts": {
+          "A": "R292",
+          "B": "R281",
+          "C": "R292",
+          "D": "R281"
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,394 @@
+{
+  "name": "block signals with Advance Approach: Stop, Approach, Advance Approach, Clear",
+  "covers": [
+    "block signals: the worked example's four rows; the tumbledown with and without Advance Approach; Approach Diverging behind a diverging aspect, and Approach there when Approach Diverging is not used; a remote next mast going offline leaves Approach; a reversed or moving turnout in a block gives Stop"
+  ],
+  "about": "A train runs through blocks 1, 2 and 3 and off the end of signalled track (C has only the Approach rule). Behind it, A tumbles down Stop, Approach, Advance Approach, Clear.",
+  "board": {
+    "sensors": [
+      "Blk 1",
+      "Blk 2",
+      "Blk 3"
+    ],
+    "masts": {
+      "A": {
+        "aspects": {
+          "R292": "stop",
+          "R285": "approach",
+          "ADV_NORM": "advance",
+          "R281": "clear"
+        }
+      },
+      "B": {
+        "aspects": {
+          "R292": "stop",
+          "R285": "approach",
+          "ADV_NORM": "advance",
+          "R281": "clear"
+        }
+      },
+      "C": {
+        "aspects": {
+          "R292": "stop",
+          "R285": "approach",
+          "ADV_NORM": "advance",
+          "R281": "clear"
+        }
+      }
+    },
+    "logic": {
+      "layers": [
+        {
+          "name": "Up",
+          "rules": [
+            {
+              "trigger": {
+                "while": {
+                  "block": "Blk 1",
+                  "is": "clear"
+                }
+              },
+              "checks": [
+                {
+                  "mast": "B",
+                  "is": "diverging"
+                },
+                {
+                  "not": {
+                    "mast": "B",
+                    "is": [
+                      "stop",
+                      "restricting"
+                    ]
+                  }
+                }
+              ],
+              "then": {
+                "mast": "A",
+                "aspect": "R285"
+              }
+            },
+            {
+              "trigger": {
+                "while": {
+                  "block": "Blk 1",
+                  "is": "clear"
+                }
+              },
+              "checks": [
+                {
+                  "mast": "B",
+                  "is": [
+                    "advance",
+                    "clear"
+                  ]
+                }
+              ],
+              "then": {
+                "mast": "A",
+                "aspect": "R281"
+              }
+            },
+            {
+              "trigger": {
+                "while": {
+                  "block": "Blk 1",
+                  "is": "clear"
+                }
+              },
+              "checks": [
+                {
+                  "mast": "B",
+                  "is": "approach"
+                }
+              ],
+              "then": {
+                "mast": "A",
+                "aspect": "ADV_NORM"
+              }
+            },
+            {
+              "trigger": {
+                "while": {
+                  "block": "Blk 1",
+                  "is": "clear"
+                }
+              },
+              "checks": [
+                {
+                  "mast": "B",
+                  "is": [
+                    "stop",
+                    "restricting"
+                  ]
+                }
+              ],
+              "then": {
+                "mast": "A",
+                "aspect": "R285"
+              }
+            },
+            {
+              "trigger": {
+                "while": {
+                  "block": "Blk 2",
+                  "is": "clear"
+                }
+              },
+              "checks": [
+                {
+                  "mast": "C",
+                  "is": "diverging"
+                },
+                {
+                  "not": {
+                    "mast": "C",
+                    "is": [
+                      "stop",
+                      "restricting"
+                    ]
+                  }
+                }
+              ],
+              "then": {
+                "mast": "B",
+                "aspect": "R285"
+              }
+            },
+            {
+              "trigger": {
+                "while": {
+                  "block": "Blk 2",
+                  "is": "clear"
+                }
+              },
+              "checks": [
+                {
+                  "mast": "C",
+                  "is": [
+                    "advance",
+                    "clear"
+                  ]
+                }
+              ],
+              "then": {
+                "mast": "B",
+                "aspect": "R281"
+              }
+            },
+            {
+              "trigger": {
+                "while": {
+                  "block": "Blk 2",
+                  "is": "clear"
+                }
+              },
+              "checks": [
+                {
+                  "mast": "C",
+                  "is": "approach"
+                }
+              ],
+              "then": {
+                "mast": "B",
+                "aspect": "ADV_NORM"
+              }
+            },
+            {
+              "trigger": {
+                "while": {
+                  "block": "Blk 2",
+                  "is": "clear"
+                }
+              },
+              "checks": [
+                {
+                  "mast": "C",
+                  "is": [
+                    "stop",
+                    "restricting"
+                  ]
+                }
+              ],
+              "then": {
+                "mast": "B",
+                "aspect": "R285"
+              }
+            },
+            {
+              "trigger": {
+                "while": {
+                  "block": "Blk 3",
+                  "is": "clear"
+                }
+              },
+              "checks": [],
+              "then": {
+                "mast": "C",
+                "aspect": "R285"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "steps": [
+    {
+      "at": 0,
+      "expect": {
+        "masts": {
+          "A": "R285",
+          "B": "R285",
+          "C": "R285"
+        }
+      }
+    },
+    {
+      "at": 1,
+      "expect": {
+        "masts": {
+          "A": "ADV_NORM",
+          "B": "ADV_NORM",
+          "C": "R285"
+        }
+      }
+    },
+    {
+      "at": 2,
+      "expect": {
+        "masts": {
+          "A": "R281",
+          "B": "ADV_NORM",
+          "C": "R285"
+        }
+      }
+    },
+    {
+      "at": 10,
+      "do": [
+        {
+          "sensor": "Blk 1",
+          "is": "occupied"
+        }
+      ],
+      "expect": {
+        "masts": {
+          "A": "R292",
+          "B": "ADV_NORM",
+          "C": "R285"
+        }
+      }
+    },
+    {
+      "at": 20,
+      "do": [
+        {
+          "sensor": "Blk 2",
+          "is": "occupied"
+        }
+      ],
+      "expect": {
+        "masts": {
+          "A": "R292",
+          "B": "R292",
+          "C": "R285"
+        }
+      }
+    },
+    {
+      "at": 25,
+      "do": [
+        {
+          "sensor": "Blk 1",
+          "is": "clear"
+        }
+      ],
+      "expect": {
+        "masts": {
+          "A": "R285",
+          "B": "R292",
+          "C": "R285"
+        }
+      }
+    },
+    {
+      "at": 30,
+      "do": [
+        {
+          "sensor": "Blk 3",
+          "is": "occupied"
+        }
+      ],
+      "expect": {
+        "masts": {
+          "A": "R285",
+          "B": "R292",
+          "C": "R292"
+        }
+      }
+    },
+    {
+      "at": 35,
+      "do": [
+        {
+          "sensor": "Blk 2",
+          "is": "clear"
+        }
+      ],
+      "expect": {
+        "masts": {
+          "A": "R285",
+          "B": "R285",
+          "C": "R292"
+        }
+      }
+    },
+    {
+      "at": 36,
+      "expect": {
+        "masts": {
+          "A": "ADV_NORM",
+          "B": "R285",
+          "C": "R292"
+        }
+      }
+    },
+    {
+      "at": 40,
+      "do": [
+        {
+          "sensor": "Blk 3",
+          "is": "clear"
+        }
+      ],
+      "expect": {
+        "masts": {
+          "A": "ADV_NORM",
+          "B": "R285",
+          "C": "R285"
+        }
+      }
+    },
+    {
+      "at": 41,
+      "expect": {
+        "masts": {
+          "A": "ADV_NORM",
+          "B": "ADV_NORM",
+          "C": "R285"
+        }
+      }
+    },
+    {
+      "at": 42,
+      "expect": {
+        "masts": {
+          "A": "R281",
+          "B": "ADV_NORM",
+          "C": "R285"
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,452 @@
+{
+  "name": "block signals: the spec's worked example, row by row",
+  "covers": [
+    "block signals: the worked example's four rows; the tumbledown with and without Advance Approach; Approach Diverging behind a diverging aspect, and Approach there when Approach Diverging is not used; a remote next mast going offline leaves Approach; a reversed or moving turnout in a block gives Stop"
+  ],
+  "about": "The tumbledown between two turnouts. Masts read the masts ahead as the previous scan wrote them, so each change settles back one mast per scan; each table row is checked once settled, with the scans in between.",
+  "board": {
+    "sensors": [
+      "Int 1",
+      "Int 2",
+      "Int 3"
+    ],
+    "masts": {
+      "West Exit": {
+        "aspects": {
+          "R292": "stop",
+          "R285": "approach",
+          "ADV_NORM": "advance",
+          "R281": "clear"
+        }
+      },
+      "Int 1/2": {
+        "aspects": {
+          "R292": "stop",
+          "R285": "approach",
+          "ADV_NORM": "advance",
+          "R281": "clear"
+        }
+      },
+      "Int 2/3": {
+        "aspects": {
+          "R292": "stop",
+          "R285": "approach",
+          "ADV_NORM": "advance",
+          "R281": "clear"
+        }
+      },
+      "East Home": {
+        "aspects": {
+          "R292": "stop",
+          "R285": "approach",
+          "ADV_NORM": "advance",
+          "R281": "clear"
+        }
+      }
+    },
+    "logic": {
+      "layers": [
+        {
+          "name": "Up",
+          "rules": [
+            {
+              "trigger": {
+                "while": {
+                  "block": "Int 2",
+                  "is": "clear"
+                }
+              },
+              "checks": [
+                {
+                  "mast": "Int 2/3",
+                  "is": "diverging"
+                },
+                {
+                  "not": {
+                    "mast": "Int 2/3",
+                    "is": [
+                      "stop",
+                      "restricting"
+                    ]
+                  }
+                }
+              ],
+              "then": {
+                "mast": "Int 1/2",
+                "aspect": "R285"
+              }
+            },
+            {
+              "trigger": {
+                "while": {
+                  "block": "Int 2",
+                  "is": "clear"
+                }
+              },
+              "checks": [
+                {
+                  "mast": "Int 2/3",
+                  "is": [
+                    "advance",
+                    "clear"
+                  ]
+                }
+              ],
+              "then": {
+                "mast": "Int 1/2",
+                "aspect": "R281"
+              }
+            },
+            {
+              "trigger": {
+                "while": {
+                  "block": "Int 2",
+                  "is": "clear"
+                }
+              },
+              "checks": [
+                {
+                  "mast": "Int 2/3",
+                  "is": "approach"
+                }
+              ],
+              "then": {
+                "mast": "Int 1/2",
+                "aspect": "ADV_NORM"
+              }
+            },
+            {
+              "trigger": {
+                "while": {
+                  "block": "Int 2",
+                  "is": "clear"
+                }
+              },
+              "checks": [
+                {
+                  "mast": "Int 2/3",
+                  "is": [
+                    "stop",
+                    "restricting"
+                  ]
+                }
+              ],
+              "then": {
+                "mast": "Int 1/2",
+                "aspect": "R285"
+              }
+            },
+            {
+              "trigger": {
+                "while": {
+                  "block": "Int 3",
+                  "is": "clear"
+                }
+              },
+              "checks": [
+                {
+                  "mast": "East Home",
+                  "is": "diverging"
+                },
+                {
+                  "not": {
+                    "mast": "East Home",
+                    "is": [
+                      "stop",
+                      "restricting"
+                    ]
+                  }
+                }
+              ],
+              "then": {
+                "mast": "Int 2/3",
+                "aspect": "R285"
+              }
+            },
+            {
+              "trigger": {
+                "while": {
+                  "block": "Int 3",
+                  "is": "clear"
+                }
+              },
+              "checks": [
+                {
+                  "mast": "East Home",
+                  "is": [
+                    "advance",
+                    "clear"
+                  ]
+                }
+              ],
+              "then": {
+                "mast": "Int 2/3",
+                "aspect": "R281"
+              }
+            },
+            {
+              "trigger": {
+                "while": {
+                  "block": "Int 3",
+                  "is": "clear"
+                }
+              },
+              "checks": [
+                {
+                  "mast": "East Home",
+                  "is": "approach"
+                }
+              ],
+              "then": {
+                "mast": "Int 2/3",
+                "aspect": "ADV_NORM"
+              }
+            },
+            {
+              "trigger": {
+                "while": {
+                  "block": "Int 3",
+                  "is": "clear"
+                }
+              },
+              "checks": [
+                {
+                  "mast": "East Home",
+                  "is": [
+                    "stop",
+                    "restricting"
+                  ]
+                }
+              ],
+              "then": {
+                "mast": "Int 2/3",
+                "aspect": "R285"
+              }
+            }
+          ]
+        },
+        {
+          "name": "West Exit",
+          "rules": [
+            {
+              "trigger": {
+                "while": {
+                  "block": "Int 1",
+                  "is": "clear"
+                }
+              },
+              "checks": [
+                {
+                  "mast": "Int 1/2",
+                  "is": "diverging"
+                },
+                {
+                  "not": {
+                    "mast": "Int 1/2",
+                    "is": [
+                      "stop",
+                      "restricting"
+                    ]
+                  }
+                }
+              ],
+              "then": {
+                "mast": "West Exit",
+                "aspect": "R285"
+              }
+            },
+            {
+              "trigger": {
+                "while": {
+                  "block": "Int 1",
+                  "is": "clear"
+                }
+              },
+              "checks": [
+                {
+                  "mast": "Int 1/2",
+                  "is": [
+                    "advance",
+                    "clear"
+                  ]
+                }
+              ],
+              "then": {
+                "mast": "West Exit",
+                "aspect": "R281"
+              }
+            },
+            {
+              "trigger": {
+                "while": {
+                  "block": "Int 1",
+                  "is": "clear"
+                }
+              },
+              "checks": [
+                {
+                  "mast": "Int 1/2",
+                  "is": "approach"
+                }
+              ],
+              "then": {
+                "mast": "West Exit",
+                "aspect": "ADV_NORM"
+              }
+            },
+            {
+              "trigger": {
+                "while": {
+                  "block": "Int 1",
+                  "is": "clear"
+                }
+              },
+              "checks": [
+                {
+                  "mast": "Int 1/2",
+                  "is": [
+                    "stop",
+                    "restricting"
+                  ]
+                }
+              ],
+              "then": {
+                "mast": "West Exit",
+                "aspect": "R285"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "start": {
+    "jmri": {
+      "East Home": "R292; Lit; Unheld"
+    }
+  },
+  "steps": [
+    {
+      "at": 0,
+      "expect": {
+        "masts": {
+          "West Exit": "R285",
+          "Int 1/2": "R285",
+          "Int 2/3": "R285"
+        }
+      }
+    },
+    {
+      "at": 1,
+      "expect": {
+        "masts": {
+          "West Exit": "ADV_NORM",
+          "Int 1/2": "ADV_NORM",
+          "Int 2/3": "R285"
+        }
+      }
+    },
+    {
+      "at": 2,
+      "expect": {
+        "masts": {
+          "West Exit": "R281",
+          "Int 1/2": "ADV_NORM",
+          "Int 2/3": "R285"
+        }
+      }
+    },
+    {
+      "at": 10,
+      "do": [
+        {
+          "jmri": "East Home",
+          "message": "R281; Lit; Unheld"
+        }
+      ],
+      "expect": {
+        "masts": {
+          "West Exit": "R281",
+          "Int 1/2": "ADV_NORM",
+          "Int 2/3": "R281"
+        }
+      }
+    },
+    {
+      "at": 11,
+      "expect": {
+        "masts": {
+          "West Exit": "R281",
+          "Int 1/2": "R281",
+          "Int 2/3": "R281"
+        }
+      }
+    },
+    {
+      "at": 20,
+      "do": [
+        {
+          "sensor": "Int 3",
+          "is": "occupied"
+        }
+      ],
+      "expect": {
+        "masts": {
+          "West Exit": "R281",
+          "Int 1/2": "R281",
+          "Int 2/3": "R292"
+        }
+      }
+    },
+    {
+      "at": 21,
+      "expect": {
+        "masts": {
+          "West Exit": "R281",
+          "Int 1/2": "R285",
+          "Int 2/3": "R292"
+        }
+      }
+    },
+    {
+      "at": 22,
+      "expect": {
+        "masts": {
+          "West Exit": "ADV_NORM",
+          "Int 1/2": "R285",
+          "Int 2/3": "R292"
+        }
+      }
+    },
+    {
+      "at": 30,
+      "do": [
+        {
+          "sensor": "Int 3",
+          "is": "clear"
+        },
+        {
+          "sensor": "Int 2",
+          "is": "occupied"
+        }
+      ],
+      "expect": {
+        "masts": {
+          "West Exit": "ADV_NORM",
+          "Int 1/2": "R292",
+          "Int 2/3": "R281"
+        }
+      }
+    },
+    {
+      "at": 31,
+      "expect": {
+        "masts": {
+          "West Exit": "R285",
+          "Int 1/2": "R292",
+          "Int 2/3": "R281"
+        }
+      }
+    }
+  ]
+}

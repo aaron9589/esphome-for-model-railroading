@@ -1,0 +1,265 @@
+{
+  "name": "remote inputs not known read occupied, neither position, and Stop",
+  "covers": [
+    "remote inputs not known before the first message, and while their board is offline, count as occupied / neither position / Stop"
+  ],
+  "about": "Four masts each clear on one remote input. None clears before the first messages, while board south is offline, or while this board is off the broker.",
+  "board": {
+    "masts": {
+      "A": {
+        "aspects": {
+          "R292": "stop",
+          "R281": "clear"
+        }
+      },
+      "B": {
+        "aspects": {
+          "R292": "stop",
+          "R281": "clear"
+        }
+      },
+      "C": {
+        "aspects": {
+          "R292": "stop",
+          "R281": "clear"
+        }
+      },
+      "D": {
+        "aspects": {
+          "R292": "stop",
+          "R281": "clear"
+        }
+      }
+    },
+    "remote": {
+      "south": {
+        "sensors": [
+          "S1"
+        ],
+        "turnouts": [
+          "T1"
+        ],
+        "masts": {
+          "Home": {
+            "aspects": {
+              "R292": "stop",
+              "R281": "clear"
+            }
+          }
+        }
+      }
+    },
+    "logic": {
+      "layers": [
+        {
+          "name": "Remote",
+          "rules": [
+            {
+              "trigger": {
+                "while": {
+                  "board": "south",
+                  "sensor": "S1",
+                  "is": "clear"
+                }
+              },
+              "checks": [],
+              "then": {
+                "mast": "A",
+                "aspect": "R281"
+              }
+            },
+            {
+              "trigger": {
+                "while": {
+                  "board": "south",
+                  "turnout": "T1",
+                  "is": "closed"
+                }
+              },
+              "checks": [],
+              "then": {
+                "mast": "B",
+                "aspect": "R281"
+              }
+            },
+            {
+              "trigger": {
+                "while": {
+                  "board": "south",
+                  "turnout": "T1",
+                  "is": "thrown"
+                }
+              },
+              "checks": [],
+              "then": {
+                "mast": "C",
+                "aspect": "R281"
+              }
+            },
+            {
+              "trigger": {
+                "while": {
+                  "board": "south",
+                  "mast": "Home",
+                  "is": "clear"
+                }
+              },
+              "checks": [],
+              "then": {
+                "mast": "D",
+                "aspect": "R281"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "steps": [
+    {
+      "at": 0,
+      "expect": {
+        "masts": {
+          "A": "R292",
+          "B": "R292",
+          "C": "R292",
+          "D": "R292"
+        }
+      }
+    },
+    {
+      "at": 1,
+      "do": [
+        {
+          "board": "south",
+          "online": true
+        }
+      ],
+      "expect": {
+        "masts": {
+          "A": "R292",
+          "B": "R292",
+          "C": "R292",
+          "D": "R292"
+        }
+      }
+    },
+    {
+      "at": 2,
+      "do": [
+        {
+          "board": "south",
+          "sensor": "S1",
+          "is": "clear"
+        },
+        {
+          "board": "south",
+          "turnout": "T1",
+          "is": "closed"
+        },
+        {
+          "board": "south",
+          "mast": "Home",
+          "aspect": "R281"
+        }
+      ],
+      "expect": {
+        "masts": {
+          "A": "R281",
+          "B": "R281",
+          "C": "R292",
+          "D": "R281"
+        }
+      }
+    },
+    {
+      "at": 10,
+      "do": [
+        {
+          "board": "south",
+          "online": false
+        }
+      ],
+      "expect": {
+        "masts": {
+          "A": "R292",
+          "B": "R292",
+          "C": "R292",
+          "D": "R292"
+        }
+      }
+    },
+    {
+      "at": 11,
+      "do": [
+        {
+          "board": "south",
+          "online": true
+        }
+      ],
+      "expect": {
+        "masts": {
+          "A": "R281",
+          "B": "R281",
+          "C": "R292",
+          "D": "R281"
+        }
+      }
+    },
+    {
+      "at": 20,
+      "do": [
+        {
+          "broker": "disconnected"
+        }
+      ],
+      "expect": {
+        "masts": {
+          "A": "R292",
+          "B": "R292",
+          "C": "R292",
+          "D": "R292"
+        }
+      }
+    },
+    {
+      "at": 21,
+      "do": [
+        {
+          "broker": "connected"
+        }
+      ],
+      "expect": {
+        "masts": {
+          "A": "R281",
+          "B": "R281",
+          "C": "R292",
+          "D": "R281"
+        }
+      }
+    },
+    {
+      "at": 30,
+      "do": [
+        {
+          "board": "south",
+          "sensor": "S1",
+          "is": "unknown"
+        },
+        {
+          "board": "south",
+          "turnout": "T1",
+          "is": "unknown"
+        }
+      ],
+      "expect": {
+        "masts": {
+          "A": "R292",
+          "B": "R292",
+          "C": "R292",
+          "D": "R281"
+        }
+      }
+    }
+  ]
+}

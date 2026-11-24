@@ -1,0 +1,322 @@
+{
+  "name": "Approach Diverging behind a diverging aspect; Approach there when it is not used",
+  "covers": [
+    "block signals: the worked example's four rows; the tumbledown with and without Advance Approach; Approach Diverging behind a diverging aspect, and Approach there when Approach Diverging is not used; a remote next mast going offline leaves Approach; a reversed or moving turnout in a block gives Stop"
+  ],
+  "about": "Two masts read the same junction home signal. Dist uses Approach Diverging (R282); Dist B does not, so it shows Approach. Behind a diverging Clear (R283) or diverging Approach (R286): R282 and R285. Behind a plain Approach or Stop: the usual aspects.",
+  "board": {
+    "sensors": [
+      "D",
+      "E"
+    ],
+    "masts": {
+      "Junction Home": {
+        "aspects": {
+          "R292": "stop",
+          "R285": "approach",
+          "R281": "clear",
+          "R283": "clear",
+          "R286": "approach"
+        },
+        "diverging": [
+          "R283",
+          "R286"
+        ]
+      },
+      "Dist": {
+        "aspects": {
+          "R292": "stop",
+          "R285": "approach",
+          "R281": "clear",
+          "R282": "clear"
+        }
+      },
+      "Dist B": {
+        "aspects": {
+          "R292": "stop",
+          "R285": "approach",
+          "R281": "clear"
+        }
+      }
+    },
+    "logic": {
+      "layers": [
+        {
+          "name": "With diverging",
+          "rules": [
+            {
+              "trigger": {
+                "while": {
+                  "block": "D",
+                  "is": "clear"
+                }
+              },
+              "checks": [
+                {
+                  "mast": "Junction Home",
+                  "is": "diverging"
+                },
+                {
+                  "not": {
+                    "mast": "Junction Home",
+                    "is": [
+                      "stop",
+                      "restricting"
+                    ]
+                  }
+                }
+              ],
+              "then": {
+                "mast": "Dist",
+                "aspect": "R282"
+              }
+            },
+            {
+              "trigger": {
+                "while": {
+                  "block": "D",
+                  "is": "clear"
+                }
+              },
+              "checks": [
+                {
+                  "mast": "Junction Home",
+                  "is": [
+                    "advance",
+                    "clear"
+                  ]
+                }
+              ],
+              "then": {
+                "mast": "Dist",
+                "aspect": "R281"
+              }
+            },
+            {
+              "trigger": {
+                "while": {
+                  "block": "D",
+                  "is": "clear"
+                }
+              },
+              "checks": [
+                {
+                  "mast": "Junction Home",
+                  "is": "approach"
+                }
+              ],
+              "then": {
+                "mast": "Dist",
+                "aspect": "R281"
+              }
+            },
+            {
+              "trigger": {
+                "while": {
+                  "block": "D",
+                  "is": "clear"
+                }
+              },
+              "checks": [
+                {
+                  "mast": "Junction Home",
+                  "is": [
+                    "stop",
+                    "restricting"
+                  ]
+                }
+              ],
+              "then": {
+                "mast": "Dist",
+                "aspect": "R285"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Without diverging",
+          "rules": [
+            {
+              "trigger": {
+                "while": {
+                  "block": "E",
+                  "is": "clear"
+                }
+              },
+              "checks": [
+                {
+                  "mast": "Junction Home",
+                  "is": "diverging"
+                },
+                {
+                  "not": {
+                    "mast": "Junction Home",
+                    "is": [
+                      "stop",
+                      "restricting"
+                    ]
+                  }
+                }
+              ],
+              "then": {
+                "mast": "Dist B",
+                "aspect": "R285"
+              }
+            },
+            {
+              "trigger": {
+                "while": {
+                  "block": "E",
+                  "is": "clear"
+                }
+              },
+              "checks": [
+                {
+                  "mast": "Junction Home",
+                  "is": [
+                    "advance",
+                    "clear"
+                  ]
+                }
+              ],
+              "then": {
+                "mast": "Dist B",
+                "aspect": "R281"
+              }
+            },
+            {
+              "trigger": {
+                "while": {
+                  "block": "E",
+                  "is": "clear"
+                }
+              },
+              "checks": [
+                {
+                  "mast": "Junction Home",
+                  "is": "approach"
+                }
+              ],
+              "then": {
+                "mast": "Dist B",
+                "aspect": "R281"
+              }
+            },
+            {
+              "trigger": {
+                "while": {
+                  "block": "E",
+                  "is": "clear"
+                }
+              },
+              "checks": [
+                {
+                  "mast": "Junction Home",
+                  "is": [
+                    "stop",
+                    "restricting"
+                  ]
+                }
+              ],
+              "then": {
+                "mast": "Dist B",
+                "aspect": "R285"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "start": {
+    "jmri": {
+      "Junction Home": "R281; Lit; Unheld"
+    }
+  },
+  "steps": [
+    {
+      "at": 0,
+      "expect": {
+        "masts": {
+          "Dist": "R281",
+          "Dist B": "R281"
+        }
+      }
+    },
+    {
+      "at": 1,
+      "do": [
+        {
+          "jmri": "Junction Home",
+          "message": "R283; Lit; Unheld"
+        }
+      ],
+      "expect": {
+        "masts": {
+          "Dist": "R282",
+          "Dist B": "R285"
+        }
+      }
+    },
+    {
+      "at": 2,
+      "do": [
+        {
+          "jmri": "Junction Home",
+          "message": "R286; Lit; Unheld"
+        }
+      ],
+      "expect": {
+        "masts": {
+          "Dist": "R282",
+          "Dist B": "R285"
+        }
+      }
+    },
+    {
+      "at": 3,
+      "do": [
+        {
+          "jmri": "Junction Home",
+          "message": "R285; Lit; Unheld"
+        }
+      ],
+      "expect": {
+        "masts": {
+          "Dist": "R281",
+          "Dist B": "R281"
+        }
+      }
+    },
+    {
+      "at": 4,
+      "do": [
+        {
+          "jmri": "Junction Home",
+          "message": "R292; Lit; Unheld"
+        }
+      ],
+      "expect": {
+        "masts": {
+          "Dist": "R285",
+          "Dist B": "R285"
+        }
+      }
+    },
+    {
+      "at": 5,
+      "do": [
+        {
+          "jmri": "Junction Home",
+          "message": "R281; Lit; Unheld"
+        }
+      ],
+      "expect": {
+        "masts": {
+          "Dist": "R281",
+          "Dist B": "R281"
+        }
+      }
+    }
+  ]
+}

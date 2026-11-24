@@ -1,0 +1,289 @@
+{
+  "name": "three entrances: a waiting rule is granted after release, longest waiting first",
+  "covers": [
+    "a waiting rule is granted after release, and waiting order with three entrances"
+  ],
+  "about": "A is granted. C then B arrive while Mid is in use. When Mid is released, C (waiting since scan 15) goes before B (since 17), though B is listed first; B goes after C's train has cleared.",
+  "board": {
+    "sensors": [
+      "A",
+      "B",
+      "C",
+      "Mid"
+    ],
+    "masts": {
+      "A Mid": {
+        "aspects": {
+          "R292": "stop",
+          "R281": "clear"
+        }
+      },
+      "B Mid": {
+        "aspects": {
+          "R292": "stop",
+          "R281": "clear"
+        }
+      },
+      "C Mid": {
+        "aspects": {
+          "R292": "stop",
+          "R281": "clear"
+        }
+      }
+    },
+    "logic": {
+      "resources": [
+        {
+          "name": "Mid",
+          "blocks": [
+            "Mid"
+          ],
+          "release": {
+            "while": {
+              "block": "Mid",
+              "is": "clear"
+            },
+            "for": "3s"
+          }
+        }
+      ],
+      "layers": [
+        {
+          "name": "Junction",
+          "rules": [
+            {
+              "trigger": {
+                "while": {
+                  "block": "A",
+                  "is": "occupied"
+                },
+                "for": "0.5s"
+              },
+              "checks": [],
+              "then": {
+                "mast": "A Mid",
+                "aspect": "R281",
+                "reserve": "Mid"
+              }
+            },
+            {
+              "trigger": {
+                "while": {
+                  "block": "B",
+                  "is": "occupied"
+                },
+                "for": "0.5s"
+              },
+              "checks": [],
+              "then": {
+                "mast": "B Mid",
+                "aspect": "R281",
+                "reserve": "Mid"
+              }
+            },
+            {
+              "trigger": {
+                "while": {
+                  "block": "C",
+                  "is": "occupied"
+                },
+                "for": "0.5s"
+              },
+              "checks": [],
+              "then": {
+                "mast": "C Mid",
+                "aspect": "R281",
+                "reserve": "Mid"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "steps": [
+    {
+      "at": 1,
+      "do": [
+        {
+          "sensor": "A",
+          "is": "occupied"
+        }
+      ]
+    },
+    {
+      "at": 6,
+      "expect": {
+        "events": [
+          {
+            "grant": "Mid",
+            "rule": "Junction/1"
+          }
+        ],
+        "masts": {
+          "A Mid": "R281"
+        }
+      }
+    },
+    {
+      "at": 10,
+      "do": [
+        {
+          "sensor": "C",
+          "is": "occupied"
+        }
+      ]
+    },
+    {
+      "at": 12,
+      "do": [
+        {
+          "sensor": "B",
+          "is": "occupied"
+        }
+      ]
+    },
+    {
+      "at": 17,
+      "expect": {
+        "rules": {
+          "Junction/2": "waiting",
+          "Junction/3": "waiting"
+        }
+      }
+    },
+    {
+      "at": 20,
+      "do": [
+        {
+          "sensor": "Mid",
+          "is": "occupied"
+        }
+      ],
+      "expect": {
+        "events": [
+          {
+            "pass": "Mid",
+            "rule": "Junction/1"
+          }
+        ],
+        "masts": {
+          "A Mid": "R292"
+        }
+      }
+    },
+    {
+      "at": 21,
+      "do": [
+        {
+          "sensor": "A",
+          "is": "clear"
+        }
+      ]
+    },
+    {
+      "at": 30,
+      "do": [
+        {
+          "sensor": "Mid",
+          "is": "clear"
+        }
+      ]
+    },
+    {
+      "at": 59,
+      "expect": {
+        "resources": {
+          "Mid": "PASSED"
+        },
+        "events": []
+      }
+    },
+    {
+      "at": 60,
+      "expect": {
+        "events": [
+          {
+            "release": "Mid",
+            "by": "release"
+          },
+          {
+            "grant": "Mid",
+            "rule": "Junction/3"
+          }
+        ],
+        "masts": {
+          "A Mid": "R292",
+          "B Mid": "R292",
+          "C Mid": "R281"
+        },
+        "rules": {
+          "Junction/1": "idle",
+          "Junction/2": "waiting",
+          "Junction/3": "active"
+        }
+      }
+    },
+    {
+      "at": 65,
+      "do": [
+        {
+          "sensor": "Mid",
+          "is": "occupied"
+        }
+      ],
+      "expect": {
+        "events": [
+          {
+            "pass": "Mid",
+            "rule": "Junction/3"
+          }
+        ],
+        "masts": {
+          "C Mid": "R292"
+        }
+      }
+    },
+    {
+      "at": 66,
+      "do": [
+        {
+          "sensor": "C",
+          "is": "clear"
+        }
+      ]
+    },
+    {
+      "at": 70,
+      "do": [
+        {
+          "sensor": "Mid",
+          "is": "clear"
+        }
+      ]
+    },
+    {
+      "at": 100,
+      "expect": {
+        "events": [
+          {
+            "release": "Mid",
+            "by": "release"
+          },
+          {
+            "grant": "Mid",
+            "rule": "Junction/2"
+          }
+        ],
+        "masts": {
+          "B Mid": "R281",
+          "C Mid": "R292"
+        },
+        "rules": {
+          "Junction/2": "active",
+          "Junction/3": "idle"
+        }
+      }
+    }
+  ]
+}

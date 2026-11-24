@@ -1,0 +1,206 @@
+{
+  "name": "approach locking 10s: the section stays held for the time, then frees",
+  "covers": [
+    "approach locking: off frees at once; on holds for the time, then frees; a block occupied during that time goes to PASSED; manual release ends it"
+  ],
+  "about": "The Left train backs out after its mast cleared. The mast goes to Stop at once, but the bridge and P1 stay held for 10s. A Right train waiting meanwhile is granted the moment the time is up.",
+  "board": {
+    "sensors": [
+      "Left",
+      "Bridge",
+      "Right"
+    ],
+    "masts": {
+      "Left Bridge": {
+        "aspects": {
+          "R292": "stop",
+          "R281": "clear"
+        }
+      },
+      "Right Bridge": {
+        "aspects": {
+          "R292": "stop",
+          "R281": "clear"
+        }
+      }
+    },
+    "logic": {
+      "resources": [
+        {
+          "name": "Bridge",
+          "blocks": [
+            "Bridge"
+          ],
+          "release": {
+            "while": {
+              "block": "Bridge",
+              "is": "clear"
+            },
+            "for": "3s"
+          },
+          "approachLock": "10s"
+        }
+      ],
+      "layers": [
+        {
+          "name": "Gauntlet",
+          "rules": [
+            {
+              "trigger": {
+                "while": {
+                  "block": "Left",
+                  "is": "occupied"
+                },
+                "for": "0.5s"
+              },
+              "checks": [],
+              "then": {
+                "mast": "Left Bridge",
+                "aspect": "R281",
+                "reserve": "Bridge",
+                "lock": [
+                  "P1"
+                ]
+              }
+            },
+            {
+              "trigger": {
+                "while": {
+                  "block": "Right",
+                  "is": "occupied"
+                },
+                "for": "0.5s"
+              },
+              "checks": [],
+              "then": {
+                "mast": "Right Bridge",
+                "aspect": "R281",
+                "reserve": "Bridge"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    "turnouts": [
+      "P1"
+    ]
+  },
+  "steps": [
+    {
+      "at": 1,
+      "do": [
+        {
+          "sensor": "Left",
+          "is": "occupied"
+        }
+      ]
+    },
+    {
+      "at": 6,
+      "expect": {
+        "events": [
+          {
+            "grant": "Bridge",
+            "rule": "Gauntlet/1"
+          }
+        ],
+        "locks": {
+          "P1": true
+        },
+        "masts": {
+          "Left Bridge": "R281"
+        }
+      }
+    },
+    {
+      "at": 10,
+      "do": [
+        {
+          "sensor": "Left",
+          "is": "clear"
+        }
+      ]
+    },
+    {
+      "at": 15,
+      "expect": {
+        "events": [
+          {
+            "cancel": "Bridge",
+            "rule": "Gauntlet/1"
+          }
+        ],
+        "masts": {
+          "Left Bridge": "R292"
+        },
+        "resources": {
+          "Bridge": "CANCELLING"
+        },
+        "rules": {
+          "Gauntlet/1": "cancelling"
+        },
+        "locks": {
+          "P1": true
+        }
+      }
+    },
+    {
+      "at": 50,
+      "do": [
+        {
+          "sensor": "Right",
+          "is": "occupied"
+        }
+      ]
+    },
+    {
+      "at": 55,
+      "expect": {
+        "rules": {
+          "Gauntlet/2": "waiting"
+        },
+        "masts": {
+          "Right Bridge": "R292"
+        }
+      }
+    },
+    {
+      "at": 114,
+      "expect": {
+        "resources": {
+          "Bridge": "CANCELLING"
+        },
+        "locks": {
+          "P1": true
+        },
+        "events": []
+      }
+    },
+    {
+      "at": 115,
+      "expect": {
+        "events": [
+          {
+            "release": "Bridge",
+            "by": "time"
+          },
+          {
+            "grant": "Bridge",
+            "rule": "Gauntlet/2"
+          }
+        ],
+        "locks": {
+          "P1": false
+        },
+        "masts": {
+          "Right Bridge": "R281"
+        },
+        "rules": {
+          "Gauntlet/1": "idle",
+          "Gauntlet/2": "active"
+        }
+      }
+    }
+  ]
+}
