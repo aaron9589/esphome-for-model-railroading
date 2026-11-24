@@ -399,7 +399,7 @@ CATS aspects get their tag automatically, from the speeds in the CATS signal tem
 | name starts `ADV_` | `advance` | ADV_NORM, ADV_LIM, ADV_MED, ADV_SLO |
 | anything else | `clear` | the other 12 |
 
-Diverging comes from CATS's own speed table (`AspectMap.Speed`): the Limited and Medium aspects other than the Advance ones. They are R281C, C412, C413, C414, R281D, R283, C417, R283A, R283B and R286. The template's `speed` field cannot be used for this, because it gives R285 (plain Approach) speed Medium. `ADV_*` cannot be told apart by speed either: CATS gives each Advance aspect speed Normal and puts the next signal's speed in `speed2`, the same as R282 and R284.
+Diverging comes from CATS's own speed table (`SpeedTable` in `AspectMap.java`): the aspects in its Limited and Medium rows, other than the Advance and Restricting ones (`ADV_*`, `RES_*`). They are R281C, C412, C413, C414, R281D, R283, C417, R283A, R283B and R286. The template's `speed` field cannot be used for this, because it gives R285 (plain Approach) speed Medium. `ADV_*` cannot be told apart by speed either: CATS gives each Advance aspect speed Normal and puts the next signal's speed in `speed2`, the same as R282 and R284.
 
 The configurator needs the tags and diverging list next to `CATS_ASPECTS`. They come from the same CATS table as the template, so keep the two in step. Both stay editable. A custom aspect has no speeds, so it starts as `stop`: an untagged aspect is treated as the most restrictive.
 
