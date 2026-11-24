@@ -6,7 +6,7 @@ import path from "node:path";
 import { configuratorDir, loadModules, test } from "./harness.js";
 
 // Every Logic page file, in index.html's order.
-export const LOGIC_UI_FILES = ["generator.js", "logic-yaml.js", "logic.js", "logic-checker.js", "logic-try.js", "logic-ui.js", "logic-ui-masts.js", "logic-ui-ends.js", "logic-ui-rules.js", "logic-ui-views.js", "logic-ui-start.js", "logic-ui-try.js", "logic-starters.js", "logic-starters-sections.js", "logic-starters-signals.js", "mss-builder.js", "logic-summary.js"];
+export const LOGIC_UI_FILES = ["generator.js", "logic-yaml.js", "logic.js", "logic-checker.js", "logic-try.js", "logic-ui.js", "logic-ui-masts.js", "logic-ui-ends.js", "logic-ui-rules.js", "logic-ui-views.js", "logic-ui-start.js", "logic-ui-try.js", "logic-starters.js", "logic-starters-sections.js", "logic-starters-signals.js", "mss-builder.js", "logic-summary.js", "mss-card.js"];
 const context = loadModules(...LOGIC_UI_FILES);
 const { generateYaml, logicMode, myFirstBoardPreset, normalizeConfig, parseConfigFromYaml, sharesWithOtherBoards } =
   context.EsphomeMr;
