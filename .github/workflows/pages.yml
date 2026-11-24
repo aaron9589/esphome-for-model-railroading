@@ -6,6 +6,7 @@ on:
     paths:
       - "configurator/**"
       - ".github/workflows/pages.yml"
+      - ".github/workflows/test.yml"
   workflow_dispatch:
 
 permissions:
@@ -18,7 +19,12 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Deploy only a configurator whose tests pass.
+  test:
+    uses: ./.github/workflows/test.yml
+
   deploy:
+    needs: test
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
