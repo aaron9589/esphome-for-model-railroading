@@ -16,6 +16,11 @@
     controlHint: "Read-only. Edits happen on the cards.",
     controlShow: "Show the control table",
     noRules: "No rules yet. Add a group, or start from a starter.",
+    builtWhoIntro: "Each signal, turnout and block MSS Logic uses, and which groups use it. MSS Logic made the blocks and groups from your tracks and junctions, so they are read-only here: change them under Tracks, Junctions or Signals.",
+    builtControlIntro: "The same signals the way signal engineers write them: one row for each signal and aspect MSS Logic shows.",
+    builtControlHint: "Read-only. MSS Logic made every row from your tracks and junctions.",
+    builtNone: "Nothing made yet. Describe the module's tracks first.",
+    madeBy: "Made by MSS Logic",
     mastsHeading: "Signals",
     turnoutsHeading: "Turnouts",
     blocksHeading: "Blocks",
@@ -82,12 +87,31 @@
     return found;
   }
 
+  // What the engine runs: this board's Logic page for Field Logic, or what
+  // MSS Logic built from its description (read-only).
+  function itemsOf(config) {
+    return global.EsphomeMrLogicYaml.logicItems(config);
+  }
+
+  const isMss = (config) => global.EsphomeMr.logicMode(config) === "mss";
+
+  // Words for what made a built block, signal or group, else "".
+  function madeBy(config, kind, name) {
+    if (!isMss(config)) return "";
+    const items = itemsOf(config);
+    const origin = list(items.origins).find((o) => o.kind === kind && o.name === name);
+    if (!origin) return "";
+    // A signal on the Signal Masts page is the person's own; only signals with no lights are built.
+    if (kind === "mast" && !list(items.masts).some((m) => isObject(m) && m.name === name && m.virtual === true)) return "";
+    return String(origin.words || TEXT.madeBy);
+  }
+
   function sections(config) {
-    return new Map(list(config.logic?.resources).filter(isObject).map((res) => [String(res.name || ""), res]));
+    return new Map(list(itemsOf(config).resources).filter(isObject).map((res) => [String(res.name || ""), res]));
   }
 
   function layers(config) {
-    return list(config.logic?.layers).filter(isObject);
+    return list(itemsOf(config).layers).filter(isObject);
   }
 
   /**
@@ -139,10 +163,11 @@
     });
 
     const names = (items) => list(items).filter(isObject).map((item) => String(item.name ?? ""));
+    const items = itemsOf(config);
     const own = {
-      mast: [...names(config.signals?.masts), ...names(list(config.logic?.masts).filter((m) => isObject(m) && m.virtual === true))],
+      mast: [...names(config.signals?.masts), ...names(list(items.masts).filter((m) => isObject(m) && m.virtual === true))],
       turnout: names(config.points),
-      block: [...names(config.logic?.blocks), ...names(config.blocks)],
+      block: [...names(items.blocks), ...names(config.blocks)],
     };
     const out = [];
     for (const kind of ["mast", "turnout", "block"]) {
@@ -154,7 +179,8 @@
         .forEach(([, , r]) => {
           const groups = unique([...r.setBy, ...r.readBy]).length;
           const overlap = kind === "block" ? groups > 1 : r.setBy.length > 1;
-          out.push({ ...r, groups, overlap });
+          const made = r.board === "" ? madeBy(config, kind, r.name) : "";
+          out.push({ ...r, groups, overlap, ...(made ? { madeBy: made } : {}) });
         });
     }
     return out;
@@ -241,6 +267,7 @@
           aspect,
           meaning: tag ? TEXT.meanings[tag] : "",
           rule: TEXT.ruleLabel(group, ri + 1),
+          ...(isMss(config) ? { madeBy: TEXT.madeBy } : {}),
           when: when.filter(Boolean).join(". "),
           clear: join([...checks.clear, ...sectionBlocks]),
           turnouts: join(checks.turnouts),
@@ -255,7 +282,7 @@
     });
 
     const names = (items) => list(items).filter(isObject).map((item) => String(item.name ?? ""));
-    const own = [...names(config.signals?.masts), ...names(list(config.logic?.masts).filter((m) => isObject(m) && m.virtual === true))];
+    const own = [...names(config.signals?.masts), ...names(list(itemsOf(config).masts).filter((m) => isObject(m) && m.virtual === true))];
     const firstSeen = [];
     for (const r of rows) if (r.mast && !firstSeen.includes(r.mast)) firstSeen.push(r.mast);
     const place = (r) => {
@@ -312,12 +339,22 @@
     block: { heading: "blocksHeading", columns: ["colBlock", "colSection", "colTakenBy", "colReadBy"], many: "usedByMany" },
   });
 
+  // "Made by MSS Logic", with what it was made from as the tooltip.
+  function builtBadge(words) {
+    const badge = document.createElement("span");
+    badge.className = "mss-built-badge";
+    badge.textContent = TEXT.madeBy;
+    badge.title = words;
+    return badge;
+  }
+
   function renderWhoUses(root, config, ctx, ui) {
     const section = ui.card("logic-layers-view", TEXT.whoCard);
-    section.append(ui.paragraph(TEXT.whoIntro));
+    const mss = isMss(config);
+    section.append(ui.paragraph(mss ? TEXT.builtWhoIntro : TEXT.whoIntro));
     const rows = whoUses(config);
     if (!rows.length) {
-      section.append(ui.paragraph(TEXT.noRules, "empty"));
+      section.append(ui.paragraph(mss ? TEXT.builtNone : TEXT.noRules, "empty"));
       root.append(section);
       return;
     }
@@ -333,6 +370,10 @@
         tr.classList.toggle("is-shared", r.overlap);
         const name = cell("th", r.board ? TEXT.fromBoard(r.name, r.board) : r.name);
         name.scope = "row";
+        if (r.madeBy) {
+          tr.classList.add("is-built");
+          name.append(" ", builtBadge(r.madeBy));
+        }
         if (r.overlap) {
           const badge = document.createElement("span");
           badge.className = "logic-shared-badge";
@@ -358,10 +399,11 @@
 
   function renderControlTable(root, config, ctx, ui) {
     const section = ui.card("logic-control-table", TEXT.controlCard);
-    section.append(ui.paragraph(TEXT.controlIntro), ui.paragraph(TEXT.controlHint, "hint"));
+    const mss = isMss(config);
+    section.append(ui.paragraph(mss ? TEXT.builtControlIntro : TEXT.controlIntro), ui.paragraph(mss ? TEXT.builtControlHint : TEXT.controlHint, "hint"));
     const rows = controlTable(config);
     if (!rows.length) {
-      section.append(ui.paragraph(TEXT.noRules, "empty"));
+      section.append(ui.paragraph(mss ? TEXT.builtNone : TEXT.noRules, "empty"));
       root.append(section);
       return;
     }
@@ -374,7 +416,12 @@
       const picture = r.mast && r.aspect ? ctx.mastPicture?.(r.mast, r.aspect) : null;
       if (picture) mast.prepend(picture, " ");
       tr.append(mast);
-      for (const [, key] of CONTROL_COLUMNS.slice(1)) tr.append(cell("td", r[key]));
+      for (const [, key] of CONTROL_COLUMNS.slice(1)) {
+        const td = cell("td", r[key]);
+        if (key === "rule" && r.madeBy) td.append(" ", builtBadge(r.madeBy));
+        tr.append(td);
+      }
+      if (r.madeBy) tr.classList.add("is-built");
       body.append(tr);
     }
     fold.append(wrap);
@@ -384,8 +431,8 @@
 
   const api = global.EsphomeMrLogicUi;
   if (api) {
-    api.registerPart({ id: "logic-layers-view", order: 90, modes: ["field"], text: TEXT, render: renderWhoUses });
-    api.registerPart({ id: "logic-control-table", order: 95, modes: ["field"], text: TEXT, render: renderControlTable });
+    api.registerPart({ id: "logic-layers-view", order: 90, modes: ["field", "mss"], text: TEXT, render: renderWhoUses });
+    api.registerPart({ id: "logic-control-table", order: 95, modes: ["field", "mss"], text: TEXT, render: renderControlTable });
   }
 
   global.EsphomeMrLogicUiViews = { TEXT, whoUses, controlTable };

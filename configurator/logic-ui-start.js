@@ -286,7 +286,7 @@
    * of every page. `errorsNote` is "" with no errors.
    */
   function downloadLogic(config, validation) {
-    if (global.EsphomeMr.logicMode(config) !== "field") return null;
+    if (!["field", "mss"].includes(global.EsphomeMr.logicMode(config))) return null;
     const { warnings = [], errors = [], links } = validation || global.EsphomeMr.validateConfig(config);
     const linkOf = (text) => links?.get?.(text);
     return {

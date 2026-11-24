@@ -112,7 +112,7 @@
     noSuchEnd: (where, side, end) => `${where}: ${side} is end ${end}, which is not under Ends. Add it, or pick another.`,
     noSuchEndTrack: (where, side, end, track) => `${where}: ${side} is end ${end} track ${track}, but end ${end} has ${track === 1 ? "no tracks" : "fewer tracks"}. Pick another, or add the track under Ends.`,
     noSuchJunction: (where, side, junction) => `${where}: ${side} is a leg of junction "${junction}", which is not under Junctions. Add it, or pick another.`,
-    badPlace: (where, side) => `${where}: ${side} is not an end track or a junction leg. Pick one.`,
+    badPlace: (where, side) => `${where}: ${side} is not an end track or a leg of a junction. Pick one.`,
     sameSides: (where) => `${where} starts and finishes at the same place. Pick a different To.`,
     throughLoop: (where, end) => `${where} is a through track (no signals) from end ${end} back to end ${end}, which would loop. A through track joins two different ends: add a block boundary with its signals, or pick another end.`,
     placeTwice: (place, a, b) => `${place} is used by tracks ${a} and ${b}. Each end track and leg joins one track: pick another for one of them.`,
@@ -554,7 +554,13 @@
         }
       }
       const out = { name: end.name, tracks };
-      for (const key of ["pairPin", "ledPin"]) if (typeof end.def[key] === "string" && end.def[key]) out[key] = end.def[key];
+      // An ESP pin is a GPIO name; an expander pin is its expander's name and 0-15.
+      for (const [key, expander] of [["pairPin", "pairExpander"], ["ledPin", "ledExpander"]]) {
+        if (typeof end.def[expander] === "string" && end.def[expander] && Number.isInteger(end.def[key])) {
+          out[expander] = end.def[expander];
+          out[key] = end.def[key];
+        } else if (typeof end.def[key] === "string" && end.def[key]) out[key] = end.def[key];
+      }
       ends.push(out);
     }
 
