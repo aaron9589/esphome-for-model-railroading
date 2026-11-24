@@ -20,7 +20,7 @@ function specBullets() {
   const tests = spec.slice(spec.indexOf("\n## Tests"), spec.indexOf("\n## Open questions"));
   const bullets = [];
   let section = null;
-  for (const line of tests.split("\n")) {
+  for (const line of tests.split(/\r?\n/)) {
     const head = line.match(/^- \*\*([^*]+)\*\*/);
     if (head) section = head[1].replace(/:$/, "");
     else if (["Scan", "Rules", "Fail safe"].includes(section) && line.startsWith("  - ")) bullets.push(line.slice(4));
@@ -60,6 +60,15 @@ function check({ file, data }) {
     if (!Object.values(aspects).includes("stop")) fail(`mast ${name}`, "has no stop aspect");
   }
   for (const block of logic.blocks || []) for (const s of block.sensors || []) if (!sensors.has(s)) fail(`block ${block.name}`, `sensor ${s}`);
+
+  for (const [b, other] of Object.entries(remote)) {
+    for (const [name, mast] of Object.entries(other.masts || {})) {
+      const aspects = mast.aspects || {};
+      if (!Object.keys(aspects).length) fail(`${b} mast ${name}`, "no aspects");
+      for (const [aspect, tag] of Object.entries(aspects)) if (!TAGS.includes(tag)) fail(`${b} mast ${name}`, `${aspect} has tag ${tag}`);
+    }
+  }
+  const remoteAspects = (b, m) => remote[b]?.masts?.[m]?.aspects || {};
 
   function remoteHas(boardName, kind, name) {
     const other = remote[boardName];
@@ -133,13 +142,16 @@ function check({ file, data }) {
   if (start.broker !== undefined && !["connected", "disconnected"].includes(start.broker)) fail("start", `broker ${start.broker}`);
   for (const [s, v] of Object.entries(start.sensors || {})) if (!sensors.has(s) || !states.sensor.includes(v)) fail("start", `sensor ${s} ${v}`);
   for (const [t, v] of Object.entries(start.turnouts || {})) if (!turnouts.has(t) || !states.turnout.includes(v)) fail("start", `turnout ${t} ${v}`);
-  for (const m of Object.keys(start.jmri || {})) if (!(m in masts)) fail("start", `jmri ${m}`);
+  for (const [m, message] of Object.entries(start.jmri || {})) if (!(m in masts) || typeof message !== "string") fail("start", `jmri ${m}`);
   for (const t of Object.keys(start.remoteLocks || {})) if (!turnouts.has(t)) fail("start", `remoteLock ${t}`);
   for (const [b, s] of Object.entries(start.remote || {})) {
     if (!remote[b]) fail("start", `remote ${b}`);
     for (const n of Object.keys(s.sensors || {})) if (!remoteHas(b, "sensor", n)) fail("start", `${b} sensor ${n}`);
     for (const n of Object.keys(s.turnouts || {})) if (!remoteHas(b, "turnout", n)) fail("start", `${b} turnout ${n}`);
-    for (const [n, a] of Object.entries(s.masts || {})) if (!remoteHas(b, "mast", n) || (a && !(a in remote[b].masts[n].aspects))) fail("start", `${b} mast ${n} ${a}`);
+    if (s.online !== undefined && typeof s.online !== "boolean") fail("start", `${b} online ${s.online}`);
+    for (const [n, v] of Object.entries(s.sensors || {})) if (!["occupied", "clear"].includes(v)) fail("start", `${b} sensor ${n} ${v}`);
+    for (const [n, v] of Object.entries(s.turnouts || {})) if (!["closed", "thrown", "moving"].includes(v)) fail("start", `${b} turnout ${n} ${v}`);
+    for (const [n, a] of Object.entries(s.masts || {})) if (!remoteHas(b, "mast", n) || (a && !(a in remoteAspects(b, n)))) fail("start", `${b} mast ${n} ${a}`);
   }
 
   // steps
@@ -149,7 +161,7 @@ function check({ file, data }) {
       if (e.online !== undefined) return void (typeof e.online !== "boolean" && fail(where, "online"));
       if (e.mast !== undefined) {
         if (!remoteHas(e.board, "mast", e.mast)) fail(where, `${e.board} mast ${e.mast}`);
-        else if (e.aspect !== "" && !(e.aspect in remote[e.board].masts[e.mast].aspects)) fail(where, `${e.mast} aspect ${e.aspect}`);
+        else if (e.aspect !== "" && !(e.aspect in remoteAspects(e.board, e.mast))) fail(where, `${e.mast} aspect ${e.aspect}`);
         return;
       }
       const kind = ["sensor", "block", "turnout"].find((k) => e[k] !== undefined);
@@ -169,15 +181,16 @@ function check({ file, data }) {
     fail(where, `unknown event ${JSON.stringify(e)}`);
   }
 
-  const ref = (r, where) => r === null || ruleRefs.has(r) || fail(where, `no rule ${r}`);
+  const ref = (r, where) => ruleRefs.has(r) || fail(where, `no rule ${r}`);
   const res = (r, where) => resources.has(r) || fail(where, `no resource ${r}`);
   function logged(e, where) {
     if (e.startup !== undefined) return void (e.startup !== true && fail(where, "startup"));
     if (e.grant !== undefined) return res(e.grant, where) && ref(e.rule, where);
     if (e.cancel !== undefined) return res(e.cancel, where) && ref(e.rule, where);
-    if (e.pass !== undefined) return res(e.pass, where) && ref(e.rule, where);
+    // null: a resource held at start-up, with no rule holding it.
+    if (e.pass !== undefined) return res(e.pass, where) && (e.rule === null || ref(e.rule, where));
     if (e.release !== undefined) return res(e.release, where) && (["release", "cancel", "time", "manual", "switch"].includes(e.by) || fail(where, `by ${e.by}`));
-    if (e.ignored !== undefined) return res(e.resource, where);
+    if (e.ignored !== undefined) return (e.ignored === "release" || fail(where, `ignored ${e.ignored}`)) && res(e.resource, where);
     if (e.resync !== undefined) return turnouts.has(e.resync) || fail(where, `resync ${e.resync}`);
     fail(where, `unknown event ${JSON.stringify(e)}`);
   }
@@ -205,7 +218,7 @@ function check({ file, data }) {
       res(r, where);
       if (!["IDLE", "ACTIVE", "PASSED", "CANCELLING"].includes(state)) fail(where, `resource state ${state}`);
     }
-    for (const [r, holder] of Object.entries(expect.holders || {})) res(r, where) && ref(holder, where);
+    for (const [r, holder] of Object.entries(expect.holders || {})) res(r, where) && (holder === null || ref(holder, where));
     for (const key of ["locks", "locked"]) {
       for (const [t, v] of Object.entries(expect[key] || {})) if (!turnouts.has(t) || typeof v !== "boolean") fail(where, `${key} ${t}`);
     }
@@ -217,8 +230,11 @@ function check({ file, data }) {
     }
     for (const p of expect.publishes || []) {
       if (p.release !== undefined) res(p.release, where) && p.value !== "CLOSED" && fail(where, "release publishes CLOSED");
-      else if (!resources.has(p.resource) || !(["ACTIVE", "INACTIVE"].includes(p.held) || ["IDLE", "ACTIVE", "PASSED", "CANCELLING"].includes(p.state))) {
-        fail(where, `publish ${JSON.stringify(p)}`);
+      else {
+        const held = p.held !== undefined;
+        const ok = resources.has(p.resource) && held !== (p.state !== undefined) &&
+          (held ? ["ACTIVE", "INACTIVE"].includes(p.held) : ["IDLE", "ACTIVE", "PASSED", "CANCELLING"].includes(p.state));
+        if (!ok) fail(where, `publish ${JSON.stringify(p)}`);
       }
     }
   }
@@ -248,7 +264,7 @@ test("the README's table lists every case file", () => {
   const readme = fs.readFileSync(path.join(casesDir, "README.md"), "utf8");
   const table = readme.slice(readme.indexOf("## Which case covers which bullet"));
   const named = new Set();
-  for (const [, cell] of table.matchAll(/\| ([^|]*`[^|]*) \|\n/g)) {
+  for (const [, cell] of table.matchAll(/\| ([^|]*`[^|]*) \|\r?\n/g)) {
     let prefix = "";
     for (const [, name] of cell.matchAll(/`([^`]+)`/g)) {
       // "`rules-approach-locking-off`, `-time`" names rules-approach-locking-time.
@@ -257,7 +273,9 @@ test("the README's table lists every case file", () => {
       named.add(full);
     }
   }
-  assert.deepEqual(files.map((f) => f.replace(/\.json$/, "")).filter((f) => !named.has(f)), []);
+  const stems = files.map((f) => f.replace(/\.json$/, ""));
+  assert.deepEqual(stems.filter((f) => !named.has(f)), [], "case files missing from the table");
+  assert.deepEqual([...named].filter((n) => !stems.includes(n)), [], "names in the table with no case file");
 });
 
 test("the check would catch a broken case", () => {
@@ -267,6 +285,17 @@ test("the check would catch a broken case", () => {
   assert.ok(problems.some((p) => p.includes("sensor Nowhere")));
   assert.ok(problems.some((p) => p.includes("no aspect R999")));
   assert.ok(problems.some((p) => p.includes("no rule Single line/9")));
+  const odd = JSON.parse(JSON.stringify(broken));
+  odd.data.board.remote = { south: { masts: { Home: {} } } };
+  odd.data.start = { remote: { south: { online: "true", masts: { Home: "R281" } } }, jmri: { "Left Bridge": 7 } };
+  odd.data.steps = [{ at: 1, expect: {
+    events: [{ grant: "Bridge", rule: null }, { ignored: "anything", resource: "Bridge" }],
+    publishes: [{ resource: "Bridge", held: "PASSED", state: "IDLE" }],
+  } }];
+  const more = check(odd);
+  for (const text of ["south mast Home: no aspects", "south online true", "jmri Left Bridge", "no rule null", "ignored anything", "publish"]) {
+    assert.ok(more.some((p) => p.includes(text)), text);
+  }
 });
 
 if (!process.exitCode) console.log("\nAll engine case checks passed.");
