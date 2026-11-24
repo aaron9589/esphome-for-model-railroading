@@ -70,7 +70,8 @@
   }
 
   // A condition's value: `is` may be a list (a mast's tags); elsewhere its first value counts.
-  const first = (c) => [].concat(c.is)[0];
+  // (Not [].concat(c.is)[0]: the checker calls this millions of times.)
+  const first = (c) => (Array.isArray(c.is) ? c.is[0] : c.is);
 
   // --- The engine ----------------------------------------------------------
 
@@ -287,7 +288,13 @@
       return false;
     }
 
-    const momentKey = (m) => JSON.stringify(m);
+    // A moment's key, made once per moment: rule definitions do not change
+    // while an engine runs, and the checker runs many short engines.
+    const momentKeys = new WeakMap();
+    const momentKey = (m) => {
+      if (!momentKeys.has(m)) momentKeys.set(m, JSON.stringify(m));
+      return momentKeys.get(m);
+    };
     // A moment: this board's sensors and buttons by their latches; anything
     // else by its condition becoming true since the last scan.
     function moment(m) {
@@ -919,14 +926,25 @@
       };
     }
 
-    // For the checker (logic-checker.js) only, so it has no C++ counterpart:
-    // which rules are active (plain rules included, which state() reports as
-    // idle), and the requests in waiting order, so two states that differ only
-    // in who asked first are not taken for one.
+    // For the checker (logic-checker.js) and Try it only, so it has no C++
+    // counterpart: which rules are active (plain rules included, which state()
+    // reports as idle), and the requests in waiting order (`order`, which Try
+    // it shows). The checker keys a state on `asked` in place of `order`:
+    // `since` only decides grants (6.3), and those compare the rules of one
+    // section, so each section's order is kept, with the set of plain rules
+    // whose When is true, but not how requests for different sections, or
+    // plain rules, interleave (work item 4.5). Two states that differ only in
+    // that behave the same from then on.
     function checkerView() {
+      const byAsk = (a, b) => a.trig.since - b.trig.since || a.index - b.index;
+      const asking = (list) => list.filter((rule) => rule.trig.since !== null);
       return {
         active: rules.filter((rule) => logicOn && isActive(rule)).map((rule) => rule.ref),
-        order: rules.filter((rule) => rule.trig.since !== null).sort((a, b) => a.trig.since - b.trig.since || a.index - b.index).map((rule) => rule.ref),
+        order: asking(rules).sort(byAsk).map((rule) => rule.ref),
+        asked: [
+          asking(rules.filter((rule) => !rule.resource)).map((rule) => rule.ref),
+          ...resources.map((res) => asking(res.rules).sort(byAsk).map((rule) => rule.ref)),
+        ],
       };
     }
 
