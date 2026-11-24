@@ -263,15 +263,19 @@ const CATS_ASPECT_TAGS = Object.freeze({
   R283B: "clear", R284: "clear", C412: "clear", C413: "clear", C414: "clear", C417: "clear",
 });
 // CATS aspects that send a train on a diverging route, at Medium or Limited
-// speed: the Limited and Medium rows of CATS's AspectMap speed table, less
-// the Advance and Restricting aspects. The template's speed cannot be used:
-// it gives plain Approach (R285) speed Medium.
+// speed: the aspects in SpeedTable's LIMITED and MEDIUM rows (the near speed,
+// in AspectMap.java), less the Advance and Restricting aspects. Not the
+// aspects' own AspectMap.Speed values: R281D and R286 have Approach speed
+// there, but are Limited and Medium Approach. Nor the template's speed: it
+// gives plain Approach (R285) speed Medium.
 const CATS_DIVERGING = Object.freeze(["R281C", "C412", "C413", "C414", "R281D", "R283", "C417", "R283A", "R283B", "R286"]);
 
 // An aspect's tag by its JMRI name. A CATS aspect tags itself; any other
 // starts as stop, because an untagged aspect counts as the most restrictive.
 function catsAspectTag(name) {
-  return CATS_ASPECT_TAGS[jmriAspectName(String(name || ""))] || "stop";
+  const key = jmriAspectName(String(name || ""));
+  // Own keys only: a custom aspect called "constructor" is not Object's.
+  return Object.hasOwn(CATS_ASPECT_TAGS, key) ? CATS_ASPECT_TAGS[key] : "stop";
 }
 
 function catsAspectDiverging(name) {

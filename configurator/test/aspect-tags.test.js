@@ -1,6 +1,7 @@
 // CATS aspect tags and the diverging list (field logic spec, Aspect tags).
 // Work item 2.0.
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { configuratorDir, loadModules, test } from "./harness.js";
@@ -9,10 +10,11 @@ const { EsphomeMr } = loadModules("generator.js");
 const { ASPECT_TAGS, CATS_ASPECTS, CATS_ASPECT_TAGS, CATS_DIVERGING, catsAspectDiverging, catsAspectState, catsAspectTag } = EsphomeMr;
 const plain = (value) => JSON.parse(JSON.stringify(value));
 
-// The CATS signal template the configurator ships, read as it is.
+const ASPECTS_XML = path.join(configuratorDir, "..", ".jmri", "resources", "signals", "cats-masts", "aspects.xml");
+
+// The CATS signal template, read as it is.
 function templateAspects() {
-  const file = path.join(configuratorDir, "..", ".jmri", "resources", "signals", "cats-masts", "aspects.xml");
-  const xml = fs.readFileSync(file, "utf8");
+  const xml = fs.readFileSync(ASPECTS_XML, "utf8");
   return [...xml.matchAll(/<aspect>([\s\S]*?)<\/aspect>/g)].map(([, body]) => {
     const field = (name) => (body.match(new RegExp(`<${name}>([^<]*)</${name}>`)) || [])[1];
     return { name: field("name"), speed: field("speed"), speed2: field("speed2") };
@@ -27,6 +29,12 @@ function tagFromSpeeds({ name, speed, speed2 }) {
   if (name.startsWith("ADV_")) return "advance";
   return "clear";
 }
+
+test("the template people download is the one the tags were checked against", () => {
+  const zip = path.join(configuratorDir, "cats-signal-template.zip");
+  const shipped = execFileSync("unzip", ["-p", zip, "resources/signals/cats-masts/aspects.xml"], { encoding: "utf8" });
+  assert.equal(shipped, fs.readFileSync(ASPECTS_XML, "utf8"), "rebuild cats-signal-template.zip from .jmri/");
+});
 
 test("tags run from most to least restrictive", () => {
   assert.deepEqual(plain(ASPECT_TAGS), ["stop", "restricting", "approach", "advance", "clear"]);
@@ -69,7 +77,10 @@ test("an aspect is looked up by its JMRI name, and anything else starts as stop"
   assert.equal(catsAspectTag("R281"), "clear");
   assert.equal(catsAspectTag(catsAspectState("R285")), "approach", "R285; Lit; Unheld");
   assert.equal(catsAspectTag(" ADV_MED "), "advance");
-  for (const custom of ["Clear", "Proceed", "", undefined, "r281"]) assert.equal(catsAspectTag(custom), "stop", String(custom));
+  for (const custom of ["Clear", "Proceed", "", undefined, "r281", "constructor", "toString", "__proto__", "hasOwnProperty"]) {
+    assert.equal(catsAspectTag(custom), "stop", String(custom));
+    assert.equal(catsAspectDiverging(custom), false, String(custom));
+  }
   assert.equal(catsAspectDiverging(catsAspectState("C417")), true);
   assert.equal(catsAspectDiverging("Clear"), false);
 });
