@@ -6,7 +6,7 @@ import path from "node:path";
 import { configuratorDir, loadModules, test } from "./harness.js";
 
 // Every Logic page file, in index.html's order.
-export const LOGIC_UI_FILES = ["generator.js", "logic-yaml.js", "logic.js", "logic-checker.js", "logic-try.js", "logic-ui.js", "logic-ui-masts.js", "logic-ui-ends.js", "logic-ui-rules.js", "logic-ui-views.js", "logic-ui-start.js", "logic-ui-try.js", "logic-starters.js", "logic-starters-sections.js", "logic-starters-signals.js", "mss-builder.js", "logic-ui-mss-steps.js", "logic-ui-mss-tracks.js", "logic-ui-mss-junctions.js", "logic-summary.js"];
+export const LOGIC_UI_FILES = ["generator.js", "logic-yaml.js", "logic.js", "logic-checker.js", "logic-try.js", "logic-ui.js", "logic-ui-masts.js", "logic-ui-ends.js", "logic-ui-rules.js", "logic-ui-views.js", "logic-ui-start.js", "logic-ui-try.js", "logic-starters.js", "logic-starters-sections.js", "logic-starters-signals.js", "mss-builder.js", "logic-ui-mss-marks.js", "logic-ui-mss-steps.js", "logic-ui-mss-tracks.js", "logic-ui-mss-junctions.js", "logic-summary.js"];
 const context = loadModules(...LOGIC_UI_FILES);
 const { generateYaml, logicMode, myFirstBoardPreset, normalizeConfig, parseConfigFromYaml, sharesWithOtherBoards } =
   context.EsphomeMr;
@@ -128,12 +128,12 @@ test("keys and modes a later configurator adds are kept on import", () => {
   assert.equal(logicMode(back), "none");
 });
 
-test("MSS Logic always shares, and is not offered yet", () => {
+test("MSS Logic always shares, and is offered", () => {
   const config = board();
   config.logic = { mode: "mss", share: false };
   assert.equal(sharesWithOtherBoards(normalizeConfig(config)), true);
-  assert.equal(FEATURES.mss, false);
-  assert.deepEqual([...modeChoices()], ["none", "field"]);
+  assert.equal(FEATURES.mss, true);
+  assert.deepEqual([...modeChoices()], ["none", "field", "mss"]);
 });
 
 test("the checklist leads with choosing a mode, and ends with Download", () => {

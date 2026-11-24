@@ -1982,3 +1982,386 @@ details.rule-more {
 .logic-summary-button {
   margin: 0.5rem 0 0.75rem;
 }
+
+/* MSS page: built items and red dots */
+.mss-built-badge {
+  display: inline-block;
+  padding: 0.05rem 0.45rem;
+  border-radius: 999px;
+  background: transparent;
+  border: 1px solid currentColor;
+  color: inherit;
+  font-size: 0.72rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.mss-dot {
+  display: inline-block;
+  width: 0.65rem;
+  height: 0.65rem;
+  border-radius: 50%;
+  background: var(--danger);
+  vertical-align: middle;
+}
+
+.mss-dot.is-warning {
+  background: #d97706;
+}
+
+/* MSS page: strip editor */
+.mss-strip-wrap {
+  overflow-x: auto;
+  margin: 0.5rem 0;
+}
+
+.mss-strip {
+  display: block;
+  max-width: none;
+  font-size: 12px;
+}
+
+.mss-rail {
+  stroke: var(--line-strong);
+  stroke-width: 3;
+}
+
+.mss-place,
+.mss-through {
+  fill: var(--muted);
+  font-weight: 600;
+}
+
+.mss-block,
+.mss-boundary {
+  cursor: pointer;
+}
+
+.mss-block rect {
+  fill: var(--surface);
+  stroke: var(--line-strong);
+  stroke-width: 1.5;
+}
+
+.mss-block.is-selected rect {
+  fill: var(--accent-soft);
+  stroke: var(--accent);
+  stroke-width: 2.5;
+}
+
+.mss-block.has-problem rect {
+  stroke: var(--danger);
+}
+
+.mss-hit {
+  fill: transparent;
+}
+
+.mss-bar {
+  stroke: var(--ink);
+  stroke-width: 3;
+}
+
+.mss-boundary.is-selected .mss-bar {
+  stroke: var(--accent);
+  stroke-width: 5;
+}
+
+.mss-boundary.has-problem .mss-bar {
+  stroke: var(--danger);
+}
+
+.mss-label {
+  fill: var(--ink);
+  font-weight: 600;
+}
+
+.mss-sub,
+.mss-turnout {
+  fill: var(--muted);
+}
+
+.mss-arrow {
+  fill: var(--ink);
+}
+
+.mss-arrow.is-none {
+  fill: var(--muted);
+  font-style: italic;
+}
+
+.mss-block:focus-visible,
+.mss-boundary:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.mss-form {
+  border-top: 1px solid var(--line);
+  margin-top: 0.5rem;
+  padding-top: 0.5rem;
+}
+
+.mss-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin: 0.25rem 0;
+}
+
+.mss-chip {
+  background: var(--accent-soft);
+  border-radius: 999px;
+  padding: 0.1rem 0.2rem 0.1rem 0.6rem;
+}
+
+.mss-chip button {
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+
+.mss-turnout-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: end;
+  margin: 0.25rem 0;
+}
+
+.mss-problems {
+  margin: 0.4rem 0;
+  padding-left: 1.2rem;
+}
+
+.mss-problem.is-error {
+  color: var(--danger);
+}
+
+.mss-problem.is-warning {
+  color: var(--warn-ink);
+}
+
+/* MSS page: steps, ends, signals */
+.mss-steps li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.15rem 0.6rem;
+  align-items: baseline;
+}
+
+.mss-steps .hint {
+  flex-basis: 100%;
+  margin: 0;
+}
+
+.mss-steps .step-status.has-problems {
+  color: var(--danger);
+  font-weight: 600;
+}
+
+.mss-end.has-problems,
+.mss-signal-row.has-problems > th {
+  border-left: 3px solid var(--danger);
+}
+
+.mss-problems {
+  margin: 0.5rem 0 0;
+  padding-left: 1.1rem;
+  font-size: 0.82rem;
+  color: var(--danger);
+}
+
+.mss-problems .is-warning {
+  color: var(--warn-ink);
+}
+
+.mss-optional {
+  margin: 0.5rem 0 1rem;
+}
+
+.mss-signals-wrap {
+  overflow-x: auto;
+}
+
+.mss-signals {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 0.85rem;
+}
+
+.mss-signals th,
+.mss-signals td {
+  padding: 0.4rem 0.5rem;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+  vertical-align: middle;
+}
+
+.mss-signals thead th {
+  white-space: nowrap;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.mss-signal-name {
+  min-width: 8rem;
+}
+
+.mss-signal-name .mss-same {
+  display: block;
+  margin-top: 0.3rem;
+  font-size: 0.78rem;
+}
+
+.mss-cell {
+  min-width: 8.5rem;
+}
+
+.mss-cell .mini-mast {
+  margin-right: 0.4rem;
+  vertical-align: middle;
+}
+
+.mss-cell select {
+  max-width: 10rem;
+}
+
+.mss-unused {
+  color: var(--muted);
+}
+
+.mss-signal-problems td {
+  border-bottom: 1px solid var(--line);
+}
+
+/* MSS page: junctions */
+.mssj-shapes {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(8.5rem, 1fr));
+  gap: 0.5rem;
+  margin: 0.5rem 0;
+}
+
+.mssj-shape {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.5rem;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.mssj-shape.is-picked {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.mssj-shape-name {
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.mssj-picture {
+  width: 100%;
+  max-width: 11rem;
+  height: auto;
+}
+
+.mssj-custom {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 3.5rem;
+  font-size: 1.6rem;
+  color: var(--muted);
+}
+
+.mssj-route {
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 2.5;
+  stroke-linecap: round;
+}
+
+.mssj-route.is-diverging {
+  stroke-dasharray: 6 3;
+}
+
+.mssj-route.is-lit {
+  stroke: var(--accent);
+  stroke-width: 4;
+}
+
+.mssj-leg {
+  fill: var(--accent);
+}
+
+.mssj-leg-number {
+  font-size: 9px;
+  fill: var(--muted);
+}
+
+.mssj-add {
+  margin-top: 1rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--line);
+}
+
+.mssj-route-card {
+  margin: 0.5rem 0;
+  padding: 0.6rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.mssj-route-head,
+.mssj-turnout-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0.25rem 0;
+}
+
+.mssj-route-head {
+  justify-content: space-between;
+}
+
+.mssj-preview,
+.mssj-sensors,
+.mssj-legs,
+.mssj-routes {
+  margin-top: 0.9rem;
+}
+
+.mssj-preview .mssj-picture {
+  display: block;
+  max-width: 14rem;
+}
+
+.mssj-joins {
+  margin: 0.25rem 0 0;
+  padding-left: 1.2rem;
+  font-size: 0.85rem;
+}
+
+.mssj-leg-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.75rem;
+  margin: 0.4rem 0;
+}
+
+.mssj-problems {
+  flex-basis: 100%;
+}
+
+.mssj-problems .msg {
+  margin: 0.25rem 0;
+}

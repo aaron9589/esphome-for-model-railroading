@@ -9,7 +9,7 @@
   const FEATURES = Object.freeze({
     startsOn: false, // Release 2: logic starts on / off
     tryIt: true, // Release 2: the Try it part and the checklist's Try it step
-    mss: false, // Release 4: MSS Logic in the mode list
+    mss: true, // Release 4: MSS Logic in the mode list
   });
 
   const TEXT = Object.freeze({
@@ -41,6 +41,10 @@
     steps: Object.freeze({
       mode: "Choose how this board decides its signals",
       blocks: "Add blocks and signals",
+      ends: "Describe the module's ends",
+      tracks: "Draw the tracks",
+      junctions: "Add the junctions, if there are any",
+      signals: "Pick each signal's aspects",
       tryIt: "Try it",
       download: "Download",
     }),
@@ -115,6 +119,17 @@
       steps.push({ key: "blocks", done, target: "logic-blocks" });
     }
     if (FEATURES.tryIt && parts.blocks) steps.push({ key: "tryIt", done: false, target: "logic-try" });
+    if (mode === "mss") {
+      // The module's description, one step for each part (spec: A guided setup).
+      const mss = global.EsphomeMrMssBuilder;
+      const described = config.logic?.mss || {};
+      const placed = (key) => Array.isArray(described[key]) && described[key].length > 0;
+      steps.push({ key: "ends", done: placed("ends"), target: mss.PARTS.ends });
+      steps.push({ key: "tracks", done: placed("tracks"), target: mss.PARTS.tracks });
+      steps.push({ key: "junctions", done: placed("junctions"), target: mss.PARTS.junctions });
+      steps.push({ key: "signals", done: placed("masts"), target: mss.PARTS.signals });
+      if (FEATURES.tryIt && parts.tryIt) steps.push({ key: "tryIt", done: false, target: "logic-try" });
+    }
     steps.push({ key: "download", done: false, view: "yaml" });
     return steps;
   }
@@ -147,6 +162,7 @@
       const link = document.createElement("a");
       link.href = `#${step.target || step.view}`;
       link.textContent = TEXT.steps[step.key];
+      if (step.target?.startsWith("logic-mss-")) global.EsphomeMrLogicUiMssMarks?.mark(link, { part: step.target });
       link.addEventListener("click", (event) => {
         event.preventDefault();
         if (step.view) ctx.showView(step.view);
@@ -775,7 +791,11 @@
   // What parts get as `ui`.
   const UI = Object.freeze({ TEXT, card, rerender, logicOf, newRule, newGroup, itemChoices, selectEl, rowCard, paragraph });
 
-  registerPart({ id: "logic-steps", order: 0, modes: ["none", "field", "mss"], render: (root, config, ctx) => renderChecklist(root, config, ctx, { blocks: global.EsphomeMr.logicMode(config) === "field" }) });
+  // MSS Logic leads with its own guided steps (logic-ui-mss-steps.js).
+  registerPart({ id: "logic-steps", order: 0, modes: ["none", "field"], render: (root, config, ctx) => renderChecklist(root, config, ctx, {
+    blocks: global.EsphomeMr.logicMode(config) === "field",
+    tryIt: parts.some((part) => part.id === "logic-try" && part.modes.includes(global.EsphomeMr.logicMode(config))),
+  }) });
   registerPart({ id: "logic-mode", order: 10, modes: ["none", "field", "mss"], render: renderMode });
   registerPart({ id: "logic-settings", order: 20, modes: ["none", "field", "mss"], render: renderSettings });
   registerPart({ id: "logic-linked", order: 30, render: renderLinkedBoards });
@@ -793,6 +813,7 @@
     for (const part of parts) {
       if (part.modes.includes(mode)) part.render(root, config, ctx, UI);
     }
+    if (mode === "mss") global.EsphomeMrLogicUiMssMarks?.apply(root, config);
   }
 
   // The nav's one-line summary of this board's logic.
