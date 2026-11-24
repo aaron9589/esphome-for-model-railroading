@@ -11,14 +11,14 @@ lambdas, so it does not depend on the globals' or scripts' C++ types (spec,
 import json
 
 import esphome.codegen as cg
-from esphome.components import binary_sensor, script, switch, text_sensor
+from esphome.components import binary_sensor, script, switch, text, text_sensor
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_NAME, CONF_SENSOR, CONF_VERSION
 import esphome.final_validate as fv
 
 CODEOWNERS = []
 DEPENDENCIES = []
-AUTO_LOAD = ["binary_sensor", "switch", "text_sensor"]
+AUTO_LOAD = ["binary_sensor", "switch", "text", "text_sensor"]
 
 CONF_TABLE = "table"
 CONF_BOARD = "board"
@@ -42,6 +42,9 @@ CONF_REMOTE = "remote"
 CONF_ONLINE = "online"
 CONF_BLOCKS = "blocks"
 CONF_STATE = "state"
+CONF_ENDS = "ends"
+CONF_LINK = "link"
+CONF_LED = "led"
 
 mr_logic_ns = cg.esphome_ns.namespace("mr_logic")
 MrLogicComponent = mr_logic_ns.class_("MrLogicComponent", cg.Component)
@@ -121,6 +124,18 @@ REMOTE_SCHEMA = cv.Schema(
     }
 )
 
+END_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_NAME): cv.string_strict,
+        # The end's Link text entity (saved across reboots): every change of link goes through it.
+        cv.Required(CONF_LINK): cv.use_id(text.Text),
+        # An optional LED: a gpio switch the component blinks.
+        cv.Optional(CONF_LED): cv.use_id(switch.Switch),
+        # An optional text sensor for the end's state in words.
+        cv.Optional(CONF_STATE): cv.use_id(text_sensor.TextSensor),
+    }
+)
+
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(MrLogicComponent),
@@ -135,6 +150,7 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional(CONF_MASTS, default=[]): cv.ensure_list(MAST_SCHEMA),
         cv.Optional(CONF_TURNOUTS, default=[]): cv.ensure_list(TURNOUT_SCHEMA),
         cv.Optional(CONF_REMOTE, default=[]): cv.ensure_list(REMOTE_SCHEMA),
+        cv.Optional(CONF_ENDS, default=[]): cv.ensure_list(END_SCHEMA),
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
@@ -235,3 +251,8 @@ async def to_code(config):
             )
         for item in board[CONF_MASTS]:
             cg.add(var.add_remote_mast(name, item[CONF_NAME], await cg.get_variable(item[CONF_STATE])))
+    for item in config[CONF_ENDS]:
+        link = await cg.get_variable(item[CONF_LINK])
+        led = await cg.get_variable(item[CONF_LED]) if CONF_LED in item else cg.nullptr
+        state = await cg.get_variable(item[CONF_STATE]) if CONF_STATE in item else cg.nullptr
+        cg.add(var.add_end(item[CONF_NAME], link, led, state))

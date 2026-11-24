@@ -87,6 +87,11 @@
     remoteSensor: (board, name) => `${name} (from ${board})`,
     remoteBlock: (board, name) => `Block ${name} (from ${board})`,
     memberMissing: "not found",
+    endsGroup: "What an end hears",
+    endBlock: (end, track) => `Block heard at end ${end}, track ${track}`,
+    endMast: (end, track) => `Next signal heard at end ${end}, track ${track}`,
+    endMember: (end, track) => `What end ${end}, track ${track} hears`,
+    endMemberHint: "A block can include what an end hears, so it reaches across the joint. JMRI's copy of the block is made of this board's sensors only.",
     noSensorsYet: "Add sensors on the Sensors page, or link a board, then pick them here.",
     linkedCounts: (sensors, turnouts, blocks, masts = 0) => [
       `${sensors} sensor${sensors === 1 ? "" : "s"}`,
@@ -418,9 +423,10 @@
   // A block member in words, and whether it can be found.
   function memberText(config, member) {
     const L = global.EsphomeMrLogicYaml;
-    const found = !L.blockMember(config, member).problem && !(typeof member === "object" && L.resolveRemote(config, member).problem);
+    const found = !L.blockMember(config, member).problem && !(typeof member === "object" && member.end === undefined && L.resolveRemote(config, member).problem);
     let text;
     if (typeof member === "string") text = member;
+    else if (member.end !== undefined) text = TEXT.endMember(member.end, member.track);
     else if (member.block !== undefined) text = TEXT.remoteBlock(member.board, member.block);
     else text = TEXT.remoteSensor(member.board ?? "?", member.sensor ?? member.turnout ?? "?");
     return { text, found };
@@ -434,6 +440,8 @@
     const groups = [];
     const own = (config.blocks || []).map((sensor) => sensor.name).filter((name) => name && !taken.has(L.memberKey(name)));
     if (own.length) groups.push({ label: TEXT.thisBoard, options: own.map((name) => ({ value: name, text: name })) });
+    const heard = L.endTracks(config).map((t) => ({ end: t.end, track: t.track })).filter((member) => !taken.has(L.memberKey(member)));
+    if (heard.length) groups.push({ label: TEXT.endsGroup, options: heard.map((member) => ({ value: member, text: TEXT.endMember(member.end, member.track) })) });
     for (const board of L.linkedBoards(config)) {
       if (!board.name) continue;
       const options = [];
@@ -530,6 +538,7 @@
       members.append(empty);
     }
     wrap.append(members);
+    if ((block.sensors || []).some((member) => isObject(member) && member.end !== undefined)) wrap.append(ctx.hintEl(TEXT.endMemberHint));
     const groups = memberChoices(config, block);
     if (groups.length) {
       const select = document.createElement("select");
@@ -612,7 +621,7 @@
   //     text: TEXT_MASTS, render(root, config, ctx, ui) { ... } });
   //
   // Places, in the spec's order: checklist 0, mode 10, settings 20, linked
-  // boards 30, plant ends 35 (Release 3), blocks 40, masts 50, buttons 60,
+  // boards 30, plant ends 35 (logic-ui-ends.js), blocks 40, masts 50, buttons 60,
   // sections 70, groups 80, starters 85, layers view 90, control table 95.
   const parts = [];
 
@@ -659,6 +668,15 @@
    */
   function itemChoices(config, kind, { remote = false } = {}) {
     const L = global.EsphomeMrLogicYaml;
+    if (kind === "endMast" || kind === "endBlock" || kind === "end") {
+      // What an end of this board hears: { end, track }, or with `hears` for a rule.
+      const options = [];
+      for (const t of L.endTracks(config)) {
+        if (kind !== "endMast") options.push({ value: kind === "end" ? { end: t.end, track: t.track, hears: "block" } : { end: t.end, track: t.track }, text: TEXT.endBlock(t.end, t.track) });
+        if (kind !== "endBlock") options.push({ value: kind === "end" ? { end: t.end, track: t.track, hears: "mast" } : { end: t.end, track: t.track }, text: TEXT.endMast(t.end, t.track) });
+      }
+      return options.length ? [{ label: TEXT.endsGroup, options }] : [];
+    }
     const names = (items, key = "name") => list(items).filter(isObject).map((item) => String(item[key] ?? "")).filter(Boolean);
     const logic = config.logic || {};
     const own = {

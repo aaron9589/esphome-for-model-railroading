@@ -516,6 +516,7 @@
   // One key per member, whatever order its keys were stored in.
   function memberKey(member) {
     if (typeof member === "string") return `\u0000${member}`;
+    if (isObject(member) && member.end !== undefined && member.board === undefined) return `\u0000end\u0000${member.end}\u0000${member.track}`;
     const kind = remoteKind(member);
     return `${member?.board ?? ""}\u0000${kind ?? "?"}\u0000${kind ? member[kind] : JSON.stringify(member)}`;
   }
@@ -537,8 +538,13 @@
       return { problem: `has signal mast "${member.mast}" in it. A block is made of sensors: take the mast out` };
     }
     if (isRemoteRef(member)) return { remote: member };
-    // What a plant end hears (MSS Logic builds these). The engine reads it.
-    if (member && typeof member === "object" && member.end !== undefined && member.track !== undefined) return { end: member };
+    if (member && typeof member === "object" && member.end !== undefined && member.board === undefined) {
+      // What a plant end hears: the engine reads it. The block's own sensor on
+      // the page has no way to see it, so it leaves it out (see blockLambda).
+      const there = endTracks(config).some((t) => t.end === member.end && t.track === Number(member.track));
+      if (!there) return { problem: `has what end "${member.end}" track ${member.track} hears, which is not under Plant ends. Add that end track, or remove it` };
+      return { end: member };
+    }
     return { problem: "has a sensor this configurator cannot read. Remove it" };
   }
 
@@ -552,6 +558,9 @@
       return found.expander ? `id(${found.expander}).is_failed() || id(${found.expander}).status_has_warning() || ${own}` : own;
     }
     if (found.remote) return remoteOccupiedExpr(config, found.remote);
+    // What an end hears is read by the rules (the engine hears it); this
+    // block's own sensor, which JMRI sees, does not include it.
+    if (found.end) return "false";
     return "true";
   }
 
@@ -682,6 +691,28 @@
     return count;
   }
 
+  // An end renamed on the Plant ends part: rules, blocks and pass-throughs that
+  // name it follow, once the name is finished. The caller has already changed
+  // the end's own name. Not when another end still has the old name, or two
+  // have the new one. Returns how many references moved.
+  function renameEnd(config, from, to) {
+    if (typeof from !== "string" || typeof to !== "string" || !from || !to.trim() || from === to || !config?.logic) return 0;
+    const names = list(config.logic.ends).filter(isObject).map((end) => end.name);
+    if (names.includes(from) || names.filter((name) => name === to).length > 1) return 0;
+    let count = 0;
+    const walk = (value) => {
+      if (Array.isArray(value)) return value.forEach(walk);
+      if (!isObject(value)) return;
+      if (value.end === from && value.board === undefined) {
+        value.end = to;
+        count += 1;
+      }
+      Object.values(value).forEach(walk);
+    };
+    for (const [key, value] of Object.entries(config.logic)) if (key !== "remoteBoards") walk(value);
+    return count;
+  }
+
   // Linked boards show only in Field Logic, so they are checked only there: a
   // problem the person cannot see must not block the download.
   function validateLinkedBoards(config, r) {
@@ -733,6 +764,7 @@
   const BLOCKS = logicPart("logic-blocks");
   const MASTS = logicPart("logic-masts");
   const BUTTONS = logicPart("logic-buttons");
+  const ENDS = logicPart("logic-ends");
   const SECTIONS = logicPart("logic-sections");
   const GROUPS = logicPart("logic-groups");
   const SIGNALS = Object.freeze({ view: "signals" });
@@ -815,7 +847,10 @@
   function checkCondition(config, r, where, who, cond, masts) {
     if (cond.board !== undefined) return; // another board's: Linked boards checks it.
     const kind = CONDITION_KINDS.find((k) => cond[k] !== undefined);
-    if (kind === "end") return; // plant ends: Release 3.
+    if (kind === "end") {
+      checkEndCondition(config, r, where, who, cond, masts);
+      return;
+    }
     const name = String(cond[kind] ?? "");
     const is = cond.is;
     if (kind === "block" || kind === "sensor") {
@@ -851,6 +886,26 @@
     }
   }
 
+  // A rule reading what an end hears: { end, track, hears: "block" | "mast", is }.
+  const HEARD_MAST_WORDS = ["stop", "restricting", "approach", "advance", "clear"];
+
+  function checkEndCondition(config, r, where, who, cond) {
+    const there = endTracks(config).some((t) => t.end === cond.end && t.track === Number(cond.track));
+    if (!there) {
+      r.error(where, `${who} reads what end "${cond.end}" track ${cond.track} hears, which is not under Plant ends. Add that end track, or pick another.`);
+      return;
+    }
+    if (cond.hears !== "block" && cond.hears !== "mast") {
+      r.error(where, `${who} reads end "${cond.end}" track ${cond.track}: pick whether it hears a block or the next signal.`);
+      return;
+    }
+    const words = [].concat(cond.is ?? []);
+    const allowed = cond.hears === "block" ? IS_WORDS.block : HEARD_MAST_WORDS;
+    if (!words.length || words.some((w) => !allowed.includes(w))) {
+      r.error(where, `${who} asks whether what end "${cond.end}" track ${cond.track} hears is ${words.length ? words.map((w) => `"${w}"`).join(" or ") : "anything"}. Pick ${allowed.map((w) => `"${w}"`).join(", ")}.`);
+    }
+  }
+
   // A rule button on an expander: { name, expander, pin } with pin 0-15, as a
   // sensor on one stores it. Its pin is checked with the sensors' expander pins.
   const onExpander = (button) => typeof button.expander === "string" && button.expander !== "";
@@ -872,11 +927,13 @@
   // as { name, pin: "GPIO.." }, an expander pin as { name, expander, pin }.
   function buttonPins(config) {
     if (!fieldMode(config)) return [];
-    return list(logicItems(config).buttons)
+    const buttons = list(logicItems(config).buttons)
       .filter((b) => isObject(b) && (onExpander(b) || String(b.pin || "").trim()))
       .map((b) => (onExpander(b)
         ? { name: String(b.name || ""), expander: b.expander, pin: b.pin, where: BUTTONS }
         : { name: String(b.name || ""), pin: String(b.pin).trim().toUpperCase(), where: BUTTONS }));
+    // Plant ends' Pair and LED pins are checked beside them.
+    return [...buttons, ...endPins(config)];
   }
 
   // A block's key across boards: (board, name). A sensor and a block on one
@@ -888,6 +945,80 @@
       if (kind) return { key: `${ref.board}\u0000${ref[kind]}`, name: String(ref[kind]), board: ref.board };
     }
     return null;
+  }
+
+  // Plant ends (spec, Validation): each has a name and a track; each track has
+  // end sensors and a first mast, or passes through to a track at another end,
+  // without loops. Ends need MQTT and Share, because a neighbour's Online
+  // topic is its birth and will message.
+  function validateEnds(config, r) {
+    if (!fieldMode(config)) return;
+    const ends = list(logicItems(config).ends).filter(isObject);
+    if (!ends.length) return;
+    const masts = boardMasts(config);
+    const sensors = new Set((config.blocks || []).map((b) => b.name));
+    const names = new Set();
+    const tracksOf = new Map();
+    for (const end of ends) if (typeof end.name === "string" && end.name.trim()) tracksOf.set(end.name, list(end.tracks).length);
+    if (config.board?.mqttEnabled === false) {
+      r.error(ENDS, "Plant ends need MQTT, because the boards talk to each other over it. Turn MQTT back on under Board, or remove the ends.");
+    } else if (!M().sharesWithOtherBoards(config)) {
+      r.error(ENDS, "Plant ends need Share with other boards, because the board next door finds out that this one is on the network from what it shares. Tick Share under Settings, or remove the ends.");
+    }
+    for (const end of ends) {
+      const name = String(end.name ?? "").trim();
+      const label = name ? `End "${name}"` : "An end";
+      if (!name) r.error(ENDS, "An end has no name. Name it, such as A, or remove it.");
+      else if (names.has(name)) r.error(ENDS, `Two ends are called "${name}". Rename one.`);
+      else if (/[/+#]/.test(name)) r.error(ENDS, `${label} has a / + or # in its name, which the board cannot send in a topic. Rename it.`);
+      names.add(name);
+      const tracks = list(end.tracks);
+      if (!tracks.length) r.error(ENDS, `${label} has no tracks. Add a track for each track that leaves the board here.`);
+      tracks.forEach((track, i) => {
+        const where = `${label} track ${i + 1}`;
+        if (!isObject(track)) {
+          r.error(ENDS, `${where} has nothing set. Give it end sensors and a signal, or remove it.`);
+          return;
+        }
+        for (const sensor of list(track.sensors)) {
+          if (!sensors.has(sensor)) r.error(ENDS, `${where} uses sensor "${sensor}", which is not on the Sensors page. Pick another, or remove it.`);
+        }
+        if (isObject(track.through)) {
+          const far = tracksOf.get(track.through.end);
+          const number = Number(track.through.track);
+          if (far === undefined) r.error(ENDS, `${where} passes through to end "${track.through.end}", which is not under Plant ends. Pick another end.`);
+          else if (!Number.isInteger(number) || number < 1 || number > far) r.error(ENDS, `${where} passes through to track ${track.through.track} of end "${track.through.end}", which has ${far === 1 ? "1 track" : `${far} tracks`}. Pick another track.`);
+          else if (track.through.end === name && number === i + 1) r.error(ENDS, `${where} passes through to itself. Pick another track.`);
+          return;
+        }
+        // MSS Logic builds an end track that leads to a dead end with no first
+        // signal: it offers Stop, as it should. Its own checks cover the rest.
+        if (M().logicMode(config) === "mss" && typeof track.mast !== "string") return;
+        if (!list(track.sensors).length) r.error(ENDS, `${where} has no end sensors. Add the sensors between the end and its first signal, or make it pass through to another end.`);
+        if (typeof track.mast !== "string" || !track.mast) r.error(ENDS, `${where} has no first signal. Pick the signal facing a train coming in, or make it pass through to another end.`);
+        else if (!masts.has(track.mast)) r.error(ENDS, `${where} uses signal "${track.mast}", which is not on the Signal Masts page or a signal with no lights. Pick another.`);
+      });
+    }
+    // Pass-throughs that lead back to where they started.
+    const loops = new Set();
+    for (const end of ends) {
+      list(end.tracks).forEach((track, i) => {
+        const seen = new Set();
+        let at = { end: end.name, track: i + 1 };
+        for (;;) {
+          const key = `${at.end}\u0000${at.track}`;
+          if (seen.has(key)) {
+            if (key === `${end.name}\u0000${i + 1}` && seen.size > 1) loops.add(`End "${end.name}" track ${i + 1}`);
+            return;
+          }
+          seen.add(key);
+          const next = list(ends.find((e) => isObject(e) && e.name === at.end)?.tracks)[at.track - 1];
+          if (!isObject(next?.through)) return;
+          at = { end: next.through.end, track: Number(next.through.track) };
+        }
+      });
+    }
+    for (const label of loops) r.error(ENDS, `${label} passes through in a circle: following its pass-throughs leads back to itself. Give one track in the circle a signal instead.`);
   }
 
   function validateSections(config, r) {
@@ -1144,6 +1275,7 @@
 
   function memberLabel(member) {
     if (typeof member === "string") return `sensor "${member}"`;
+    if (isObject(member) && member.end !== undefined) return `what end ${member.end} track ${member.track} hears`;
     const kind = remoteKind(member);
     return `${REMOTE_KINDS[kind]?.label || "item"} "${member?.[kind] ?? "?"}" from ${member?.board || "another board"}`;
   }
@@ -1269,7 +1401,7 @@
   // each pointing at the part of the description that caused it. Only when
   // those find no error do the checks above run over the built items, and a
   // problem with a built item then points back at the part that made it.
-  const MSS_PARTS = Object.freeze({ "logic-blocks": "tracks", "logic-groups": "tracks", "logic-masts": "signals" });
+  const MSS_PARTS = Object.freeze({ "logic-blocks": "tracks", "logic-groups": "tracks", "logic-masts": "signals", "logic-ends": "ends" });
   const MSS_KINDS = Object.freeze({ block: "block", signal: "mast", lights: "mast", group: "group" });
 
   function mssReporter(config, r) {
@@ -1308,6 +1440,7 @@
       validateLogicMasts(config, r);
       validateMastEntries(config, r);
       validateButtons(config, r);
+      validateEnds(config, r);
       validateSections(config, r);
       validateRules(config, r);
       validateCycles(config, r);
@@ -1414,14 +1547,6 @@
     return list(logicItems(config).masts).filter(isObject);
   }
 
-  // Plant ends: { name, tracks: [{ sensors, mast } | { sensors, through }],
-  // pairPin, ledPin }. Only MSS Logic builds them so far (the Plant ends part
-  // is work item 3.3).
-  function endsOf(config) {
-    if (!fieldMode(config)) return [];
-    return list(logicItems(config).ends).filter(isObject);
-  }
-
   function virtualMasts(config) {
     if (!fieldMode(config)) return [];
     return mastEntries(config).filter((entry) => entry.virtual === true && String(entry.name || "").trim());
@@ -1462,7 +1587,54 @@
       if (typeof obj.mast === "string" && obj.mast && obj.board === undefined) names.add(obj.mast);
     });
     for (const entry of mastEntries(config)) if (entry.virtual !== true && typeof entry.mast === "string") names.add(entry.mast);
+    for (const end of endsOf(config)) {
+      for (const track of list(end.tracks)) if (isObject(track) && typeof track.mast === "string" && track.mast) names.add(track.mast);
+    }
     return names;
+  }
+
+  // Plant ends (spec, Plant ends): this board's own, as stored (as built, in
+  // MSS Logic). An end with no name is skipped.
+  function endsOf(config) {
+    if (!fieldMode(config)) return [];
+    return list(logicItems(config).ends).filter((end) => isObject(end) && typeof end.name === "string" && end.name.trim());
+  }
+
+  // Every track of this board's ends, as { end, track, tracks }: track from 1.
+  function endTracks(config) {
+    return endsOf(config).flatMap((end) => list(end.tracks).map((_, i) => ({ end: end.name, track: i + 1, tracks: list(end.tracks).length })));
+  }
+
+  // An end's Pair or LED pin: { pin: "GPIO32" } on the ESP, or { expander, pin }
+  // on an expander (pin 0-15), stored as pairPin / ledPin with pairExpander /
+  // ledExpander beside it. null when none.
+  function endPin(end, which) {
+    const expander = end[`${which}Expander`];
+    const pin = end[`${which}Pin`];
+    if (typeof expander === "string" && expander) return { expander, pin };
+    const text = String(pin ?? "").trim().toUpperCase();
+    return text ? { pin: text } : null;
+  }
+
+  // The ends' pins for the pin checks, in the shape buttonPins gives rule buttons.
+  function endPins(config) {
+    const out = [];
+    for (const end of endsOf(config)) {
+      for (const [which, kind, label] of [["pair", "pair", "Pair button"], ["led", "led", "LED"]]) {
+        const pin = endPin(end, which);
+        if (!pin) continue;
+        const what = `${label} on end ${end.name}`;
+        out.push({ name: what, label: `${label} of end "${end.name}"`, owner: what, kind, where: ENDS, ...pin });
+      }
+    }
+    return out;
+  }
+
+  // Each end with its id: end_<name>, numbered if two names make the same id.
+  function endIds(config) {
+    const ends = endsOf(config);
+    const ids = M().uniqueIds(ends.map((end) => ({ name: `end ${end.name}` })));
+    return ends.map((end, i) => ({ ...end, id: ids[i].id }));
   }
 
   // Turnouts a rule locks: they get a field-lock global.
@@ -1575,8 +1747,8 @@
       }),
     }));
     if (layers.length) logic.layers = layers;
-    // An end's pins are for the board, not the engine (test/cases/README.md).
-    const ends = endsOf(config).map((end) => ({ name: String(end.name || ""), tracks: sorted(list(end.tracks)) }));
+    // The engine reads an end's name and tracks. Its pins are for the board.
+    const ends = endsOf(config).map((end) => ({ name: end.name, tracks: sorted(list(end.tracks)) }));
     if (ends.length) logic.ends = ends;
     return logic;
   }
@@ -1835,6 +2007,7 @@
       lines.push("      - lambda: |-");
       lines.push(`          id(${LOGIC_ID}).release(${M().cppString(name)});`);
     }
+    emitEndButtons(lines, config);
   }
 
   // --- switch: Field logic on / off, saved across reboots. Its starting value
@@ -1846,6 +2019,7 @@
     lines.push('    name: "Field logic"');
     lines.push("    optimistic: true");
     lines.push(`    restore_mode: ${config.logic?.startsOn === false ? "RESTORE_DEFAULT_OFF" : "RESTORE_DEFAULT_ON"}`);
+    emitEndLeds(lines, config);
   }
 
   // --- text_sensor: the version code, on the board's web page.
@@ -1856,6 +2030,99 @@
     lines.push('    name: "Logic version"');
     lines.push("    entity_category: diagnostic");
     lines.push(`    lambda: 'return {"${versionCode(config)}"};'`);
+    emitEndTextSensors(lines, config);
+  }
+
+  // --- Plant ends: each end's Link text entity (saved across reboots), its
+  // Pair button on the web page and on an optional pin, its LED and its state.
+  // The component does everything else.
+  function emitEndTexts(lines, config) {
+    const ends = endIds(config);
+    if (!ends.length) return;
+    lines.push("");
+    lines.push("text:");
+    for (const end of ends) {
+      lines.push("  - platform: template");
+      lines.push(`    id: ${end.id}_link`);
+      lines.push(`    name: ${M().yamlQuote(M().entityName(`End ${end.name} link`))}`);
+      lines.push("    mode: text");
+      lines.push("    max_length: 64");
+      lines.push("    optimistic: true");
+      lines.push("    restore_value: true");
+    }
+  }
+
+  function emitEndTextSensors(lines, config) {
+    for (const end of endIds(config)) {
+      lines.push("  - platform: template");
+      lines.push(`    id: ${end.id}_state`);
+      lines.push(`    name: ${M().yamlQuote(M().entityName(`End ${end.name} state`))}`);
+    }
+  }
+
+  function emitEndButtons(lines, config) {
+    for (const end of endIds(config)) {
+      lines.push("  - platform: template");
+      lines.push(`    name: ${M().yamlQuote(M().entityName(`Pair End ${end.name}`))}`);
+      lines.push("    on_press:");
+      lines.push("      - lambda: |-");
+      lines.push(`          id(${LOGIC_ID}).pair(${M().cppString(end.name)});`);
+    }
+  }
+
+  // binary_sensor: the optional Pair push button, wired to GND like a turnout's.
+  function emitEndSensors(lines, config) {
+    for (const end of endIds(config)) {
+      const pin = endPin(end, "pair");
+      if (!pin) continue;
+      lines.push("  - platform: gpio");
+      lines.push("    pin:");
+      const hub = expanderHub(config, pin);
+      if (hub) lines.push(`      mcp23xxx: ${hub}`);
+      lines.push(`      number: ${hub ? Number(pin.pin) : pin.pin}`);
+      lines.push("      inverted: true");
+      lines.push("      mode:");
+      lines.push("        input: true");
+      lines.push("        pullup: true");
+      lines.push(`    id: ${end.id}_pair_pin`);
+      lines.push(`    name: ${M().yamlQuote(M().entityName(`End ${end.name} pair button`))}`);
+      lines.push("    internal: true");
+      lines.push("    filters:");
+      lines.push("      - delayed_on: 50ms");
+      lines.push("    on_press:");
+      lines.push("      - lambda: |-");
+      lines.push(`          id(${LOGIC_ID}).pair(${M().cppString(end.name)});`);
+    }
+  }
+
+  // The ESPHome id of the expander an end pin is on, or "" (an ESP pin, or an
+  // expander that is not there, which validation reports).
+  function expanderHub(config, pin) {
+    const at = pin.expander ? (config.expanders || []).findIndex((e) => e.name === pin.expander) : -1;
+    return at >= 0 ? M().expanderId(at) : "";
+  }
+
+  // switch: the optional LED, which the component drives.
+  function emitEndLeds(lines, config) {
+    for (const end of endIds(config)) {
+      const pin = endPin(end, "led");
+      if (!pin) continue;
+      lines.push("  - platform: gpio");
+      const hub = expanderHub(config, pin);
+      if (hub) {
+        // An MCP23017 pin can drive an LED: ESPHome's mcp23xxx pins take mode output.
+        lines.push("    pin:");
+        lines.push(`      mcp23xxx: ${hub}`);
+        lines.push(`      number: ${Number(pin.pin)}`);
+        lines.push("      mode:");
+        lines.push("        output: true");
+      } else {
+        lines.push(`    pin: ${pin.pin}`);
+      }
+      lines.push(`    id: ${end.id}_led`);
+      lines.push(`    name: ${M().yamlQuote(M().entityName(`End ${end.name} LED`))}`);
+      lines.push("    internal: true");
+    }
   }
 
   // --- external_components and mr_logic: the component and its bindings.
@@ -1926,6 +2193,16 @@
         if (remote) lines.push(`      remote_locked: ${point.id}_locked`);
         const latch = M().latchIndex(point);
         if (latch >= 0 && (remote || locked.has(point.name))) lines.push(`      resync: ${point.id}_latch_${latch + 1}`);
+      }
+    }
+    const ends = endIds(config);
+    if (ends.length) {
+      lines.push("  ends:");
+      for (const end of ends) {
+        lines.push(`    - name: ${yamlQuote(end.name)}`);
+        lines.push(`      link: ${end.id}_link`);
+        if (endPin(end, "led")) lines.push(`      led: ${end.id}_led`);
+        lines.push(`      state: ${end.id}_state`);
       }
     }
     if (!mqtt) return;
@@ -2000,11 +2277,17 @@
     hasComponent,
     emitLockReports,
     buttonPins,
+    endTracks,
+    endPin,
+    endPins,
+    renameEnd,
     mastCycles,
     emitLogicScripts,
     emitLogicButtons,
     emitLogicSwitch,
     emitLogicTextSensors,
+    emitEndTexts,
+    emitEndSensors,
     emitComponent,
     jmriLights,
     jmriTurnouts,
