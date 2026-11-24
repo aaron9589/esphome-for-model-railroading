@@ -1,0 +1,41 @@
+{
+  "name": "A reversed turnout in a block gives Stop on its signal and Approach behind",
+  "covers": [
+    "a reversed turnout in a block gives Stop on its mast and Approach behind"
+  ],
+  "about": "The four-block module without Advance Approach, with turnout P1 in block 3 (closed for the main line). P1 thrown, or moving, counts as an occupied block for both signals that protect block 3 (E23 eastbound, W34 westbound): they show Stop and the signals behind them Approach. The block itself stays clear. P1 closed again gives the usual aspects.",
+  "module": {
+    "sensors": ["K1", "K2", "K3", "K4", "O12", "O23", "O34"],
+    "turnouts": ["P1"],
+    "masts": ["E12", "E23", "E34", "W12", "W23", "W34"],
+    "mss": {
+      "ends": [{ "name": "A", "tracks": 1 }, { "name": "B", "tracks": 1 }],
+      "tracks": [
+        {
+          "from": { "end": "A", "track": 1 }, "to": { "end": "B", "track": 1 },
+          "blocks": [
+            { "sensors": ["K1"] },
+            { "sensors": ["K2"] },
+            { "sensors": ["K3"], "turnouts": [{ "turnout": "P1", "position": "closed" }] },
+            { "sensors": ["K4"] }
+          ],
+          "boundaries": [
+            { "sensors": ["O12"], "towardsFrom": "W12", "towardsTo": "E12" },
+            { "sensors": ["O23"], "towardsFrom": "W23", "towardsTo": "E23" },
+            { "sensors": ["O34"], "towardsFrom": "W34", "towardsTo": "E34" }
+          ]
+        }
+      ]
+    }
+  },
+  "start": { "board": "plain", "links": { "A": "end", "B": "end" } },
+  "steps": [
+    { "at": 5, "expect": { "masts": { "E12": "R281", "E23": "R281", "E34": "R285", "W34": "R281", "W23": "R281", "W12": "R285" } } },
+    { "at": 6, "do": [{ "turnout": "P1", "is": "thrown" }] },
+    { "at": 10, "expect": { "masts": { "E23": "R292", "E12": "R285", "E34": "R285", "W34": "R292", "W23": "R281", "W12": "R285" } } },
+    { "at": 11, "do": [{ "turnout": "P1", "is": "moving" }] },
+    { "at": 15, "expect": { "masts": { "E23": "R292", "E12": "R285", "W34": "R292" } } },
+    { "at": 16, "do": [{ "turnout": "P1", "is": "closed" }] },
+    { "at": 20, "expect": { "masts": { "E12": "R281", "E23": "R281", "E34": "R285", "W34": "R281", "W23": "R281", "W12": "R285" } } }
+  ]
+}

@@ -1,0 +1,46 @@
+{
+  "name": "A double-track crossover",
+  "covers": [
+    "a double-track crossover: both straight routes active together; a crossover route makes both straight routes inactive"
+  ],
+  "about": "Double track from end A (two tracks) to end B (two tracks) through junction J1, a crossover worked by P1 and P2. Legs 1 and 2 are one line, legs 3 and 4 the other. The straight routes 1-2 and 3-4 need both turnouts closed; the crossover route 1-4 (diverging) needs both thrown. Each leg has a signal facing into the junction (X1-X4). Both ends are the end of the line, so a straight route shows Approach and the crossover Diverging Approach. Both turnouts closed: both straight routes are set together. Both thrown: only the crossover, so X2 and X3 show Stop. Half set: no route is set. A car on the junction's optical sensor holds every leg.",
+  "module": {
+    "sensors": ["A1 track", "A2 track", "B1 track", "B2 track", "XO"],
+    "turnouts": ["P1", "P2"],
+    "masts": ["X1", "X2", "X3", "X4"],
+    "mss": {
+      "ends": [{ "name": "A", "tracks": 2 }, { "name": "B", "tracks": 2 }],
+      "tracks": [
+        { "from": { "end": "A", "track": 1 }, "to": { "junction": "J1", "leg": 1 }, "blocks": [{ "sensors": ["A1 track"] }], "boundaries": [] },
+        { "from": { "end": "A", "track": 2 }, "to": { "junction": "J1", "leg": 3 }, "blocks": [{ "sensors": ["A2 track"] }], "boundaries": [] },
+        { "from": { "junction": "J1", "leg": 2 }, "to": { "end": "B", "track": 2 }, "blocks": [{ "sensors": ["B2 track"] }], "boundaries": [] },
+        { "from": { "junction": "J1", "leg": 4 }, "to": { "end": "B", "track": 1 }, "blocks": [{ "sensors": ["B1 track"] }], "boundaries": [] }
+      ],
+      "junctions": [
+        {
+          "name": "J1", "sensors": ["XO"],
+          "masts": { "1": "X1", "2": "X2", "3": "X3", "4": "X4" },
+          "routes": [
+            { "legs": [1, 2], "turnouts": [{ "turnout": "P1", "position": "closed" }, { "turnout": "P2", "position": "closed" }] },
+            { "legs": [3, 4], "turnouts": [{ "turnout": "P1", "position": "closed" }, { "turnout": "P2", "position": "closed" }] },
+            { "legs": [1, 4], "turnouts": [{ "turnout": "P1", "position": "thrown" }, { "turnout": "P2", "position": "thrown" }], "diverging": true }
+          ]
+        }
+      ]
+    }
+  },
+  "start": { "board": "xo", "links": { "A": "end", "B": "end" } },
+  "steps": [
+    { "at": 3, "expect": { "masts": { "X1": "R285", "X2": "R285", "X3": "R285", "X4": "R285" } } },
+    { "at": 4, "do": [{ "turnout": "P1", "is": "thrown" }, { "turnout": "P2", "is": "thrown" }] },
+    { "at": 6, "expect": { "masts": { "X1": "R286", "X4": "R286", "X2": "R292", "X3": "R292" } } },
+    { "at": 7, "do": [{ "turnout": "P2", "is": "closed" }] },
+    { "at": 9, "expect": { "masts": { "X1": "R292", "X2": "R292", "X3": "R292", "X4": "R292" } } },
+    { "at": 10, "do": [{ "turnout": "P1", "is": "closed" }] },
+    { "at": 12, "expect": { "masts": { "X1": "R285", "X2": "R285", "X3": "R285", "X4": "R285" } } },
+    { "at": 13, "do": [{ "sensor": "XO", "is": "occupied" }] },
+    { "at": 15, "expect": { "masts": { "X1": "R292", "X2": "R292", "X3": "R292", "X4": "R292" } } },
+    { "at": 16, "do": [{ "sensor": "XO", "is": "clear" }] },
+    { "at": 18, "expect": { "masts": { "X1": "R285", "X2": "R285", "X3": "R285", "X4": "R285" } } }
+  ]
+}

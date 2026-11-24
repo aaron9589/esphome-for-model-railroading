@@ -366,6 +366,48 @@ test("every Scan, Rules, Fail safe and Plant ends bullet in the spec has a case"
   assert.deepEqual([...covered].filter((c) => !bullets.includes(c)), [], "covers text that is not a spec bullet");
 });
 
+// MSS Logic (docs/mss-emulation-spec.md, Tests): its MSS behaviour, Junctions
+// and Across modules bullets each need an MSS case in test/cases/mss, which
+// mss-builder.test.js builds and replays. Its one validation bullet is a
+// builder test there.
+const mssDir = path.join(casesDir, "mss");
+const mssCases = fs.readdirSync(mssDir).filter((file) => file.endsWith(".json")).sort()
+  .map((file) => ({ file, data: JSON.parse(fs.readFileSync(path.join(mssDir, file), "utf8")) }));
+
+function mssBullets() {
+  const spec = fs.readFileSync(path.join(configuratorDir, "..", "docs", "mss-emulation-spec.md"), "utf8");
+  const tests = spec.slice(spec.indexOf("\n## Tests"));
+  const bullets = [];
+  let section = null;
+  for (const line of tests.split(/\r?\n/)) {
+    const head = line.match(/^- \*\*([^*]+)\*\*/);
+    if (head) {
+      section = head[1].replace(/:$/, "");
+      // "Across modules" has its bullet on the same line.
+      const rest = line.slice(head[0].length).trim();
+      if (section === "Across modules" && rest) bullets.push(rest.replace(/ The plant end tests themselves are in the core spec\.$/, ""));
+    } else if (["MSS behaviour", "Junctions"].includes(section) && line.startsWith("  - ") && !line.startsWith("  - validation")) bullets.push(line.slice(4));
+  }
+  // A bullet's closing full stop is not part of what a case covers.
+  return bullets.map((bullet) => bullet.replace(/\.$/, ""));
+}
+
+test("every MSS behaviour, Junctions and Across modules bullet in the MSS spec has an MSS case", () => {
+  const bullets = mssBullets();
+  assert.equal(bullets.length, 9, bullets.join("\n"));
+  for (const { file, data } of mssCases) {
+    assert.deepEqual(Object.keys(data).filter((k) => !["name", "covers", "about", "module", "modules", "start", "steps"].includes(k)), [], file);
+    assert.ok(("module" in data) !== ("modules" in data), `${file}: module or modules`);
+    assert.ok(data.name && data.about && data.covers?.length && data.steps?.length, file);
+  }
+  const covered = new Set(mssCases.flatMap(({ data }) => data.covers));
+  assert.deepEqual(bullets.filter((b) => !covered.has(b)), [], "bullets with no case");
+  assert.deepEqual([...covered].filter((c) => !bullets.includes(c)), [], "covers text that is not an MSS spec bullet");
+  const readme = fs.readFileSync(path.join(casesDir, "README.md"), "utf8");
+  const table = readme.slice(readme.indexOf("## MSS Logic cases"));
+  for (const { file } of mssCases) assert.ok(table.includes(`\`${file.replace(/\.json$/, "")}\``), `${file} is in the README's MSS table`);
+});
+
 test("the README's table lists every case file", () => {
   const readme = fs.readFileSync(path.join(casesDir, "README.md"), "utf8");
   const table = readme.slice(readme.indexOf("## Which case covers which bullet"));

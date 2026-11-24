@@ -1,0 +1,72 @@
+{
+  "name": "A turnout junction, with Advance Approach and Approach Diverging; a CATS hold on its signal",
+  "covers": [
+    "a turnout junction: main set gives the main ladder; diverging set gives Diverging Clear or Diverging Approach, and Approach Diverging behind (Approach when it is not used); a moving turnout gives Stop, and Approach behind",
+    "a CATS hold on a junction mast gives Stop, and the masts behind tumble down",
+    "a mast showing Approach Diverging gives Advance Approach behind it, or Clear when Advance Approach is not used"
+  ],
+  "about": "Track A1 to J1 leg 1 has three blocks; eastbound signals Outer and Dist lead to Home, the signal facing into junction J1 from leg 1. Route 1-2 (P1 closed) is the main line through block Main to end B; route 1-3 (P1 thrown) is diverging, through block Branch to end C. Ends B and C are pretend neighbours whose next signal is set by the case. Main set: Home follows end B (Clear, Advance Approach, Approach) and the masts behind follow Home. Diverging set: Home shows Diverging Clear (R283) or Diverging Approach (R286), Dist shows Approach Diverging (R282), and Outer, reading R282 as Approach, shows Advance Approach. P1 moving: Home Stop, Dist Approach. A CATS hold on Home gives Stop and the tumbledown behind; Unheld lifts it. A car on the junction's optical sensor holds every leg's first block.",
+  "module": {
+    "sensors": ["K1", "K2", "K3", "O12", "O23", "JX", "Main", "Branch"],
+    "turnouts": ["P1"],
+    "masts": ["Outer", "Dist", "Home"],
+    "mss": {
+      "advanceApproach": true,
+      "approachDiverging": true,
+      "ends": [{ "name": "A", "tracks": 1 }, { "name": "B", "tracks": 1 }, { "name": "C", "tracks": 1 }],
+      "tracks": [
+        {
+          "from": { "end": "A", "track": 1 }, "to": { "junction": "J1", "leg": 1 },
+          "blocks": [{ "sensors": ["K1"] }, { "sensors": ["K2"] }, { "sensors": ["K3"] }],
+          "boundaries": [
+            { "sensors": ["O12"], "towardsFrom": null, "towardsTo": "Outer" },
+            { "sensors": ["O23"], "towardsFrom": null, "towardsTo": "Dist" }
+          ]
+        },
+        { "from": { "junction": "J1", "leg": 2 }, "to": { "end": "B", "track": 1 }, "blocks": [{ "sensors": ["Main"] }], "boundaries": [] },
+        { "from": { "junction": "J1", "leg": 3 }, "to": { "end": "C", "track": 1 }, "blocks": [{ "sensors": ["Branch"] }], "boundaries": [] }
+      ],
+      "junctions": [
+        {
+          "name": "J1", "sensors": ["JX"],
+          "masts": { "1": "Home", "2": null, "3": null },
+          "routes": [
+            { "legs": [1, 2], "turnouts": [{ "turnout": "P1", "position": "closed" }] },
+            { "legs": [1, 3], "turnouts": [{ "turnout": "P1", "position": "thrown" }], "diverging": true }
+          ]
+        }
+      ]
+    }
+  },
+  "start": { "board": "jm", "links": { "A": "end", "B": "nb/A", "C": "nc/A" } },
+  "steps": [
+    {
+      "at": 1,
+      "do": [
+        { "end": "B", "theirLink": "jm/B" }, { "end": "B", "online": true },
+        { "end": "B", "track": 1, "block": "clear" }, { "end": "B", "track": 1, "mast": "clear" },
+        { "end": "C", "theirLink": "jm/C" }, { "end": "C", "online": true },
+        { "end": "C", "track": 1, "block": "clear" }, { "end": "C", "track": 1, "mast": "clear" }
+      ]
+    },
+    { "at": 8, "expect": { "ends": { "B": "heard", "C": "heard" }, "masts": { "Home": "R281", "Dist": "R281", "Outer": "R281" } } },
+    { "at": 9, "do": [{ "end": "B", "track": 1, "mast": "approach" }] },
+    { "at": 12, "expect": { "masts": { "Home": "ADV_NORM", "Dist": "R281", "Outer": "R281" } } },
+    { "at": 13, "do": [{ "end": "B", "track": 1, "mast": "stop" }] },
+    { "at": 16, "expect": { "masts": { "Home": "R285", "Dist": "ADV_NORM", "Outer": "R281" } } },
+    { "at": 17, "do": [{ "end": "B", "track": 1, "mast": "clear" }, { "turnout": "P1", "is": "thrown" }] },
+    { "at": 21, "expect": { "masts": { "Home": "R283", "Dist": "R282", "Outer": "ADV_NORM" } } },
+    { "at": 22, "do": [{ "end": "C", "track": 1, "mast": "stop" }] },
+    { "at": 26, "expect": { "masts": { "Home": "R286", "Dist": "R282", "Outer": "ADV_NORM" } } },
+    { "at": 27, "do": [{ "turnout": "P1", "is": "moving" }] },
+    { "at": 31, "expect": { "masts": { "Home": "R292", "Dist": "R285", "Outer": "ADV_NORM" } } },
+    { "at": 32, "do": [{ "turnout": "P1", "is": "closed" }] },
+    { "at": 36, "expect": { "masts": { "Home": "R281", "Dist": "R281", "Outer": "R281" } } },
+    { "at": 37, "do": [{ "jmri": "Home", "message": "R281; Lit; Held" }], "expect": { "masts": { "Home": "R292" } } },
+    { "at": 41, "expect": { "masts": { "Home": "R292", "Dist": "R285", "Outer": "ADV_NORM" } } },
+    { "at": 42, "do": [{ "jmri": "Home", "message": "R281; Lit; Unheld" }] },
+    { "at": 46, "expect": { "masts": { "Home": "R281", "Dist": "R281", "Outer": "R281" } } },
+    { "at": 47, "do": [{ "sensor": "JX", "is": "occupied" }] },
+    { "at": 51, "expect": { "masts": { "Home": "R292", "Dist": "R292", "Outer": "R285" } } }
+  ]
+}
