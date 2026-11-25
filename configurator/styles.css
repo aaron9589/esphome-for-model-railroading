@@ -2640,3 +2640,49 @@ details.rule-more {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
+
+/* MSS Logic: start from a standard MSS module. */
+.mss-templates {
+  margin-top: 1rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--line);
+}
+
+.mss-templates h4 {
+  margin: 0 0 0.25rem;
+}
+
+.mss-template-choices {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+}
+
+.mss-template {
+  display: grid;
+  gap: 0.35rem;
+  align-content: start;
+}
+
+.mss-template > button {
+  justify-self: start;
+}
+
+.mss-template.is-open > button {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.mss-template-confirm {
+  margin-top: 0.85rem;
+  padding: 0.75rem 0.9rem;
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  background: var(--accent-soft);
+}
+
+.mss-template-confirm ul {
+  margin: 0.25rem 0 0.5rem;
+  padding-left: 1.2rem;
+}

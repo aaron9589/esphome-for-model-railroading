@@ -154,8 +154,17 @@ test("pass-throughs name a track that exists, not themselves, and do not go in c
   ])).join("\n");
   assert.match(messages, /End "A" track 2 passes through to end "Z", which is not under Plant ends/);
   assert.match(messages, /track 3 passes through to track 5 of end "B", which has 1 track/);
-  assert.match(messages, /End "A" track 1 passes through in a circle/);
-  assert.match(messages, /End "B" track 1 passes through in a circle/);
+  // A1 to B1 and B1 back to A1 is one track seen from each end (an MSS
+  // Crossover): each offers what the other end hears from beyond, so no circle.
+  assert.doesNotMatch(messages, /in a circle/);
+  // Through three end tracks and back is one.
+  const ring = errorsOf(withEnds([
+    { name: "A", tracks: [{ through: { end: "B", track: 1 } }] },
+    { name: "B", tracks: [{ through: { end: "C", track: 1 } }] },
+    { name: "C", tracks: [{ through: { end: "A", track: 1 } }] },
+  ])).join("\n");
+  assert.match(ring, /End "A" track 1 passes through in a circle/);
+  assert.match(ring, /End "C" track 1 passes through in a circle/);
   assert.match(errorsOf(withEnds([{ name: "A", tracks: [{ through: { end: "A", track: 1 } }] }])).join("\n"), /passes through to itself/);
 });
 
