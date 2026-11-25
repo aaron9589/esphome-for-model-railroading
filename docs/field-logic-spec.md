@@ -698,6 +698,39 @@ The engine is one JS module (for example `configurator/logic.js`). It runs the s
 - Checker errors block the download, like other validation errors. Warnings are listed on the Download page, next to the version code of the rules being downloaded.
 - If a board has too many states to explore fully, the checker says so and falls back to random runs.
 - The checker only proves what the model expresses. Resources make "only one train on this track" true by construction. They cannot tell whether two masts lead onto the same track unless a resource says so.
+- It runs in both logic modes. In MSS Logic it checks the built rules, plant ends included, and points each problem back at the part of the description that made it. MSS has no sections, so it can only find rules that never apply and masts stuck at Stop. That still catches a description the builder accepts but cannot work, such as a route that needs a turnout both ways.
+
+#### Checker limits
+
+Measured in work item 4.5 with `configurator/test/bench/checker-limits.mjs`, which anyone can re-run. Three things keep the state count down. None of them changes what the checker can find:
+- **Parts.** Rules that set the same mast, or reserve the same section, belong together. A group's part is that group plus every group whose mast it reads, and so on. Nothing outside the part can change what its rules see: rules reach each other only through the masts they set and the sections they reserve, and a turnout lock is written, never read. Each part is explored with only its own inputs, so two tracks through a module, or the two directions on one track, are checked side by side instead of multiplied together. A part inside another is not checked again. Block signals read the next mast down the line, so one direction of a line stays one part.
+- **Inputs that cannot be told apart are explored once.** Some inputs are read only through blocks: a sensor, an end's block, another board's item. Two of those that sit in the same blocks the rules read count as one input. A check changes one input per scan, so the engine only sees whether either is occupied. A heard end signal's meanings that every rule compares the same way also count as one value, for example Stop and Restricting where the rules ask "Stop or Restricting". Try it still offers every input.
+- **Waiting order per section.** A state keeps each section's waiting order, which decides its grants. It does not keep how requests for different sections, or plain rules, interleave, because nothing reads that.
+
+Measured on an Apple-silicon Mac with Node 26. A + means the check stopped at its budget. Validation is the quick check; Full is Check every combination.
+
+| Board | Inputs (Try it) | Rules | Parts (inputs each) | States, every one | Time | Validation | Full |
+|---|---|---|---|---|---|---|---|
+| One-train section, 2 entrances | 3 | 2 | 1 (3) | 120 | 0.04 s | done | done |
+| One-train section, 3 entrances | 4 | 3 | 1 (4) | 1,024 | 0.3 s | done | done |
+| One-train section, 4 entrances | 5 | 4 | 1 (5) | 10,388 | 4.6 s | 2,000+ | done |
+| 4 entrances, trains leave the way they came | 5 | 4 | 1 (5) | 4,490 | 2.2 s | 1,600+ | done |
+| 4 entrances, Hold after cancelling 10 s | 5 | 4 | 1 (5) | 14,543 | 7.5 s | 2,000+ | done |
+| 4 entrances, two blocks in the section | 6 | 4 | 1 (6) | 20,775 | 12 s | 2,000+ | done |
+| Block signals worked example | 4 | 12 | 1 (4) | 123 | 0.07 s | done | done |
+| MSS crossover (two tracks, two ends of two) | 15 | 18 | 4 (9, 6, 6, 9) | 624 | 0.45 s | 620+ | done |
+| MSS junction with a turnout, three ends | 15 | 29 | 3 (12, 9, 9) | 2,541 | 3.4 s | 920+ | done |
+| MSS single track, Advance Approach | 11 | 22 | 2 (8, 8) | 324 | 0.2 s | done | done |
+| MSS three modules, each module | 7 | 6 | 2 (4, 4) | 12 | under 0.01 s | done | done |
+| Three boards by their ends, each board | 8 | 4 | 2 (4, 4) | 8 | under 0.01 s | done | done |
+
+Before these three, the MSS junction did not finish in 40,000 states (over two minutes), and each of the three modules took 1,025 states. A state costs 0.4 to 1.3 ms, because the engine has no snapshot and each state is reached by replaying its path. The four-entrance section is genuinely large: four trains can ask in any order, and the order decides who goes next.
+
+The budgets (`BUDGETS` in `logic-checker.js`):
+- **Validation**, on every change to the rules (memoised on the rule table): 2,000 states or 400 ms, shared by the parts. A part that does not finish gets random runs for up to 200 ms more, at most 100 runs of 40 steps. So the page never waits more than about 0.6 s.
+- **Full check**: the Download page offers **Check every combination** when the quick check of the current rules gave up. It allows 30,000 states or 20 s. A part that still does not finish gets up to 1,000 random runs of 60 steps, for up to 5 s. Its result stands until the rules change. The page waits while it runs.
+- What fits, in practice: anything with up to about 1,000 states in a part finishes in validation. That covers sections with up to three entrances, block signals, plant-end boards and single MSS tracks. A four-entrance section, or a junction module with 12 inputs in one part, needs the full check: a few seconds. A part past 30,000 states, or 20 s, gets random runs only. The largest measured, a four-entrance section with two blocks, is 20,775 states. A slower computer reaches the time limit sooner.
+- **Random runs** start only for a part that hit its budget. Parts that finished keep their proofs. Random runs prove that a rule applies, or that a mast leaves Stop, when they see it happen. They never report a deadlock or starvation, which need every state. For a rule they never saw apply, they say "did not apply in N random runs" and that it may never apply, not that it can't. The partial warning says the check was not complete, and points to the full check when it was the quick one.
 
 ### Validation
 
@@ -966,7 +999,7 @@ In `configurator/test/`, run through `configurator/package.json`:
   - pairing: two ends pressed together pair; a third end in the window, or a track-count mismatch, pairs none; a window that expires leaves the link unchanged.
 - **Board names:** a new board gets a six-character suffix from the readable alphabet that survives re-download, import and rename; a typed name over 19 characters is an error; Add a suffix adds it once; importing as a new board offers New suffix; a different MAC on the board's Owner topic is logged as an error.
 - **Expanders:** YAML for an expander sharing a PCA9685 bus and one on its own bus; a sensor on an expander pin; validation of addresses, buses and pin reuse; an expander that stops answering after start-up (a communication warning, with its pins stuck at their last value) makes its sensors and blocks read occupied; files without expanders import unchanged.
-- **Checker:** finds a deliberate deadlock, and passes the one-train section starter.
+- **Checker:** finds a deliberate deadlock, and passes the one-train section starter. Checked in parts and with merged inputs, it finds exactly what a check of the whole board with every input finds. An MSS junction module passes a full check, and a route that needs a turnout both ways is reported against its junction.
 - **Ease of use:**
   - Explain gives the expected sentence for each starter's masts, and changes when a rule changes
   - Run a train steps through the Block signals worked example and shows each row of its table
@@ -977,4 +1010,7 @@ In `configurator/test/`, run through `configurator/package.json`:
 
 ## Open questions
 
-- **Checker limits.** How many sensors and rules a board can have before the full check gives up. To be measured while building, against a busy MSS junction module and a four-entrance section.
+None open.
+
+Answered:
+- **Checker limits.** How many sensors and rules a board can have before the full check gives up. Measured in work item 4.5 against MSS junction modules and four-entrance sections. The numbers, the budgets and what random runs can claim are under [Checker limits](#checker-limits).
