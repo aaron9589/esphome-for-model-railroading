@@ -25,10 +25,11 @@ This repo is a beginner path for model-railroad ESP32 boards that talk to JMRI/C
 | `docs/first-board-setup-guide.md` | Paste Configurator YAML, USB flash, MQTT smoke test, failure checks |
 | `docs/jmri-mqtt-verification-guide.md` | JMRI sensor/turnout topics and panel checks |
 | `docs/README.md` | Detector wiring, point calibration, layout notes |
-| `docs/field-logic-guide.md` | Field Logic guide, written a chapter per release: suffix, expanders, Share, blocks, linked boards, then a worked gauntlet: the One-train section starter, signals, Try it, problems, flashing and MQTTX checks, locks, block signals |
+| `docs/field-logic-guide.md` | Field Logic guide, written a chapter per release: suffix, expanders, Share, blocks, linked boards, then a worked gauntlet: the One-train section starter, signals, Try it, problems, flashing and MQTTX checks, locks, block signals, plant ends and meets |
 | `docs/field-logic-spec.md` | Draft spec for the logic engine and the Field Logic mode (rules, layers, starters, remote inputs, plant ends, MCP23017 sensor pins); not built yet |
 | `docs/field-logic-implementation-plan.md` | Draft build plan for both specs: releases, work items, spikes, risks |
 | `docs/mss-emulation-spec.md` | Draft spec for MSS Logic, the second logic mode on the same engine: MSS-style modules described, not programmed (tracks, junctions, paired plant ends); not built yet |
+| `docs/mss-logic-guide.md` | MSS Logic guide: a worked plain-track module and a turnout junction module, from an empty page to two modules paired at a meet |
 | `configurator/` | Static GitHub Pages Board Configurator |
 | `components/mr_logic/` | ESPHome external component: `logic_core.{h,cpp}` (the engine, plain C++17 with no ESPHome includes, mirroring `configurator/logic.js`), the adapter `mr_logic.{h,cpp}` and `__init__.py`. ESPHome copies only a component's top-level sources, so the core sits beside the adapter |
 | `engine-tests/esphome/` | `gauntlet.yaml`, made by `make-gauntlet.mjs` from the generator plus an `mr_logic:` block, which `component.yml` compiles with ESPHome (pinned on PRs, latest weekly). Run the script and commit when the generator or component changes |

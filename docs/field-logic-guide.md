@@ -6,9 +6,10 @@ This guide is written in chapters, one for each part of the Logic page as it is 
 
 - the groundwork: a name that is unique at a meet (the **suffix**), more sensor pins with an **expander**, **Share with other boards**, **blocks** (a stretch of track made of several sensors, which JMRI sees as one sensor) and **linked boards**
 - a first working set of signals: a **starter** (One-train section) that writes the rules for you, the **signals** it sets, **Try it**, the checker's **problems**, then **downloading and flashing**
-- two more starters in short: **Lock turnouts under a train** and **Block signals**.
+- two more starters in short: **Lock turnouts under a train** and **Block signals**
+- **plant ends**, which join one board to the next: adding an end, pairing two boards, and what to do at a meet.
 
-The groundwork works on its own: a block reports to JMRI and CATS like any sensor. The rest of the guide uses a second worked example, a **gauntlet over a bridge**, which you can build from an empty board. Plant ends and MSS Logic come in later releases.
+The groundwork works on its own: a block reports to JMRI and CATS like any sensor. The rest of the guide uses a second worked example, a **gauntlet over a bridge**, which you can build from an empty board. MSS Logic comes in a later release.
 
 Use this after the [First Board Setup Guide](first-board-setup-guide.md) and the [JMRI MQTT Verification Guide](jmri-mqtt-verification-guide.md). Your board should be online in ESPHome, and JMRI should have its MQTT connection set up.
 
@@ -476,6 +477,188 @@ Where two blocks share no sensor at their boundary, the page warns that a signal
 Block signals do not stop two trains meeting head-on on single track. Put a One-train section over the single line as well. Its signals keep the entrance at Stop while the line is in use, and the block signals step down behind them.
 
 The same chapters apply: Try it draws the strip, **Run a train** walks along it, and Explain says what each signal shows.
+
+---
+
+## Plant ends: joining two boards
+
+So far everything sits on one board. A **plant end** (an **end** for short) is the edge of a board: the place where its track leaves for track that another board looks after. Give each board its ends and **pair** them, and the signals on one side can see the blocks and signals on the other. Neither board needs to know the other in advance. That suits a layout that grows, and modules that arrive at a meet in any order.
+
+> **Not yet tried on real boards.** The steps below say what you should see. If you see something else, go to [When pairing goes wrong](#when-pairing-goes-wrong).
+
+Some plain words first.
+
+| Word | What it means |
+|---|---|
+| **End** | The edge of a board, named A, B, C. A board can have several. A board that covers several modules which always travel together needs ends only on the outside joints. |
+| **Track** (of an end) | One line of rail through the end. They are numbered left to right, looking **out** through the end. |
+| **Pair** | Telling two ends that they meet. Press **Pair** on both sides of a joint, and each remembers the other. |
+| **Link** | What an end remembers: the board and end it meets, such as `kiama-south-p3q8w5/B`. |
+| **End of the line** | An end with nothing beyond it. It reads as a clear block and a signal at Stop, so the last signal on your board shows Approach. |
+
+For each track, an end tells its neighbour two things about what a train coming in through the end meets first on your board: whether the end's sensors are occupied, and what the first signal facing that train is showing. It hears the same two things back from the other side. An end **offers** what is on your board and **hears** what is on theirs.
+
+Two ends that meet face each other. Track 1 of one meets the **last** track of the other, so two boards work whichever way round they are placed. Both ends must have the **same number of tracks**.
+
+The example from here: your `gauntlet-k7m4x2` board leaves at the right of the Right block. Beyond it is a second board, `kiama-south-p3q8w5`, with its own signals. One track crosses the joint, so each end has one track. The second board needs the same steps, with its own names.
+
+---
+
+## Step A: Add an end
+
+1. On the Logic page, find the **Plant ends** card and click **Add an end**. It is named **A** and has one track. Name it A, B, C, or something that tells you which side of the board it is on.
+2. Under **Tracks**, fill in **Track 1**:
+   - **End sensors**: click **Add a sensor…** and pick every sensor between the end and the first signal, **including the one at that signal**. For the gauntlet that is **Right current**.
+   - **What the track meets first**: **A signal on this board**, then **First signal**: the signal that faces a train coming in through this end. For the gauntlet that is **Right Bridge**.
+3. A track with no signal of its own can choose **Passes through to another end** instead, and pick the track. It then offers its own sensors, or what the far track hears, so a block can run across several boards. You do not need this for a first pair.
+4. **Add a track** for each further line through the end, in order, left to right, looking out.
+5. Optional, **Pair button pin** and **LED pin**:
+   - The pair button is a push button between the pin and GND, like a turnout's button. You do not need one, because the board's web page always has a **Pair End A** button.
+   - The LED shows the state of the end. Wire it as you would a signal lamp, through a resistor.
+
+> **Screenshot placeholder:** the Plant ends card with End A open: Track 1 with Right current as its end sensor and Right Bridge as its first signal, and the Pair button and LED pins.
+
+Success looks like:
+- The Plant ends card lists End A with its track, and no red message appears at the top of the page.
+- If the page says a sensor or signal was *not found*, pick it again.
+
+Ends need MQTT. If **Disable MQTT** is ticked on the Board page, the page reports a problem. Untick it.
+
+---
+
+## Step B: Use the end as the next signal
+
+A run of block signals needs to know what lies beyond its last block. Past the edge of your board, that is the neighbour's first signal, which your end hears.
+
+1. Open a **Block signals** group, or add one (see [Block signals](#block-signals)). List the signals in the order trains run.
+2. After the last block, set **The next signal**, and open its list. Under **What an end hears** is **Next signal heard at end A, track 1**. Pick it.
+3. Click **Add**.
+
+The last signal on your board now follows the neighbour's first signal. If that shows Stop, the last signal on your board shows Approach, and the ones behind it step down as usual. If the neighbour is not heard at all, the end reads as a clear block with a signal at Stop, so the last signal shows Approach and never Clear. That is on purpose.
+
+A block can also take in what an end hears, so it reaches across the joint. When you add a member to a block, **What end A, track 1 hears** is in the list. JMRI's copy of that block uses this board's own sensors only.
+
+---
+
+## Step C: Try it with a pretend neighbour
+
+Before you flash, try the joint on the page.
+
+1. Open **Try it**. Under **Pretend neighbours** there is **End A: pretend there is a neighbour**. Tick it.
+2. A pretend neighbour is three blocks of track, each with a signal, standing in for the board next door. It answers your end the way a real board would. Click one of its blocks to put a train in it, or take it out.
+3. Choose **Trains run towards this board** or **Trains run away from this board**, or click **Turn it round**.
+4. Under it, a line says what your board offers it, such as *This board offers it: block clear, signal stop*.
+
+Try these:
+- Put a train in the pretend neighbour's block next to the joint. The last signal on your board should drop.
+- Untick the pretend neighbour. The joint is then not heard, so the signal facing it stays at Approach, never Clear.
+- In **Run a train**, pick a run that goes towards the end. **Carry on across the joint** moves the train into the pretend neighbour. **Stay on this board** stops it at the edge.
+
+> **Screenshot placeholder:** Try it with End A's pretend neighbour ticked: three blocks with a signal each, a train in the nearest block, and the line *This board offers it…*.
+
+---
+
+## Step D: Flash both boards
+
+1. Do Steps A and B on the second board, with its own end, tracks, sensors and first signal.
+2. Check both ends have the **same number of tracks**.
+3. Download and flash each board as in [Download and flash](#download-and-flash). The first build of each takes a while.
+
+When a board starts, its web page has, for each end:
+- a button, **Pair End A**
+- a text box, **End A link**, which is empty
+- a line of text, **End A state**, which should say *Not paired*.
+
+If you wired the LED, it is **off** while the end is not paired.
+
+> **Screenshot placeholder:** the board's web page with Pair End A, End A link (empty) and End A state (*Not paired*).
+
+---
+
+## Step E: Pair the boards
+
+1. Power both boards. Both must be online, with `layout-mqtt.local` answering.
+2. On the first board, press **Pair End A** on its web page, or the push button if you wired one.
+3. Within **30 seconds**, press **Pair** on the end it meets: **Pair End B** on the second board.
+
+Success looks like:
+- After the first press, **End A state** says *Pairing: press Pair on the end it meets, within 30 seconds*, and the LED blinks **slowly**.
+- Within a second or two of the second press, both ends say *Paired with kiama-south-p3q8w5/B, heard* (and the other way round), and the LED goes **steady**.
+- **End A link** holds `kiama-south-p3q8w5/B`. It is saved, so it survives a power cut.
+
+### What the LED shows
+
+| LED | Meaning |
+|---|---|
+| Off | Not paired. |
+| Slow blink | Pairing. You have 30 seconds to press Pair at the other end. |
+| Steady | Paired and the other end is heard. Also steady at an end of the line. |
+| Fast blink | A problem: the other end is not heard, it disagrees, or the last pairing was refused. A refusal blinks for about 10 seconds, then the LED shows the usual state. |
+
+> **Screenshot placeholder:** two boards side by side, one LED blinking slowly, then both steady.
+
+If you cannot pair them, you can set the link by hand. Type the other board and end into **End A link** on the web page, such as `kiama-south-p3q8w5/B`, and do the same on the other board. Both sides must name each other.
+
+An end with nothing beyond it is set the same way: type `end` into its **End A link**.
+
+---
+
+## Step F: Check it in MQTTX
+
+Connect MQTTX to `127.0.0.1:1883` and subscribe to `trains/track/end/#`. The names below are for the two boards in the example.
+
+| Topic | What it shows |
+|---|---|
+| `trains/track/end/pairing` | While pairing: `<board>/<end>/<tracks>`, such as `gauntlet-k7m4x2/A/1`. It is sent when you press Pair and is not kept, so it only shows while you watch. |
+| `trains/track/end/gauntlet-k7m4x2/A/Link` | The link this end holds: `kiama-south-p3q8w5/B`, empty, or `end`. |
+| `trains/track/end/gauntlet-k7m4x2/A/1/Block` | `ACTIVE` while the end sensors of track 1 are occupied, `INACTIVE` otherwise. |
+| `trains/track/end/gauntlet-k7m4x2/A/1/Mast` | What the first signal facing a train coming in through this end is showing, as its meaning (for example `stop`, `approach` or `clear`). |
+
+The second board publishes the same under its own name and end. Once both are paired:
+
+1. Cover **Right current** (the end sensor) on the first board. Its `A/1/Block` goes `ACTIVE`.
+2. On the second board, the last signal before the joint changes, because it hears that block.
+3. Put a train in the second board's block next to the joint. Its `B/1/Block` goes `ACTIVE`, and the last signal on the first board drops.
+
+An end never reads back what it offers itself, so two paired ends cannot hold each other occupied.
+
+> **Screenshot placeholder:** MQTTX showing the end topics for both boards, with Link set on each.
+
+---
+
+## At a meet
+
+Nothing is reflashed at a meet.
+
+- **Wi-Fi.** A board that cannot find its home network starts its fallback hotspot, named `<board> setup`. Join it from a phone, and the page that opens lets you pick the meet's network. The board keeps that network until it is next flashed with a changed setup or a newer ESPHome, and then the home network in its file applies again. Back home without flashing, choose the home network the same way.
+- **Broker.** The boards look for `layout-mqtt.local`. One computer at the meet runs the install script, and every board finds it with no change. The script will not publish the name if another computer already answers it.
+- **Pairing.** Press Pair on both sides of each joint, one joint at a time. Only two ends should be pairing at once.
+- **The ends of the row.** Type `end` into the **End link** of the last end on each side.
+
+A joint showing **Stop** is the safe answer when the board cannot be sure. An unpaired end, or one whose neighbour is off or not heard, reads as an occupied block with a signal at Stop. Look at **End A state**: it says which of these it is.
+
+---
+
+## When pairing goes wrong
+
+Check one thing at a time. The board's **End A state** and its Logs say which.
+
+**Not heard.** *Paired with …, not heard.* The LED blinks fast.
+1. Check the other board is on and shows **Online** in ESPHome.
+2. In MQTTX, check the other end's `Link` topic shows something. If nothing is there, check the other board has been flashed with its end.
+3. Check both boards use the same broker.
+
+**Disagreeing.** *Paired with …, but that end does not name this one, so it reads as empty.* The Logs show a warning. One side has been changed, or paired with someone else. Press Pair on both again, or fix the **End A link** box on the board that is wrong.
+
+**Refused.** The state line ends *Last pairing: …* and the LED blinks fast for about 10 seconds. Fix the cause and press Pair on both again:
+- *no other end pressed Pair in time*: the other side did not follow within 30 seconds.
+- *more than two ends were pairing, so none paired*: a third end was pairing at the same time. Wait 30 seconds, then press Pair on only the two that meet.
+- *the two ends have different numbers of tracks*: both sides of a joint need the same number. Fix the count on the Logic page (**Add a track**, or **Remove track**) and flash the board.
+
+**Paired, but the signals still show Stop.**
+1. Check **End A state** says *heard*. If not, see above.
+2. Check which track meets which: track 1 of one end meets the last track of the other. With two tracks each side, the pairs cross.
+3. Check the **First signal** is set on the other board's end, and that signal is not held by CATS or JMRI.
 
 ---
 
