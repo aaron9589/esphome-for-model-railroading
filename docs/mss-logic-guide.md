@@ -93,32 +93,34 @@ Success looks like:
 
 ## Step 3: Draw the track
 
-Each track is drawn as a **strip**, left to right the way it lies on the module. Its place is named at each side.
+Once a module has a track, **The module** card at the top of the page draws the whole module: the ends at the sides, each track as a row of blocks, and the junctions where tracks meet. It fills in as you go, and stays at the top of the window while you work down the page. **Hide the picture** folds it away on a small screen.
+
+You edit in the picture: click a block or block boundary there, and its form opens in its track's card under **Tracks**. Click a junction or an end in the picture to go to its card.
 
 On **West**:
 
 1. Under **Tracks**, click **Add a track**.
-2. Check **From** and **To**. The page fills them in with the first end tracks no other track uses, so here they already say **End A, track 1** and **End B, track 1**. Change them if they are wrong. (The **To** list also has **Dead end (stops on the module)**, for a track that stops, as at a terminus.)
+2. Check **From** and **To** in the track's card. The page fills them in with the first end tracks no other track uses, so here they already say **End A, track 1** and **End B, track 1**. Change them if they are wrong. (The **To** list also has **Dead end (stops on the module)**, for a track that stops, as at a terminus.)
 
-The strip starts as one block, labelled **Through track (no signals)**, with the place it starts at the left and the place it finishes at the right. Under the strip is the form for whatever is picked on it, here **Block 1**. Its red outline and message say it has no sensor yet.
+The track appears in the picture, from **End A** on the left to **End B** on the right. It starts as one block, labelled **Through track (no signals)**. The block is red because it has no sensor yet, and its form, **Track 1: Block 1**, is open in the track's card with the message.
 
-![A new track from End A, track 1 to End B, track 1: one block, marked no sensor, with the form for Block 1 under it](img/mss-logic/05-track-new.png)
+![The module picture with a new track: End A, one block marked no sensor and drawn red, End B, and Through track (no signals) above it](img/mss-logic/05-track-new.png)
 
 Add the block boundary:
 
-3. Click **Add a block boundary**, under the form. It splits the last block in two: **Block 1**, a **Block boundary 1** (the upright bar), and **Block 2**. The block boundary is picked, so it is drawn blue.
+3. Click **Add a block boundary**, at the bottom of the track's card. It splits the last block in two: **Block 1**, a **Block boundary 1** (the upright bar), and **Block 2**. The block boundary is picked, so it is drawn blue, and its form is open.
 
-![The strip after Add a block boundary: Block 1, Block boundary 1 picked and drawn blue, and Block 2. Each says no sensor, and the block boundary says no signal twice](img/mss-logic/06-track-boundary.png)
+![The picture after Add a block boundary: Block 1, Block boundary 1 picked and drawn blue, and Block 2. Each says no sensor, and the block boundary says no signal twice](img/mss-logic/06-track-boundary.png)
 
-4. Click **Block 1** on the strip. Under **Sensors**, pick **W1 current** from the **Add a sensor…** list. It shows as a chip, and on the strip in place of *no sensor*. Click **Block 2** and do the same with **W2 current**. A block can have more than one sensor: pick another from the same list. The **×** on a chip takes it off.
+4. Click **Block 1** in the picture. Its form, **Track 1: Block 1**, opens just under the picture. Under **Sensors**, pick **W1 current** from the **Add a sensor…** list. It shows as a chip, and in the picture in place of *no sensor*. Click **Block 2** in the picture and do the same with **W2 current**. A block can have more than one sensor: pick another from the same list. The **×** on a chip takes it off.
 
-![Block 1 picked on the strip and showing W1 current, with W1 current as a chip under Sensors. Block 2 and the block boundary are still red: they have no sensor yet](img/mss-logic/07-track-block.png)
+![The form for Track 1: Block 1, with W1 current as a chip under Sensors, the Turnouts in this block buttons, and the buttons that change the track](img/mss-logic/07-track-block.png)
 
-5. Click **Block boundary 1**. Under **Sensors**, pick **W12 optical**. Then pick the two signals: **Signal for trains heading towards End B, track 1** is **W toward B**, and **Signal for trains heading towards End A, track 1** is **W toward A**.
+5. Click **Block boundary 1** in the picture. Under **Sensors**, pick **W12 optical**. Then pick the two signals: **Signal for trains heading towards End B, track 1** is **W toward B**, and **Signal for trains heading towards End A, track 1** is **W toward A**.
 
-The two signals are drawn under the block boundary as arrows: ◀ for trains heading towards From (left), and ▶ for trains heading towards To (right). They follow the module's own ends, so nothing changes if the module is turned round at the meet.
+The two signals are drawn under the block boundary as arrows, each pointing the way its trains go: ◀ **W toward A** for trains heading to End A, and **W toward B** ▶ for trains heading to End B. They follow the module's own ends, so nothing changes if the module is turned round at the meet.
 
-![West's finished track: W1 current in Block 1, W12 optical at the block boundary with ◀ W toward A and W toward B ▶ under it, and W2 current in Block 2](img/mss-logic/08-west-track.png)
+![West's finished module: End A, W1 current in Block 1, W12 optical at the block boundary with ◀ W toward A and W toward B ▶ under it, W2 current in Block 2, and End B](img/mss-logic/08-west-track.png)
 
 **A side with no signal** shows *no signal* in grey under the block boundary. Leave its list at **no signal** if the module has none there. The page makes one with no lights, so the signals behind it keep working.
 
@@ -126,10 +128,10 @@ The two signals are drawn under the block boundary as arrows: ◀ for trains hea
 
 **Turnouts in a block.** If a block has a turnout in it, click **Add a turnout** under **Turnouts in this block**, pick the turnout, and set **Main line is** to the position that is the main line. A turnout set against the main line counts as an occupied block.
 
-The other buttons under a block's form change the strip: **Split this block in two**, **Move earlier**, **Move later**, and **Remove this block** (which takes the block boundary next to it too).
+The other buttons under a block's form change the track: **Split this block in two**, **Move earlier**, **Move later**, and **Remove this block** (which takes the block boundary next to it too).
 
 Success looks like:
-- Nothing on the strip is red, and the track's title has no *to fix* at the end.
+- Nothing in the picture is red, and the track's title has no *to fix* at the end.
 - The ends from Step 2 no longer report having no track, and the **Ends** and **Tracks** steps are **Done**. On West, **Signals** is **Done** too, because its signals have the CATS aspects (Step 5), and **Download** is **Next**.
 
 ![The Set up this module steps for West: Ends, Tracks and Signals crossed out and Done, Junctions Optional, and Download Next](img/mss-logic/09-west-steps.png)
@@ -165,13 +167,17 @@ A route is **set** while every turnout in it is in its position. A turnout that 
 3. In the junction's card, under **Sensors**, pick **E Junction optical** from the **Add a sensor…** list. A car standing on the junction holds every leg, so each leg's first block includes it.
 4. Under **Legs**, pick the signal facing into the junction from **Leg 1**: **E Home**. A small mast at Stop shows beside it. Legs 2 and 3 stay at **No signal**: trains leaving the junction face the next module's signals, not this one's.
 
-Until the tracks are drawn, each leg says it has no track. Now draw East's tracks, as in Step 3. Click **Add a track** three times, then set each one's **From** and **To**:
+The junction appears in the picture on its own, with its legs as blue dots. Until the tracks are drawn, each leg says it has no track. Now draw East's tracks, as in Step 3. Click **Add a track** three times, then set each one's **From** and **To**. To give a track's block its sensor, click the block in the picture first:
 
 1. **Track 1:** from **End A, track 1** to **Junction J1, leg 1**. Click **Add a block boundary** to give it two blocks: **E1 current** in Block 1, **E2 current** in Block 2, and **E12 optical** at the block boundary. For its signals, pick **E Outer** for **Signal for trains heading towards Junction J1, leg 1**, and leave the other at **no signal**.
 2. **Track 2:** from **Junction J1, leg 2** to **End B, track 1**, one block with **E Main current**.
 3. **Track 3:** from **Junction J1, leg 3** to **End C, track 1**, one block with **E Branch current**.
 
 ![East's track 1, from End A, track 1 to Junction J1, leg 1: E1 current, the block boundary with E12 optical, no signal and E Outer ▶, then E2 current](img/mss-logic/11-east-track-1.png)
+
+The picture now shows East as one piece. Track 1 runs from End A into leg 1 of J1. The main route carries on to End B, and the diverging route (dashed) climbs to the row above and runs to End C. **E Home** ▶ stands at leg 1, facing trains heading into the junction. Ends B and C line up at the right edge.
+
+![The whole East module: End A, E1 current, the block boundary with E12 optical and E Outer ▶, E2 current, E Home ▶ at junction J1, then the main route to E Main current and End B, and the diverging route up to E Branch current and End C](img/mss-logic/11-east-module.png)
 
 The junction's card now has no messages. **Which legs join** draws the legs and routes, and lists each route in words. A solid line is a main route and a dashed line a diverging one.
 
@@ -229,7 +235,7 @@ Success looks like:
 Problems show in three places:
 
 - **At the top of the page**, in red for errors that stop the download and amber for warnings. Each says what is wrong, why, and what to do. The **Download YAML** button is greyed out while there is a red one.
-- **On the Logic page.** The step says how many things there are to fix. The card has a red dot by its title (amber for a warning). The part that causes it is marked red: an end's card has a red edge, a block or block boundary on the strip is drawn red, and the message sits under it, in the end's card, the block's form, the junction's leg or the signal's row.
+- **On the Logic page.** The step says how many things there are to fix. The card has a red dot by its title (amber for a warning). The part that causes it is marked red: an end's card has a red edge, a block or block boundary in the picture is drawn red, as is a junction's name and routes, and the message sits under it, in the end's card, the block's form, the junction's leg or the signal's row.
 - **Show** beside a message at the top. It opens the page and scrolls to the part.
 
 Here is the top of East's page just after adding the junction, before any tracks: each end and each leg has no track (red), and the junction has no sensor yet (amber).

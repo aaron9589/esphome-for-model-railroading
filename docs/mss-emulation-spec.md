@@ -162,18 +162,21 @@ Steps can be revisited in any order. A step with a problem shows a red dot.
 
 ### Drawing a track
 
-A track is edited as a **strip**, drawn left to right the way it lies on the module, with its end or junction labelled at each side:
+The whole module is drawn as one picture, **The module**, at the top of the MSS page. It fills in as the module is described and stays at the top of the window while the cards under it scroll (*Hide the picture* folds it). Each track is a row of blocks, drawn left to right the way it lies on the module, with its ends and junctions where they join:
 
 ```
-  End A ──[ S1 current ]──┃──[ S2 current ]──┃──[ S3 current ]── End B
-                          ┃ optical          ┃ optical
-                ◀ S1/S2 West  ▶ (none)   ◀ (none)  ▶ S2/S3 East
+                                      Junction J1 ╭──[ E Branch current ]── End C
+  End A ──[ E1 current ]──┃──[ E2 current ]──────╯
+                          ┃ E12 optical          ╰──[ E Main current ]─── End B
+               (no signal)  E Outer ▶
 ```
 
-- **Add a boundary** splits a block in two. Click a block to pick its sensors and any turnouts in it. Click a boundary to pick its optical sensor and its two signals.
-- The two signals at a boundary are drawn as arrows, **◀ towards From** and **▶ towards To**. A side with no signal is drawn dashed and labelled *no signal*. The page explains that a signal with no lights is made there so the signals behind keep working.
+- The first end with a track goes on the left. Each track runs on from a place already drawn. A junction is drawn from its shape, turned round when a track meets it from the other side, and its other legs sit on the rows its shape gives them. An end's other tracks sit on the rows beside its first. Ends facing left line up at the right edge, and tracks not joined to the rest start a row underneath. If two tracks would lie over each other, the picture shows one track to a row instead.
+- Click a block or boundary in the picture to open its form in its track's card: a block's sensors and any turnouts in it, a boundary's optical sensor and its two signals. Click a junction or an end to go to its card. **Add a boundary** in a track's card splits its last block in two.
+- The two signals at a boundary are drawn as arrows pointing the way their trains go: the signal towards From and the signal towards To. A track drawn right to left (its From on the right) swaps them, so each arrow still points at the place it means. A side with no signal is labelled *no signal*. The page explains that a signal with no lights is made there so the signals behind keep working.
 - The ends are labelled with their letters, so it is plain which way the module faces. Turning the module round needs no change.
-- A track with no boundaries is labelled **Through track (no signals)**.
+- A track with no boundaries between two ends is labelled **Through track (no signals)**.
+- Anything with a problem is drawn red in the picture: a block, a boundary, a junction's name and routes, an end.
 
 ### Junctions from a shape
 
@@ -195,7 +198,7 @@ One grid: a row per signal, a column per indication in use (Stop, Approach, Adva
 
 ### Trying it with neighbours
 
-Try it draws the whole module from the strips and junctions. Each end gets a **pretend neighbour** with four choices: *clear*, *train in the next block*, *next signal at Stop*, and *not linked*, which shows the fail-safe Stop. **Run a train** can enter from any end, so the tumbledown can be watched across the module and out the other side.
+Try it draws the whole module with the same picture. Each end gets a **pretend neighbour** with four choices: *clear*, *train in the next block*, *next signal at Stop*, and *not linked*, which shows the fail-safe Stop. **Run a train** can enter from any end, so the tumbledown can be watched across the module and out the other side.
 
 ### Plain labels for MSS terms
 

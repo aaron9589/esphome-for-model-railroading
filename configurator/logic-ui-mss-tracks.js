@@ -20,7 +20,10 @@
 
   const TEXT = Object.freeze({
     card: "Tracks",
-    intro: "Draw each track from one place to another, the way it lies on the module. Each track is a row of blocks. Each block has a current sensor that sees a train in it. Between two blocks is a block boundary, with an optical sensor and a signal facing each way. Click a block or a block boundary to edit it.",
+    intro: "Draw each track from one place to another, the way it lies on the module. Each track is a row of blocks. Each block has a current sensor that sees a train in it. Between two blocks is a block boundary, with an optical sensor and a signal facing each way. The tracks are drawn in the picture of the module at the top: click a block or a block boundary there to edit it here.",
+    pickOnPicture: "Click a block or block boundary of this track in the picture of the module to edit it.",
+    editTrack: "Edit its first block",
+    inTrack: (n, title) => `Track ${n}: ${title}`,
     signalNote: "A side with no signal gets a signal with no lights, so the signals behind keep working.",
     empty: "No tracks yet. Add a track for each end track and each leg of a junction.",
     addTrack: "Add a track",
@@ -316,19 +319,24 @@
 
   // ===== The page ============================================================
 
-  const SVG = "http://www.w3.org/2000/svg";
   const selected = new Map(); // track index -> { kind, index }
+  let active = null; // the track whose form is open, picked on the module picture
+
+  /** Open a block's or block boundary's form: { kind, index } on track `track`. */
+  function pick(track, item) {
+    active = track;
+    if (item) selected.set(track, { kind: item.kind, index: item.index });
+  }
+
+  /** What the module picture shows as picked: { track, kind, index }, or null. */
+  function picked() {
+    if (active === null || !selected.has(active)) return null;
+    return { track: active, ...selected.get(active) };
+  }
 
   function el(tag, className, text) {
     const node = document.createElement(tag);
     if (className) node.className = className;
-    if (text !== undefined) node.textContent = text;
-    return node;
-  }
-
-  function svg(tag, attrs = {}, text) {
-    const node = document.createElementNS(SVG, tag);
-    for (const [key, value] of Object.entries(attrs)) node.setAttribute(key, value);
     if (text !== undefined) node.textContent = text;
     return node;
   }
@@ -344,47 +352,6 @@
     const ul = el("ul", "mss-problems");
     for (const problem of problems) ul.append(el("li", `mss-problem is-${problem.level}`, problem.text));
     return ul;
-  }
-
-  function drawStrip(track, index, found, pick, current) {
-    const shape = stripShape(track);
-    const height = 150;
-    const drawing = svg("svg", { class: "mss-strip", viewBox: `0 0 ${shape.width} ${height}`, width: shape.width, height, role: "group", "aria-label": TEXT.stripLabel(`${shape.from} to ${shape.to}`) });
-    drawing.append(svg("line", { class: "mss-rail", x1: 8, y1: 62, x2: shape.width - 8, y2: 62 }));
-    drawing.append(svg("text", { class: "mss-place", x: 4, y: 32, "text-anchor": "start" }, shorten(shape.from, 22)));
-    drawing.append(svg("text", { class: "mss-place", x: shape.width - 4, y: 32, "text-anchor": "end" }, shorten(shape.to, 22)));
-    if (shape.through) drawing.append(svg("text", { class: "mss-through", x: shape.width / 2, y: 12, "text-anchor": "middle" }, TEXT.through));
-    for (const item of shape.items) {
-      const picked = current.kind === item.kind && current.index === item.index;
-      const issues = (item.kind === "block" ? found.blocks : found.boundaries)[item.index];
-      const cls = `mss-${item.kind}${picked ? " is-selected" : ""}${issues ? " has-problem" : ""}`;
-      const g = svg("g", { class: cls, tabindex: 0, role: "button", "aria-label": item.label, "aria-pressed": picked ? "true" : "false" });
-      g.addEventListener("click", () => pick({ kind: item.kind, index: item.index }));
-      g.addEventListener("keydown", (event) => {
-        if (event.key === "Enter" || event.key === " ") {
-          event.preventDefault();
-          pick({ kind: item.kind, index: item.index });
-        }
-      });
-      if (item.kind === "block") {
-        const cx = item.x + item.w / 2;
-        g.append(svg("rect", { x: item.x + 3, y: 42, width: item.w - 6, height: 40, rx: 6 }));
-        g.append(svg("text", { class: "mss-label", x: cx, y: 66, "text-anchor": "middle" }, item.sensors.length ? shorten(item.sensors.join(", "), 18) : TEXT.noSensor));
-        g.append(svg("text", { class: "mss-sub", x: cx, y: 98, "text-anchor": "middle" }, item.label));
-        item.turnouts.forEach((u, k) => g.append(svg("text", { class: "mss-turnout", x: cx, y: 114 + k * 14, "text-anchor": "middle" }, TEXT.turnoutMark(shorten(u.turnout || "?", 12), u.position === "thrown" ? TEXT.thrown : TEXT.closed))));
-      } else {
-        g.append(svg("rect", { class: "mss-hit", x: item.x - item.w / 2, y: 30, width: item.w, height: 110 }));
-        g.append(svg("line", { class: "mss-bar", x1: item.x, y1: 36, x2: item.x, y2: 88 }));
-        g.append(svg("text", { class: "mss-sub", x: item.x, y: 100, "text-anchor": "middle" }, item.sensors.length ? TEXT.optical(shorten(item.sensors.join(", "), 16)) : TEXT.noSensor));
-        const arrow = (y, name, text) => g.append(svg("text", { class: `mss-arrow${name ? "" : " is-none"}`, x: item.x, y, "text-anchor": "middle" }, name ? text(shorten(name, 14)) : TEXT.noSignal));
-        arrow(118, item.towardsFrom, TEXT.towardsFromArrow);
-        arrow(134, item.towardsTo, TEXT.towardsToArrow);
-      }
-      drawing.append(g);
-    }
-    const wrap = el("div", "mss-strip-wrap");
-    wrap.append(drawing);
-    return wrap;
   }
 
   function sensorPicker(item, config, ctx, ui, redraw) {
@@ -496,7 +463,15 @@
     const title = TEXT.trackTitle(index + 1, placeText(track.from), placeText(track.to));
     const { item: card } = ui.rowCard(total ? `${title} (${TEXT.problemCount(total)})` : title, () => {
       removeTrack(config, index);
+      // Later tracks move up one: their picks follow.
+      const after = [...selected.entries()].filter(([k]) => k > index);
       selected.delete(index);
+      for (const [k, v] of after) {
+        selected.delete(k);
+        selected.set(k - 1, v);
+      }
+      if (active === index) active = null;
+      else if (active !== null && active > index) active -= 1;
       ctx.persist();
       ctx.render();
     }, "mss-track");
@@ -515,26 +490,30 @@
     if (found.track.length) card.append(problemList(found.track));
     const body = el("div", "mss-body");
     card.append(body);
-    // Picking on the strip only redraws the strip. A change saves and draws
-    // the whole page again, so the problems, the steps and the Signals grid
-    // follow it; the picked block or boundary is kept.
+    // A change saves and draws the whole page again, so the picture, the
+    // problems, the steps and the Signals grid follow it; the picked block
+    // or boundary is kept.
     const changed = (next) => {
-      if (next) selected.set(index, next);
+      pick(index, next || null);
       ctx.persist();
       ctx.render();
     };
-    const draw = (next) => {
-      if (next) selected.set(index, next);
+    if (active === index) {
       const current = fixSelection(track, selected.get(index));
       selected.set(index, current);
-      body.replaceChildren();
-      body.append(drawStrip(track, index, found, draw, current));
-      body.append(current.kind === "boundary"
+      const form = current.kind === "boundary"
         ? boundaryForm(track, current.index, config, ctx, ui, changed, found)
-        : blockForm(track, current.index, config, ctx, ui, changed, found));
-      body.append(button(TEXT.addBoundary, () => changed({ kind: "boundary", index: addBoundary(track) })), ctx.hintEl(TEXT.addBoundaryHint));
-    };
-    draw();
+        : blockForm(track, current.index, config, ctx, ui, changed, found);
+      // The form scrolls up under the picture, past its track's title: say which track.
+      const heading = form.querySelector("h4");
+      if (heading) heading.textContent = TEXT.inTrack(index + 1, heading.textContent);
+      body.append(form);
+    } else {
+      const inside = [...Object.values(found.blocks), ...Object.values(found.boundaries)].flat();
+      if (inside.length) body.append(problemList(inside));
+      body.append(ui.paragraph(TEXT.pickOnPicture, "hint"), button(TEXT.editTrack, () => changed({ kind: "block", index: 0 })));
+    }
+    body.append(button(TEXT.addBoundary, () => changed({ kind: "boundary", index: addBoundary(track) })), ctx.hintEl(TEXT.addBoundaryHint));
     holder.append(card);
   }
 
@@ -548,14 +527,19 @@
       if (!isObject(track)) tracks[i] = { from: null, to: null, blocks: [newBlock()], boundaries: [] };
       renderTrack(card, config, tracks[i], i, problems, ctx, ui);
     });
-    card.append(button(TEXT.addTrack, () => { addTrack(config); ctx.persist(); ctx.render(); }));
+    card.append(button(TEXT.addTrack, () => {
+      addTrack(config);
+      pick(tracks.length - 1, { kind: "block", index: 0 });
+      ctx.persist();
+      ctx.render();
+    }));
     root.append(card);
   }
 
   global.EsphomeMrLogicUiMssTracks = {
     TEXT, tracksOf, tidyTrack, placeChoices, placeText, freePlaces, addTrack, removeTrack, setPlace,
     splitBlock, addBoundary, removeBlock, moveBlock, addSensor, removeSensor, addTurnout, removeTurnout,
-    setSignal, stripShape, trackProblems, problemTotal, fixSelection, samePlace,
+    setSignal, stripShape, trackProblems, problemTotal, fixSelection, samePlace, pick, picked,
   };
 
   if (global.EsphomeMrLogicUi) {
