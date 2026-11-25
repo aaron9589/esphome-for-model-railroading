@@ -14,11 +14,11 @@
 //              facing the turnout, Signals B and C facing back.
 //
 // Signals are named for the end trains come in at, as on the ISE boards:
-// Signal A faces trains coming in at end A. Each is a WS2812B searchlight head
-// (one LED that shows red, amber or green), with the CATS aspects for the MSS
-// indications it shows, so the Signals grid fills itself in. Signal A on the
-// switch has two heads, upper and lower: the lower head shows the diverging
-// route.
+// Signal A faces trains coming in at end A. Each head is three LEDs (red,
+// yellow, green), each on its own pin, as the ISE boards wire them, with the
+// CATS aspects for the MSS indications it shows, so the Signals grid fills
+// itself in. Signal A on the switch has two heads, upper and lower: the lower
+// head shows the diverging route.
 //
 // Pure: plan(config, id) says what applying would add and what is already
 // there; apply(config, id, add) writes the description and calls `add` with
@@ -39,7 +39,10 @@
     adds: "This adds:",
     sensors: (names) => `Sensors: ${names}.`,
     turnouts: (names) => `Turnouts: ${names}.`,
-    masts: (names) => `Signal masts: ${names}, each a WS2812B LED on its own pin.`,
+    masts: (names, pins) => `Signal masts: ${names}, each head a red, a yellow and a green LED on its own pin (${pins} pins in all).`,
+    mastsStrip: (names, pins) => `Signal masts: ${names}, each head one WS2812B LED, each signal on its own data pin (${pins} pins in all).`,
+    useStrip: "Use one WS2812B LED for each head instead (one data pin for each signal)",
+    shortOfPins: (need, safe) => `This board has ${safe} free pin${safe === 1 ? "" : "s"} that ${safe === 1 ? "is" : "are"} safe for an LED once the sensors are on theirs, and these signals need ${need}. The rest go on start-up pins (GPIO0, 2, 5, 12 and 15), and an LED on one of those can stop the board starting. Use WS2812B LEDs instead, or remove what this board does not need first.`,
     kept: (names) => `Already on this board, and used as they are: ${names}.`,
     replaces: "It replaces the module described here now.",
     apply: "Add it",
@@ -58,6 +61,8 @@
     head: "Head",
     upper: "Upper",
     lower: "Lower",
+    lampColours: Object.freeze({ red: "Red", amber: "Yellow", green: "Green" }),
+    lampOnHead: (head, colour) => `${head} ${String(colour).toLowerCase()}`,
   });
 
   const IDS = Object.freeze(["crossover", "cascade", "switch"]);
@@ -85,16 +90,38 @@
     ["divergingApproach", "R286", ["amber", "red"]],
   ];
 
-  // A signal mast for the Signal Masts page, without its pin.
-  function mast(name, rows, heads) {
+  const LED_COLOURS = ["red", "amber", "green"];
+
+  // A signal mast for the Signal Masts page, without its pins, lowest head
+  // first. `heads` names them ([""] for one head); each aspect row gives a
+  // colour per head. Individual LEDs (the default) are three to a head (red,
+  // yellow, green); a WS2812B head ("strip") is one LED that shows the colour.
+  function mast(name, rows, heads, style = "leds") {
+    if (style === "strip") {
+      return {
+        name,
+        mode: "addressable",
+        lamps: heads.map((head) => ({ name: head || TEXT.head, count: 1 })),
+        aspects: rows.map(([key, cats, colours], i) => ({
+          label: TEXT.aspects[key],
+          states: [`${cats}; Lit; Unheld`],
+          ...(i === 0 ? { startup: true } : {}),
+          lamps: colours.map((color) => ({ color, mode: "steady" })),
+        })),
+      };
+    }
+    const lamps = heads.flatMap((head) => LED_COLOURS.map((colour) => ({
+      name: head ? TEXT.lampOnHead(head, TEXT.lampColours[colour]) : TEXT.lampColours[colour], count: 1,
+    })));
     return {
       name,
-      lamps: heads.map((lamp) => ({ name: lamp, count: 1 })),
+      mode: "gpio",
+      lamps,
       aspects: rows.map(([key, cats, colours], i) => ({
         label: TEXT.aspects[key],
         states: [`${cats}; Lit; Unheld`],
         ...(i === 0 ? { startup: true } : {}),
-        lamps: colours.map((color) => ({ color, mode: "steady" })),
+        lamps: colours.flatMap((shown) => LED_COLOURS.map((colour) => ({ color: colour === shown ? colour : "off", mode: "steady" }))),
       })),
     };
   }
@@ -103,7 +130,7 @@
   const block = (sensor) => ({ sensors: [sensor], turnouts: [] });
 
   // What each template describes, and the items it needs.
-  function design(id) {
+  function design(id, style = "leds") {
     const s = TEXT;
     if (id === "crossover") {
       return {
@@ -127,7 +154,7 @@
         },
         sensors: [s.blockSensor("A"), s.irSensor, s.blockSensor("B")],
         turnouts: [],
-        masts: [mast(s.signal("A"), ONE_HEAD, [s.head]), mast(s.signal("B"), ONE_HEAD, [s.head])],
+        masts: [mast(s.signal("A"), ONE_HEAD, [""], style), mast(s.signal("B"), ONE_HEAD, [""], style)],
       };
     }
     if (id === "switch") {
@@ -151,9 +178,9 @@
         sensors: [s.blockSensor("A"), s.irSensor, s.blockSensor("B"), s.blockSensor("C")],
         turnouts: [s.turnout],
         masts: [
-          mast(s.signal("A"), TWO_HEADS, [s.lower, s.upper]),
-          mast(s.signal("B"), ONE_HEAD, [s.head]),
-          mast(s.signal("C"), ONE_HEAD_DIVERGING, [s.head]),
+          mast(s.signal("A"), TWO_HEADS, [s.lower, s.upper], style),
+          mast(s.signal("B"), ONE_HEAD, [""], style),
+          mast(s.signal("C"), ONE_HEAD_DIVERGING, [""], style),
         ],
       };
     }
@@ -169,10 +196,12 @@
   /**
    * What applying template `id` does: { title, sensors, turnouts, masts }
    * (names to add), kept (names already on the board, used as they are) and
-   * replaces (true when a module is already described). Null for an unknown id.
+   * replaces (true when a module is already described). `pins` is how many
+   * pins the new signals need: one per LED, or one per signal for WS2812B
+   * (`style: "strip"`). Null for an unknown id.
    */
-  function plan(config, id) {
-    const d = design(id);
+  function plan(config, id, { style = "leds" } = {}) {
+    const d = design(id, style);
     if (!d) return null;
     const have = {
       sensors: new Set(list(config?.blocks).map((b) => b?.name)),
@@ -180,12 +209,15 @@
       masts: new Set(list(config?.signals?.masts).map((m) => m?.name)),
     };
     const kept = [];
-    const out = { title: TEXT.templates[id].title, sensors: [], turnouts: [], masts: [], kept, replaces: described(config) };
+    const out = { title: TEXT.templates[id].title, sensors: [], turnouts: [], masts: [], pins: 0, style, kept, replaces: described(config) };
     for (const kind of ["sensors", "turnouts", "masts"]) {
       for (const item of d[kind]) {
         const name = typeof item === "string" ? item : item.name;
         if (have[kind].has(name)) kept.push(name);
-        else out[kind].push(name);
+        else {
+          out[kind].push(name);
+          if (kind === "masts") out.pins += style === "strip" ? 1 : item.lamps.length;
+        }
       }
     }
     return out;
@@ -197,9 +229,9 @@
    * items the board does not have yet (sensors and turnouts by name, masts
    * as Signal Masts entries without a pin). Returns plan(config, id).
    */
-  function apply(config, id, add) {
-    const d = design(id);
-    const p = plan(config, id);
+  function apply(config, id, add, { style = "leds" } = {}) {
+    const d = design(id, style);
+    const p = plan(config, id, { style });
     if (!d || !p) return null;
     const missing = {
       sensors: d.sensors.filter((name) => p.sensors.includes(name)),

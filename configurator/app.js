@@ -132,15 +132,135 @@ function showView(name) {
   document.querySelectorAll(".view").forEach((panel) => {
     panel.hidden = panel.dataset.panel !== name;
   });
+  if (clearing && clearing !== name) {
+    clearing = "";
+    renderClearPanels();
+  }
   window.scrollTo(0, 0);
 }
 
-document.getElementById("btn-clear").addEventListener("click", () => {
-  state.blocks = [];
-  persist();
-  render();
-  flash("ok", "Removed all sensors. Credentials kept.");
-});
+// ===== Clear this page =====================================================
+// Each page can be cleared on its own, after asking. What each keeps is said
+// in the question.
+const CLEARS = {
+  board: {
+    page: "Board",
+    ask: "Put this board's settings back to how a new board starts? The Wi-Fi and MQTT saved in this browser go too. The name's suffix and the board's keys stay, so other boards still know it and it can still be updated over Wi-Fi.",
+    run() {
+      const old = state.board;
+      const fresh = newBoardConfig().board;
+      if (old.nameSuffix) {
+        fresh.nameSuffix = old.nameSuffix;
+        setTypedBoardName(fresh, typedBoardName(newBoardConfig().board));
+      }
+      if (old.apPassword) fresh.apPassword = old.apPassword;
+      if (old.apiKey) fresh.apiKey = old.apiKey;
+      state.board = fresh;
+      clearCredentials();
+    },
+  },
+  blocks: {
+    page: "Sensors",
+    ask: "Remove every sensor and expander? The Logic page keeps its references, and lists them as problems until you add sensors with those names again.",
+    run() {
+      state.blocks = [];
+      state.expanders = [];
+    },
+  },
+  points: {
+    page: "Turnouts",
+    ask: "Remove every turnout, and go back to one PCA9685 board?",
+    run() {
+      state.points = [];
+      state.pcaBoards = [{ sda: "GPIO21", scl: "GPIO22" }];
+    },
+  },
+  signals: {
+    page: "Signal Masts",
+    ask: "Remove every signal mast?",
+    run() {
+      state.signals.masts = [];
+    },
+  },
+  logic: {
+    page: "Logic",
+    ask: "Clear everything on the Logic page: blocks, rules, plant ends, linked boards, and the MSS module? The Logic choice and Share with other boards stay as they are.",
+    run() {
+      const kept = {};
+      if (state.logic?.mode !== undefined) kept.mode = state.logic.mode;
+      if (state.logic?.share !== undefined) kept.share = state.logic.share;
+      state.logic = kept;
+    },
+  },
+};
+let clearing = "";
+
+// A Clear this page button in each page's header, and a panel under it that asks.
+function setupClearButtons() {
+  for (const [panel, clear] of Object.entries(CLEARS)) {
+    const section = document.querySelector(`[data-panel="${panel}"]`);
+    const head = section?.querySelector(".view-head");
+    if (!head) continue;
+    let actions = head.querySelector(".view-actions");
+    if (!actions) {
+      actions = document.createElement("div");
+      actions.className = "view-actions";
+      for (const button of [...head.children].filter((child) => child.tagName === "BUTTON")) actions.append(button);
+      head.append(actions);
+    }
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "clear-page";
+    button.textContent = "Clear this page";
+    button.addEventListener("click", () => {
+      clearing = clearing === panel ? "" : panel;
+      renderClearPanels();
+      if (clearing) section.querySelector(".clear-confirm button.danger")?.focus();
+    });
+    actions.prepend(button);
+    const box = document.createElement("div");
+    box.className = "clear-confirm";
+    box.dataset.clear = panel;
+    box.hidden = true;
+    head.after(box);
+  }
+}
+
+function renderClearPanels() {
+  for (const box of document.querySelectorAll(".clear-confirm")) {
+    const panel = box.dataset.clear;
+    const clear = CLEARS[panel];
+    box.hidden = clearing !== panel;
+    box.replaceChildren();
+    if (box.hidden) continue;
+    const ask = document.createElement("p");
+    ask.textContent = clear.ask;
+    const yes = document.createElement("button");
+    yes.type = "button";
+    yes.className = "danger";
+    yes.textContent = `Yes, clear the ${clear.page} page`;
+    yes.addEventListener("click", () => {
+      clear.run();
+      clearing = "";
+      persist();
+      render();
+      flash("ok", `Cleared the ${clear.page} page.`);
+    });
+    const no = document.createElement("button");
+    no.type = "button";
+    no.textContent = "Cancel";
+    no.addEventListener("click", () => {
+      clearing = "";
+      renderClearPanels();
+    });
+    const row = document.createElement("div");
+    row.className = "dialog-actions";
+    row.append(no, yes);
+    box.append(ask, row);
+  }
+}
+
+setupClearButtons();
 
 document.getElementById("btn-clear-creds").addEventListener("click", () => {
   clearCredentials();
@@ -2388,12 +2508,22 @@ function addItems({ sensors = [], turnouts = [], masts = [] } = {}) {
   }
   for (const mast of masts) {
     const leds = mast.lamps.reduce((n, lamp) => n + (Number(lamp.count) || 1), 0);
-    state.signals.masts.push({ ...mast, topic: topicFor("signal", mast.name), topicCustom: false, mode: "addressable", pin: nextServoPin(), numLeds: leds });
+    const entry = { ...mast, topic: topicFor("signal", mast.name), topicCustom: false, mode: mast.mode || "addressable", pin: "", numLeds: leds };
+    state.signals.masts.push(entry);
+    // Individual LEDs get a pin each, one at a time so each sees the last as used.
+    if (entry.mode === "gpio") for (const lamp of entry.lamps) lamp.pin = nextServoPin();
+    else entry.pin = nextServoPin();
   }
 }
 
+// Free ESP pins that are safe to drive an LED: not a start-up (strapping) pin.
+function safeOutputPins() {
+  const used = usedPins();
+  return PULLUP_PINS.filter((pin) => !STRAPPING_PINS.has(pin) && !used.has(pin)).length;
+}
+
 function renderLogic() {
-  renderLogicPage(el.logicPage, { config: state, field, hintEl, persist, render, showView, flash, pinChoices, blockPinChoices, mastPicture, addItems });
+  renderLogicPage(el.logicPage, { config: state, field, hintEl, persist, render, showView, flash, pinChoices, blockPinChoices, mastPicture, addItems, safeOutputPins });
 }
 
 function render() {

@@ -2686,3 +2686,27 @@ details.rule-more {
   margin: 0.25rem 0 0.5rem;
   padding-left: 1.2rem;
 }
+
+/* Clear this page: the question under the page's header. */
+button.clear-page {
+  color: var(--muted);
+}
+
+.clear-confirm {
+  margin: 0 0 1rem;
+  padding: 0.75rem 0.9rem;
+  border: 1px solid var(--danger);
+  border-radius: 8px;
+  background: #fef2f2;
+}
+
+.clear-confirm p {
+  margin: 0 0 0.5rem;
+}
+
+.mss-template-warning {
+  color: var(--warn-ink);
+  background: var(--warn-bg);
+  border-radius: 6px;
+  padding: 0.5rem 0.7rem;
+}
