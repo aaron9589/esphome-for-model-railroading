@@ -76,9 +76,11 @@ Under the steps, while the module is still empty, **Or start from a standard MSS
 - **Cascade**: two blocks with an IR sensor between them, and a signal facing each way (the ISE Block Signal board).
 - **Complex cascade (turnout)**: Block A runs to a turnout, then Block B on the main line and Block C on the branch, with a signal facing the turnout from each (the ISE Switch Signal board). Signal A has two heads: the upper head is the main line, the lower the branch.
 
-Click one. A panel lists what it will add: the sensors, the turnout and the signals, each signal a WS2812B LED on its own free pin, with the CATS aspects so the Signals grid fills itself in. Anything with the same name already on the board is used as it is. Click **Add it**, then check the pins on the Sensors, Turnouts and Signal Masts pages against your wiring.
+Click one. A panel lists what it will add: the sensors, the turnout and the signals, with the CATS aspects so the Signals grid fills itself in. Each signal head is a red, a yellow and a green LED, each on its own free pin, as the ISE boards wire them. Anything with the same name already on the board is used as it is. Click **Add it**, then check the pins on the Sensors, Turnouts and Signal Masts pages against your wiring.
 
-![The three standard modules under the steps, with Cascade picked: its panel lists the sensors Block A current, IR sensor and Block B current, and the signals Signal A and Signal B](img/mss-logic/23-template-confirm.png)
+**Pins.** The Complex cascade's signals need 12 LED pins, and an ESP32 has only so many. If the board has too few free pins that are safe at start-up, the panel says so: an LED on GPIO0, 2, 5, 12 or 15 can stop the board starting. Tick **Use one WS2812B LED for each head instead** to need one data pin per signal, or remove what the board does not need first (a new board's example sensor and turnout, for instance).
+
+![The three standard modules under the steps, with Cascade picked: its panel lists the sensors Block A current, IR sensor and Block B current, and the signals Signal A and Signal B with their six LED pins, and the WS2812B tick box](img/mss-logic/23-template-confirm.png)
 
 The signals are named for the end their trains come in at, as on the ISE boards: **Signal A** faces trains coming in at end A. Here is the Complex cascade, one click later:
 

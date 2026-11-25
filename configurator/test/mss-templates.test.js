@@ -22,13 +22,17 @@ function freshBoard() {
   return config;
 }
 
-// What the page's addItems does, with fixed pins.
+// What the page's addItems does, with fixed pins: sensors first, then a pin
+// for each signal LED.
 function addTo(config) {
-  const pins = ["GPIO14", "GPIO27", "GPIO26", "GPIO25", "GPIO33", "GPIO32", "GPIO16", "GPIO17", "GPIO19", "GPIO23", "GPIO18", "GPIO13"];
+  const pins = ["GPIO14", "GPIO27", "GPIO26", "GPIO25", "GPIO4", "GPIO13", "GPIO16", "GPIO17", "GPIO18", "GPIO19", "GPIO23", "GPIO32", "GPIO33", "GPIO5", "GPIO15", "GPIO2"];
   return ({ sensors, turnouts, masts }) => {
     for (const name of sensors) config.blocks.push({ name, topic: M.topicFor("block", name), topicCustom: false, gpio: pins.shift(), inverted: true, debounce: "500ms" });
     for (const name of turnouts) config.points.push({ name, topic: M.topicFor("point", name), topicCustom: false, pcaBoard: 0, channel: config.points.length, servoPin: "", travelTime: "10s", controls: [] });
-    for (const mast of masts) config.signals.masts.push({ ...mast, topic: M.topicFor("signal", mast.name), topicCustom: false, mode: "addressable", pin: pins.shift(), numLeds: mast.lamps.length });
+    for (const mast of masts) {
+      config.signals.masts.push({ ...mast, topic: M.topicFor("signal", mast.name), topicCustom: false, pin: "", numLeds: mast.lamps.length });
+      for (const lamp of mast.lamps) lamp.pin = pins.shift();
+    }
   };
 }
 
@@ -41,12 +45,14 @@ function made(id) {
 const errors = (config) => plain(B.problems(config).filter((p) => p.level === "error").map((p) => p.text));
 
 test("plan: what each template adds to an empty board", () => {
-  assert.deepEqual(plain(MT.plan(freshBoard(), "crossover")), { title: "Crossover", sensors: ["Block A current"], turnouts: [], masts: [], kept: [], replaces: false });
+  assert.deepEqual(plain(MT.plan(freshBoard(), "crossover")), { title: "Crossover", sensors: ["Block A current"], turnouts: [], masts: [], pins: 0, style: "leds", kept: [], replaces: false });
   assert.deepEqual(plain(MT.plan(freshBoard(), "cascade")).masts, ["Signal A", "Signal B"]);
   const sw = plain(MT.plan(freshBoard(), "switch"));
   assert.deepEqual(sw.sensors, ["Block A current", "IR sensor", "Block B current", "Block C current"]);
   assert.deepEqual(sw.turnouts, ["Turnout"]);
   assert.deepEqual(sw.masts, ["Signal A", "Signal B", "Signal C"]);
+  assert.equal(sw.pins, 12, "Signal A's two heads and one head each for B and C, three LEDs to a head");
+  assert.equal(MT.plan(freshBoard(), "switch", { style: "strip" }).pins, 3, "WS2812B: a data pin for each signal");
   assert.equal(MT.plan(freshBoard(), "nothing"), null);
 });
 
@@ -111,6 +117,24 @@ test("complex cascade: Signal A shows a diverging aspect with the turnout thrown
   session.advance(1000);
   assert.equal(shown("Signal A").aspect, "Diverging Approach");
   const mast = config.signals.masts.find((m) => m.name === "Signal A");
+  assert.equal(mast.mode, "gpio", "individual LEDs");
+  assert.deepEqual(plain(mast.lamps.map((l) => l.name)), ["Lower red", "Lower yellow", "Lower green", "Upper red", "Upper yellow", "Upper green"]);
   const lit = plain(mast.aspects.find((a) => a.label === "Diverging Approach").lamps.map((l) => l.color));
-  assert.deepEqual(lit, ["amber", "red"], "lower head amber, upper red");
+  assert.deepEqual(lit, ["off", "amber", "off", "red", "off", "off"], "lower head yellow, upper red");
+});
+
+test("WS2812B instead: one LED a head, a data pin each, the same aspects", () => {
+  const config = freshBoard();
+  MT.apply(config, "switch", ({ sensors, turnouts, masts }) => {
+    const pins = ["GPIO14", "GPIO27", "GPIO26", "GPIO25", "GPIO16", "GPIO17", "GPIO19"];
+    for (const name of sensors) config.blocks.push({ name, topic: M.topicFor("block", name), gpio: pins.shift(), inverted: true, debounce: "500ms" });
+    for (const name of turnouts) config.points.push({ name, topic: M.topicFor("point", name), pcaBoard: 0, channel: 0, controls: [] });
+    for (const mast of masts) config.signals.masts.push({ ...mast, topic: M.topicFor("signal", mast.name), pin: pins.shift() });
+  }, { style: "strip" });
+  const a = config.signals.masts.find((m) => m.name === "Signal A");
+  assert.equal(a.mode, "addressable");
+  assert.deepEqual(plain(a.lamps.map((l) => l.name)), ["Lower", "Upper"]);
+  assert.deepEqual(plain(a.aspects.find((x) => x.label === "Diverging Approach").lamps.map((l) => l.color)), ["amber", "red"]);
+  assert.deepEqual(errors(config), []);
+  assert.deepEqual(plain(M.validateConfig(config).errors), []);
 });

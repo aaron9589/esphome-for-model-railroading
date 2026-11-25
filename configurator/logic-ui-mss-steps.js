@@ -447,6 +447,7 @@
   // ===== Templates: a standard MSS module in one click ======================
 
   let pendingTemplate = ""; // the template whose confirm panel is open
+  let templateStyle = "leds"; // its signals: individual LEDs, or WS2812B ("strip")
 
   function templatePicker(config, ctx, ui) {
     const MT = global.EsphomeMrMssTemplates;
@@ -473,20 +474,29 @@
   function templateConfirm(config, ctx, ui, id) {
     const MT = global.EsphomeMrMssTemplates;
     const T = MT.TEXT;
-    const plan = MT.plan(config, id);
+    const plan = MT.plan(config, id, { style: templateStyle });
     const panel = el("div", "mss-template-confirm");
     panel.append(el("strong", "", T.confirm(plan.title)), ui.paragraph(T.adds, "hint"));
     const items = el("ul", "");
     if (plan.sensors.length) items.append(el("li", "", T.sensors(plan.sensors.join(", "))));
     if (plan.turnouts.length) items.append(el("li", "", T.turnouts(plan.turnouts.join(", "))));
-    if (plan.masts.length) items.append(el("li", "", T.masts(plan.masts.join(", "))));
+    if (plan.masts.length) items.append(el("li", "", (plan.style === "strip" ? T.mastsStrip : T.masts)(plan.masts.join(", "), plan.pins)));
     if (plan.kept.length) items.append(el("li", "", T.kept(plan.kept.join(", "))));
     panel.append(items);
+    if (plan.masts.length) {
+      panel.append(ctx.field(T.useStrip, templateStyle === "strip", (checked) => {
+        templateStyle = checked ? "strip" : "leds";
+        ctx.render();
+      }, { checkbox: true }));
+      // Pins safe for an LED, once the new sensors have taken theirs.
+      const safe = Math.max(0, (ctx.safeOutputPins?.() ?? Infinity) - plan.sensors.length);
+      if (plan.pins > safe) panel.append(ui.paragraph(T.shortOfPins(plan.pins, safe), "mss-template-warning"));
+    }
     if (plan.replaces) panel.append(ui.paragraph(T.replaces, "hint"));
     const yes = el("button", "primary", T.apply);
     yes.type = "button";
     yes.addEventListener("click", () => {
-      MT.apply(config, id, ctx.addItems);
+      MT.apply(config, id, ctx.addItems, { style: templateStyle });
       pendingTemplate = "";
       ctx.persist();
       ctx.render();
