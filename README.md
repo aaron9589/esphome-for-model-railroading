@@ -22,6 +22,7 @@ A block publishes `ACTIVE` or `INACTIVE`. Leaving the block publishes `INACTIVE`
 
 - ESP32 with a CP2102 USB chip: https://www.aliexpress.com/item/1005004337178335.html
 - PCA9685 16-channel PWM board (up to two per ESP, 16 servos each)
+- Optional: MCP23017 I2C expander, for 16 more sensor pins when the ESP runs out
 - Servo Leads (the ones used in model aircraft - get a few different lengths)
 - Two power supplies: one for the ESP (about 6.5V into the board’s regulator) and a separate 5V supply for the servos. Keep both off the DCC bus so a track short doesn’t move points or signals.
 
@@ -94,7 +95,7 @@ Wiring, detector tuning, how points remember their positions, and the layout thi
 The configurator's **Logic** page lets a board work out its own signals, so they keep working when JMRI is closed. It is on the `feature/logic` branch and reaches the live configurator when that branch merges to `main`. Until then, run the configurator from the branch (`configurator/index.html`). It has two modes:
 
 - **Field Logic**: you build rules, from a starter, and the board follows them. Pick it when you want control of how signals and locks behave. Guide: [field-logic-guide.md](docs/field-logic-guide.md).
-- **MSS Logic**: you describe a module (its ends, tracks and junctions) and the board signals it like an MSS module, with no rules to write. Pick it for modules that pair at a meet. Guide: [mss-logic-guide.md](docs/mss-logic-guide.md).
+- **MSS Logic**: you describe a module (its ends, tracks and junctions), drawn as one picture of the module as you go, and the board signals it like an MSS module, with no rules to write. Pick it for modules that pair at a meet. Guide: [mss-logic-guide.md](docs/mss-logic-guide.md).
 
 Do the first board first. Read the Field Logic guide before the MSS one. The MSS guide leans on it.
 
