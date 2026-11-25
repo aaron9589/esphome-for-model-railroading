@@ -27,7 +27,7 @@
     starved: (rule, section) => `${rule} can be passed over forever: other trains keep getting section "${section}" while it waits. Use Show me to see how.`,
     neverActive: (rule) => `${rule} can never apply: no mix of trains, turnouts and signals makes its When and Only if true together. Look for a block that must be both occupied and clear.`,
     stuck: (mast) => `Signal "${mast}" can never show anything but Stop: no rule that sets it can apply. Check the rules that set it.`,
-    tooMany: (runs) => `This board has too many combinations to check every one, so the checker tried ${runs} random runs. It may not have found every problem.`,
+    tooMany: (runs, quick) => `This board has too many combinations to check every one${quick ? " quickly" : ""}, so the checker tried ${runs} random runs. It may not have found every problem.${quick ? " Use Check every combination on the Download page to check them all: it can take a few seconds." : ""}`,
     neverSeen: (rule, runs) => `${rule} did not apply in ${runs} random runs. It may never apply: look for a block that must be both occupied and clear.`,
     stuckSeen: (mast, runs) => `Signal "${mast}" showed only Stop in ${runs} random runs. Check the rules that set it.`,
   });
@@ -543,21 +543,32 @@
     return { complete, states: nodes.length, tried, active, leftStop, found };
   }
 
+  // The budgets (spec, Checking in the browser; measured in work item 4.5
+  // with test/bench/checker-limits.mjs). Validation runs on every change to
+  // the rules, so it must stay quick: what it cannot finish it tries in
+  // random runs, and says so. A full check is asked for on the Download page.
+  const BUDGETS = Object.freeze({
+    validation: Object.freeze({ maxStates: 2000, maxMs: 400, runs: 100, steps: 40, runsMs: 200, quick: true }),
+    full: Object.freeze({ maxStates: 30000, maxMs: 20000, runs: 1000, steps: 60, runsMs: 5000 }),
+  });
+
   /**
    * Check a board in the engine cases' format (EsphomeMrLogicYaml.logicTable).
-   * Options: maxStates (default 3000) and maxMs (default none), shared by its
-   * parts; runs and steps for the random fallback of each part that does not
-   * finish (default 200 x 40), seed (default 1). split: false checks the
-   * board as one part, and allInputs: true explores every input inputsOf
-   * gives: the tests compare them with the defaults.
+   * Options (default BUDGETS.full): maxStates and maxMs, shared by its parts;
+   * runs and steps for the random fallback of each part that does not finish,
+   * for at most runsMs more; quick (the partial warning then points at the
+   * full check); seed (default 1). split: false checks the board
+   * as one part, and allInputs: true explores every input inputsOf gives: the
+   * tests compare them with the defaults.
    * Returns { complete, states, runs, parts, problems: [{ level, kind, text,
    * rule?, mast?, sequence? }] }.
    */
   function checkBoard(board, options = {}) {
-    const { maxStates = 3000, maxMs = Infinity, runs = 200, steps = 40, seed = 1, split = true, allInputs = false } = options;
+    const { maxStates, maxMs, runs, steps, runsMs } = { ...BUDGETS.full, ...options };
+    const { seed = 1, split = true, allInputs = false, quick = false } = options;
     const started = Date.now();
     const deadline = started + maxMs;
-    const runsUntil = started + Math.max(maxMs, 0) * 2 + 1;
+    const runsUntil = deadline + runsMs;
 
     const parts = split ? partsOf(board) : [{ board, refOf: (ref) => ref }];
     let states = 0;
@@ -620,7 +631,7 @@
       if (leftStop.has(mast)) continue;
       problems.push({ level: "warning", kind: "stuck", mast, text: provenMasts.has(mast) ? TEXT.stuck(mast) : TEXT.stuckSeen(mast, tried) });
     }
-    if (!complete) problems.push({ level: "warning", kind: "partial", text: TEXT.tooMany(tried) });
+    if (!complete) problems.push({ level: "warning", kind: "partial", text: TEXT.tooMany(tried, quick) });
     return { complete, states, runs: tried, parts: parts.length, problems };
   }
 
@@ -682,15 +693,20 @@
 
   // The last check, by the rule table it ran on: the page asks on every draw.
   let last = { json: null, result: null };
+  const tableOf = (config) => {
+    const table = global.EsphomeMrLogicYaml?.logicTable(config);
+    return table && list(table.logic?.layers).length ? table : null;
+  };
 
   /**
-   * Check a configurator board (Field Logic). Memoised on the rule table, and
-   * bounded so the page stays quick: what it cannot finish, it says.
+   * Check a configurator board (Field Logic or MSS Logic). Memoised on the
+   * rule table, and bounded so the page stays quick (BUDGETS.validation):
+   * what it cannot finish, it says. A full check of the same rules, once
+   * made, is what it returns until they change.
    */
-  function checkConfig(config, options = { maxStates: 2000, maxMs: 250, runs: 100, steps: 40 }) {
-    const Y = global.EsphomeMrLogicYaml;
-    const table = Y?.logicTable(config);
-    if (!table || !list(table.logic?.layers).length) return null;
+  function checkConfig(config, options = BUDGETS.validation) {
+    const table = tableOf(config);
+    if (!table) return null;
     const json = JSON.stringify(table);
     if (last.json === json) return last.result;
     const result = checkBoard(table, options);
@@ -698,5 +714,22 @@
     return result;
   }
 
-  global.EsphomeMrLogicChecker = { TEXT, SELF, checkBoard, checkConfig, partsOf, checkerInputs, inputsOf, endSetup, endKey, isEndKey, ruleWords };
+  /** Check every combination (BUDGETS.full), for the Download page's button. */
+  function checkFully(config) {
+    const table = tableOf(config);
+    if (!table) return null;
+    const json = JSON.stringify(table);
+    if (last.json === json && last.result?.complete) return last.result;
+    const result = checkBoard(table, BUDGETS.full);
+    last = { json, result };
+    return result;
+  }
+
+  /** Whether the last check of these rules gave up: the Download page offers a full one. */
+  function needsFullCheck(config) {
+    const table = tableOf(config);
+    return !!table && last.json === JSON.stringify(table) && last.result?.complete === false;
+  }
+
+  global.EsphomeMrLogicChecker = { TEXT, SELF, BUDGETS, checkBoard, checkConfig, checkFully, needsFullCheck, partsOf, checkerInputs, inputsOf, endSetup, endKey, isEndKey, ruleWords };
 })(typeof globalThis !== "undefined" ? globalThis : window);

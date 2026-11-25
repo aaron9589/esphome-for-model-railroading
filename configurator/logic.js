@@ -154,11 +154,18 @@
     const closedGroups = [];
 
     // Inputs (rule 2): a value and two latches for this board's sensors and buttons.
+    // A map per kind, so a lookup builds no key (the checker runs many scans).
     const latched = new Map();
+    const latchedBy = { sensor: new Map(), button: new Map() };
     const input = (kind, name) => {
-      const key = `${kind}\u0000${name}`;
-      if (!latched.has(key)) latched.set(key, { value: false, on: false, off: false });
-      return latched.get(key);
+      const byName = latchedBy[kind];
+      let v = byName.get(name);
+      if (v === undefined) {
+        v = { value: false, on: false, off: false };
+        byName.set(name, v);
+        latched.set(`${kind}\u0000${name}`, v);
+      }
+      return v;
     };
     const turnouts = new Map(turnoutOrder.map((t) => [t, "closed"]));
     const remoteLocks = new Map(turnoutOrder.map((t) => [t, false]));
