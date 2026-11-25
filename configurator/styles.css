@@ -2583,3 +2583,60 @@ details.rule-more {
     position: static;
   }
 }
+
+/* MSS Logic Try it: the module picture, live. */
+.mss-module-wrap.is-live {
+  max-height: none;
+}
+
+.mss-module-route.is-set {
+  stroke: #111827;
+  stroke-width: 5;
+}
+
+.mss-module-route.is-unset {
+  stroke: var(--line-strong);
+  stroke-width: 3;
+}
+
+.mss-block.is-occupied rect:first-child {
+  stroke: #dc2626;
+}
+
+.mss-block .try-train-body {
+  fill: #dc2626;
+  stroke: none;
+}
+
+.mss-lamp {
+  fill: var(--line-strong);
+}
+
+.mss-lamp.tag-stop,
+.mss-lamp.tag-restricting {
+  fill: #dc2626;
+}
+
+.mss-lamp.tag-approach,
+.mss-lamp.tag-advance {
+  fill: #f5b301;
+}
+
+.mss-lamp.tag-clear {
+  fill: #16a34a;
+}
+
+.mss-module-throw {
+  cursor: pointer;
+}
+
+.mss-module-throw text {
+  fill: var(--accent);
+  font-weight: 650;
+  text-decoration: underline;
+}
+
+.mss-module-throw:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}

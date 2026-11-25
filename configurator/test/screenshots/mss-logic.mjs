@@ -262,6 +262,23 @@ await shot(signals, "14-east-signals");
 await signals.locator(".mss-signals-wrap").evaluate((el) => { el.scrollLeft = el.scrollWidth; });
 await shot(signals.locator(".mss-signals-wrap"), "15-east-signals-right");
 
+// Step 8: Try it, on the Logic page. A train in East's main line, then the
+// turnout thrown for the branch, then Run a train from End A.
+const tryCard = east.locator("#logic-try");
+const skip = () => tryCard.getByRole("button", { name: "Skip ahead 1 second" }).click();
+await tryCard.locator(".try-track g.mss-block", { hasText: "E Main current" }).click();
+await skip();
+await blur(east);
+await shot(tryCard.locator(".try-track"), "20-try-it-main");
+await tryCard.locator(".try-track g.mss-module-throw").first().click();
+await skip();
+await blur(east);
+await shot(tryCard.locator(".try-track"), "21-try-it-thrown");
+await tryCard.getByRole("button", { name: "Start again" }).click();
+await tryCard.locator(".try-train").getByRole("button", { name: "Run a train" }).click();
+await blur(east);
+await shot(tryCard.locator(".try-train"), "22-run-a-train");
+
 // Step 7: Download, and the module card it offers.
 await nav(east, "yaml");
 await shot(east.locator("#logic-download"), "17-download");

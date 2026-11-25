@@ -55,7 +55,7 @@ A new board starts with one example sensor (`Kiama/Up XOver`) and one example tu
 1. Open the **Logic** page.
 2. Set **Logic** to **MSS Logic**.
 
-The page now lists the steps under **Set up this module**: **Ends**, **Tracks**, **Junctions** (marked **Optional**), **Signals** and **Download**. Each has a short hint, and each name is a link to its part of the page. You can do them in any order and come back to any of them. A step with a problem says how many things there are to fix, in red. A step that is finished is crossed out and marked **Done**.
+The page now lists the steps under **Set up this module**: **Ends**, **Tracks**, **Junctions** (marked **Optional**), **Signals**, **Try it** and **Download**. Each has a short hint, and each name is a link to its part of the page. You can do them in any order and come back to any of them. A step with a problem says how many things there are to fix, in red. A step that is finished is crossed out and marked **Done**.
 
 Under **Settings** it says *Always on in MSS Logic: neighbouring boards read it.* Sharing with other boards is always on in this mode, so there is nothing to tick.
 
@@ -132,9 +132,9 @@ The other buttons under a block's form change the track: **Split this block in t
 
 Success looks like:
 - Nothing in the picture is red, and the track's title has no *to fix* at the end.
-- The ends from Step 2 no longer report having no track, and the **Ends** and **Tracks** steps are **Done**. On West, **Signals** is **Done** too, because its signals have the CATS aspects (Step 5), and **Download** is **Next**.
+- The ends from Step 2 no longer report having no track, and the **Ends** and **Tracks** steps are **Done**. On West, **Signals** is **Done** too, because its signals have the CATS aspects (Step 5), and **Try it** is **Next** (see [Try it](#try-it), before you flash).
 
-![The Set up this module steps for West: Ends, Tracks and Signals crossed out and Done, Junctions Optional, and Download Next](img/mss-logic/09-west-steps.png)
+![The Set up this module steps for West: Ends, Tracks and Signals crossed out and Done, Junctions Optional, Try it Next, then Download](img/mss-logic/09-west-steps.png)
 
 ---
 
@@ -301,13 +301,33 @@ If a board does not show **Online**, go to the first board guide's checks. If th
 
 ### Try it
 
-Try it runs a train through a module on the page, with a pretend neighbour at each end. At the time of writing, Try it is on the Field Logic page only. MSS Logic mode does not list a Try it step.
+Before you flash, run trains through the module on the page. **Try it** works the module's signals exactly as the board will, with nothing connected. It is the card near the bottom of the Logic page, and the **Try it** step links to it. Here it is on East.
 
-If you want to see it now, do it on a copy:
+Its buttons are along the top: **Run** lets time pass at normal speed, **Step** moves it on a tenth of a second, **Skip ahead 1 second** and **Skip ahead 10 seconds** jump, and **Start again** puts everything back.
 
-1. Download the board's file (`board.yaml`) and keep it.
-2. Use **Convert to Field Logic** (Step 12) on the page, then open **Try it**. Tick **pretend there is a neighbour** for each end, run a train in at an end, and watch the signals.
-3. Re-open the file you kept for the real board.
+Under **Track** is the picture of the module, live:
+
+- **Click a block** to put a train in it (a red bar), and click again to take it out.
+- **Each signal has a lamp** in the colour it shows: red for Stop, amber for Approach and Advance Approach, green for Clear.
+- **Click a turnout** under a junction (or under a block) to throw it. The route the turnouts set is drawn solid; the other is pale.
+
+Try this on East:
+
+1. Click the block with **E Main current** (towards End B), then **Skip ahead 1 second**. E Home, which faces into the junction, goes red: the main line beyond it is occupied. E Outer, behind it, shows amber.
+
+![Try it on East with a train in E Main: E Home red, E Outer amber, and the main route through J1 drawn solid with E P1 Closed](img/mss-logic/20-try-it-main.png)
+
+2. Click **E P1 Closed** under junction J1 to throw it, then **Skip ahead 1 second**. The route to End C is now solid, and E Home shows amber for the branch, which is clear, rather than red for the occupied main line.
+
+![The same, with E P1 Thrown: the diverging route to End C drawn solid, and E Home amber](img/mss-logic/21-try-it-thrown.png)
+
+**Run a train**, at the bottom of the card, runs a whole train for you. Pick where it **Comes in at** and its **Length in blocks**. Under them the page says the way it will go, block by block, and where it leaves: it follows the route the turnouts are set for, so throw them first. Click **Run a train**. A table appears with one row for each move of the train and every signal it meets at each step. Here the train runs in at End A on the main line: E Outer drops to Stop behind it, then comes back to Approach and Advance Approach as it goes.
+
+![Run a train from End A: the way through listed, and the table of steps with E Outer and E Home at each one](img/mss-logic/22-run-a-train.png)
+
+**Pretend neighbours.** Under **Pretend neighbours**, tick **pretend there is a neighbour** for an end. It stands in for the module next door: three blocks with a signal at each, answering the end as a real module would. With one ticked, **Run a train** offers to start the train in it, or carry it on into it, so you can watch the signals tumble down across the joint.
+
+**Inputs** lists every sensor, turnout and end, if you would rather set them from a list. **Show timing details**, at the bottom, explains what each signal's rules are doing.
 
 ---
 

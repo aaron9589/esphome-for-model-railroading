@@ -151,3 +151,82 @@ test("two tracks over each other: one track to a row instead", () => {
   assert.equal(shape.tracks[1].y1, shape.tracks[0].y1 + S.lane);
   assert.deepEqual(shape.junctions, []);
 });
+
+// ===== Try it: the built names, a train's path, and a train run =============
+
+const { EsphomeMr: M, EsphomeMrMssBuilder: Builder, EsphomeMrLogicTry: Try } = context;
+const CATS = ["R292", "R285", "ADV_NORM", "R281", "R282", "R283", "R286"];
+const junctionCase = JSON.parse(fs.readFileSync(path.join(configuratorDir, "test", "cases", "mss", "mss-junction-turnout.json"), "utf8")).module;
+
+// A full board for the case's module: its sensors, turnout and masts (with the CATS aspects), in MSS Logic.
+function junctionBoard() {
+  const config = M.myFirstBoardPreset();
+  const pins = ["GPIO14", "GPIO27", "GPIO26", "GPIO25", "GPIO33", "GPIO32", "GPIO35", "GPIO34"];
+  config.blocks = junctionCase.sensors.map((s, i) => ({ name: s, topic: M.topicFor("block", s), topicCustom: false, gpio: pins[i], inverted: true, debounce: "500ms" }));
+  config.points = junctionCase.turnouts.map((t, i) => ({ name: t, topic: M.topicFor("point", t), channel: i }));
+  config.signals = { mode: "addressable", masts: junctionCase.masts.map((name, i) => ({
+    name, topic: M.topicFor("signal", name), topicCustom: false, mode: "addressable", pin: ["GPIO16", "GPIO17", "GPIO19"][i],
+    lamps: [{ name: "Head", count: 1 }],
+    aspects: CATS.map((label, k) => ({ label, states: [`${label}; Lit; Unheld`], ...(k === 0 ? { startup: true } : {}), lamps: [{ color: k === 0 ? "red" : "green", mode: "steady" }] })),
+  })) };
+  config.logic = { mode: "mss", mss: plain(junctionCase.mss) };
+  return config;
+}
+
+test("namesOf: each block's and each signal's built name, by where it is in the description", () => {
+  const names = plain(Builder.namesOf(junctionBoard()));
+  assert.deepEqual(Object.keys(names.blocks), ["0:0", "0:1", "0:2", "1:0", "2:0"]);
+  const real = names.signals.filter((s) => !s.virtual);
+  assert.deepEqual(real, [
+    { name: "Outer", virtual: false, track: 0, boundary: 0, key: "towardsTo" },
+    { name: "Dist", virtual: false, track: 0, boundary: 1, key: "towardsTo" },
+    { name: "Home", virtual: false, junction: 0, leg: 1 },
+  ]);
+  // A boundary side with no signal gets one with no lights; it is listed too.
+  assert.ok(names.signals.some((s) => s.virtual && s.track === 0 && s.boundary === 0 && s.key === "towardsFrom"));
+});
+
+test("trainRoute: in at End A, along the route the turnout sets, out at End B or End C", () => {
+  const config = junctionBoard();
+  const names = Builder.namesOf(config).blocks;
+  const main = plain(Module.trainRoute(config, { end: "A", track: 1 }, () => "closed"));
+  assert.deepEqual(main.blocks, [names["0:0"], names["0:1"], names["0:2"], names["1:0"]]);
+  assert.deepEqual(main.masts, ["Outer", "Dist", "Home"]);
+  assert.deepEqual(main.exit, { end: "B", track: 1 });
+  const branch = plain(Module.trainRoute(config, { end: "A", track: 1 }, () => "thrown"));
+  assert.deepEqual(branch.blocks.slice(-1), [names["2:0"]]);
+  assert.deepEqual(branch.exit, { end: "C", track: 1 });
+  // The other way: from End B, back through the junction to End A. Those
+  // signals have no lights here, so none is met.
+  const back = plain(Module.trainRoute(config, { end: "B", track: 1 }, () => "closed"));
+  assert.deepEqual(back.blocks, [names["1:0"], names["0:2"], names["0:1"], names["0:0"]]);
+  assert.deepEqual(back.masts, []);
+  assert.deepEqual(back.exit, { end: "A", track: 1 });
+  // From End C with the turnout set for the main line: no route, so it stops at the junction.
+  const stuck = plain(Module.trainRoute(config, { end: "C", track: 1 }, () => "closed"));
+  assert.equal(stuck.stop, "route");
+  assert.deepEqual(stuck.blocks, [names["2:0"]]);
+  assert.equal(stuck.exit, null);
+});
+
+test("trainStarts: every end track a track uses", () => {
+  assert.deepEqual(plain(Module.trainStarts(junctionBoard())).map((s) => s.label), ["End A", "End B", "End C"]);
+});
+
+test("Try it runs an MSS board: a train from End A gives the tumbledown behind it", () => {
+  const config = junctionBoard();
+  const session = Try.createSession(config);
+  assert.ok(session, "an MSS board has rules to run");
+  const route = Module.trainRoute(config, { end: "A", track: 1 }, (name) => session.turnoutPosition(name) || "closed");
+  const steps = Try.runTrain(session, { path: route.blocks, masts: route.masts });
+  const tagOf = (step, name) => step.masts.find((m) => m.name === name)?.tag;
+  const names = Builder.namesOf(config).blocks;
+  const before = steps[0];
+  const occupied = (step) => step.blocks.filter((b) => b.occupied).map((b) => b.name);
+  const inBlock2 = steps.find((step) => JSON.stringify(occupied(step)) === JSON.stringify([names["0:1"]]));
+  assert.ok(inBlock2, "a step with the train in block 2 alone");
+  assert.notEqual(tagOf(before, "Outer"), "stop");
+  assert.equal(tagOf(inBlock2, "Outer"), "stop", "Outer, behind the train, is at Stop");
+  assert.notEqual(tagOf(inBlock2, "Dist"), "stop", "Dist, ahead of it, protects a clear block");
+  assert.equal(occupied(steps[steps.length - 1]).length, 0, "the train is gone at the end");
+});

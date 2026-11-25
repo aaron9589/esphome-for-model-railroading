@@ -798,8 +798,30 @@
     return count;
   }
 
+  /**
+   * What the built items are called, by the part of the description that
+   * made them, for Try it: { blocks: { "<track>:<block>": name }, signals:
+   * [{ name, virtual, track, boundary, key: "towardsFrom" | "towardsTo" }
+   * | { name, virtual, junction, leg }] } (track and junction are indexes in
+   * the description). A junction signal with no lights and no route to
+   * follow is not built, and is left out.
+   */
+  function namesOf(config) {
+    // A signal with lights is keyed `mast`, one with none `name`.
+    const built = new Set(build(config).masts.map((m) => m.mast ?? m.name));
+    const model = readModel(config);
+    const blocks = {};
+    for (const track of model.tracks.filter(buildable)) {
+      track.blocks.forEach((_, i) => { blocks[`${track.index}:${i}`] = TEXT.blockName(track.label, i + 1); });
+    }
+    const signals = signalPlaces(model).filter((s) => built.has(s.name)).map((s) => (s.junction
+      ? { name: s.name, virtual: s.virtual, junction: s.junction.index, leg: s.leg }
+      : { name: s.name, virtual: s.virtual, track: s.track.index, boundary: s.boundary, key: s.key }));
+    return { blocks, signals };
+  }
+
   global.EsphomeMrMssBuilder = {
     TEXT, PARTS, INDICATIONS,
-    build, problems, prefill, renameMast, renameAspect,
+    build, problems, prefill, renameMast, renameAspect, namesOf,
   };
 })(typeof globalThis !== "undefined" ? globalThis : window);

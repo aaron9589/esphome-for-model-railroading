@@ -40,6 +40,10 @@
     legLabel: (junction, leg) => `Junction ${junction}, leg ${leg}`,
     endAria: (label) => `${label}: go to its card`,
     itemAria: (track, label) => `Track ${track}, ${label}: edit it`,
+    tryBlockAria: (label, occupied) => `${label}: ${occupied ? "a train is in it. Click to take it out" : "empty. Click to put a train in it"}`,
+    tryTurnout: (name, position) => `${name} ${position}`,
+    tryTurnoutAria: (name, position) => `${name}: ${position}. Click to throw it`,
+    trainStart: (end, track, many) => (many ? `End ${end}, track ${track}` : `End ${end}`),
     junctionAria: (label) => `${label}: go to its card`,
   });
 
@@ -319,7 +323,7 @@
       }
       return out;
     });
-    return { index: t.index, x1: l.x, y1: l.y, x2: r.x, y2: r.y, bend, items, through: t.shape.through };
+    return { index: t.index, x1: l.x, y1: l.y, x2: r.x, y2: r.y, bend, items, through: t.shape.through, reversed };
   }
 
   // The junction's routes as paths between its legs, as on its own card.
@@ -366,6 +370,89 @@
       height: S.top + Math.max(0, sides.length - 1) * S.lane + S.bottom,
       rows: true, ends, places, tracks, junctions: [],
     };
+  }
+
+  // ===== Pure logic: a train's path =========================================
+
+  /**
+   * The way a train goes through the module from an end track: the built
+   * blocks it runs through and the signals it meets, in order, following the
+   * route the turnouts set at each junction (`positionOf(turnout)` says where
+   * each is). { blocks: [name], masts: [name], exit: { end, track } | null,
+   * stop: "" | "dead" | "route" } (a dead end, or a junction no route of
+   * which is set). Signals with no lights are left out of `masts`.
+   */
+  function trainRoute(config, start, positionOf = () => "closed") {
+    const B0 = B();
+    const mss = isObject(config?.logic?.mss) ? config.logic.mss : {};
+    const names = B0.namesOf(config);
+    const tracks = list(mss.tracks);
+    const junctions = list(mss.junctions);
+    const same = (a, b) => isObject(a) && isObject(b) && (a.end !== undefined
+      ? String(a.end) === String(b.end) && Number(a.track) === Number(b.track)
+      : String(a.junction) === String(b.junction) && Number(a.leg) === Number(b.leg));
+    const signal = (where) => names.signals.find((x) => Object.entries(where).every(([k, v]) => x[k] === v));
+    const out = { blocks: [], masts: [], exit: null, stop: "" };
+    const seen = new Set();
+    let place = { end: start?.end, track: Number(start?.track) || 1 };
+    for (;;) {
+      const index = tracks.findIndex((t, i) => !seen.has(i) && isObject(t) && (same(t.from, place) || same(t.to, place)));
+      if (index < 0) break;
+      seen.add(index);
+      const track = tracks[index];
+      const forward = same(track.from, place);
+      const count = list(track.blocks).length;
+      const order = [...Array(count).keys()];
+      if (!forward) order.reverse();
+      order.forEach((b, i) => {
+        // The signal at the block boundary before this block, facing the way the train goes.
+        if (i > 0) {
+          const boundary = forward ? b - 1 : b;
+          const s = signal({ track: index, boundary, key: forward ? "towardsTo" : "towardsFrom" });
+          if (s && !s.virtual) out.masts.push(s.name);
+        }
+        const name = names.blocks[`${index}:${b}`];
+        if (name) out.blocks.push(name);
+      });
+      const next = forward ? track.to : track.from;
+      if (!isObject(next)) {
+        out.stop = "dead";
+        break;
+      }
+      if (next.end !== undefined) {
+        out.exit = { end: String(next.end), track: Number(next.track) || 1 };
+        break;
+      }
+      // A junction: its signal on this leg, then the route the turnouts set.
+      const jIndex = junctions.findIndex((j) => isObject(j) && String(j.name ?? "").trim() === String(next.junction));
+      const junction = junctions[jIndex];
+      const leg = Number(next.leg);
+      const s = signal({ junction: jIndex, leg });
+      if (s && !s.virtual) out.masts.push(s.name);
+      const route = list(junction?.routes).find((r) => isObject(r) && list(r.legs).map(Number).includes(leg)
+        && list(r.turnouts).every((t) => !isObject(t) || !t.turnout || positionOf(t.turnout) === (t.position === "thrown" ? "thrown" : "closed")));
+      if (!route) {
+        out.stop = "route";
+        break;
+      }
+      place = { junction: String(next.junction), leg: list(route.legs).map(Number).find((l) => l !== leg) };
+    }
+    return out;
+  }
+
+  /** Every end track a train can start from: [{ end, track, label }]. */
+  function trainStarts(config) {
+    const mss = isObject(config?.logic?.mss) ? config.logic.mss : {};
+    const used = list(mss.tracks).flatMap((t) => (isObject(t) ? [t.from, t.to] : [])).filter((p) => isObject(p) && p.end !== undefined);
+    const out = [];
+    for (const end of list(mss.ends).filter(isObject)) {
+      const name = String(end.name ?? "").trim();
+      const count = Math.max(1, Number(end.tracks) || 1);
+      for (let track = 1; track <= count; track += 1) {
+        if (used.some((p) => String(p.end) === name && Number(p.track) === track)) out.push({ end: name, track, label: TEXT.trainStart(name, track, count > 1) });
+      }
+    }
+    return out;
   }
 
   // ===== The page ===========================================================
@@ -416,32 +503,62 @@
     }));
   }
 
-  function drawPicture(config, ctx, shape) {
+  // `live` (Try it): { names, tagOf(mast), occupied(block), position(turnout),
+  // toggleBlock(block), toggleTurnout(turnout) }. Without it the picture is the
+  // editor's: click to edit, problems in red.
+  function drawPicture(config, ctx, shape, live = null) {
     const T = Tracks();
     const TT = T.TEXT;
     const Marks = global.EsphomeMrLogicUiMssMarks;
-    const problems = B().problems(config);
+    const problems = live ? [] : B().problems(config);
     const status = (marks) => Marks.statusOf(problems, marks).status;
-    const picked = T.picked();
+    const picked = live ? null : T.picked();
+    const signalName = (where) => live?.names.signals.find((x) => Object.entries(where).every(([k, v]) => x[k] === v))?.name;
+    // A signal's name with a lamp in the colour it shows.
+    const lit = (text, mast, attrs) => {
+      const node = svg("text", attrs);
+      if (live && mast) node.append(svg("tspan", { class: `mss-lamp tag-${live.tagOf(mast) || "none"}` }, "● "));
+      node.append(svg("tspan", {}, text));
+      return node;
+    };
     const drawing = svg("svg", { class: "mss-module-picture", viewBox: `0 0 ${shape.width} ${shape.height}`, width: shape.width, height: shape.height, role: "group", "aria-label": TEXT.pictureLabel });
 
     // Junctions first, so tracks and their labels sit on top.
     for (const j of shape.junctions) {
       const flag = status({ part: B().PARTS.junctions, junction: String(j.index) });
-      const g = clickable({ class: `mss-module-junction${flag ? ` is-${flag}` : ""}` }, TEXT.junctionAria(j.label), () => goTo(`${B().PARTS.junctions}-${j.index}`));
+      const g = live
+        ? svg("g", { class: "mss-module-junction is-live" })
+        : clickable({ class: `mss-module-junction${flag ? ` is-${flag}` : ""}` }, TEXT.junctionAria(j.label), () => goTo(`${B().PARTS.junctions}-${j.index}`));
       g.append(svg("rect", { class: "mss-hit", x: j.x - 6, y: j.y - 24, width: j.w + 12, height: j.h + 48, rx: 8 }));
-      for (const path of j.paths) if (path.d) g.append(svg("path", { class: `mss-module-route${path.diverging ? " is-diverging" : ""}`, d: path.d }));
+      const routes = list(list(isObject(config?.logic?.mss) ? config.logic.mss.junctions : [])[j.index]?.routes);
+      const isSet = (route) => list(route?.turnouts).every((t) => !isObject(t) || !t.turnout || live.position(t.turnout) === (t.position === "thrown" ? "thrown" : "closed"));
+      for (const path of j.paths) {
+        if (!path.d) continue;
+        const state = live ? (isSet(routes[path.index]) ? " is-set" : " is-unset") : "";
+        g.append(svg("path", { class: `mss-module-route${path.diverging ? " is-diverging" : ""}${state}`, d: path.d }));
+      }
       for (const leg of j.legs) {
         g.append(svg("circle", { class: "mss-module-leg", cx: leg.x, cy: leg.y, r: 4 }));
+        const mast = live ? signalName({ junction: j.index, leg: leg.leg }) : null;
         if (leg.signal) {
           // Over the track it faces, just before the junction.
           const tx = leg.x + (leg.side < 0 ? -4 : 4);
-          g.append(svg("text", { class: "mss-module-signal", x: tx, y: leg.y - 26, "text-anchor": leg.side < 0 ? "end" : "start" },
-            leg.side < 0 ? TT.towardsToArrow(shorten(leg.signal, 14)) : TT.towardsFromArrow(shorten(leg.signal, 14))));
+          g.append(lit(leg.side < 0 ? TT.towardsToArrow(shorten(leg.signal, 14)) : TT.towardsFromArrow(shorten(leg.signal, 14)), mast,
+            { class: "mss-module-signal", x: tx, y: leg.y - 26, "text-anchor": leg.side < 0 ? "end" : "start" }));
         }
       }
       g.append(svg("text", { class: "mss-module-name", x: j.x + j.w / 2, y: j.y - 30, "text-anchor": "middle" }, j.label));
       drawing.append(g);
+      if (live) {
+        // Its turnouts, under it: click one to throw it.
+        const names = [...new Set(routes.flatMap((r) => list(r?.turnouts)).filter((t) => isObject(t) && t.turnout).map((t) => t.turnout))];
+        names.forEach((name, k) => {
+          const position = live.position(name) === "thrown" ? TT.thrown : TT.closed;
+          const tg = clickable({ class: "mss-module-throw" }, TEXT.tryTurnoutAria(name, position), () => live.toggleTurnout(name));
+          tg.append(svg("text", { x: j.x + j.w / 2, y: j.y + j.h + 30 + k * 18, "text-anchor": "middle" }, TEXT.tryTurnout(name, position)));
+          drawing.append(tg);
+        });
+      }
     }
 
     for (const t of shape.tracks) {
@@ -454,23 +571,47 @@
         const where = { part: B().PARTS.tracks, track: String(t.index), [item.kind]: String(item.index) };
         const flag = status(where);
         const isPicked = picked && picked.track === t.index && picked.kind === item.kind && picked.index === item.index;
-        const label = TEXT.itemAria(t.index + 1, item.label);
-        const g = clickable({ class: `mss-${item.kind}${isPicked ? " is-selected" : ""}${flag ? " has-problem" : ""}`, "aria-pressed": isPicked ? "true" : "false" },
-          label, () => pickItem(ctx, t.index, item));
+        const blockName = live && item.kind === "block" ? live.names.blocks[`${t.index}:${item.index}`] : null;
+        const occupied = blockName ? live.occupied(blockName) : false;
+        let g;
+        if (!live) {
+          g = clickable({ class: `mss-${item.kind}${isPicked ? " is-selected" : ""}${flag ? " has-problem" : ""}`, "aria-pressed": isPicked ? "true" : "false" },
+            TEXT.itemAria(t.index + 1, item.label), () => pickItem(ctx, t.index, item));
+        } else if (blockName) {
+          g = clickable({ class: `mss-block${occupied ? " is-occupied" : ""}` }, TEXT.tryBlockAria(blockName, occupied), () => live.toggleBlock(blockName));
+        } else {
+          g = svg("g", { class: `mss-${item.kind} is-live` });
+        }
         if (item.kind === "block") {
           const cx = item.x + item.w / 2;
           g.append(svg("rect", { x: item.x + 3, y: t.y1 - 20, width: item.w - 6, height: 40, rx: 6 }));
-          g.append(svg("text", { class: "mss-label", x: cx, y: t.y1 + 5, "text-anchor": "middle" }, item.sensors.length ? shorten(item.sensors.join(", "), 15) : TT.noSensor));
+          if (occupied) g.append(svg("rect", { class: "try-train-body", x: item.x + 14, y: t.y1 - 10, width: item.w - 28, height: 20, rx: 4 }));
+          else g.append(svg("text", { class: "mss-label", x: cx, y: t.y1 + 5, "text-anchor": "middle" }, item.sensors.length ? shorten(item.sensors.join(", "), 15) : TT.noSensor));
           g.append(svg("text", { class: "mss-sub", x: cx, y: t.y1 + 36, "text-anchor": "middle" }, item.label));
-          item.turnouts.forEach((u, k) => g.append(svg("text", { class: "mss-turnout", x: cx, y: t.y1 + 52 + k * 14, "text-anchor": "middle" },
-            TT.turnoutMark(shorten(u.turnout || "?", 12), u.position === "thrown" ? TT.thrown : TT.closed))));
+          item.turnouts.forEach((u, k) => {
+            if (live && u.turnout) {
+              // Where it is now; click to throw it.
+              const position = live.position(u.turnout) === "thrown" ? TT.thrown : TT.closed;
+              const tg = clickable({ class: "mss-module-throw" }, TEXT.tryTurnoutAria(u.turnout, position), () => live.toggleTurnout(u.turnout));
+              tg.append(svg("text", { x: cx, y: t.y1 + 52 + k * 16, "text-anchor": "middle" }, TEXT.tryTurnout(shorten(u.turnout, 12), position)));
+              drawing.append(tg);
+              return;
+            }
+            g.append(svg("text", { class: "mss-turnout", x: cx, y: t.y1 + 52 + k * 14, "text-anchor": "middle" },
+              TT.turnoutMark(shorten(u.turnout || "?", 12), u.position === "thrown" ? TT.thrown : TT.closed)));
+          });
         } else {
           g.append(svg("rect", { class: "mss-hit", x: item.x - item.w / 2, y: t.y1 - 30, width: item.w, height: 92 }));
           g.append(svg("line", { class: "mss-bar", x1: item.x, y1: t.y1 - 24, x2: item.x, y2: t.y1 + 24 }));
           g.append(svg("text", { class: "mss-sub", x: item.x, y: t.y1 + 38, "text-anchor": "middle" }, item.sensors.length ? shorten(item.sensors.join(", "), 14) : TT.noSensor));
-          const arrow = (y, name, text) => g.append(svg("text", { class: `mss-arrow${name ? "" : " is-none"}`, x: item.x, y, "text-anchor": "middle" }, name ? text(shorten(name, 12)) : TT.noSignal));
-          arrow(t.y1 + 54, item.left, TT.towardsFromArrow);
-          arrow(t.y1 + 70, item.right, TT.towardsToArrow);
+          // Each arrow's signal: given, or the one with no lights made there.
+          const keys = t.reversed ? ["towardsTo", "towardsFrom"] : ["towardsFrom", "towardsTo"];
+          const mastAt = (k) => (live ? signalName({ track: t.index, boundary: item.index, key: k }) : null);
+          const arrow = (y, name, text, mast) => g.append(name
+            ? lit(text(shorten(name, 12)), mast, { class: "mss-arrow", x: item.x, y, "text-anchor": "middle" })
+            : svg("text", { class: "mss-arrow is-none", x: item.x, y, "text-anchor": "middle" }, TT.noSignal));
+          arrow(t.y1 + 54, item.left, TT.towardsFromArrow, mastAt(keys[0]));
+          arrow(t.y1 + 70, item.right, TT.towardsToArrow, mastAt(keys[1]));
         }
         drawing.append(g);
       }
@@ -478,7 +619,9 @@
 
     for (const end of shape.ends) {
       const flag = status({ part: B().PARTS.ends, end: String(end.index) });
-      const g = clickable({ class: `mss-module-end${flag ? ` is-${flag}` : ""}` }, TEXT.endAria(end.label), () => goTo(`logic-mss-end-${end.index}`));
+      const g = live
+        ? svg("g", { class: "mss-module-end is-live" })
+        : clickable({ class: `mss-module-end${flag ? ` is-${flag}` : ""}` }, TEXT.endAria(end.label), () => goTo(`logic-mss-end-${end.index}`));
       g.append(svg("rect", { class: "mss-hit", x: end.x - 40, y: end.y - 44, width: 80, height: 70 }));
       g.append(svg("line", { class: "mss-module-plate", x1: end.x, y1: end.y - 18, x2: end.x, y2: end.y + 18 }));
       g.append(svg("text", { class: "mss-place", x: end.x, y: end.y - 26, "text-anchor": end.faces > 0 ? "start" : "end" }, end.label));
@@ -552,7 +695,17 @@
     }
   }
 
-  global.EsphomeMrLogicUiMssModule = { TEXT, PART, SIZES, layout, junctionShape };
+  // The picture for Try it: trains in the blocks, each signal lit, the
+  // turnouts clickable. Returns a wrap holding it, or null for an empty module.
+  function livePicture(config, ctx, live) {
+    const shape = layout(config);
+    if (!shape.tracks.length && !shape.junctions.length) return null;
+    const wrap = el("div", "mss-module-wrap is-live");
+    wrap.append(drawPicture(config, ctx, shape, live));
+    return wrap;
+  }
+
+  global.EsphomeMrLogicUiMssModule = { TEXT, PART, SIZES, layout, junctionShape, trainRoute, trainStarts, livePicture };
 
   if (global.EsphomeMrLogicUi) {
     global.EsphomeMrLogicUi.registerPart({ id: PART, order: 30, modes: ["mss"], text: TEXT, render: renderModule });
