@@ -30,7 +30,6 @@
         about: "This board behaves like an MSS module: describe its tracks and signals, and it works the signals out with no rules to write.",
       }),
     }),
-    inProgress: "Work in progress: you can write rules from scratch now. The starters and Try it come in a later version.",
     settingsCard: "Settings",
     shareLabel: "Share with other boards",
     shareHint: "Publishes this board's sensors, turnouts and signals so other boards can read them. On by default in Field Logic. Tick it on a board with no logic too, so its neighbours can see it.",
@@ -205,12 +204,6 @@
     about.className = "card-copy logic-mode-about";
     about.textContent = TEXT.modes[mode].about;
     fields.append(about);
-    if (mode === "field") {
-      const note = document.createElement("p");
-      note.className = "hint full";
-      note.textContent = TEXT.inProgress;
-      fields.append(note);
-    }
     section.append(fields);
     root.append(section);
   }
