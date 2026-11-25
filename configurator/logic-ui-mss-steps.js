@@ -440,7 +440,68 @@
       ol.append(item);
     }
     section.append(ol);
+    if (!global.EsphomeMrMssTemplates?.described(config)) section.append(templatePicker(config, ctx, ui));
     root.append(section);
+  }
+
+  // ===== Templates: a standard MSS module in one click ======================
+
+  let pendingTemplate = ""; // the template whose confirm panel is open
+
+  function templatePicker(config, ctx, ui) {
+    const MT = global.EsphomeMrMssTemplates;
+    const T = MT.TEXT;
+    const box = el("div", "mss-templates");
+    box.append(el("h4", "", T.heading), ui.paragraph(T.hint, "hint"));
+    const choices = el("div", "mss-template-choices");
+    for (const id of MT.IDS) {
+      const choice = el("div", `mss-template${pendingTemplate === id ? " is-open" : ""}`);
+      const pick = el("button", "", T.templates[id].title);
+      pick.type = "button";
+      pick.addEventListener("click", () => {
+        pendingTemplate = pendingTemplate === id ? "" : id;
+        ctx.render();
+      });
+      choice.append(pick, ctx.hintEl(T.templates[id].about));
+      choices.append(choice);
+    }
+    box.append(choices);
+    if (pendingTemplate) box.append(templateConfirm(config, ctx, ui, pendingTemplate));
+    return box;
+  }
+
+  function templateConfirm(config, ctx, ui, id) {
+    const MT = global.EsphomeMrMssTemplates;
+    const T = MT.TEXT;
+    const plan = MT.plan(config, id);
+    const panel = el("div", "mss-template-confirm");
+    panel.append(el("strong", "", T.confirm(plan.title)), ui.paragraph(T.adds, "hint"));
+    const items = el("ul", "");
+    if (plan.sensors.length) items.append(el("li", "", T.sensors(plan.sensors.join(", "))));
+    if (plan.turnouts.length) items.append(el("li", "", T.turnouts(plan.turnouts.join(", "))));
+    if (plan.masts.length) items.append(el("li", "", T.masts(plan.masts.join(", "))));
+    if (plan.kept.length) items.append(el("li", "", T.kept(plan.kept.join(", "))));
+    panel.append(items);
+    if (plan.replaces) panel.append(ui.paragraph(T.replaces, "hint"));
+    const yes = el("button", "primary", T.apply);
+    yes.type = "button";
+    yes.addEventListener("click", () => {
+      MT.apply(config, id, ctx.addItems);
+      pendingTemplate = "";
+      ctx.persist();
+      ctx.render();
+      ctx.flash?.("ok", T.done(plan.title));
+    });
+    const no = el("button", "", T.cancel);
+    no.type = "button";
+    no.addEventListener("click", () => {
+      pendingTemplate = "";
+      ctx.render();
+    });
+    const row = el("div", "dialog-actions");
+    row.append(no, yes);
+    panel.append(row);
+    return panel;
   }
 
   // ----- Ends -----
@@ -627,7 +688,9 @@
   const register = global.EsphomeMrLogicUi?.registerPart;
   if (register) {
     register({ id: "logic-mss-steps", order: 12, modes: ["mss"], text: TEXT, render: renderSteps });
-    register({ id: PART("ends"), order: 34, modes: ["mss"], render: renderEnds });
+    // The Ends part has no words of its own: it hands the lint the templates'
+    // (mss-templates.js), which the steps card shows.
+    register({ id: PART("ends"), order: 34, modes: ["mss"], text: global.EsphomeMrMssTemplates?.TEXT, render: renderEnds });
     register({ id: PART("signals"), order: 60, modes: ["mss"], render: renderSignals });
   }
 

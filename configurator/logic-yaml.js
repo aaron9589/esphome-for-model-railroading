@@ -999,7 +999,10 @@
         else if (!masts.has(track.mast)) r.error(ENDS, `${where} uses signal "${track.mast}", which is not on the Signal Masts page or a signal with no lights. Pick another.`);
       });
     }
-    // Pass-throughs that lead back to where they started.
+    // Pass-throughs that lead back to where they started. A track that passes
+    // through from A1 to B1 is the same track as B1 back to A1 (an MSS
+    // Crossover), and offers only what the far end hears from beyond, so that
+    // pair is not a circle; a chain through three or more end tracks is.
     const loops = new Set();
     for (const end of ends) {
       list(end.tracks).forEach((track, i) => {
@@ -1008,7 +1011,7 @@
         for (;;) {
           const key = `${at.end}\u0000${at.track}`;
           if (seen.has(key)) {
-            if (key === `${end.name}\u0000${i + 1}` && seen.size > 1) loops.add(`End "${end.name}" track ${i + 1}`);
+            if (key === `${end.name}\u0000${i + 1}` && seen.size > 2) loops.add(`End "${end.name}" track ${i + 1}`);
             return;
           }
           seen.add(key);

@@ -68,6 +68,26 @@ Success looks like:
 
 ---
 
+## A shortcut: start from a standard MSS module
+
+Under the steps, while the module is still empty, **Or start from a standard MSS module** offers the three MSS module types, as Iowa Scaled Engineering's boards build them:
+
+- **Crossover**: one block right across the module, one current detector, no signals (the ISE MSS-CROSSOVER board).
+- **Cascade**: two blocks with an IR sensor between them, and a signal facing each way (the ISE Block Signal board).
+- **Complex cascade (turnout)**: Block A runs to a turnout, then Block B on the main line and Block C on the branch, with a signal facing the turnout from each (the ISE Switch Signal board). Signal A has two heads: the upper head is the main line, the lower the branch.
+
+Click one. A panel lists what it will add: the sensors, the turnout and the signals, each signal a WS2812B LED on its own free pin, with the CATS aspects so the Signals grid fills itself in. Anything with the same name already on the board is used as it is. Click **Add it**, then check the pins on the Sensors, Turnouts and Signal Masts pages against your wiring.
+
+![The three standard modules under the steps, with Cascade picked: its panel lists the sensors Block A current, IR sensor and Block B current, and the signals Signal A and Signal B](img/mss-logic/23-template-confirm.png)
+
+The signals are named for the end their trains come in at, as on the ISE boards: **Signal A** faces trains coming in at end A. Here is the Complex cascade, one click later:
+
+![The module picture after Complex cascade: End A, Block A current, Signal A ▶ facing junction J1, the main line to Block B current and End B with ◀ Signal B, and the branch down to Block C current and End C with ◀ Signal C](img/mss-logic/24-template-switch.png)
+
+West, in the worked example, is a Cascade with its own names, and East is a Complex cascade with two blocks before the turnout. The steps below build them by hand, so you can see each part, and change a template's module to fit yours.
+
+---
+
 ## Step 2: Ends
 
 An end is where track leaves the module and meets the next one. Name each end with the letter marked on the module.

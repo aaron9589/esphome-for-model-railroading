@@ -2373,8 +2373,27 @@ function renderJmriSummary() {
   document.getElementById("btn-download-jmri").disabled = total === 0;
 }
 
+// Items a Logic page part asks for (an MSS template): sensors and turnouts by
+// name, signal masts without a pin. Each gets a free pin, as its page's Add
+// button would give it. The caller saves and draws.
+function addItems({ sensors = [], turnouts = [], masts = [] } = {}) {
+  for (const name of sensors) {
+    state.blocks.push({ name, topic: topicFor("block", name), topicCustom: false, ...nextSensorPin(), inverted: true, debounce: "500ms" });
+  }
+  for (const name of turnouts) {
+    state.points.push({
+      name, topic: topicFor("point", name), topicCustom: false, pcaBoard: 0, channel: nextChannel(0),
+      servoPin: usesPca() ? "" : nextServoPin(), travelTime: "10s", controls: [],
+    });
+  }
+  for (const mast of masts) {
+    const leds = mast.lamps.reduce((n, lamp) => n + (Number(lamp.count) || 1), 0);
+    state.signals.masts.push({ ...mast, topic: topicFor("signal", mast.name), topicCustom: false, mode: "addressable", pin: nextServoPin(), numLeds: leds });
+  }
+}
+
 function renderLogic() {
-  renderLogicPage(el.logicPage, { config: state, field, hintEl, persist, render, showView, flash, pinChoices, blockPinChoices, mastPicture });
+  renderLogicPage(el.logicPage, { config: state, field, hintEl, persist, render, showView, flash, pinChoices, blockPinChoices, mastPicture, addItems });
 }
 
 function render() {

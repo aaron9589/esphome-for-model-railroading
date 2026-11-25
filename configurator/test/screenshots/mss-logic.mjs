@@ -154,6 +154,14 @@ await chooseMss(page);
 await blur(page);
 await shotSpan(page, "#logic-mode", "#logic-settings", "02-choose-mss-logic");
 
+// A shortcut: the standard MSS modules. Open Cascade's confirm panel, then
+// Cancel, so West is still built by hand as the guide goes on to do.
+const steps = page.locator("#logic-mss-steps");
+await steps.getByRole("button", { name: "Cascade", exact: true }).click();
+await blur(page);
+await shot(steps.locator(".mss-templates"), "23-template-confirm");
+await steps.getByRole("button", { name: "Cancel" }).click();
+
 // Step 2: Ends. Two ends, each with one track; no tracks yet, so red dots.
 await addEnds(page, 2);
 await blur(page);
@@ -296,6 +304,17 @@ await cardPage.close();
 fs.rmSync(cardFile);
 
 await east.context().close();
+
+// A third board from the Complex cascade template: one click, then the picture.
+const sw = await freshPage();
+await fillBoard(sw, "kiama-switch");
+await chooseMss(sw);
+await sw.locator("#logic-mss-steps").getByRole("button", { name: "Complex cascade (turnout)" }).click();
+await sw.locator("#logic-mss-steps").getByRole("button", { name: "Add it" }).click();
+await blur(sw);
+await shot(picture(sw), "24-template-switch");
+console.log(`template board messages: ${JSON.stringify(await sw.locator("#messages").innerText())}`);
+await sw.context().close();
 await done();
 for (const file of extra) console.log(`saved ${file}`);
 if (errors.length) {
