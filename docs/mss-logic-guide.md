@@ -110,7 +110,7 @@ Add the block boundary:
 
 ![The strip after Add a block boundary: Block 1, Block boundary 1 picked and drawn blue, and Block 2. Each says no sensor, and the block boundary says no signal twice](img/mss-logic/06-track-boundary.png)
 
-4. Click **Block 1** on the strip. Under **Sensors**, pick **W1 current** from the **Add a sensor...** list. It shows as a chip, and on the strip in place of *no sensor*. Click **Block 2** and do the same with **W2 current**. A block can have more than one sensor: pick another from the same list. The **×** on a chip takes it off.
+4. Click **Block 1** on the strip. Under **Sensors**, pick **W1 current** from the **Add a sensor…** list. It shows as a chip, and on the strip in place of *no sensor*. Click **Block 2** and do the same with **W2 current**. A block can have more than one sensor: pick another from the same list. The **×** on a chip takes it off.
 
 ![Block 1 picked on the strip and showing W1 current, with W1 current as a chip under Sensors. Block 2 and the block boundary are still red: they have no sensor yet](img/mss-logic/07-track-block.png)
 
@@ -133,8 +133,6 @@ Success looks like:
 - The ends from Step 2 no longer report having no track, and the **Ends** and **Tracks** steps are **Done**. On West, **Signals** is **Done** too, because its signals have the CATS aspects (Step 5), and **Download** is **Next**.
 
 ![The Set up this module steps for West: Ends, Tracks and Signals crossed out and Done, Junctions Optional, and Download Next](img/mss-logic/09-west-steps.png)
-
-At the time of writing, picking on the strip redraws only the strip and its form. If a red mark or message stays after you have fixed it, or a signal you picked is missing from the Signals grid, reload the page. It keeps your work and draws everything again.
 
 ---
 

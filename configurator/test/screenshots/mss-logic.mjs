@@ -38,15 +38,6 @@ async function shotSpan(p, first, last, name) {
   extra.push(path.relative(repoDir, file));
 }
 
-// Picking on a strip redraws only the strip and its form: the steps, red dots,
-// Signals grid and messages keep their old state until the page next draws
-// itself (a page bug, see the report). Reloading draws it again from what was
-// saved, as a person would see after any other change.
-async function redrawPage(p) {
-  await p.reload();
-  await unstickTopBar(p);
-  await nav(p, "logic");
-}
 
 // Nothing focused, so no focus ring or selected text in a picture.
 const blur = (p) => p.evaluate(() => document.activeElement?.blur());
@@ -137,7 +128,7 @@ async function addEnds(p, count) {
 const pickOnStrip = (p, n, label) => trackCard(p, n).locator(`.mss-strip g[aria-label="${label}"]`).click();
 
 // Pick a sensor for the block or boundary shown under the strip.
-const pickSensor = (p, n, name) => form(p, n).getByLabel("Add a sensor...").selectOption({ label: name });
+const pickSensor = (p, n, name) => form(p, n).getByLabel("Add a sensor…").selectOption({ label: name });
 
 async function setPlace(p, n, side, text) {
   await trackCard(p, n).getByLabel(side, { exact: true }).selectOption({ label: text });
@@ -170,7 +161,6 @@ await trackCard(page, 0).getByRole("button", { name: "Add a block boundary" }).c
 await shot(trackCard(page, 0).locator(".mss-strip-wrap"), "06-track-boundary");
 await pickOnStrip(page, 0, "Block 1");
 await pickSensor(page, 0, "W1 current");
-await redrawPage(page);
 await pickOnStrip(page, 0, "Block 1");
 await shot(trackCard(page, 0).locator(".mss-body"), "07-track-block");
 await pickOnStrip(page, 0, "Block 2");
@@ -179,7 +169,6 @@ await pickOnStrip(page, 0, "Block boundary 1");
 await pickSensor(page, 0, "W12 optical");
 await form(page, 0).getByLabel("Signal for trains heading towards End B, track 1").selectOption({ label: "W toward B" });
 await form(page, 0).getByLabel("Signal for trains heading towards End A, track 1").selectOption({ label: "W toward A" });
-await redrawPage(page);
 await pickOnStrip(page, 0, "Block boundary 1");
 await shot(trackCard(page, 0), "08-west-track");
 await shot("#logic-mss-steps", "09-west-steps");
@@ -235,7 +224,6 @@ await pickSensor(east, 0, "E12 optical");
 await form(east, 0).getByLabel("Signal for trains heading towards Junction J1, leg 1").selectOption({ label: "E Outer" });
 await pickSensor(east, 1, "E Main current");
 await pickSensor(east, 2, "E Branch current");
-await redrawPage(east);
 await pickOnStrip(east, 0, "Block boundary 1");
 await shot(trackCard(east, 0), "11-east-track-1");
 
