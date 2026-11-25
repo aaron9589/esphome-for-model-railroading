@@ -70,7 +70,8 @@
   }
 
   // A condition's value: `is` may be a list (a mast's tags); elsewhere its first value counts.
-  // (Not [].concat(c.is)[0]: the checker calls this millions of times.)
+  // (Not [].concat(c.is)[0]: the checker calls this millions of times. Same
+  // result, so the C++ core needs no change.)
   const first = (c) => (Array.isArray(c.is) ? c.is[0] : c.is);
 
   // --- The engine ----------------------------------------------------------
@@ -155,6 +156,7 @@
 
     // Inputs (rule 2): a value and two latches for this board's sensors and buttons.
     // A map per kind, so a lookup builds no key (the checker runs many scans).
+    // Speed only: the same inputs and latches, so no C++ change.
     const latched = new Map();
     const latchedBy = { sensor: new Map(), button: new Map() };
     const input = (kind, name) => {
@@ -296,7 +298,8 @@
     }
 
     // A moment's key, made once per moment: rule definitions do not change
-    // while an engine runs, and the checker runs many short engines.
+    // while an engine runs, and the checker runs many short engines. Speed
+    // only: the same key, so no C++ change.
     const momentKeys = new WeakMap();
     const momentKey = (m) => {
       if (!momentKeys.has(m)) momentKeys.set(m, JSON.stringify(m));

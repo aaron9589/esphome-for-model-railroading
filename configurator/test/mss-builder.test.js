@@ -348,4 +348,43 @@ test("renaming a sensor, turnout, mast or aspect on its page renames it in the d
   same(mss.masts, [{ mast: "J1 Home", aspects: { clear: "Clear" } }]);
 });
 
+// ===== The checker on MSS Logic (work item 4.5) ===============================
+
+const { EsphomeMrLogicChecker: Checker, EsphomeMrLogicUiStart: Start } = context;
+const PARTIAL = /too many combinations to check every one quickly/;
+
+test("the checker runs on an MSS board: a junction module passes a full check, which the Download page offers", () => {
+  const config = junctionModule();
+  const quick = validateConfig(config);
+  same(quick.errors, []);
+  // The quick check may not finish a junction module; if not, it says so and
+  // the Download page offers the full check.
+  const partial = quick.warnings.find((w) => PARTIAL.test(w));
+  same(!!partial, Checker.needsFullCheck(config));
+  if (partial) {
+    same(quick.links.get(partial).part, B.PARTS.tracks);
+    same(plain(Start.downloadLogic(config, quick).fullCheck).button, "Check every combination");
+  }
+  const full = Checker.checkFully(config);
+  same([full.complete, full.problems], [true, []]);
+  assert.ok(full.parts > 1, `${full.parts} parts`);
+  // Now validation has every combination checked, and nothing is offered.
+  const after = validateConfig(config);
+  same(after.warnings.filter((w) => PARTIAL.test(w)), []);
+  same(Start.downloadLogic(config, after).fullCheck, null);
+});
+
+test("the checker finds what the description cannot show: a route that needs a turnout both ways", () => {
+  const config = junctionModule();
+  config.logic.mss.junctions[0].routes[0].turnouts.push({ turnout: "P1", position: "thrown" });
+  same(B.problems(config), []);
+  Checker.checkFully(config);
+  const { errors, warnings, links } = validateConfig(config);
+  same(errors, []);
+  const stuck = warnings.find((w) => /Signal "J1 leg 2 signal" can never show anything but Stop/.test(w));
+  assert.ok(stuck, warnings.join("\n"));
+  same(links.get(stuck), { view: "logic", part: B.PARTS.junctions, junction: 0, leg: 2 });
+  assert.ok(warnings.some((w) => /Rule 1 in group "Home" can never apply/.test(w)));
+});
+
 if (!process.exitCode) console.log("\nAll MSS builder tests passed.");

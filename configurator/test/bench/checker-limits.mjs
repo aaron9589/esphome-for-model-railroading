@@ -4,10 +4,10 @@
 //   node test/bench/checker-limits.mjs            every board, full check
 //   node test/bench/checker-limits.mjs four       only boards whose name has "four"
 //
-// For each board it prints the inputs the checker explores, the rules, the
-// states it reached, whether the full check finished, and the time, first
-// with no budget (up to CAP states) and then at the validation budget
-// (checkConfig's default) and the full-check budget (checkBoard's default).
+// For each board it prints the inputs (inputsOf, as Try it offers them), the
+// rules, the parts and the inputs each part explores, then the states, whether
+// the check finished, and the time: with no budget (up to CAP states, default
+// 100000, no time limit), at BUDGETS.validation and at BUDGETS.full.
 import fs from "node:fs";
 import path from "node:path";
 import { configuratorDir, loadModules } from "../harness.js";
@@ -47,9 +47,9 @@ function mssTable(name, module) {
 
 // ===== A four-entrance one-train section, as the starter writes it ==========
 
-function fourEntrances({ leave = false, sectionBlocks = 1, approachLock = "" } = {}) {
+function fourEntrances({ leave = false, sectionBlocks = 1, approachLock = "", entrances = 4 } = {}) {
   const tags = { R292: "stop", R281: "clear" };
-  const waiting = ["North", "South", "East", "West"];
+  const waiting = ["North", "South", "East", "West"].slice(0, entrances);
   const inside = Array.from({ length: sectionBlocks }, (_, i) => `Bridge ${i + 1}`);
   const masts = Object.fromEntries(waiting.map((w) => [`${w} Bridge`, { aspects: tags }]));
   const config = {
@@ -72,6 +72,8 @@ function fourEntrances({ leave = false, sectionBlocks = 1, approachLock = "" } =
 const boards = [];
 const add = (name, board) => boards.push({ name, board });
 
+add("two entrances, one block", fourEntrances({ entrances: 2 }));
+add("three entrances, one block", fourEntrances({ entrances: 3 }));
 add("four entrances, one block", fourEntrances());
 add("four entrances, one block, leaving guard", fourEntrances({ leave: true }));
 add("four entrances, one block, hold 10s", fourEntrances({ approachLock: "10s" }));
@@ -89,9 +91,9 @@ for (const [name, board] of Object.entries(readCase("ends-three-boards-turned.js
 
 const only = process.argv[2];
 const budgets = [
-  ["none", { maxStates: CAP }],
-  ["validation", { maxStates: 2000, maxMs: 250, runs: 100, steps: 40 }],
-  ["full", {}],
+  ["none", { maxStates: CAP, maxMs: Infinity }],
+  ["validation", C.BUDGETS.validation],
+  ["full", C.BUDGETS.full],
 ];
 const rules = (board) => (board.logic?.layers || []).reduce((n, layer) => n + (layer.rules || []).length, 0);
 const rows = [];
@@ -109,7 +111,7 @@ for (const { name, board } of boards) {
   rows.push(row);
   console.log(JSON.stringify(row));
 }
-console.log("\n| Board | Inputs | Rules | Parts (inputs each) | No budget | Validation (2000, 250 ms) | Full (3000) | Problems |");
+console.log("\n| Board | Inputs | Rules | Parts (inputs each) | No budget | Validation | Full | Problems |");
 console.log("|---|---|---|---|---|---|---|---|");
 for (const r of rows) console.log(`| ${r.board} | ${r.inputs} | ${r.rules} | ${r.parts} | ${r.none} | ${r.validation} | ${r.full} | ${r.problems} |`);
-console.log(`\nStates with + did not finish. Node ${process.version}.`);
+console.log(`\nStates with + did not finish (random runs after). Node ${process.version}. Budgets: ${JSON.stringify(C.BUDGETS)}`);

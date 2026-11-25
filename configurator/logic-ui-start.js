@@ -56,6 +56,9 @@
     noWarnings: "No warnings about the logic.",
     warningsHint: "Warnings do not stop the download. Check each one is what you meant.",
     errorsNote: (n) => `${n} problem${n === 1 ? "" : "s"} must be fixed before you can download. ${n === 1 ? "It is" : "They are"} listed at the top of the page.`,
+    checkFully: "Check every combination",
+    checkFullyHint: "The quick check could not try every mix of trains, turnouts and signals on this board, so it tried some at random. This tries them all. It can take a few seconds, and the page waits until it is done.",
+    checking: "Checking…",
     starterForms: starterText,
   });
 
@@ -281,9 +284,11 @@
   /**
    * What the Download page shows about the logic, or null outside Field
    * Logic: { title, version, hint, warningsTitle, warnings: [{ text, link }],
-   * noWarnings, warningsHint, errorsNote }. `warnings` are validation's
-   * warnings that point at the Logic page; the rest are in the box at the top
-   * of every page. `errorsNote` is "" with no errors.
+   * noWarnings, warningsHint, errorsNote, fullCheck }. `warnings` are
+   * validation's warnings that point at the Logic page; the rest are in the
+   * box at the top of every page. `errorsNote` is "" with no errors.
+   * `fullCheck` is { button, hint, checking } when the quick check of these
+   * rules did not finish (work item 4.5), else null.
    */
   function downloadLogic(config, validation) {
     if (!["field", "mss"].includes(global.EsphomeMr.logicMode(config))) return null;
@@ -298,6 +303,9 @@
       noWarnings: TEXT.noWarnings,
       warningsHint: TEXT.warningsHint,
       errorsNote: errors.length ? TEXT.errorsNote(errors.length) : "",
+      fullCheck: global.EsphomeMrLogicChecker?.needsFullCheck(config)
+        ? { button: TEXT.checkFully, hint: TEXT.checkFullyHint, checking: TEXT.checking }
+        : null,
     };
   }
 
