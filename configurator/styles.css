@@ -490,6 +490,12 @@ label {
   font-weight: 650;
 }
 
+/* A section's label followed straight by its hint: the hint goes under it. */
+.field-label + .hint {
+  display: block;
+  margin: 0.1rem 0 0.45rem;
+}
+
 .hint {
   color: var(--muted);
   font-size: 0.78rem;
@@ -1784,6 +1790,24 @@ details.rule-more {
   align-items: flex-end;
 }
 
+/* In a starter's form, lists of rows and More options take the full width;
+   only single fields such as Name sit in the two columns. */
+.starter-fields > .starter-rows,
+.starter-fields > .starter-row,
+.starter-fields > details,
+.starter-fields > button {
+  grid-column: 1 / -1;
+}
+
+.starter-entrance > strong {
+  flex-basis: 100%;
+}
+
+.starter-rows > button,
+.starter-fields > button {
+  justify-self: start;
+}
+
 .starter-aspect {
   display: inline-flex;
   gap: 0.5rem;
@@ -2091,6 +2115,12 @@ details.rule-more {
 .mss-through {
   fill: var(--muted);
   font-weight: 600;
+}
+
+/* A heading inside an MSS card sits on its own line. */
+.mss-form .field-label,
+.mssj-junction .field-label {
+  display: block;
 }
 
 .mss-block,

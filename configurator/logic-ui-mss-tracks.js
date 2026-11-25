@@ -53,7 +53,7 @@
     blockHint: "Pick the current sensor, and any turnouts in this block with the position that is the main line.",
     sensorsLabel: "Sensors",
     sensorsEmpty: "No sensors yet.",
-    addSensor: "Add a sensor...",
+    addSensor: "Add a sensor…",
     noSensors: "Add sensors on the Sensors page, then pick them here.",
     removeSensor: (name) => `Remove ${name}`,
     turnoutsLabel: "Turnouts in this block",
@@ -351,9 +351,9 @@
     const height = 150;
     const drawing = svg("svg", { class: "mss-strip", viewBox: `0 0 ${shape.width} ${height}`, width: shape.width, height, role: "group", "aria-label": TEXT.stripLabel(`${shape.from} to ${shape.to}`) });
     drawing.append(svg("line", { class: "mss-rail", x1: 8, y1: 62, x2: shape.width - 8, y2: 62 }));
-    drawing.append(svg("text", { class: "mss-place", x: 4, y: 28, "text-anchor": "start" }, shorten(shape.from, 22)));
-    drawing.append(svg("text", { class: "mss-place", x: shape.width - 4, y: 28, "text-anchor": "end" }, shorten(shape.to, 22)));
-    if (shape.through) drawing.append(svg("text", { class: "mss-through", x: shape.width / 2, y: 18, "text-anchor": "middle" }, TEXT.through));
+    drawing.append(svg("text", { class: "mss-place", x: 4, y: 32, "text-anchor": "start" }, shorten(shape.from, 22)));
+    drawing.append(svg("text", { class: "mss-place", x: shape.width - 4, y: 32, "text-anchor": "end" }, shorten(shape.to, 22)));
+    if (shape.through) drawing.append(svg("text", { class: "mss-through", x: shape.width / 2, y: 12, "text-anchor": "middle" }, TEXT.through));
     for (const item of shape.items) {
       const picked = current.kind === item.kind && current.index === item.index;
       const issues = (item.kind === "block" ? found.blocks : found.boundaries)[item.index];
@@ -393,7 +393,7 @@
     const chips = el("div", "mss-chips");
     for (const name of list(item.sensors)) {
       const chip = el("span", "mss-chip", name);
-      const remove = button("×", () => { removeSensor(item, name); ctx.persist(); redraw(); });
+      const remove = button("×", () => { removeSensor(item, name); redraw(); });
       remove.setAttribute("aria-label", TEXT.removeSensor(name));
       chip.append(remove);
       chips.append(chip);
@@ -405,7 +405,7 @@
     else {
       const taken = new Set(item.sensors);
       const open = groups.map((g) => ({ ...g, options: g.options.filter((o) => !taken.has(o.value)) })).filter((g) => g.options.length);
-      if (open.length) box.append(ui.selectEl(open, "", (name) => { if (addSensor(item, name)) { ctx.persist(); redraw(); } }, { prompt: TEXT.addSensor, label: TEXT.addSensor }));
+      if (open.length) box.append(ui.selectEl(open, "", (name) => { if (addSensor(item, name)) { redraw(); } }, { prompt: TEXT.addSensor, label: TEXT.addSensor }));
     }
     return box;
   }
@@ -421,21 +421,21 @@
     block.turnouts.forEach((entry, k) => {
       if (!isObject(entry)) block.turnouts[k] = { turnout: "", position: "closed" };
       const row = el("div", "mss-turnout-row");
-      row.append(ui.selectEl(ui.itemChoices(config, "turnout"), block.turnouts[k].turnout, (name) => { block.turnouts[k].turnout = name || ""; ctx.persist(); redraw(); }, { prompt: TEXT.pickTurnout, label: TEXT.pickTurnout }));
-      row.append(ctx.field(TEXT.positionLabel, block.turnouts[k].position === "thrown" ? "thrown" : "closed", (value) => { block.turnouts[k].position = value; ctx.persist(); redraw(); }, { select: [{ value: "closed", label: TEXT.closed }, { value: "thrown", label: TEXT.thrown }] }));
-      row.append(button(TEXT.removeTurnout, () => { removeTurnout(block, k); ctx.persist(); redraw(); }, "remove"));
+      row.append(ui.selectEl(ui.itemChoices(config, "turnout"), block.turnouts[k].turnout, (name) => { block.turnouts[k].turnout = name || ""; redraw(); }, { prompt: TEXT.pickTurnout, label: TEXT.pickTurnout }));
+      row.append(ctx.field(TEXT.positionLabel, block.turnouts[k].position === "thrown" ? "thrown" : "closed", (value) => { block.turnouts[k].position = value; redraw(); }, { select: [{ value: "closed", label: TEXT.closed }, { value: "thrown", label: TEXT.thrown }] }));
+      row.append(button(TEXT.removeTurnout, () => { removeTurnout(block, k); redraw(); }, "remove"));
       turnouts.append(row);
     });
-    turnouts.append(button(TEXT.addTurnout, () => { addTurnout(block); ctx.persist(); redraw(); }));
+    turnouts.append(button(TEXT.addTurnout, () => { addTurnout(block); redraw(); }));
     form.append(turnouts);
     const actions = el("div", "row-actions");
     actions.append(
-      button(TEXT.splitBlock, () => { splitBlock(track, i); ctx.persist(); redraw({ kind: "block", index: i }); }),
-      button(TEXT.moveBefore, () => { const j = moveBlock(track, i, -1); if (j >= 0) { ctx.persist(); redraw({ kind: "block", index: j }); } }),
-      button(TEXT.moveAfter, () => { const j = moveBlock(track, i, 1); if (j >= 0) { ctx.persist(); redraw({ kind: "block", index: j }); } }),
+      button(TEXT.splitBlock, () => { splitBlock(track, i); redraw({ kind: "block", index: i }); }),
+      button(TEXT.moveBefore, () => { const j = moveBlock(track, i, -1); if (j >= 0) { redraw({ kind: "block", index: j }); } }),
+      button(TEXT.moveAfter, () => { const j = moveBlock(track, i, 1); if (j >= 0) { redraw({ kind: "block", index: j }); } }),
     );
     if (track.blocks.length > 1) {
-      actions.append(button(TEXT.removeBlock, () => { removeBlock(track, i); ctx.persist(); redraw({ kind: "block", index: Math.max(0, i - 1) }); }, "remove"));
+      actions.append(button(TEXT.removeBlock, () => { removeBlock(track, i); redraw({ kind: "block", index: Math.max(0, i - 1) }); }, "remove"));
       form.append(actions, ctx.hintEl(TEXT.removeBlockHint));
     } else form.append(actions);
     return form;
@@ -451,7 +451,7 @@
     for (const [side, key, label] of [["from", "towardsFrom", TEXT.towardsFromLabel(placeText(track.from))], ["to", "towardsTo", TEXT.towardsToLabel(placeText(track.to))]]) {
       const wrap = el("label");
       wrap.append(el("span", "field-label", label));
-      wrap.append(ui.selectEl(ui.itemChoices(config, "mast"), boundary[key] || "", (mast) => { setSignal(boundary, side, mast); ctx.persist(); redraw(); }, { prompt: TEXT.noSignal, label }));
+      wrap.append(ui.selectEl(ui.itemChoices(config, "mast"), boundary[key] || "", (mast) => { setSignal(boundary, side, mast); redraw(); }, { prompt: TEXT.noSignal, label }));
       signals.append(wrap);
     }
     form.append(signals, ctx.hintEl(TEXT.signalNote));
@@ -515,6 +515,14 @@
     if (found.track.length) card.append(problemList(found.track));
     const body = el("div", "mss-body");
     card.append(body);
+    // Picking on the strip only redraws the strip. A change saves and draws
+    // the whole page again, so the problems, the steps and the Signals grid
+    // follow it; the picked block or boundary is kept.
+    const changed = (next) => {
+      if (next) selected.set(index, next);
+      ctx.persist();
+      ctx.render();
+    };
     const draw = (next) => {
       if (next) selected.set(index, next);
       const current = fixSelection(track, selected.get(index));
@@ -522,9 +530,9 @@
       body.replaceChildren();
       body.append(drawStrip(track, index, found, draw, current));
       body.append(current.kind === "boundary"
-        ? boundaryForm(track, current.index, config, ctx, ui, draw, found)
-        : blockForm(track, current.index, config, ctx, ui, draw, found));
-      body.append(button(TEXT.addBoundary, () => { const at = addBoundary(track); ctx.persist(); draw({ kind: "boundary", index: at }); }), ctx.hintEl(TEXT.addBoundaryHint));
+        ? boundaryForm(track, current.index, config, ctx, ui, changed, found)
+        : blockForm(track, current.index, config, ctx, ui, changed, found));
+      body.append(button(TEXT.addBoundary, () => changed({ kind: "boundary", index: addBoundary(track) })), ctx.hintEl(TEXT.addBoundaryHint));
     };
     draw();
     holder.append(card);
