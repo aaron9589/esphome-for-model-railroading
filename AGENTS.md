@@ -37,7 +37,7 @@ This repo is a beginner path for model-railroad ESP32 boards that talk to JMRI/C
 | `configurator/logic-starters*.js` | Starters (description to rules): `logic-starters.js`, `-sections.js`, `-signals.js` |
 | `configurator/logic-checker.js`, `logic-try.js`, `logic-summary.js` | The checker (cycles, state exploration), the Try it simulator core, and the plain-words summary |
 | `configurator/mss-*.js` | MSS Logic: `mss-builder.js` (module description to built items), `mss-card.js`, `mss-convert.js` (convert to Field Logic) |
-| `configurator/test/` | `npm test` suites (one `*.test.js` per feature), `fixtures/` and `golden/`, `cases/` (shared engine cases; `cases/mss/` for MSS Logic). No `test/bench/` yet |
+| `configurator/test/` | `npm test` suites (one `*.test.js` per feature), `fixtures/` and `golden/`, `cases/` (shared engine cases; `cases/mss/` for MSS Logic), `bench/` (checker limits) and `screenshots/` (the guides' pictures); neither of the last two runs in `npm test` |
 | `components/mr_logic/` | ESPHome external component: `logic_core.{h,cpp}` (the engine, plain C++17 with no ESPHome includes, mirroring `configurator/logic.js`), the adapter `mr_logic.{h,cpp}` and `__init__.py`. ESPHome copies only a component's top-level sources, so the core sits beside the adapter |
 | `engine-tests/esphome/` | `gauntlet.yaml`, made by `make-gauntlet.mjs` from the generator plus an `mr_logic:` block, which `component.yml` compiles with ESPHome (pinned on PRs, latest weekly). Run the script and commit when the generator or component changes |
 | `engine-tests/` | CMake project: builds the core and replays `configurator/test/cases`; `--trace` mode for the JS cross-check (`test/engine-diff.test.js`) |
@@ -101,6 +101,7 @@ This repo is a beginner path for model-railroad ESP32 boards that talk to JMRI/C
 
 - Guides live under `docs/`. Prefer linking the existing guide over inventing new steps in chat.
 - Screenshot placeholders in the guides are intentional; do not invent fake screenshots.
+- The Field Logic and MSS Logic guides' pictures of the configurator are real: `configurator/test/screenshots/<guide>.mjs` follows the guide's steps in Chromium (Playwright, see `shoot.mjs`) and saves them to `docs/img/<guide>/`, checking the page says what the guide says. When a change alters a page the guides show, run the script again and commit the pictures; if it stops, the guide needs the same change. `npm test` does not run them. Placeholders remain only for what the configurator cannot show (sketches, MQTTX, JMRI, the board's web page, hardware).
 - Architecture pictures: `_img/architecture.svg`, `_img/mqtt-flow.svg`. Advanced-sample pictures: `_img/advanced-*.svg`, embedded from `README.md` and `advanced-samples/README.md`.
 
 ## When something fails, check in this order
