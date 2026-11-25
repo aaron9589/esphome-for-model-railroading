@@ -39,3 +39,7 @@ engine-tests/build/
 __pycache__/
 engine-tests/build-asan/
 engine-tests/esphome/.esphome/
+
+# Playwright for configurator/test/screenshots (installed with --no-save)
+configurator/node_modules/
+configurator/package-lock.json
