@@ -9,7 +9,7 @@ This guide is written in chapters, one for each part of the Logic page as it is 
 - two more starters in short: **Lock turnouts under a train** and **Block signals**
 - **plant ends**, which join one board to the next: adding an end, pairing two boards, and what to do at a meet.
 
-The groundwork works on its own: a block reports to JMRI and CATS like any sensor. The rest of the guide uses a second worked example, a **gauntlet over a bridge**, which you can build from an empty board. MSS Logic comes in a later release.
+The groundwork works on its own: a block reports to JMRI and CATS like any sensor. The rest of the guide uses a second worked example, a **gauntlet over a bridge**, which you can build from an empty board. MSS Logic, the second mode, has its own [MSS Logic Guide](mss-logic-guide.md).
 
 Use this after the [First Board Setup Guide](first-board-setup-guide.md) and the [JMRI MQTT Verification Guide](jmri-mqtt-verification-guide.md). Your board should be online in ESPHome, and JMRI should have its MQTT connection set up.
 
