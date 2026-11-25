@@ -24,3 +24,24 @@ Work through these in order — earlier ones set up the context for later ones.
 - [ ] ESPHome Logs — `THROWN (reverse)` and `CLOSED (normal)` lines as JMRI turnout toggled
 - [ ] JMRI Turnout Table — State column showing **Thrown**
 - [ ] MQTTX — both MQTT messages visible: THROWN command from JMRI + THROWN state reply from ESP32
+
+## field-logic-guide.md and mss-logic-guide.md
+
+Pictures of the configurator in these two guides are not on this list. They are taken by a script that follows each guide in a browser (`configurator/test/screenshots/`); run it again when the page changes. These are the pictures it cannot take: hardware, MQTTX, JMRI and the board's own web page.
+
+Field Logic guide:
+
+- [ ] Sketch of Int 2: the current detector's feeder across the whole block, and an optical sensor in the track at each end (*The worked example*)
+- [ ] MQTTX showing `trains/track/sensor/Int 2` and `trains/track/sensor/Int 2 East` both ACTIVE, and the board's Online topic (*Step 6*)
+- [ ] JMRI Sensor Table with `MSInt 2` Active and the board's Online sensor (*Step 7*)
+- [ ] Sketch of the gauntlet: two tracks converging onto a bridge, blocks Left, Bridge and Right marked, and a signal at each end of the bridge (*The gauntlet over a bridge*)
+- [ ] MQTTX showing the Bridge Held and State topics, and Left Bridge's State (*Check it in MQTTX*)
+- [ ] The board's web page with the Field logic switch, Logic version and the Release Bridge button (*Check it in MQTTX*)
+- [ ] The board's web page with Pair End A, End A link (empty) and End A state (*Not paired*) (*Step D*)
+- [ ] Two boards side by side, one LED blinking slowly, then both steady (*Step E*)
+- [ ] MQTTX showing the end topics for both boards, with Link set on each (*Step F*)
+
+MSS Logic guide:
+
+- [ ] Sketch of the two modules side by side. West: end A, block W1, an optical sensor, block W2, end B. East: end A, blocks E1 and E2, the junction with E P1, and its two ways out to ends B and C (*The worked example*)
+- [ ] East's web page with Pair End A, End A paired and heard, and MQTTX showing the two end topics (*Step 9*)
