@@ -35,12 +35,18 @@ At the meet, **West end B meets East end A**.
 
 > **Screenshot placeholder:** a sketch of the two modules side by side. West: end A, block W1, an optical sensor, block W2, end B. East: end A, blocks E1 and E2, the junction with E P1, and its two ways out to ends B and C.
 
-Before you start, put the parts on the foundation pages, as in the first board guide. The Logic page picks them by name and never changes them:
+Before you start, put the parts on the foundation pages, as in the first board guide. The Logic page picks them by name and never changes them.
 
-- **Sensors:** every sensor named above. Wire an optical sensor like a current detector: its output to the pin, and its GND to GND. Leave **Debounce** at `500ms`.
-- **Turnouts:** `E P1` on the East board.
-- **Signal Masts:** every signal named above. A signal can be a WS2812B strip or one pin for each lamp. Its aspects can come from the CATS signal template, which the Signals grid in step 5 reads.
-- **Board** page: check each board's name ends in a six-character suffix, such as `kiama-west-k7m4x2`. Two boards at a meet must never share one. See Step 1 of the Field Logic Guide.
+Each module is its own board, and the configurator holds one board at a time. Go through Steps 1 to 7 for West, and download its YAML. Then go through them again for East: each step says what differs. The page has no button for a new board, so start East in a private (incognito) window, which opens the configurator with nothing saved. To change West later, open it again with **Import**, **From a file…**, and pick West's `board.yaml`.
+
+A new board starts with one example sensor (`Kiama/Up XOver`) and one example turnout (`Kiama/Up Loop`). Rename them to the first of your own, or click **Remove** on them.
+
+- **Board** page: type the board's name, such as `kiama-west`. The page adds a six-character suffix after it, such as `-k7m4x2`, so the full name is `kiama-west-k7m4x2`. Two boards at a meet must never share one. See Step 1 of the Field Logic Guide.
+- **Sensors:** every sensor named above. Click **Add sensor** for each and type its **Name**. Wire an optical sensor like a current detector: its output to the pin, and its GND to GND. Leave **Debounce** at `500ms`.
+- **Turnouts:** `E P1` on the East board. West has none, so remove the example turnout there.
+- **Signal Masts:** every signal named above. A signal can be a WS2812B strip or one pin for each lamp. Add its lamps first, then its aspects: pick a CATS aspect from the list and click **Add CATS aspect**, then click a lamp in the small mast and pick its colour. The Signals grid in Step 5 fills itself in from aspects named as in the CATS signal template: **R292** (Stop), **R285** (Approach) and **R281** (Clear), plus **ADV_NORM**, **R282**, **R283** and **R286** if you use the other indications.
+
+![The Signal Masts page for W toward A: three lamps, and the CATS aspects R292, R285 and R281, each with its lamp lit red, amber or green](img/mss-logic/01-mast-aspects.png)
 
 ---
 
@@ -49,11 +55,11 @@ Before you start, put the parts on the foundation pages, as in the first board g
 1. Open the **Logic** page.
 2. Set **Logic** to **MSS Logic**.
 
-Under **Settings**, **Share with other boards** says *Always on in MSS Logic: neighbouring boards read it.* There is nothing to tick.
+The page now lists the steps under **Set up this module**: **Ends**, **Tracks**, **Junctions** (marked **Optional**), **Signals** and **Download**. Each has a short hint, and each name is a link to its part of the page. You can do them in any order and come back to any of them. A step with a problem says how many things there are to fix, in red. A step that is finished is crossed out and marked **Done**.
 
-The page now lists numbered steps under **Set up this module**: **Ends**, **Tracks**, **Junctions**, **Signals** and **Download**. Each has a short hint. You can do them in any order and come back to any of them. A step with a problem shows a red dot.
+Under **Settings** it says *Always on in MSS Logic: neighbouring boards read it.* Sharing with other boards is always on in this mode, so there is nothing to tick.
 
-> **Screenshot placeholder:** Logic page with MSS Logic chosen and the Set up this module steps listed, none done yet.
+![The Logic page with MSS Logic chosen: the Set up this module steps, with Ends marked Next, and Settings below](img/mss-logic/02-choose-mss-logic.png)
 
 There are no rule cards in this mode. The views of what the board is doing (who uses what, the control table) still show, read-only, and each item is marked **Made by MSS Logic**. You never edit those. You change the description, and they are made again.
 
@@ -68,16 +74,20 @@ An end is where track leaves the module and meets the next one. Name each end wi
 
 On **West**:
 
-1. Under **Ends**, click **Add an end**. Leave it named **A**, with **Tracks across this end** at `1`. One is single track and two is double track.
-2. Click **Add an end** again for **B**, also with one track.
-3. Optional: pick a **Pair button pin** and an **LED pin** for each end. The Pair button is a push button between the pin and GND. The LED shows the end's state (see Step 9). Leave them empty if you wish: the board's web page has a Pair button too, and it always works.
+1. Under **Ends**, click **Add an end**. The page names it **A**, with **Tracks across this end** at `1`. Leave both. One is single track and two is double track.
+2. Click **Add an end** again. The page names it **B**, also with one track.
+3. Optional: pick a **Pair button pin** and an **LED pin** for each end. The Pair button is a push button between the pin and GND. The LED shows the end's state (see Step 9). Leave them at **No pin** if you wish: the board's web page has a Pair button too, and it always works.
 
-On **East**, add ends **A**, **B** and **C**, each with one track.
+Each end is a card of its own. Until you draw the tracks, each one has a red edge and the message *End A track 1 has no track*, the **Ends** card has a red dot by its title, and the **Ends** step says *2 things to fix*. That is expected, and Step 3 fixes it.
 
-> **Screenshot placeholder:** the Ends card for East with ends A, B and C, and the Pair button and LED pins for end A filled in.
+![West's ends A and B, each with a red edge and the message that it has no track, and the Ends step saying 2 things to fix](img/mss-logic/03-west-ends.png)
+
+On **East**, add ends **A**, **B** and **C**, each with one track. Here end A has a Pair button on `GPIO32` and an LED on `GPIO33`.
+
+![East's Ends card: ends A, B and C, with GPIO32 and GPIO33 picked for end A's Pair button and LED](img/mss-logic/04-east-ends.png)
 
 Success looks like:
-- Each end is listed. Until you draw the tracks, each end track is reported as having no track. That is expected, and Step 3 fixes it.
+- Each end is listed, with the name and track count you gave it. The *has no track* messages stay until Step 3.
 
 ---
 
@@ -88,26 +98,41 @@ Each track is drawn as a **strip**, left to right the way it lies on the module.
 On **West**:
 
 1. Under **Tracks**, click **Add a track**.
-2. Set **From** to **End A, track 1** and **To** to **End B, track 1**. (**Dead end (stops on the module)** is there for a track that stops, as at a terminus.)
+2. Check **From** and **To**. The page fills them in with the first end tracks no other track uses, so here they already say **End A, track 1** and **End B, track 1**. Change them if they are wrong. (The **To** list also has **Dead end (stops on the module)**, for a track that stops, as at a terminus.)
 
-The strip starts as one block, labelled **Through track (no signals)**. Add the block boundary:
+The strip starts as one block, labelled **Through track (no signals)**, with the place it starts at the left and the place it finishes at the right. Under the strip is the form for whatever is picked on it, here **Block 1**. Its red outline and message say it has no sensor yet.
 
-3. Click **Add a block boundary**. It splits the last block in two: **Block 1**, a **Block boundary 1**, and **Block 2**.
-4. Click **Block 1**. Under **Sensors**, pick **W1 current**. Do the same for **Block 2** with **W2 current**. A block can have more than one sensor.
-5. Click **Block boundary 1**. Under **Sensors**, pick **W12 optical**. Then pick the two signals: **Signal for trains heading towards B** is **W toward B**, and the one for trains heading towards A is **W toward A**.
+![A new track from End A, track 1 to End B, track 1: one block, marked no sensor, with the form for Block 1 under it](img/mss-logic/05-track-new.png)
 
-The two signals are drawn as arrows, ◀ for trains heading towards From and ▶ for trains heading towards To. They follow the module's own ends, so nothing changes if the module is turned round at the meet.
+Add the block boundary:
 
-**A side with no signal** is drawn dashed and marked *no signal*. Pick no signal if the module has none there. The page makes one with no lights, so the signals behind it keep working.
+3. Click **Add a block boundary**, under the form. It splits the last block in two: **Block 1**, a **Block boundary 1** (the upright bar), and **Block 2**. The block boundary is picked, so it is drawn blue.
+
+![The strip after Add a block boundary: Block 1, Block boundary 1 picked and drawn blue, and Block 2. Each says no sensor, and the block boundary says no signal twice](img/mss-logic/06-track-boundary.png)
+
+4. Click **Block 1** on the strip. Under **Sensors**, pick **W1 current** from the **Add a sensor…** list. It shows as a chip, and on the strip in place of *no sensor*. Click **Block 2** and do the same with **W2 current**. A block can have more than one sensor: pick another from the same list. The **×** on a chip takes it off.
+
+![Block 1 picked on the strip and showing W1 current, with W1 current as a chip under Sensors. Block 2 and the block boundary are still red: they have no sensor yet](img/mss-logic/07-track-block.png)
+
+5. Click **Block boundary 1**. Under **Sensors**, pick **W12 optical**. Then pick the two signals: **Signal for trains heading towards End B, track 1** is **W toward B**, and **Signal for trains heading towards End A, track 1** is **W toward A**.
+
+The two signals are drawn under the block boundary as arrows: ◀ for trains heading towards From (left), and ▶ for trains heading towards To (right). They follow the module's own ends, so nothing changes if the module is turned round at the meet.
+
+![West's finished track: W1 current in Block 1, W12 optical at the block boundary with ◀ W toward A and W toward B ▶ under it, and W2 current in Block 2](img/mss-logic/08-west-track.png)
+
+**A side with no signal** shows *no signal* in grey under the block boundary. Leave its list at **no signal** if the module has none there. The page makes one with no lights, so the signals behind it keep working.
 
 **A block boundary holds both blocks.** The optical sensor counts as part of both Block 1 and Block 2, so a block stays occupied until the last car has cleared it, even a car that draws no current.
 
-> **Screenshot placeholder:** the strip for West: End A, Block 1 with W1 current, the block boundary with W12 optical and its two arrows, Block 2 with W2 current, End B.
+**Turnouts in a block.** If a block has a turnout in it, click **Add a turnout** under **Turnouts in this block**, pick the turnout, and set **Main line is** to the position that is the main line. A turnout set against the main line counts as an occupied block.
 
-**Turnouts in a block.** If a block has a turnout in it, add it under **Turnouts in this block** and set **Main line is** to the position that is the main line. A turnout set against the main line counts as an occupied block.
+The other buttons under a block's form change the strip: **Split this block in two**, **Move earlier**, **Move later**, and **Remove this block** (which takes the block boundary next to it too).
 
 Success looks like:
-- The ends from Step 2 no longer report having no track, and the **Ends** and **Tracks** steps are **Done**.
+- Nothing on the strip is red, and the track's title has no *to fix* at the end.
+- The ends from Step 2 no longer report having no track, and the **Ends** and **Tracks** steps are **Done**. On West, **Signals** is **Done** too, because its signals have the CATS aspects (Step 5), and **Download** is **Next**.
+
+![The Set up this module steps for West: Ends, Tracks and Signals crossed out and Done, Junctions Optional, and Download Next](img/mss-logic/09-west-steps.png)
 
 ---
 
@@ -115,18 +140,14 @@ Success looks like:
 
 This step is for **East** only. A module of plain track needs no junctions.
 
-First draw East's tracks, as in Step 3:
+Add the junction first. Its legs then appear in the **From** and **To** lists of the tracks.
 
-1. **Track 1:** from **End A, track 1** to **Junction J1, leg 1** (add the junction first, below, or come back to this). Give it two blocks, with **E1 current** and **E2 current**, and one block boundary with **E12 optical**. For its signals, pick **E Outer** for trains heading towards the junction, and none for the other direction.
-2. **Track 2:** from **Junction J1, leg 2** to **End B, track 1**, one block with **E Main current**.
-3. **Track 3:** from **Junction J1, leg 3** to **End C, track 1**, one block with **E Branch current**.
+1. Under **Junctions**, at **Add a junction**, pick a **Shape**: **Turnout, left**. It is picked already on a new page. The other shapes are **Turnout, right**, **Wye**, **Siding end**, **Single to double track**, **Double-track crossover** and **Custom**. Under the shapes, a line says which leg is which.
+2. Check the **Turnout** list says **E P1**. The page fills in the first turnout no junction uses yet. Click **Add junction**.
 
-Now the junction:
+![Add a junction: the seven shapes, with Turnout, left picked, the line saying which leg is which, and E P1 in the Turnout list](img/mss-logic/10-junction-shapes.png)
 
-1. Under **Junctions**, pick a **Shape**: **Turnout, left**. The other shapes are **Turnout, right**, **Wye**, **Siding end**, **Single to double track**, **Double-track crossover** and **Custom**.
-2. Pick the turnout from the **Turnout** list: **E P1**. Click **Add junction**.
-
-The junction starts with its legs and routes filled in, and drawn:
+The junction is added as **Junction J1**, with its legs and routes filled in:
 
 | Leg | Where it goes |
 |---|---|
@@ -136,34 +157,48 @@ The junction starts with its legs and routes filled in, and drawn:
 
 | Route | Joins | Set when | |
 |---|---|---|---|
-| Straight | leg 1 to leg 2 | E P1 is closed | main |
-| Turnout | leg 1 to leg 3 | E P1 is thrown | diverging |
+| Route 1 | leg 1 to leg 2 | E P1 is closed | main |
+| Route 2 | leg 1 to leg 3 | E P1 is thrown | diverging (**Diverging** is ticked) |
 
 A route is **set** while every turnout in it is in its position. A turnout that is moving matches neither position, so no route through it is set.
 
-3. Under **Sensors**, pick **E Junction optical**. A car standing on the junction holds every leg, so each leg's first block includes it.
-4. Under **Legs**, pick the signal facing into the junction from **Leg 1**: **E Home**. Legs 2 and 3 can stay at **No signal**: trains leaving the junction face the next module's signals, not this one's.
+3. In the junction's card, under **Sensors**, pick **E Junction optical** from the **Add a sensor…** list. A car standing on the junction holds every leg, so each leg's first block includes it.
+4. Under **Legs**, pick the signal facing into the junction from **Leg 1**: **E Home**. A small mast at Stop shows beside it. Legs 2 and 3 stay at **No signal**: trains leaving the junction face the next module's signals, not this one's.
 
-Hover a route to light it on the drawing. If your turnout is wired the other way round, change the position on the route (**Position**) rather than the wiring. If the shapes do not fit, **Custom** starts empty and you add each route as a table row.
+Until the tracks are drawn, each leg says it has no track. Now draw East's tracks, as in Step 3. Click **Add a track** three times, then set each one's **From** and **To**:
 
-> **Screenshot placeholder:** the Junctions card with J1 as Turnout, left, its three legs, the two routes, E Junction optical, and E Home on leg 1.
+1. **Track 1:** from **End A, track 1** to **Junction J1, leg 1**. Click **Add a block boundary** to give it two blocks: **E1 current** in Block 1, **E2 current** in Block 2, and **E12 optical** at the block boundary. For its signals, pick **E Outer** for **Signal for trains heading towards Junction J1, leg 1**, and leave the other at **no signal**.
+2. **Track 2:** from **Junction J1, leg 2** to **End B, track 1**, one block with **E Main current**.
+3. **Track 3:** from **Junction J1, leg 3** to **End C, track 1**, one block with **E Branch current**.
+
+![East's track 1, from End A, track 1 to Junction J1, leg 1: E1 current, the block boundary with E12 optical, no signal and E Outer ▶, then E2 current](img/mss-logic/11-east-track-1.png)
+
+The junction's card now has no messages. **Which legs join** draws the legs and routes, and lists each route in words. A solid line is a main route and a dashed line a diverging one.
+
+![Junction J1: E Junction optical under Sensors, the drawing of which legs join, E Home on leg 1, and Route 1 (leg 1 to leg 2, E P1 Closed) and Route 2 (leg 1 to leg 3, Diverging ticked, E P1 Thrown)](img/mss-logic/12-east-junction.png)
+
+Hover over a route's card to light it on the drawing. Here the mouse is over Route 2, so the dashed line from leg 1 to leg 3 is drawn blue.
+
+![The drawing of junction J1 with Route 2, leg 1 to leg 3, lit blue](img/mss-logic/13-junction-route-lit.png)
+
+If your turnout is wired the other way round, change the **Closed** or **Thrown** list beside the turnout under **Turnouts for this route**, rather than the wiring. If the shapes do not fit, **Custom** starts empty: click **Add a route** for each route, and pick its legs and turnouts.
 
 Success looks like:
-- Junction J1 is listed with two routes and no red dot.
+- Junction J1 is listed with two routes and no red messages.
 - The **Junctions** step is **Done**.
 
 ---
 
 ## Step 5: The Signals grid
 
-Under **Signals** there is one row for each signal the module uses and one column for each indication. Each cell is the aspect that signal shows for that indication. The aspects named in the CATS signal template are filled in already.
+Under **Signals** there is one row for each signal the module uses and one column for each indication, in the order below. Each cell is the aspect that signal shows for that indication, with a small mast lit the way the Signal Masts page lights it. The aspects named in the CATS signal template are filled in already. A signal you picked in Step 3 or Step 4 has a row here; a place with no signal has none.
 
 | Indication | CATS aspect (filled in) | What it means |
 |---|---|---|
 | Stop | R292 | the block ahead is occupied |
 | Approach | R285 | prepare to stop at the next signal |
-| Clear | R281 | the way ahead is clear |
 | Advance Approach | ADV_NORM | the signal two blocks ahead is at Stop. **Off by default.** |
+| Clear | R281 | the way ahead is clear |
 | Approach Diverging | R282 | the signal ahead shows a diverging aspect. **Off by default.** |
 | Diverging Clear | R283 | junction signals only, when a diverging route is set |
 | Diverging Approach | R286 | junction signals only, when a diverging route is set |
@@ -172,13 +207,17 @@ Under **Signals** there is one row for each signal the module uses and one colum
 2. Check each cell shows the aspect you want, for every row. A cell that is empty says **Pick an aspect**. A signal's aspects come from its own page, so if a cell has nothing to pick, add the aspect on the Signal Masts page.
 3. **Same as above** copies the row above into this one, for the aspects both have. Use it for signals of the same kind.
 
-East's **E Home** shows two more columns, **Diverging Clear** and **Diverging Approach**, because it has a diverging route. West's two signals show only Stop, Approach and Clear.
+East's **E Home** shows two more columns, **Diverging Clear** and **Diverging Approach**, because it has a diverging route. **E Outer** shows *Not used* in those two. West's two signals show only Stop, Approach and Clear.
 
-> **Screenshot placeholder:** the Signals grid for East with E Outer and E Home, Advance Approach and Approach Diverging ticked, and each cell showing a small mast lit in that aspect.
+![East's Signals grid with Advance Approach and Approach Diverging ticked: rows for E Outer and E Home, each cell a small lit mast over its aspect, R292, R285, ADV_NORM, R281 and R282](img/mss-logic/14-east-signals.png)
+
+The grid is wider than the page, so scroll it sideways to see the last columns: **Diverging Clear**, **Diverging Approach** and **Approach lighting**.
+
+![The same grid scrolled to the right: E Outer shows Not used for Diverging Clear and Diverging Approach, E Home shows R283 and R286, and both are Always lit](img/mss-logic/15-east-signals-right.png)
 
 ### Approach lighting
 
-A signal can stay dark until a train is near. In the grid, pick **Approach lighting** for the signal: a block or sensor. The signal shows nothing unless a train is in that block. Leave it at **Always lit** for a signal that should always show.
+A signal can stay dark until a train is near. In the grid's last column, **Approach lighting**, pick a block or sensor for the signal. The list has the blocks MSS Logic made from your tracks (named like *A1 to B1 block 1*, for track 1's first block from end A track 1 to end B track 1), then your sensors. The signal shows nothing unless a train is in that block. Leave it at **Always lit** for a signal that should always show.
 
 Success looks like:
 - The **Signals** step is **Done** and no cell is empty.
@@ -189,9 +228,13 @@ Success looks like:
 
 Problems show in three places:
 
-- **At the top of the page**, in red for errors that stop the download and amber for warnings. Each says what is wrong, why, and what to do.
-- **A red dot** on the step that has the problem, and on the part of the page that causes it: the track, the block, the block boundary, the junction, the end or the signal's row.
-- **Show** beside a message. It opens the page and scrolls to the part.
+- **At the top of the page**, in red for errors that stop the download and amber for warnings. Each says what is wrong, why, and what to do. The **Download YAML** button is greyed out while there is a red one.
+- **On the Logic page.** The step says how many things there are to fix. The card has a red dot by its title (amber for a warning). The part that causes it is marked red: an end's card has a red edge, a block or block boundary on the strip is drawn red, and the message sits under it, in the end's card, the block's form, the junction's leg or the signal's row.
+- **Show** beside a message at the top. It opens the page and scrolls to the part.
+
+Here is the top of East's page just after adding the junction, before any tracks: each end and each leg has no track (red), and the junction has no sensor yet (amber).
+
+![The messages at the top of the page: six red ones, each end and each leg of junction J1 has no track, and an amber one, junction J1 has no sensor, each with a Show link](img/mss-logic/16-problems.png)
 
 Some you may meet:
 
@@ -210,7 +253,7 @@ Fix the first red message first, because others often follow from it.
 Renaming a sensor, turnout or signal on its own page renames it here too. Deleting one leaves its old name behind, and the message names it.
 
 Success looks like:
-- Nothing red at the top of the page, and every step's dot is gone.
+- Nothing red at the top of the page, no step says *to fix*, and no card has a dot.
 
 ---
 
@@ -225,7 +268,11 @@ In MSS Logic the page also offers **Download module card**. It is a file that op
 - every sensor and signal with its pin and where it sits (block, block boundary, leg);
 - **At a meet:** how to join the meet's Wi-Fi from a phone, how to pair, what the end LED means, and the first checks when a joint shows Stop.
 
-> **Screenshot placeholder:** the Download page with the Logic version and the Download module card button, and the printed card beside it.
+![The Download page's Logic version box for East: the code, the Download module card button, and No warnings about the logic](img/mss-logic/17-download.png)
+
+Click **Download module card**, then open the file it saves (`<board>-module-card.html`) in a browser and print it from there. Besides the list above, it has a **Turnouts** table, with each turnout's servo and buttons.
+
+![East's module card: its name and Logic version, the Ends table with end A's Pair button GPIO32 and LED GPIO33, the Sensors, Signals and Turnouts tables with where each sits, and the At a meet steps](img/mss-logic/18-module-card.png)
 
 Download the YAML for each board as in the first board guide.
 
@@ -341,9 +388,11 @@ At the bottom of the Logic page in MSS Logic mode there is **Convert to Field Lo
 
 Use it when a module needs something MSS Logic does not do, such as a section that only one train may enter. Add the rules in Field Logic, as in the [Field Logic Guide](field-logic-guide.md). Also use it on a copy to try the module in Try it (Step 8).
 
-**It goes one way.** The MSS description is dropped, because nothing would keep it in step with the copies. The page asks you to confirm first. Keep a copy of the board's file (`board.yaml`) before you click if you may want the description back. If a block, signal or rule group in Field Logic already has the same name as one MSS Logic would make, or the description has an error, it will not convert and tells you which to rename or fix.
+**It goes one way.** The MSS description is dropped, because nothing would keep it in step with the copies. Keep a copy of the board's file (`board.yaml`) before you click if you may want the description back. If a block, signal or rule group in Field Logic already has the same name as one MSS Logic would make, or the description has an error, it will not convert and tells you which to rename or fix.
 
-> **Screenshot placeholder:** the Convert to Field Logic card with its confirmation: *Convert this board to Field Logic? The MSS description is replaced by editable items, and this cannot be undone.*
+Click **Convert to Field Logic**. The card asks you to confirm first: click **Yes, convert**, or **Cancel** to leave it as it is. Once converted, the page shows *Converted to Field Logic.* and the **Logic** list says **Field Logic**.
+
+![The Convert to Field Logic card asking: Convert this board to Field Logic? The MSS description is replaced by editable items, and this cannot be undone. With Yes, convert and Cancel buttons](img/mss-logic/19-convert.png)
 
 ---
 
