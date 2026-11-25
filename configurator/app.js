@@ -2121,6 +2121,7 @@ function renderLogicDownload(validation) {
     flash("ok", `Downloaded ${a.download}. Open it in a browser to print it.`);
   });
   if (!mss) box.append(summary);
+  if (info.fullCheck) box.append(fullCheckButton(info.fullCheck));
   if (info.errorsNote) box.append(messageEl("err", info.errorsNote));
   const heading = document.createElement("h4");
   heading.textContent = info.warningsTitle;
@@ -2134,6 +2135,26 @@ function renderLogicDownload(validation) {
   }
   for (const warning of info.warnings) box.append(messageEl("warn", warning.text, warning.link));
   box.append(hintEl(info.warningsHint));
+}
+
+// The quick check gave up: check every combination, then show what it found.
+// It runs on the page, so the button says so first and the check waits a moment.
+function fullCheckButton(words) {
+  const wrap = document.createElement("div");
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "logic-summary-button";
+  button.textContent = words.button;
+  button.addEventListener("click", () => {
+    button.disabled = true;
+    button.textContent = words.checking;
+    setTimeout(() => {
+      globalThis.EsphomeMrLogicChecker.checkFully(state);
+      renderMessages();
+    }, 30);
+  });
+  wrap.append(button, hintEl(words.hint));
+  return wrap;
 }
 
 // MSS Logic's Download box: the module card, a file that prints from any browser.

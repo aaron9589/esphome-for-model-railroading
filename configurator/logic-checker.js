@@ -27,7 +27,7 @@
     starved: (rule, section) => `${rule} can be passed over forever: other trains keep getting section "${section}" while it waits. Use Show me to see how.`,
     neverActive: (rule) => `${rule} can never apply: no mix of trains, turnouts and signals makes its When and Only if true together. Look for a block that must be both occupied and clear.`,
     stuck: (mast) => `Signal "${mast}" can never show anything but Stop: no rule that sets it can apply. Check the rules that set it.`,
-    tooMany: (runs) => `This board has too many combinations to check every one, so the checker tried ${runs} random runs. It may not have found every problem.`,
+    tooMany: (runs, quick) => `This board has too many combinations to check every one${quick ? " quickly" : ""}, so the checker tried ${runs} random runs. It may not have found every problem.${quick ? " Use Check every combination on the Download page to check them all: it can take a few seconds." : ""}`,
     neverSeen: (rule, runs) => `${rule} did not apply in ${runs} random runs. It may never apply: look for a block that must be both occupied and clear.`,
     stuckSeen: (mast, runs) => `Signal "${mast}" showed only Stop in ${runs} random runs. Check the rules that set it.`,
   });
@@ -148,12 +148,15 @@
   }
 
   // The events that bring a board's ends to the checker's start: each paired
-  // with another board, which is on and answering.
+  // with another board, which is on and answering, its blocks clear (as the
+  // end inputs start; a block not yet heard reads occupied) and its signals
+  // at Stop (not heard reads Stop already).
   function endSetup(board) {
     const events = [];
     for (const end of list(board.logic?.ends)) {
       if (!end?.name) continue;
       events.push({ end: end.name, link: `neighbour/${end.name}` }, { end: end.name, theirLink: `${SELF}/${end.name}` }, { end: end.name, online: true });
+      list(end.tracks).forEach((_, i) => events.push({ end: end.name, track: i + 1, block: "clear" }));
     }
     return events;
   }
@@ -203,9 +206,14 @@
 
   // ===== Exploring ==========================================================
 
+  // A state: what state() shows, the active rules, each section's waiting
+  // order and the inputs. Not how requests for different sections interleave,
+  // which nothing reads (logic.js checkerView), so a board with many plain
+  // rules, such as an MSS module, has far fewer states.
   function keyOf(engine, values) {
     const { logic, ...state } = engine.state();
-    return JSON.stringify([state, engine.checkerView(), values]);
+    const { active, asked } = engine.checkerView();
+    return JSON.stringify([state, active, asked, values]);
   }
 
   // A seeded random number generator (mulberry32), so random runs repeat.
@@ -219,20 +227,165 @@
     };
   }
 
-  /**
-   * Check a board in the engine cases' format (EsphomeMrLogicYaml.logicTable).
-   * Options: maxStates (default 3000), maxMs (default none), runs and steps
-   * for the random fallback (default 200 x 40), seed (default 1).
-   * Returns { complete, states, problems: [{ level, kind, text, rule?, mast?,
-   * sequence? }] }.
-   */
-  function checkBoard(board, options = {}) {
-    const { maxStates = 3000, maxMs = Infinity, runs = 200, steps = 40, seed = 1 } = options;
+  // ===== Parts: what each mast and section depends on ======================
+
+  // A board splits into parts that are checked one at a time (work item 4.5).
+  // Rules that set the same mast, or reserve the same section, belong
+  // together. A group's part is it and every group whose mast it reads, and
+  // so on: nothing outside it can change what its rules see, because rules
+  // reach each other only through the masts they set and the sections they
+  // reserve (a turnout lock is written, never read). Each part has only the
+  // inputs its own rules read, so two tracks through a module, or the two
+  // directions on one, are checked side by side, not multiplied together.
+  // A part inside another is not checked again. Returns [{ board, refOf }]:
+  // refOf maps the part's rule refs back to the board's.
+  function partsOf(board) {
+    const logic = board.logic || {};
+    const rules = list(logic.layers).flatMap((layer) => list(layer.rules).map((rule, i) => ({ layer: layer.name, i, rule })));
+    const whole = [{ board, refOf: (ref) => ref }];
+    if (rules.length < 2) return whole;
+    const parent = rules.map((_, i) => i);
+    const find = (i) => (parent[i] === i ? i : (parent[i] = find(parent[i])));
+    const firstOf = new Map();
+    rules.forEach(({ rule }, i) => {
+      for (const [what, name] of [["mast", rule?.then?.mast], ["reserve", rule?.then?.reserve]]) {
+        if (name === undefined) continue;
+        const key = `${what}${SEP}${name}`;
+        if (firstOf.has(key)) parent[find(i)] = find(firstOf.get(key));
+        else firstOf.set(key, i);
+      }
+    });
+    const setterOf = new Map();
+    rules.forEach(({ rule }, i) => { if (rule?.then?.mast !== undefined) setterOf.set(rule.then.mast, find(i)); });
+    const releaseOf = new Map(list(logic.resources).map((res) => [res?.name, res?.release]));
+    const reads = new Map(rules.map((_, i) => [find(i), new Set()]));
+    rules.forEach(({ rule }, i) => {
+      for (const cond of conditionsIn([rule?.trigger, rule?.checks, rule?.cancel, releaseOf.get(rule?.then?.reserve)])) {
+        if (cond.board === undefined && cond.end === undefined && cond.mast !== undefined && setterOf.has(cond.mast)) reads.get(find(i)).add(setterOf.get(cond.mast));
+      }
+    });
+    const cones = [...reads.keys()].map((group) => {
+      const cone = new Set([group]);
+      const queue = [group];
+      while (queue.length) for (const next of reads.get(queue.pop())) if (!cone.has(next)) { cone.add(next); queue.push(next); }
+      return cone;
+    });
+    if (cones.some((cone) => cone.size === reads.size)) return whole;
+    const inside = (a, b) => a.size <= b.size && [...a].every((g) => b.has(g));
+    const kept = cones.filter((cone, i) => !cones.some((other, j) => j !== i && inside(cone, other) && (other.size > cone.size || j < i)));
+    return kept.map((cone) => {
+      const refs = new Map();
+      const layers = list(logic.layers).map((layer) => {
+        const own = rules.filter((r) => r.layer === layer.name && cone.has(find(rules.indexOf(r))));
+        own.forEach((r, j) => refs.set(`${layer.name}/${j + 1}`, `${layer.name}/${r.i + 1}`));
+        return { ...layer, rules: own.map((r) => r.rule) };
+      }).filter((layer) => layer.rules.length);
+      const reserved = new Set(layers.flatMap((layer) => layer.rules.map((rule) => rule?.then?.reserve)).filter((name) => name !== undefined));
+      const set = new Set(layers.flatMap((layer) => layer.rules.map((rule) => rule?.then?.mast)).filter((name) => name !== undefined));
+      // Approach lighting only matters on a mast this part sets.
+      const masts = Object.fromEntries(Object.entries(board.masts || {}).map(([name, mast]) => {
+        if (set.has(name) || !isObject(mast) || mast.approachLight === undefined) return [name, mast];
+        const { approachLight, ...rest } = mast;
+        return [name, rest];
+      }));
+      const part = { ...board, masts, logic: { ...logic, layers, resources: list(logic.resources).filter((res) => reserved.has(res?.name)) } };
+      return { board: part, refOf: (ref) => refs.get(ref) ?? ref };
+    });
+  }
+
+  // ===== Fewer inputs, the same behaviour ===================================
+
+  // What the checker explores of a board's inputs (work item 4.5). Inputs the
+  // rules cannot tell apart are explored once, so no behaviour is lost:
+  //  - an input the rules read only through blocks (a sensor, an end's block,
+  //    another board's item) counts only through those blocks. Two that sit
+  //    in the same blocks the rules read are one: a check changes one input
+  //    per scan, so the engine sees only whether either is occupied (a block's
+  //    "went" is its own value against the last scan's). The first is kept.
+  //  - values of what an end hears from its signal that every rule compares
+  //    the same way (such as Stop and Restricting, where rules ask "Stop or
+  //    Restricting") are one. The first is kept, so Stop stays the start.
+  // Try it keeps every input (inputsOf), so this is the checker's only.
+  function checkerInputs(board, inputs) {
+    const logic = board.logic || {};
+    const blocks = new Map(list(logic.blocks).map((b) => [b.name, list(b.sensors)]));
+    const direct = new Set();
+    const readBlocks = new Set();
+    const memberKey = (m) => {
+      if (typeof m === "string") return `sensor${SEP}${m}`;
+      if (!isObject(m)) return null;
+      if (m.end !== undefined) return endKey(m.end, m.track, "block");
+      const kind = ["sensor", "block", "turnout", "mast"].find((k) => m[k] !== undefined);
+      return m.board === undefined ? `sensor${SEP}${m.sensor ?? m.block}` : `${m.board}${SEP}${kind}${SEP}${m[kind]}`;
+    };
+    const readBlock = (name) => (blocks.has(name) ? readBlocks.add(name) : direct.add(`sensor${SEP}${name}`));
+    const heard = new Map(); // end mast key -> the lists of meanings rules compare it with
+    const resources = list(logic.resources);
+    for (const cond of conditionsIn([list(logic.layers).map((l) => list(l.rules).map((r) => [r?.trigger, r?.checks, r?.cancel])), resources.map((r) => r.release)])) {
+      if (cond.end !== undefined && cond.board === undefined) {
+        if (cond.hears !== "mast") direct.add(endKey(cond.end, cond.track, "block"));
+        else {
+          const key = endKey(cond.end, cond.track, "mast");
+          const is = [].concat(cond.is);
+          if (!heard.has(key)) heard.set(key, []);
+          if (is[0] !== "diverging") heard.get(key).push(is);
+        }
+      } else if (cond.board !== undefined) direct.add(memberKey(cond));
+      else if (cond.block !== undefined) readBlock(cond.block);
+      else if (cond.sensor !== undefined) direct.add(`sensor${SEP}${cond.sensor}`);
+    }
+    for (const res of resources) {
+      for (const m of list(res.blocks)) (typeof m === "string" ? readBlock(m) : direct.add(memberKey(m)));
+    }
+    for (const mast of Object.values(board.masts || {})) if (typeof mast?.approachLight === "string") readBlock(mast.approachLight);
+
+    const where = new Map(); // input key -> the read blocks it is in
+    for (const name of readBlocks) {
+      for (const m of blocks.get(name)) {
+        const key = memberKey(m);
+        if (key === null) continue;
+        if (!where.has(key)) where.set(key, new Set());
+        where.get(key).add(name);
+      }
+    }
+    const seen = new Set();
+    const out = [];
+    for (const input of inputs) {
+      const twoWay = input.values.length === 2 && input.values[0] === "clear" && input.values[1] === "occupied" && input.start === "clear";
+      if (twoWay && !direct.has(input.key) && where.has(input.key)) {
+        const sign = `block${SEP}${[...where.get(input.key)].sort().join(SEP)}`;
+        if (seen.has(sign)) continue;
+        seen.add(sign);
+      }
+      if (heard.has(input.key)) {
+        const lists = heard.get(input.key);
+        const kept = new Set();
+        const values = input.values.filter((v) => {
+          const sign = lists.map((is) => is.includes(v)).join();
+          if (kept.has(sign)) return false;
+          kept.add(sign);
+          return true;
+        });
+        out.push({ ...input, values });
+        continue;
+      }
+      out.push(input);
+    }
+    return out;
+  }
+
+  // ===== Exploring one part =================================================
+
+  // Every state of one part, within the budget, or random runs past it.
+  // Returns what it saw: { complete, states, tried, active (rule refs),
+  // leftStop (masts), found (deadlocks and starvation, on a complete check) }.
+  function explore(board, budget) {
+    const { maxStates, deadline, runs, steps, seed, runsUntil } = budget;
     const engineOf = () => E().createEngine(board, start);
-    const inputs = inputsOf(board);
-    const start = startOf(board, inputs);
+    const all = inputsOf(board);
+    const inputs = budget.allInputs ? all : checkerInputs(board, all);
+    const start = startOf(board, all);
     const waitLimit = longestTimerScans(board);
-    const started = Date.now();
 
     const replay = (path) => {
       const engine = engineOf();
@@ -277,7 +430,7 @@
     record(replay([]), startValues, []);
     let complete = true;
     for (let at = 0; at < nodes.length; at += 1) {
-      if (nodes.length > maxStates || Date.now() - started > maxMs) {
+      if (nodes.length > maxStates || Date.now() > deadline) {
         complete = false;
         break;
       }
@@ -305,11 +458,11 @@
     }
 
     // What was seen, from every state reached (and the random runs).
-    const activeSeen = new Set();
+    const active = new Set();
     const leftStop = new Set();
     const tagOf = (mast, aspect) => board.masts?.[mast]?.aspects?.[aspect];
     const see = (state, view) => {
-      view.active.forEach((ref) => activeSeen.add(ref));
+      view.active.forEach((ref) => active.add(ref));
       for (const [mast, aspect] of Object.entries(state.masts)) {
         if (aspect && aspect !== "dark" && tagOf(mast, aspect) && tagOf(mast, aspect) !== "stop") leftStop.add(mast);
       }
@@ -319,7 +472,7 @@
     let tried = 0;
     if (!complete) {
       const next = random(seed);
-      for (let run = 0; run < runs && Date.now() - started <= Math.max(maxMs, 0) * 2 + 1; run += 1) {
+      for (let run = 0; run < runs && Date.now() <= runsUntil; run += 1) {
         const engine = replay([]);
         let values = startValues;
         for (let s = 0; s < steps; s += 1) {
@@ -340,57 +493,124 @@
       }
     }
 
-    const logic = board.logic || {};
-    const rules = list(logic.layers).flatMap((layer) => list(layer.rules).map((rule, i) => ({ ref: `${layer.name}/${i + 1}`, rule })));
-    const problems = [];
-
     // Deadlock and starvation need every state, so only on a complete check.
-    const deadlocked = new Set();
+    const found = [];
     if (complete) {
       const reverse = nodes.map(() => []);
       nodes.forEach((node) => node.edges.forEach((edge) => reverse[edge.to].push({ from: node.id, input: edge.input })));
-      for (const { ref, rule } of rules) {
-        const section = rule?.then?.reserve;
-        if (section === undefined) continue;
-        const frozen = requestInputs(rule, board, inputs);
-        const waiting = (node) => node.state.rules[ref] === "waiting";
-        // States from which the rule can still be granted, its train waiting.
-        const canGrant = new Set(nodes.filter((node) => node.view.active.includes(ref)).map((node) => node.id));
-        const queue = [...canGrant];
-        while (queue.length) {
-          const id = queue.pop();
-          for (const { from, input } of reverse[id]) {
-            if (frozen.has(input) || canGrant.has(from)) continue;
-            canGrant.add(from);
-            queue.push(from);
+      for (const layer of list(board.logic?.layers)) {
+        list(layer.rules).forEach((rule, i) => {
+          const ref = `${layer.name}/${i + 1}`;
+          const section = rule?.then?.reserve;
+          if (section === undefined) return;
+          const frozen = requestInputs(rule, board, inputs);
+          const waiting = (node) => node.state.rules[ref] === "waiting";
+          // States from which the rule can still be granted, its train waiting.
+          const canGrant = new Set(nodes.filter((node) => node.view.active.includes(ref)).map((node) => node.id));
+          const queue = [...canGrant];
+          while (queue.length) {
+            const id = queue.pop();
+            for (const { from, input } of reverse[id]) {
+              if (frozen.has(input) || canGrant.has(from)) continue;
+              canGrant.add(from);
+              queue.push(from);
+            }
           }
-        }
-        // Only a state where it stays waiting as time passes: just after its
-        // train left, its When's *for* keeps it waiting for a moment, and
-        // that request then lapses rather than being stuck.
-        // Time alone is a chain of wait steps (one per state): follow it until
-        // nothing more changes.
-        const settled = (node) => {
-          const seen = new Set();
-          for (let at = node; at && !seen.has(at.id); ) {
-            if (!waiting(at)) return false;
-            seen.add(at.id);
-            const wait = at.edges.find((edge) => edge.input === -1);
-            at = wait ? nodes[wait.to] : null;
-          }
-          return true;
-        };
-        const stuck = nodes.find((node) => settled(node) && !canGrant.has(node.id));
-        if (stuck) {
-          deadlocked.add(ref);
-          problems.push({ level: "error", kind: "deadlock", rule: ref, text: TEXT.deadlock(ruleWords(ref), section), sequence: stuck.path });
-          continue;
-        }
-        // Starvation: a loop of states, the rule waiting throughout and its
-        // train still there, in which another rule is granted the section.
-        const inLoop = starvedLoop(nodes, ref, frozen, section);
-        if (inLoop) problems.push({ level: "warning", kind: "starvation", rule: ref, text: TEXT.starved(ruleWords(ref), section), sequence: inLoop.path });
+          // Only a state where it stays waiting as time passes: just after its
+          // train left, its When's *for* keeps it waiting for a moment, and
+          // that request then lapses rather than being stuck.
+          // Time alone is a chain of wait steps (one per state): follow it until
+          // nothing more changes.
+          const settled = (node) => {
+            const seen = new Set();
+            for (let at = node; at && !seen.has(at.id); ) {
+              if (!waiting(at)) return false;
+              seen.add(at.id);
+              const wait = at.edges.find((edge) => edge.input === -1);
+              at = wait ? nodes[wait.to] : null;
+            }
+            return true;
+          };
+          const stuck = nodes.find((node) => settled(node) && !canGrant.has(node.id));
+          if (stuck) return void found.push({ kind: "deadlock", rule: ref, section, sequence: stuck.path });
+          // Starvation: a loop of states, the rule waiting throughout and its
+          // train still there, in which another rule is granted the section.
+          const inLoop = starvedLoop(nodes, ref, frozen, section);
+          if (inLoop) found.push({ kind: "starvation", rule: ref, section, sequence: inLoop.path });
+        });
       }
+    }
+    return { complete, states: nodes.length, tried, active, leftStop, found };
+  }
+
+  // The budgets (spec, Checking in the browser; measured in work item 4.5
+  // with test/bench/checker-limits.mjs). Validation runs on every change to
+  // the rules, so it must stay quick: what it cannot finish it tries in
+  // random runs, and says so. A full check is asked for on the Download page.
+  const BUDGETS = Object.freeze({
+    validation: Object.freeze({ maxStates: 2000, maxMs: 400, runs: 100, steps: 40, runsMs: 200, quick: true }),
+    full: Object.freeze({ maxStates: 30000, maxMs: 20000, runs: 1000, steps: 60, runsMs: 5000 }),
+  });
+
+  /**
+   * Check a board in the engine cases' format (EsphomeMrLogicYaml.logicTable).
+   * Options (default BUDGETS.full): maxStates and maxMs, shared by its parts;
+   * runs and steps for the random fallback of each part that does not finish,
+   * for at most runsMs more; quick (the partial warning then points at the
+   * full check); seed (default 1). split: false checks the board
+   * as one part, and allInputs: true explores every input inputsOf gives: the
+   * tests compare them with the defaults.
+   * Returns { complete, states, runs, parts, problems: [{ level, kind, text,
+   * rule?, mast?, sequence? }] }.
+   */
+  function checkBoard(board, options = {}) {
+    const { maxStates, maxMs, runs, steps, runsMs } = { ...BUDGETS.full, ...options };
+    const { seed = 1, split = true, allInputs = false, quick = false } = options;
+    const started = Date.now();
+    const deadline = started + maxMs;
+    const runsUntil = deadline + runsMs;
+
+    const parts = split ? partsOf(board) : [{ board, refOf: (ref) => ref }];
+    let states = 0;
+    let tried = 0;
+    let complete = true;
+    const activeSeen = new Set();
+    const leftStop = new Set();
+    const provenRules = new Set(); // rules in a part that finished
+    const provenMasts = new Set();
+    const found = new Map();
+    for (const part of parts) {
+      const seen = explore(part.board, { maxStates: Math.max(maxStates - states, 0), deadline, runs, steps, seed, runsUntil, allInputs });
+      states += seen.states;
+      tried += seen.tried;
+      if (!seen.complete) complete = false;
+      seen.active.forEach((ref) => activeSeen.add(part.refOf(ref)));
+      seen.leftStop.forEach((mast) => leftStop.add(mast));
+      if (seen.complete) {
+        for (const layer of list(part.board.logic?.layers)) {
+          list(layer.rules).forEach((rule, i) => {
+            provenRules.add(part.refOf(`${layer.name}/${i + 1}`));
+            if (rule?.then?.mast !== undefined) provenMasts.add(rule.then.mast);
+          });
+        }
+      }
+      for (const f of seen.found) {
+        const ref = part.refOf(f.rule);
+        if (!found.has(ref)) found.set(ref, { ...f, rule: ref });
+      }
+    }
+
+    const logic = board.logic || {};
+    const rules = list(logic.layers).flatMap((layer) => list(layer.rules).map((rule, i) => ({ ref: `${layer.name}/${i + 1}`, rule })));
+    const problems = [];
+    const deadlocked = new Set();
+    for (const { ref } of rules) {
+      const f = found.get(ref);
+      if (!f) continue;
+      if (f.kind === "deadlock") {
+        deadlocked.add(ref);
+        problems.push({ level: "error", kind: "deadlock", rule: ref, text: TEXT.deadlock(ruleWords(ref), f.section), sequence: f.sequence });
+      } else problems.push({ level: "warning", kind: "starvation", rule: ref, text: TEXT.starved(ruleWords(ref), f.section), sequence: f.sequence });
     }
 
     // A block signals or route signal rule 1 ("the next mast is diverging")
@@ -403,16 +623,16 @@
     const fallback = (rule) => conditionsIn([rule?.trigger, rule?.checks]).some((cond) => cond.mast !== undefined && cond.is === "diverging" && !divergingOf(cond));
     for (const { ref, rule } of rules) {
       if (deadlocked.has(ref) || activeSeen.has(ref) || fallback(rule)) continue;
-      const text = complete ? TEXT.neverActive(ruleWords(ref)) : TEXT.neverSeen(ruleWords(ref), tried);
+      const text = provenRules.has(ref) ? TEXT.neverActive(ruleWords(ref)) : TEXT.neverSeen(ruleWords(ref), tried);
       problems.push({ level: "warning", kind: "never-active", rule: ref, text });
     }
     const fieldMasts = [...new Set(rules.map(({ rule }) => rule?.then?.mast).filter(Boolean))];
     for (const mast of fieldMasts) {
       if (leftStop.has(mast)) continue;
-      problems.push({ level: "warning", kind: "stuck", mast, text: complete ? TEXT.stuck(mast) : TEXT.stuckSeen(mast, tried) });
+      problems.push({ level: "warning", kind: "stuck", mast, text: provenMasts.has(mast) ? TEXT.stuck(mast) : TEXT.stuckSeen(mast, tried) });
     }
-    if (!complete) problems.push({ level: "warning", kind: "partial", text: TEXT.tooMany(tried) });
-    return { complete, states: nodes.length, runs: tried, problems };
+    if (!complete) problems.push({ level: "warning", kind: "partial", text: TEXT.tooMany(tried, quick) });
+    return { complete, states, runs: tried, parts: parts.length, problems };
   }
 
   // A loop of states where `ref` waits throughout (and its request's inputs
@@ -473,15 +693,20 @@
 
   // The last check, by the rule table it ran on: the page asks on every draw.
   let last = { json: null, result: null };
+  const tableOf = (config) => {
+    const table = global.EsphomeMrLogicYaml?.logicTable(config);
+    return table && list(table.logic?.layers).length ? table : null;
+  };
 
   /**
-   * Check a configurator board (Field Logic). Memoised on the rule table, and
-   * bounded so the page stays quick: what it cannot finish, it says.
+   * Check a configurator board (Field Logic or MSS Logic). Memoised on the
+   * rule table, and bounded so the page stays quick (BUDGETS.validation):
+   * what it cannot finish, it says. A full check of the same rules, once
+   * made, is what it returns until they change.
    */
-  function checkConfig(config, options = { maxStates: 2000, maxMs: 250, runs: 100, steps: 40 }) {
-    const Y = global.EsphomeMrLogicYaml;
-    const table = Y?.logicTable(config);
-    if (!table || !list(table.logic?.layers).length) return null;
+  function checkConfig(config, options = BUDGETS.validation) {
+    const table = tableOf(config);
+    if (!table) return null;
     const json = JSON.stringify(table);
     if (last.json === json) return last.result;
     const result = checkBoard(table, options);
@@ -489,5 +714,22 @@
     return result;
   }
 
-  global.EsphomeMrLogicChecker = { TEXT, SELF, checkBoard, checkConfig, inputsOf, endSetup, endKey, isEndKey, ruleWords };
+  /** Check every combination (BUDGETS.full), for the Download page's button. */
+  function checkFully(config) {
+    const table = tableOf(config);
+    if (!table) return null;
+    const json = JSON.stringify(table);
+    if (last.json === json && last.result?.complete) return last.result;
+    const result = checkBoard(table, BUDGETS.full);
+    last = { json, result };
+    return result;
+  }
+
+  /** Whether the last check of these rules gave up: the Download page offers a full one. */
+  function needsFullCheck(config) {
+    const table = tableOf(config);
+    return !!table && last.json === JSON.stringify(table) && last.result?.complete === false;
+  }
+
+  global.EsphomeMrLogicChecker = { TEXT, SELF, BUDGETS, checkBoard, checkConfig, checkFully, needsFullCheck, partsOf, checkerInputs, inputsOf, endSetup, endKey, isEndKey, ruleWords };
 })(typeof globalThis !== "undefined" ? globalThis : window);

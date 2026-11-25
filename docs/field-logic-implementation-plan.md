@@ -176,7 +176,7 @@ Within a release, cases and tests come first. UI and generator work run in paral
 | Golden files block unrelated fixes on `main` | Friction | `UPDATE_GOLDEN=1` with sign-off |
 | Captive-portal Wi-Fi lasts only until the config changes | Surprise after a reflash | In the spec, the module card and the guide |
 | `.local` broker name does not resolve on some networks | Boards cannot reach the broker | Spike B; the configurator already accepts a LAN IP |
-| Checker state explosion | Slow or useless checks | Random-run fallback; limits measured in 4.5 |
+| Checker state explosion | Slow or useless checks | Measured in 4.5: checked in parts, with inputs the rules cannot tell apart merged; a quick budget in validation and Check every combination on the Download page; random-run fallback past both (spec, Checker limits) |
 | `app.js` and `generator.js` keep growing | Hard to change safely | Logic lives in new modules; existing files gain only hooks |
 | `feature/logic` drifts from `main` over months | A painful final merge | Merge `main` in at least weekly; logic in new files keeps conflicts to the hooks |
 

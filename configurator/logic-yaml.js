@@ -1444,12 +1444,11 @@
       validateSections(config, r);
       validateRules(config, r);
       validateCycles(config, r);
-      // MSS Logic warns about a boundary with no sensor itself, and its
-      // checker limits are work item 4.5 (the checker has no plant ends yet).
-      if (!mss) {
-        validateBlockSignals(config, r);
-        validateChecker(config, r, errors);
-      }
+      // MSS Logic warns about a boundary with no sensor itself. The checker
+      // runs on its built rules too (work item 4.5): its plant ends are
+      // inputs (3.4), and parts keep a busy junction module within budget.
+      if (!mss) validateBlockSignals(config, r);
+      validateChecker(config, r, errors);
     }
     const shares = M().sharesWithOtherBoards(config);
     const active = shares || M().logicMode(config) !== "none";

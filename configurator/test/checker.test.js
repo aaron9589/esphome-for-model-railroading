@@ -109,6 +109,152 @@ test("only what the rules read are inputs", () => {
   assert.deepEqual(keys, ["sensor:Left", "sensor:Right", "sensor:Bridge"]);
 });
 
+// ===== Limits (work item 4.5): parts, and the waiting order per section =====
+
+const replayOn = (board, sequence) => {
+  const engine = Engine.createEngine(board, { logic: "on", broker: "connected" });
+  engine.scan();
+  for (const step of sequence) {
+    if (step.do) {
+      engine.event(step.do);
+      engine.scan();
+    } else for (let i = 0; i < step.wait; i += 1) engine.scan();
+  }
+  return engine;
+};
+
+// The gauntlet, and beside it a layer whose masts read nothing of the
+// gauntlet's: rule 1 sets Yard Exit, rule 2 sets Yard Home and can never apply.
+function gauntletAndYard() {
+  const board = gauntlet();
+  board.sensors.push("Yard");
+  board.masts["Yard Exit"] = { aspects: { R292: "stop", R281: "clear" } };
+  board.masts["Yard Home"] = { aspects: { R292: "stop", R281: "clear" } };
+  board.logic.layers.push({ name: "Yard", rules: [
+    { trigger: { while: { block: "Yard", is: "clear" } }, checks: [], then: { mast: "Yard Exit", aspect: "R281" } },
+    { trigger: { while: { block: "Yard", is: "clear" } }, checks: [{ block: "Yard", is: "occupied" }], then: { mast: "Yard Home", aspect: "R281" } },
+  ] });
+  return board;
+}
+
+test("parts: masts that do not read each other are checked apart, and find what the whole board finds", () => {
+  const board = gauntletAndYard();
+  const parts = C.partsOf(board);
+  assert.equal(parts.length, 3);
+  // Each part has only its own inputs.
+  assert.deepEqual(plain(parts.map((p) => C.inputsOf(p.board).map((i) => i.key.split("\u0000")[1]))), [["Left", "Right", "Bridge"], ["Yard"], ["Yard"]]);
+  const split = C.checkBoard(board);
+  const whole = C.checkBoard(board, { split: false });
+  assert.equal(split.complete, true);
+  assert.equal(whole.complete, true);
+  assert.equal(split.parts, 3);
+  assert.deepEqual(kinds(split), ["warning:never-active:Yard/2", "warning:stuck:Yard Home"]);
+  assert.deepEqual(kinds(split), kinds(whole));
+  assert.ok(split.states < whole.states, `${split.states} < ${whole.states}`);
+  // The rule keeps its own name, though its part has only one rule in Yard.
+  assert.match(split.problems[0].text, /Rule 2 in group "Yard" can never apply/);
+});
+
+test("parts: a deadlock in one part is found, and Show me plays it on the whole board", () => {
+  const board = gauntletAndYard();
+  board.logic.layers[0].rules[0].checks = [{ block: "Bridge", is: "occupied" }];
+  const result = C.checkBoard(board);
+  const deadlock = result.problems.find((p) => p.kind === "deadlock");
+  assert.equal(deadlock?.rule, "Gauntlet/1");
+  assert.deepEqual(kinds(result).filter((k) => k.startsWith("error")), ["error:deadlock:Gauntlet/1"]);
+  assert.equal(replayOn(board, deadlock.sequence).state().rules["Gauntlet/1"], "waiting");
+});
+
+test("parts: block signals read the next mast along the line, so the worked example stays one part", () => {
+  assert.equal(C.partsOf(readCase("blocksig-worked-example.json").board).length, 1);
+  // Two directions on a plant-end board read nothing of each other.
+  const west = readCase("ends-three-boards-turned.json").boards.west;
+  assert.equal(C.partsOf(west).length, 2);
+  const split = C.checkBoard(west);
+  const whole = C.checkBoard(west, { split: false });
+  assert.equal(split.complete && whole.complete, true);
+  assert.deepEqual(kinds(split), kinds(whole));
+  assert.ok(split.states < whole.states, `${split.states} against ${whole.states}`);
+});
+
+test("parts: a section's rules, and the masts its release reads, stay together", () => {
+  const board = gauntletAndYard();
+  // The section's release now waits for Yard Exit to show Stop.
+  board.logic.resources[0].release = { while: { all: [{ block: "Bridge", is: "clear" }, { mast: "Yard Exit", is: "stop" }] }, for: "3s" };
+  const parts = C.partsOf(board);
+  const withBridge = parts.find((p) => p.board.logic.resources.length);
+  assert.deepEqual(plain(withBridge.board.logic.layers.map((l) => [l.name, l.rules.length])), [["Gauntlet", 2], ["Yard", 1]]);
+  assert.equal(withBridge.refOf("Yard/1"), "Yard/1");
+});
+
+test("inputs the rules cannot tell apart are explored once", () => {
+  const west = readCase("ends-three-boards-turned.json").boards.west;
+  const show = (inputs) => plain(inputs.map((i) => `${i.key.split("\u0000").filter(Boolean).join(" ")}: ${i.values.join(",")}`));
+  // North block is North in, North and what end B track 1 hears: one input.
+  // Its signal is read as Approach or better, or not: Stop and Approach.
+  assert.deepEqual(show(C.checkerInputs(west, C.inputsOf(west))), [
+    "sensor North in: clear,occupied",
+    "~end B 1 mast: stop,approach",
+    "sensor South in: clear,occupied",
+    "~end A 1 mast: stop,approach",
+  ]);
+  // A sensor a rule reads by itself stays an input of its own.
+  const board = plain(west);
+  board.logic.layers[0].rules[1].checks = [{ sensor: "North", is: "clear" }];
+  assert.ok(show(C.checkerInputs(board, C.inputsOf(board))).includes("sensor North: clear,occupied"));
+  // Try it still offers every one.
+  assert.equal(C.inputsOf(west).length, 8);
+});
+
+test("parts and merged inputs find exactly what the whole board, every input, finds", () => {
+  const boards = {
+    gauntlet: gauntlet(),
+    "single line": gauntlet({ leave: true }),
+    "gauntlet and yard": gauntletAndYard(),
+    "worked example": readCase("blocksig-worked-example.json").board,
+    ...Object.fromEntries(["rules-waiting-order.json", "rules-approach-locking-time.json", "rules-leaving-guard.json", "starter-lock-turnouts.json", "starter-route-signal.json"].map((f) => [f, readCase(f).board])),
+    ...readCase("ends-three-boards-turned.json").boards,
+  };
+  const deadlock = gauntletAndYard();
+  deadlock.logic.layers[0].rules[0].checks = [{ block: "Bridge", is: "occupied" }];
+  boards.deadlock = deadlock;
+  const direct = plain(boards.west);
+  direct.logic.layers[0].rules[1].checks = [{ sensor: "North", is: "clear" }];
+  boards["west, a sensor read by itself"] = direct;
+  for (const [name, board] of Object.entries(boards)) {
+    const quick = C.checkBoard(board);
+    const slow = C.checkBoard(board, { split: false, allInputs: true, maxStates: 20000 });
+    assert.equal(quick.complete && slow.complete, true, name);
+    assert.deepEqual(kinds(quick), kinds(slow), name);
+    assert.ok(quick.states <= slow.states, `${name}: ${quick.states} against ${slow.states}`);
+  }
+});
+
+test("the checker keeps each section's waiting order, and drops how plain rules interleave", () => {
+  const board = gauntletAndYard();
+  const ask = (first, second) => {
+    const engine = Engine.createEngine(board, { logic: "on", broker: "connected" });
+    engine.scan();
+    // Bridge occupied, so both entrances wait; then the yard clears.
+    for (const e of [{ sensor: "Bridge", is: "occupied" }, { sensor: "Yard", is: "occupied" }, { sensor: first, is: "occupied" }]) {
+      engine.event(e);
+      engine.scan();
+    }
+    for (let i = 0; i < 6; i += 1) engine.scan();
+    engine.event({ sensor: second, is: "occupied" });
+    for (let i = 0; i < 6; i += 1) engine.scan();
+    engine.event({ sensor: "Yard", is: "clear" });
+    engine.scan();
+    return plain(engine.checkerView());
+  };
+  const a = ask("Left", "Right");
+  const b = ask("Right", "Left");
+  assert.deepEqual(a.asked, [["Yard/1", "Yard/2"], ["Gauntlet/1", "Gauntlet/2"]]);
+  assert.deepEqual(b.asked, [["Yard/1", "Yard/2"], ["Gauntlet/2", "Gauntlet/1"]]);
+  // Try it still lists every request in the order it came.
+  assert.deepEqual(a.order, ["Gauntlet/1", "Gauntlet/2", "Yard/1", "Yard/2"]);
+});
+
 // ===== Through validation, on a configurator board ==========================
 
 const { normalizeConfig, validateConfig, topicFor } = ctx.EsphomeMr;
