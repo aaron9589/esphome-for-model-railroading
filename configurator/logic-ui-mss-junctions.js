@@ -150,6 +150,8 @@
     for (const leg of legs) masts[String(leg)] = null;
     return {
       name,
+      // Kept only so the card draws the junction the way its shape did.
+      ...(shape.layout ? { shape: shape.id } : {}),
       sensors: [...sensors],
       masts,
       routes: shape.routes.map((route) => ({
@@ -285,6 +287,15 @@
       const row = Math.floor(i / 2);
       return { leg, x: i % 2 === 0 ? 10 : 110, y: rows === 1 ? 30 : 8 + (44 * row) / (rows - 1) };
     });
+  }
+
+  // The layout of the shape a junction was made from, while every leg its
+  // routes use is in it (routes edited past the shape fall back to spreading).
+  function layoutFor(junction) {
+    const layout = shapeOf(junction?.shape)?.layout;
+    if (!layout) return null;
+    const legs = list(junction.routes).flatMap((r) => list(r?.legs));
+    return legs.every((leg) => layout[leg]) ? layout : null;
   }
 
   function diagram(routes, layout = null) {
@@ -566,7 +577,7 @@
     card.append(sensors);
 
     // Which legs join: a drawing, and a line for each route.
-    const preview = svgPicture(diagram(junction.routes), TEXT.pictureLabel(junction.name || TEXT.unnamed));
+    const preview = svgPicture(diagram(junction.routes, layoutFor(junction)), TEXT.pictureLabel(junction.name || TEXT.unnamed));
     const joins = el("div", "mssj-preview");
     joins.append(el("span", "field-label", TEXT.previewLabel), preview.svg);
     const lines = el("ul", "mssj-joins");
@@ -631,7 +642,7 @@
 
   global.EsphomeMrLogicUiMssJunctions = {
     TEXT,
-    SHAPES,
+    SHAPES, layoutFor,
     shapeOf,
     fromShape,
     freeJunctionName,
