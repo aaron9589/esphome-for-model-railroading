@@ -2094,23 +2094,7 @@ details.rule-more {
   background: #d97706;
 }
 
-/* MSS page: strip editor */
-.mss-strip-wrap {
-  overflow-x: auto;
-  margin: 0.5rem 0;
-}
-
-.mss-strip {
-  display: block;
-  max-width: none;
-  font-size: 12px;
-}
-
-.mss-rail {
-  stroke: var(--line-strong);
-  stroke-width: 3;
-}
-
+/* MSS page: blocks and block boundaries in the module picture */
 .mss-place,
 .mss-through {
   fill: var(--muted);
@@ -2455,4 +2439,147 @@ details.rule-more {
 
 .mssj-problems .msg {
   margin: 0.25rem 0;
+}
+
+/* MSS Logic: the picture of the whole module, pinned at the top of the page
+   while the cards under it scroll. */
+.mss-module {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.08);
+}
+
+.mss-module > h3 {
+  display: inline-block;
+  margin-right: 0.75rem;
+}
+
+.mss-module.is-empty {
+  position: static;
+  box-shadow: var(--shadow);
+}
+
+.mss-module.is-empty > h3 {
+  display: block;
+}
+
+.mss-module-fold {
+  font-size: 0.82rem;
+}
+
+.mss-module-wrap {
+  overflow: auto;
+  max-height: 40vh;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg);
+}
+
+.mss-module-picture {
+  display: block;
+  max-width: none;
+  font-size: 12px;
+}
+
+.mss-module-rail {
+  fill: none;
+  stroke: #9ca3af;
+  stroke-width: 4;
+}
+
+.mss-module-route {
+  fill: none;
+  stroke: #111827;
+  stroke-width: 4;
+}
+
+.mss-module-route.is-diverging {
+  stroke-dasharray: 8 5;
+}
+
+.mss-module-leg {
+  fill: var(--accent);
+}
+
+.mss-module-plate {
+  stroke: #111827;
+  stroke-width: 6;
+}
+
+.mss-module-stop {
+  stroke: #111827;
+  stroke-width: 4;
+}
+
+.mss-module-open {
+  stroke: #9ca3af;
+  stroke-width: 3;
+  stroke-dasharray: 3 3;
+}
+
+.mss-module-signal,
+.mss-module-name {
+  font-size: 12px;
+  fill: var(--ink);
+}
+
+.mss-module-name {
+  font-weight: 650;
+}
+
+.mss-module-junction,
+.mss-module-end {
+  cursor: pointer;
+}
+
+.mss-module-junction .mss-hit,
+.mss-module-end .mss-hit {
+  fill: transparent;
+}
+
+.mss-module-junction:hover .mss-hit,
+.mss-module-junction:focus .mss-hit,
+.mss-module-end:hover .mss-hit,
+.mss-module-end:focus .mss-hit {
+  fill: rgba(37, 99, 235, 0.08);
+}
+
+.mss-module-junction.is-error .mss-module-route,
+.mss-module-end.is-error .mss-module-plate {
+  stroke: var(--danger);
+}
+
+.mss-module-junction.is-error .mss-module-name,
+.mss-module-end.is-error .mss-place {
+  fill: var(--danger);
+}
+
+.mss-module-junction.is-warning .mss-module-name,
+.mss-module-end.is-warning .mss-place {
+  fill: var(--warn-ink);
+}
+
+/* Cards the picture scrolls to stop below it, and show where they are. */
+#logic-mss-ends .row-card,
+#logic-mss-tracks .row-card,
+#logic-mss-tracks .mss-form,
+#logic-mss-junctions .row-card {
+  scroll-margin-top: var(--mss-pin, 0px);
+}
+
+.is-flashed {
+  animation: mss-flash 1.2s ease-out;
+}
+
+@keyframes mss-flash {
+  from { box-shadow: 0 0 0 3px var(--accent); }
+  to { box-shadow: 0 0 0 3px transparent; }
+}
+
+/* On a short window the picture scrolls with the page. */
+@media (max-height: 640px) {
+  .mss-module {
+    position: static;
+  }
 }

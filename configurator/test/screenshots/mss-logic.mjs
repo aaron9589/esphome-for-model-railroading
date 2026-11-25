@@ -25,7 +25,9 @@ const fieldIn = (scope, label) => scope.locator(`label:has(.field-label:text-is(
 
 // The top bar sticks to the top of the window, so a card scrolled up to it
 // would be drawn under it. Pictures only: let it scroll away with the page.
-const unstickTopBar = (p) => p.addStyleTag({ content: ".topbar { position: static !important; }" });
+// The top bar and the module picture stay put while the page scrolls. In a
+// picture of one card they would be drawn over it, so they scroll here.
+const unstickTopBar = (p) => p.addStyleTag({ content: ".topbar, .mss-module { position: static !important; }" });
 
 // A picture of several cards in a row on the page (the first to the last),
 // cropped to them. shot() takes one element; this takes the span of two.
@@ -124,10 +126,13 @@ async function addEnds(p, count) {
   for (let i = 0; i < count; i += 1) await ends(p).getByRole("button", { name: "Add an end" }).click();
 }
 
-// Click a block or block boundary on a track's strip, by its label.
-const pickOnStrip = (p, n, label) => trackCard(p, n).locator(`.mss-strip g[aria-label="${label}"]`).click();
+// The picture of the whole module, at the top of the page.
+const picture = (p) => p.locator("#logic-mss-module");
 
-// Pick a sensor for the block or boundary shown under the strip.
+// Click a block or block boundary of track n (from 0) on the picture, by its label.
+const pickOnPicture = (p, n, label) => picture(p).locator(`g[aria-label="Track ${n + 1}, ${label}: edit it"]`).click();
+
+// Pick a sensor for the block or boundary whose form is open.
 const pickSensor = (p, n, name) => form(p, n).getByLabel("Add a sensor…").selectOption({ label: name });
 
 async function setPlace(p, n, side, text) {
@@ -156,21 +161,24 @@ await shotSpan(page, "#logic-mss-steps", "#logic-mss-ends", "03-west-ends");
 
 // Step 3: Draw the track.
 await tracks(page).getByRole("button", { name: "Add a track" }).click();
-await shot(trackCard(page, 0), "05-track-new");
+await blur(page);
+await shot(picture(page), "05-track-new");
 await trackCard(page, 0).getByRole("button", { name: "Add a block boundary" }).click();
-await shot(trackCard(page, 0).locator(".mss-strip-wrap"), "06-track-boundary");
-await pickOnStrip(page, 0, "Block 1");
+await blur(page);
+await shot(picture(page), "06-track-boundary");
+await pickOnPicture(page, 0, "Block 1");
 await pickSensor(page, 0, "W1 current");
-await pickOnStrip(page, 0, "Block 1");
+await pickOnPicture(page, 0, "Block 1");
 await shot(trackCard(page, 0).locator(".mss-body"), "07-track-block");
-await pickOnStrip(page, 0, "Block 2");
+await pickOnPicture(page, 0, "Block 2");
 await pickSensor(page, 0, "W2 current");
-await pickOnStrip(page, 0, "Block boundary 1");
+await pickOnPicture(page, 0, "Block boundary 1");
 await pickSensor(page, 0, "W12 optical");
 await form(page, 0).getByLabel("Signal for trains heading towards End B, track 1").selectOption({ label: "W toward B" });
 await form(page, 0).getByLabel("Signal for trains heading towards End A, track 1").selectOption({ label: "W toward A" });
-await pickOnStrip(page, 0, "Block boundary 1");
-await shot(trackCard(page, 0), "08-west-track");
+await pickOnPicture(page, 0, "Block boundary 1");
+await blur(page);
+await shot(picture(page), "08-west-track");
 await shot("#logic-mss-steps", "09-west-steps");
 
 // Step 12: Convert to Field Logic. West stops here, so it can be the copy.
@@ -215,17 +223,21 @@ await setPlace(east, 1, "To", "End B, track 1");
 await setPlace(east, 2, "From", "Junction J1, leg 3");
 await setPlace(east, 2, "To", "End C, track 1");
 await trackCard(east, 0).getByRole("button", { name: "Add a block boundary" }).click();
-await pickOnStrip(east, 0, "Block 1");
+await pickOnPicture(east, 0, "Block 1");
 await pickSensor(east, 0, "E1 current");
-await pickOnStrip(east, 0, "Block 2");
+await pickOnPicture(east, 0, "Block 2");
 await pickSensor(east, 0, "E2 current");
-await pickOnStrip(east, 0, "Block boundary 1");
+await pickOnPicture(east, 0, "Block boundary 1");
 await pickSensor(east, 0, "E12 optical");
 await form(east, 0).getByLabel("Signal for trains heading towards Junction J1, leg 1").selectOption({ label: "E Outer" });
+await pickOnPicture(east, 1, "Block 1");
 await pickSensor(east, 1, "E Main current");
+await pickOnPicture(east, 2, "Block 1");
 await pickSensor(east, 2, "E Branch current");
-await pickOnStrip(east, 0, "Block boundary 1");
+await pickOnPicture(east, 0, "Block boundary 1");
 await shot(trackCard(east, 0), "11-east-track-1");
+await blur(east);
+await shot(picture(east), "11-east-module");
 
 // The junction, now that its legs have tracks.
 await east.mouse.move(0, 0);
