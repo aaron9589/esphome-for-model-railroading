@@ -97,7 +97,9 @@
   /**
    * The guided steps, in order: [{ key, part, view, done, optional, problems }].
    * `part` is the card the step links to, `view` a page of the configurator
-   * (Download). `tryIt` is whether the page has a Try it part to link to.
+   * (Download). `tryIt` is whether the page has a Try it part to link to. Try it is
+   * registered for Field Logic only, so the step stays off until a `logic-try`
+   * part is registered for `mss` (turn it on with MSS Try it).
    */
   function guidedSteps(config, { tryIt = true } = {}) {
     const mss = readMss(config);
@@ -414,7 +416,7 @@
   // ----- Guided steps -----
 
   function renderSteps(root, config, ctx, ui) {
-    const steps = guidedSteps(config, { tryIt: !!global.EsphomeMrLogicUi?.FEATURES?.tryIt });
+    const steps = guidedSteps(config, { tryIt: !!global.EsphomeMrLogicUi?.FEATURES?.tryIt && !!global.EsphomeMrLogicUi?.hasPart?.("logic-try", "mss") });
     const next = nextStep(steps);
     const section = ui.card("logic-mss-steps", TEXT.stepsCard);
     section.classList.add("logic-steps");

@@ -649,6 +649,11 @@
   }
 
   // Every word a part can show, for the plain-words lint: [where, TEXT object].
+  /** Whether a part is registered for a mode (the guided steps use it). */
+  function hasPart(id, mode) {
+    return parts.some((part) => part.id === id && part.modes.includes(mode));
+  }
+
   function allText() {
     return [["TEXT", TEXT], ...parts.map((part) => [part.id, part.text])];
   }
@@ -823,6 +828,6 @@
 
   global.EsphomeMrLogicUi = {
     FEATURES, TEXT, modeChoices, checklistSteps, renderLogicPage, logicNavHint,
-    registerPart, allText, UI, itemChoices, newRule, newGroup,
+    registerPart, hasPart, allText, UI, itemChoices, newRule, newGroup,
   };
 })(typeof globalThis !== "undefined" ? globalThis : window);

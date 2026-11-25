@@ -85,7 +85,18 @@ Wiring, detector tuning, how points remember their positions, and the layout thi
 |---|---|
 | The detector schematic and how to tune a block | [How the boards work](docs/README.md) |
 | Flash and MQTT smoke test | [first-board-setup-guide.md](docs/first-board-setup-guide.md) |
+| Field Logic or MSS Logic | [field-logic-guide.md](docs/field-logic-guide.md), [mss-logic-guide.md](docs/mss-logic-guide.md) |
+| Every guide and spec | [docs index](docs/README.md) |
 | Advanced layout patterns (not Configurator YAML) | [advanced-samples/](advanced-samples/) |
+
+## Logic page
+
+The configurator's **Logic** page lets a board work out its own signals, so they keep working when JMRI is closed. It is on the `feature/logic` branch and reaches the live configurator when that branch merges to `main`. Until then, run the configurator from the branch (`configurator/index.html`). It has two modes:
+
+- **Field Logic**: you build rules, from a starter, and the board follows them. Pick it when you want control of how signals and locks behave. Guide: [field-logic-guide.md](docs/field-logic-guide.md).
+- **MSS Logic**: you describe a module (its ends, tracks and junctions) and the board signals it like an MSS module, with no rules to write. Pick it for modules that pair at a meet. Guide: [mss-logic-guide.md](docs/mss-logic-guide.md).
+
+Do the first board first. Read the Field Logic guide before the MSS one. The MSS guide leans on it.
 
 Signal masts are in the configurator, on the same board as the blocks and points. Staff tokens, bell codes, end-of-block pulses, and hand throws are in [advanced-samples](advanced-samples/README.md).
 

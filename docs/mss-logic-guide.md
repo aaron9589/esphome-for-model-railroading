@@ -51,7 +51,7 @@ Before you start, put the parts on the foundation pages, as in the first board g
 
 Under **Settings**, **Share with other boards** says *Always on in MSS Logic: neighbouring boards read it.* There is nothing to tick.
 
-The page now lists numbered steps under **Set up this module**: **Ends**, **Tracks**, **Junctions**, **Signals**, **Try it** and **Download**. Each has a short hint. You can do them in any order and come back to any of them. A step with a problem shows a red dot.
+The page now lists numbered steps under **Set up this module**: **Ends**, **Tracks**, **Junctions**, **Signals** and **Download**. Each has a short hint. You can do them in any order and come back to any of them. A step with a problem shows a red dot.
 
 > **Screenshot placeholder:** Logic page with MSS Logic chosen and the Set up this module steps listed, none done yet.
 
@@ -248,7 +248,7 @@ If a board does not show **Online**, go to the first board guide's checks. If th
 
 ### Try it
 
-The steps list has a **Try it** step, which runs a train through the module on the page, with a pretend neighbour at each end. At the time of writing, Try it is on the Field Logic page only. It does not yet appear in MSS Logic mode, so its step has nothing to open.
+Try it runs a train through a module on the page, with a pretend neighbour at each end. At the time of writing, Try it is on the Field Logic page only. MSS Logic mode does not list a Try it step.
 
 If you want to see it now, do it on a copy:
 

@@ -1,6 +1,24 @@
 # How the boards work
 
-Install, the configurator, and the first flash are on the [README](../README.md). This page is what the boards are doing, and how the detectors and points are wired.
+Install, the configurator, and the first flash are on the [README](../README.md). This page lists every guide and spec, then covers what the boards are doing and how the detectors and points are wired.
+
+## The guides, in the order to read them
+
+1. [First Board Setup Guide](first-board-setup-guide.md): paste the configurator's YAML, flash by USB, and check MQTT. It has the failure checks too.
+2. [JMRI MQTT Verification Guide](jmri-mqtt-verification-guide.md): check sensors and turnouts in JMRI.
+3. This page, below: detector wiring, point calibration and the layout.
+4. [Field Logic Guide](field-logic-guide.md): the Logic page's Field Logic mode, where a board works out its signals from rules.
+5. [MSS Logic Guide](mss-logic-guide.md): the Logic page's MSS Logic mode, where you describe a module and pair it at a meet. Read the Field Logic guide first.
+6. [advanced-samples](../advanced-samples/README.md): hand-edited patterns that are not configurator-compatible.
+
+## Specs and plans
+
+These are for people building or checking the Logic page. You do not need them to use it.
+
+- [Field Logic spec](field-logic-spec.md): the design of the logic engine and the Field Logic mode.
+- [MSS emulation spec](mss-emulation-spec.md): the design of MSS Logic, on the same engine.
+- [Implementation plan](field-logic-implementation-plan.md): the releases and work items for both.
+- [Screenshot checklist](screenshot-checklist.md): the screenshots the guides still need.
 
 ## Which board
 

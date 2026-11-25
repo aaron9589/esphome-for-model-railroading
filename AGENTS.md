@@ -24,13 +24,20 @@ This repo is a beginner path for model-railroad ESP32 boards that talk to JMRI/C
 | `scripts/install-linux.sh` | Same for Raspberry Pi OS (Pi-SPROG), Debian, Ubuntu, Fedora, openSUSE, and Arch. Leaves the Pi UART, boot files, and JMRI alone |
 | `docs/first-board-setup-guide.md` | Paste Configurator YAML, USB flash, MQTT smoke test, failure checks |
 | `docs/jmri-mqtt-verification-guide.md` | JMRI sensor/turnout topics and panel checks |
-| `docs/README.md` | Detector wiring, point calibration, layout notes |
+| `docs/README.md` | Docs index (every guide and spec, in reading order), then detector wiring, point calibration, layout notes |
 | `docs/field-logic-guide.md` | Field Logic guide, written a chapter per release: suffix, expanders, Share, blocks, linked boards, then a worked gauntlet: the One-train section starter, signals, Try it, problems, flashing and MQTTX checks, locks, block signals, plant ends and meets |
-| `docs/field-logic-spec.md` | Draft spec for the logic engine and the Field Logic mode (rules, layers, starters, remote inputs, plant ends, MCP23017 sensor pins); not built yet |
+| `docs/field-logic-spec.md` | Draft spec for the logic engine and the Field Logic mode (rules, layers, starters, remote inputs, plant ends, MCP23017 sensor pins); the design reference, built on `feature/logic` |
 | `docs/field-logic-implementation-plan.md` | Draft build plan for both specs: releases, work items, spikes, risks |
-| `docs/mss-emulation-spec.md` | Draft spec for MSS Logic, the second logic mode on the same engine: MSS-style modules described, not programmed (tracks, junctions, paired plant ends); not built yet |
+| `docs/mss-emulation-spec.md` | Draft spec for MSS Logic, the second logic mode on the same engine: MSS-style modules described, not programmed (tracks, junctions, paired plant ends); the design reference, built on `feature/logic` |
 | `docs/mss-logic-guide.md` | MSS Logic guide: a worked plain-track module and a turnout junction module, from an empty page to two modules paired at a meet |
-| `configurator/` | Static GitHub Pages Board Configurator |
+| `configurator/` | Static GitHub Pages Board Configurator: `index.html`, `app.js`, `generator.js`, `styles.css` |
+| `configurator/logic.js` | The Logic engine (plain JS, no DOM), shared by both modes; the C++ core mirrors it |
+| `configurator/logic-yaml.js` | Logic parts of the YAML and JMRI XML (rule table, blocks, Share, plant ends) |
+| `configurator/logic-ui.js`, `logic-ui-*.js` | The Logic page: `logic-ui.js` (mode, settings, parts registry), then one file per part: masts, ends, rules, views, start, try (Field Logic), and `logic-ui-mss-{steps,tracks,junctions,marks}.js` (MSS Logic) |
+| `configurator/logic-starters*.js` | Starters (description to rules): `logic-starters.js`, `-sections.js`, `-signals.js` |
+| `configurator/logic-checker.js`, `logic-try.js`, `logic-summary.js` | The checker (cycles, state exploration), the Try it simulator core, and the plain-words summary |
+| `configurator/mss-*.js` | MSS Logic: `mss-builder.js` (module description to built items), `mss-card.js`, `mss-convert.js` (convert to Field Logic) |
+| `configurator/test/` | `npm test` suites (one `*.test.js` per feature), `fixtures/` and `golden/`, `cases/` (shared engine cases; `cases/mss/` for MSS Logic). No `test/bench/` yet |
 | `components/mr_logic/` | ESPHome external component: `logic_core.{h,cpp}` (the engine, plain C++17 with no ESPHome includes, mirroring `configurator/logic.js`), the adapter `mr_logic.{h,cpp}` and `__init__.py`. ESPHome copies only a component's top-level sources, so the core sits beside the adapter |
 | `engine-tests/esphome/` | `gauntlet.yaml`, made by `make-gauntlet.mjs` from the generator plus an `mr_logic:` block, which `component.yml` compiles with ESPHome (pinned on PRs, latest weekly). Run the script and commit when the generator or component changes |
 | `engine-tests/` | CMake project: builds the core and replays `configurator/test/cases`; `--trace` mode for the JS cross-check (`test/engine-diff.test.js`) |
@@ -108,8 +115,12 @@ This repo is a beginner path for model-railroad ESP32 boards that talk to JMRI/C
 
 ## Where to send people
 
-1. `README.md` — what you need, the install script, the configurator, then the first flash.
-2. `docs/README.md` — detector wiring, point setup, and the layout.
+1. `README.md` — what you need, the install script, the configurator, then the first flash, and the Logic page.
+2. `docs/README.md` — the docs index, then detector wiring, point setup, and the layout.
 3. `docs/first-board-setup-guide.md` — paste the YAML, flash by USB, confirm MQTT.
 4. `docs/jmri-mqtt-verification-guide.md` — sensor and turnout topics.
-5. `advanced-samples/` — non-configurator patterns only.
+5. `docs/field-logic-guide.md` — Field Logic: a board that works out its own signals from rules, plant ends, meets. Read it before the MSS guide, which leans on its groundwork.
+6. `docs/mss-logic-guide.md` — MSS Logic: describe a module (ends, tracks, junctions) and pair it at a meet, with no rules.
+7. `advanced-samples/` — non-configurator patterns only.
+
+`AGENTS.md` stays the source of truth for agents; the specs and the plan are for people building the Logic page, not for newcomers.

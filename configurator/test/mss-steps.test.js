@@ -50,6 +50,11 @@ test("the page parts are registered for MSS mode only, in order, under the build
   assert.ok(ids.indexOf(B.PARTS.ends) < ids.indexOf(B.PARTS.signals));
 });
 
+test("the Try it step is offered only when a logic-try part is registered for mss", () => {
+  assert.equal(context.EsphomeMrLogicUi.hasPart("logic-try", "field"), true);
+  assert.equal(context.EsphomeMrLogicUi.hasPart("logic-try", "mss"), false);
+});
+
 test("guided steps: empty module has nothing done; a described one has ends, tracks and signals done", () => {
   const none = S.guidedSteps(empty());
   same(none.map((s) => s.key), ["ends", "tracks", "junctions", "signals", "tryIt", "download"]);
