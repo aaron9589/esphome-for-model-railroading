@@ -402,8 +402,59 @@ main {
   padding: 0.5rem 0.75rem;
 }
 
-#expanders-card .row-card {
-  box-shadow: none;
+/* Expanders, each a card like a PCA9685 with its sensors under it. */
+.expanders {
+  margin-top: 1.5rem;
+}
+
+.expanders > h3 {
+  margin: 0 0 0.35rem;
+  font-size: 0.82rem;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+/* A PCA9685 or expander card folds to its header. */
+button.fold {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  text-align: left;
+}
+
+button.fold::before {
+  content: "\25BE";
+  display: inline-block;
+  width: 0.9em;
+  font-size: 1.15em;
+  transition: transform 0.15s;
+}
+
+.is-folded button.fold::before {
+  transform: rotate(-90deg);
+}
+
+.fold-summary {
+  font-weight: 500;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.servo-board.is-folded > :not(header) {
+  display: none;
+}
+
+.servo-board.is-folded > header {
+  margin-bottom: 0;
 }
 
 .add-board {

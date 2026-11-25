@@ -152,19 +152,22 @@ document.getElementById("btn-clear-creds").addEventListener("click", () => {
   flash("ok", "Cleared Wi-Fi. MQTT broker is layout-mqtt.local again.");
 });
 
-document.getElementById("btn-add-block").addEventListener("click", () => {
+// A new sensor on `pin` ({ gpio } or { expander, pin }).
+function addSensor(pin) {
   const name = `Sensor ${state.blocks.length + 1}`;
   state.blocks.push({
     name,
     topic: topicFor("block", name),
     topicCustom: false,
-    ...nextSensorPin(),
+    ...pin,
     inverted: true,
     debounce: "500ms",
   });
   persist();
   render();
-});
+}
+
+document.getElementById("btn-add-block").addEventListener("click", () => addSensor(nextSensorPin()));
 
 // First free channel on a PCA9685, skipping `except` (a point being moved).
 function nextChannel(pcaBoard, except) {
@@ -884,83 +887,88 @@ function renderDriver() {
   );
 }
 
+// Sensors on ESP pins (or no pin yet). Sensors on an expander sit under it.
 function renderBlocks() {
   el.blocksList.replaceChildren();
   state.blocks.forEach((block, index) => {
-    const card = document.createElement("div");
-    card.className = "row-card";
-    const header = document.createElement("header");
-    const title = document.createElement("h3");
-    title.textContent = block.name || `Sensor ${index + 1}`;
-    const actions = document.createElement("div");
-    actions.className = "row-actions";
-    const remove = document.createElement("button");
-    remove.type = "button";
-    remove.className = "remove";
-    remove.textContent = "Remove";
-    remove.addEventListener("click", () => {
-      state.blocks.splice(index, 1);
-      persist();
-      render();
-    });
-    actions.append(remove);
-    header.append(title, actions);
+    if (!block.expander) el.blocksList.append(renderSensorCard(block, index));
+  });
+}
 
-    const fields = document.createElement("div");
-    fields.className = "fields";
-    const topicField = field("MQTT topic", block.topic, (v) => {
-      block.topic = v;
-      block.topicCustom = v !== topicFor("block", block.name);
+function renderSensorCard(block, index) {
+  const card = document.createElement("div");
+  card.className = "row-card";
+  const header = document.createElement("header");
+  const title = document.createElement("h3");
+  title.textContent = block.name || `Sensor ${index + 1}`;
+  const actions = document.createElement("div");
+  actions.className = "row-actions";
+  const remove = document.createElement("button");
+  remove.type = "button";
+  remove.className = "remove";
+  remove.textContent = "Remove";
+  remove.addEventListener("click", () => {
+    state.blocks.splice(index, 1);
+    persist();
+    render();
+  });
+  actions.append(remove);
+  header.append(title, actions);
+
+  const fields = document.createElement("div");
+  fields.className = "fields";
+  const topicField = field("MQTT topic", block.topic, (v) => {
+    block.topic = v;
+    block.topicCustom = v !== topicFor("block", block.name);
+    persist();
+    updatePreview();
+  }, {
+    full: true,
+    hint: "Where this detector reports occupied or clear.",
+  });
+  topicField.querySelector("input").dataset.role = "topic";
+  fields.append(
+    followRename(field("Name", block.name, (v) => {
+      block.name = v;
+      title.textContent = v || `Sensor ${index + 1}`;
+      followName(block, "block", card);
       persist();
       updatePreview();
     }, {
+      placeholder: "Kiama/Up XOver",
       full: true,
-      hint: "Where this detector reports occupied or clear.",
-    });
-    topicField.querySelector("input").dataset.role = "topic";
-    fields.append(
-      followRename(field("Name", block.name, (v) => {
-        block.name = v;
-        title.textContent = v || `Sensor ${index + 1}`;
-        followName(block, "block", card);
-        persist();
-        updatePreview();
-      }, {
-        placeholder: "Kiama/Up XOver",
-        full: true,
-        hint: "Name in the logs. The topic is filled in from this.",
-      }), "sensor", block, () => state.blocks),
-      topicField,
-      field("Pin", sensorPinValue(block), (v) => {
-        setSensorPin(block, v);
-        persist();
-        render();
-      }, {
-        select: sensorPinChoices(block),
-        hint: (state.expanders || []).length
-          ? "Pin this detector uses. VP, VN, 34, and 35 have no pull-up. Expander pins wire the same as ESP pins."
-          : "Pin this detector uses. VP, VN, 34, and 35 have no pull-up.",
-      }),
-      field("Debounce", block.debounce, (v) => {
-        block.debounce = v.trim() || "500ms";
-        persist();
-        updatePreview();
-      }, {
-        placeholder: "500ms",
-        hint: "500ms is a fairly good value to keep blocks held for dirty track etc - you can adjust this as appropriate.",
-      }),
-      field("Invert the input", block.inverted, (v) => {
-        block.inverted = v;
-        persist();
-        updatePreview();
-      }, {
-        checkbox: true,
-        hint: "If you test the block and it shows unoccupied with a train in the section, and occupied when it's empty, switch this box.",
-      })
-    );
-    card.append(header, fields);
-    el.blocksList.append(card);
-  });
+      hint: "Name in the logs. The topic is filled in from this.",
+    }), "sensor", block, () => state.blocks),
+    topicField,
+    field("Pin", sensorPinValue(block), (v) => {
+      setSensorPin(block, v);
+      persist();
+      render();
+    }, {
+      select: sensorPinChoices(block),
+      hint: (state.expanders || []).length
+        ? "Pin this detector uses. VP, VN, 34, and 35 have no pull-up. Expander pins wire the same as ESP pins."
+        : "Pin this detector uses. VP, VN, 34, and 35 have no pull-up.",
+    }),
+    field("Debounce", block.debounce, (v) => {
+      block.debounce = v.trim() || "500ms";
+      persist();
+      updatePreview();
+    }, {
+      placeholder: "500ms",
+      hint: "500ms is a fairly good value to keep blocks held for dirty track etc - you can adjust this as appropriate.",
+    }),
+    field("Invert the input", block.inverted, (v) => {
+      block.inverted = v;
+      persist();
+      updatePreview();
+    }, {
+      checkbox: true,
+      hint: "If you test the block and it shows unoccupied with a train in the section, and occupied when it's empty, switch this box.",
+    })
+  );
+  card.append(header, fields);
+  return card;
 }
 
 // Own SDA and SCL for `expander`: the pins another expander already has to
@@ -1010,15 +1018,64 @@ function expanderBusChoices(expander) {
   return choices;
 }
 
+// PCA9685 and expander cards fold to their header. Which are folded is kept
+// for this visit only, not in the file, by kind and position ("pca:0", "mcp:1").
+const folded = new Set();
+
+// Forget folds from `index` on, when the card at `index` is removed.
+function unfoldFrom(kind, index) {
+  for (const key of [...folded]) {
+    const [k, i] = key.split(":");
+    if (k === kind && Number(i) >= index) folded.delete(key);
+  }
+}
+
+// A card header whose title folds the card. Returns the header and the span
+// holding the name, for a name typed in place.
+function foldHeader(card, key, label, summary) {
+  const header = document.createElement("header");
+  const title = document.createElement("h3");
+  const toggle = document.createElement("button");
+  toggle.type = "button";
+  toggle.className = "fold";
+  const name = document.createElement("span");
+  name.textContent = label;
+  const count = document.createElement("span");
+  count.className = "fold-summary";
+  count.textContent = summary;
+  toggle.append(name, count);
+  title.append(toggle);
+  const show = () => {
+    card.classList.toggle("is-folded", folded.has(key));
+    toggle.setAttribute("aria-expanded", String(!folded.has(key)));
+  };
+  toggle.addEventListener("click", () => {
+    if (folded.has(key)) folded.delete(key);
+    else folded.add(key);
+    show();
+  });
+  show();
+  header.append(title);
+  return { header, name };
+}
+
+// The first free pin on `expander`, or null when all 16 are taken.
+function freeExpanderPin(expander) {
+  const used = usedExpanderPins();
+  for (let pin = 0; pin < 16; pin += 1) {
+    if (!used.has(`${expander.name}\u0000${pin}`)) return { expander: expander.name, pin };
+  }
+  return null;
+}
+
 function renderExpanders() {
   const expanders = state.expanders || [];
   el.expandersList.replaceChildren();
   expanders.forEach((expander, index) => {
     const card = document.createElement("div");
-    card.className = "row-card";
-    const header = document.createElement("header");
-    const title = document.createElement("h3");
-    title.textContent = expander.name;
+    card.className = "card servo-board expander-board";
+    const count = state.blocks.filter((block) => block.expander === expander.name).length;
+    const { header, name: title } = foldHeader(card, `mcp:${index}`, expander.name, `${count} of 16 pins`);
     const remove = document.createElement("button");
     remove.type = "button";
     remove.className = "remove";
@@ -1027,6 +1084,7 @@ function renderExpanders() {
       const orphans = state.blocks.filter((block) => block.expander === expander.name);
       for (const block of orphans) setSensorPin(block, "");
       expanders.splice(index, 1);
+      unfoldFrom("mcp", index);
       persist();
       render();
       if (orphans.length) flash("err", `${orphans.length} sensor${orphans.length > 1 ? "s were" : " was"} on ${expander.name}. Pick a new pin for ${orphans.length > 1 ? "them" : "it"}.`);
@@ -1034,7 +1092,7 @@ function renderExpanders() {
     const actions = document.createElement("div");
     actions.className = "row-actions";
     actions.append(remove);
-    header.append(title, actions);
+    header.append(actions);
 
     const fields = document.createElement("div");
     fields.className = "fields";
@@ -1102,12 +1160,27 @@ function renderExpanders() {
         }, { select: i2cPinChoices(expander.scl), hint: "Clock pin." })
       );
     }
-    const count = state.blocks.filter((block) => block.expander === expander.name).length;
-    const used = document.createElement("p");
-    used.className = "hint full";
-    used.textContent = `${count} of 16 pins used.`;
-    fields.append(used);
-    card.append(header, fields);
+    // Its sensors, the same cards as on ESP pins.
+    const list = document.createElement("div");
+    list.className = "board-points";
+    state.blocks.forEach((block, i) => {
+      if (block.expander === expander.name) list.append(renderSensorCard(block, i));
+    });
+    if (!count) {
+      const empty = document.createElement("p");
+      empty.className = "empty";
+      empty.textContent = "No sensors on this expander yet.";
+      list.append(empty);
+    }
+    const pin = freeExpanderPin(expander);
+    const add = document.createElement("button");
+    add.type = "button";
+    add.className = "primary";
+    add.textContent = "Add sensor";
+    add.disabled = !pin;
+    add.addEventListener("click", () => addSensor(freeExpanderPin(expander)));
+    list.append(add);
+    card.append(header, fields, list);
     el.expandersList.append(card);
   });
 
@@ -1196,10 +1269,8 @@ function i2cPinChoices(current) {
 function renderPcaBoard(pcaBoard, b) {
   const card = document.createElement("div");
   card.className = "card servo-board";
-  const header = document.createElement("header");
-  const title = document.createElement("h3");
-  title.textContent = `PCA9685 ${b + 1}`;
-  header.append(title);
+  const turnouts = state.points.filter((point) => (point.pcaBoard || 0) === b).length;
+  const { header } = foldHeader(card, `pca:${b}`, `PCA9685 ${b + 1}`, `${turnouts} turnout${turnouts === 1 ? "" : "s"}`);
   if (b > 0) {
     const remove = document.createElement("button");
     remove.type = "button";
@@ -1227,6 +1298,7 @@ function renderPcaBoard(pcaBoard, b) {
         }
       }
       state.pcaBoards.splice(b, 1);
+      unfoldFrom("pca", b);
       persist();
       render();
     });
