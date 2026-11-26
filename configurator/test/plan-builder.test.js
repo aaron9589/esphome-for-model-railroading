@@ -94,7 +94,7 @@ test("a boundary sensor holds the blocks on both sides", () => {
 test("an end can name another board's block and signal, which are checked and followed", () => {
   const config = of("junction");
   config.logic.remoteBoards = [{
-    name: "south-a3f9qp", blocks: [], points: [],
+    name: "south-a3f9qp", share: true, blocks: [], points: [],
     signals: { masts: [{ name: "Home south", topic: "trains/track/signalmast/Home south", aspects: ["R292", "R281"], tags: { R292: "stop", R281: "clear" } }] },
     logic: { blocks: [{ name: "Up", topic: "trains/track/sensor/Up" }], masts: [] },
   }];
