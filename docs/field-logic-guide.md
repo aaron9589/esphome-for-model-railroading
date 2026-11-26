@@ -35,14 +35,14 @@ A current detector misses unpowered cars, so the tail of a train can leave Int 2
 Boards that share or run logic need a name that no other board at a meet has. The configurator adds six characters to every new board's name, such as `kiama-north-k7m4x2`. Those six characters are this board's own, and they stay when you rename it.
 
 1. Open the configurator's **Board** page.
-2. Look at **Board name**. You type the first part in the box. The suffix is the dash and six characters just after the box, such as `-k7m4x2`. If it is there, go on to Step 2.
-3. If there is none, the box has an **Add a suffix** button under it. Click it.
+2. Look at **Board name**. You type the first part in the box. The suffix is the dash and six characters in the blue tag just after the box, such as `-k7m4x2`. If it is there, go on to Step 2.
+3. If there is none, there is a blue **Add a suffix** button under the box. Click it.
 
 Adding a suffix changes the board's network name, so the next flash must be by USB (Step 6).
 
-**Copied a file?** If you made this board from another board's `board.yaml`, click **New suffix**, under the name. Two boards must never share a suffix. This changes the network name too, so flash by USB next.
+**Copied a file?** If you made this board from another board's `board.yaml`, click **New suffix**, beside the suffix, then **Yes, give it a new suffix**. Two boards must never share a suffix. This changes the network name too, so flash by USB next.
 
-![The Board name field: kiama-north typed in the box, -k7m4x2 just after it, and the New suffix button under it](img/field-logic/01-board-name.png)
+![The Board name field: kiama-north typed in the box, -k7m4x2 in a blue tag just after it, and the New suffix button beside that](img/field-logic/01-board-name.png)
 
 ---
 
