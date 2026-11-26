@@ -1,9 +1,9 @@
 {
-  "name": "leaving guard naming resources: only a train that came through them is taken for one leaving",
+  "name": "leaving guard naming resources: only a train that came through them is taken for one leaving, and none clears as it leaves",
   "covers": [
     "a leaving guard that watches the resources it names"
   ],
-  "about": "East takes Ahead and Other, and its leaving guard watches only Ahead. A train arrives in Loop while Side holds Other: it is waiting, and goes once Other is free. Later a West train comes through Ahead into Loop: it is taken for one leaving, and East stays at Stop while it stands there.",
+  "about": "East takes Ahead and Other, and its leaving guard watches only Ahead. A train arrives in Loop while Side holds Other: it is waiting, and goes once Other is free. Later a West train comes through Ahead into Loop: it is taken for one leaving, and East stays at Stop while it stands there and as it leaves. A train that arrives after that is waiting.",
   "board": {
     "sensors": [
       "Loop",
@@ -432,6 +432,75 @@
         "resources": {
           "Ahead": "IDLE",
           "Other": "IDLE"
+        }
+      }
+    },
+    {
+      "at": 105,
+      "do": [
+        {
+          "sensor": "Loop",
+          "is": "clear"
+        }
+      ],
+      "expect": {
+        "events": [],
+        "masts": {
+          "East": "R292"
+        },
+        "rules": {
+          "East/1": "idle"
+        }
+      }
+    },
+    {
+      "at": 109,
+      "expect": {
+        "events": [],
+        "masts": {
+          "East": "R292"
+        },
+        "resources": {
+          "Ahead": "IDLE",
+          "Other": "IDLE"
+        }
+      }
+    },
+    {
+      "at": 110,
+      "do": [
+        {
+          "sensor": "Loop",
+          "is": "occupied"
+        }
+      ]
+    },
+    {
+      "at": 114,
+      "expect": {
+        "masts": {
+          "East": "R292"
+        },
+        "rules": {
+          "East/1": "idle"
+        }
+      }
+    },
+    {
+      "at": 115,
+      "expect": {
+        "events": [
+          {
+            "grant": "Ahead",
+            "rule": "East/1"
+          },
+          {
+            "grant": "Other",
+            "rule": "East/1"
+          }
+        ],
+        "masts": {
+          "East": "R281"
         }
       }
     }
