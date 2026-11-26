@@ -438,7 +438,7 @@
   function remoteRefsUsed(config) {
     if (M().logicMode(config) !== "field") return [];
     const refs = [];
-    for (const block of config.logic?.blocks || []) {
+    for (const block of logicItems(config).blocks || []) {
       for (const member of block.sensors || []) if (isRemoteRef(member)) refs.push(member);
     }
     walkObjects([layersOf(config), resourcesOf(config)], (obj) => {
@@ -647,6 +647,17 @@
       for (const rule of list(layer.rules)) {
         if (rule?.then?.mast === mastName && rule.then.aspect === from) {
           rule.then.aspect = to;
+          moved += 1;
+        }
+      }
+    }
+    // So do the track plan's signals.
+    for (const brk of list(config.logic?.plan?.breaks)) {
+      for (const signal of list(brk?.signals)) {
+        if (signal?.mast !== mastName || !isObject(signal.aspects)) continue;
+        for (const [key, value] of Object.entries(signal.aspects)) {
+          if (value !== from) continue;
+          signal.aspects[key] = to;
           moved += 1;
         }
       }
@@ -1133,7 +1144,7 @@
           if (!given.has(mastName)) given.set(mastName, new Map());
           const byMeaning = given.get(mastName);
           if (!byMeaning.has(meaning)) byMeaning.set(meaning, []);
-          byMeaning.get(meaning).push({ li, group: String(layer.name || li + 1), aspect: then.aspect });
+          byMeaning.get(meaning).push({ li, group: String(layer.name || li + 1), aspect: then.aspect, plan: planLayer(layer) });
         }
       } else if (typeof then.aspect === "string" && then.aspect) {
         r.error(GROUPS, `${who} shows "${then.aspect}" but names no signal. Pick the signal it sets.`);
@@ -1150,7 +1161,7 @@
     for (const [mastName, byMeaning] of given) {
       for (const [meaning, uses] of byMeaning) {
         const first = uses[0];
-        const other = uses.find((use) => use.li !== first.li && use.aspect !== first.aspect);
+        const other = uses.find((use) => use.li !== first.li && use.aspect !== first.aspect && !(use.plan && first.plan));
         if (!other) continue;
         r.warn(GROUPS, `Signal "${mastName}" is set to "${first.aspect}" by group "${first.group}" and to "${other.aspect}" by group "${other.group}", which both mean ${MEANING_WORDS[meaning] || meaning}. When both allow it, group "${first.group}" wins. Use one aspect for each meaning if you meant the other.`);
       }
@@ -1161,10 +1172,13 @@
   // other rules, a mast it sets. A rule that sets X reads the masts in its
   // trigger, checks and cancel, and in the release of the section it takes.
   // Another board's masts are left out: they are not set here.
+  const planLayer = (layer) => String(layer?.starter || "").startsWith("plan-");
+
   function mastReadsBySetter(config) {
     const releases = new Map(resourcesOf(config).map((res) => [String(res.name || ""), res.release]));
     const edges = new Map(); // set mast -> Map(read mast -> rule label)
-    for (const { rule, label } of rulesOf(config)) {
+    const own = []; // [set, read] pairs from rules the track plan did not make
+    for (const { layer, rule, label } of rulesOf(config)) {
       const set = rule?.then?.mast;
       if (typeof set !== "string" || !set) continue;
       const parts = [rule.trigger, rule.checks, rule.cancel];
@@ -1172,15 +1186,23 @@
       for (const cond of conditionsIn(parts)) {
         if (cond.board !== undefined || typeof cond.mast !== "string" || !cond.mast) continue;
         if (!edges.has(set)) edges.set(set, new Map());
-        if (!edges.get(set).has(cond.mast)) edges.get(set).set(cond.mast, label);
+        if (!planLayer(layer)) {
+          own.push([set, cond.mast]);
+          if (!edges.get(set).has(cond.mast)) edges.get(set).set(cond.mast, label);
+        } else if (!edges.get(set).has(cond.mast)) edges.get(set).set(cond.mast, label);
       }
     }
-    return edges;
+    return { edges, own };
   }
 
   // Each loop once, as the masts in it in the order they read each other.
+  // Signals round a continuous run read each other too. Those loops are left
+  // alone when the track plan made every step: each of its signals checks its
+  // own track, and what it shows behind a given meaning never feeds itself
+  // (engine cases plan-loop-*). A loop with any other rule in it is reported.
   function mastCycles(config) {
-    const edges = mastReadsBySetter(config);
+    const { edges, own } = mastReadsBySetter(config);
+    if (rulesOf(config).some(({ layer }) => planLayer(layer))) return loopsThrough(edges, own);
     const cycles = [];
     const done = new Set();
     const seen = new Set();
@@ -1210,6 +1232,31 @@
       visit(start);
     }
     return cycles.map((loop) => loop.map((mast, i) => ({ mast, reads: loop[(i + 1) % loop.length], rule: edges.get(mast).get(loop[(i + 1) % loop.length]) })));
+  }
+
+  // The shortest loop through each given step, each loop once.
+  function loopsThrough(edges, own) {
+    const loops = new Map();
+    for (const [set, read] of own) {
+      const back = new Map([[read, null]]); // mast -> the mast it was reached from
+      const queue = [read];
+      while (queue.length && !back.has(set)) {
+        const at = queue.shift();
+        for (const next of edges.get(at)?.keys() || []) {
+          if (back.has(next)) continue;
+          back.set(next, at);
+          queue.push(next);
+        }
+      }
+      if (!back.has(set)) continue;
+      const path = [];
+      for (let at = set; at !== null; at = back.get(at)) path.unshift(at);
+      // path runs read ... set; the loop starts at set.
+      const loop = [set, ...path.slice(0, -1)];
+      const key = [...loop].sort().join("\u0000");
+      if (!loops.has(key)) loops.set(key, loop);
+    }
+    return [...loops.values()].map((loop) => loop.map((mast, i) => ({ mast, reads: loop[(i + 1) % loop.length], rule: edges.get(mast).get(loop[(i + 1) % loop.length]) })));
   }
 
   function validateCycles(config, r) {
@@ -1431,6 +1478,11 @@
     const mss = M().logicMode(config) === "mss";
     let r = base;
     let checkBuilt = true;
+    if (M().logicMode(config) === "field" && isObject(config.logic.plan)) {
+      const found = global.EsphomeMrPlanBuilder ? global.EsphomeMrPlanBuilder.problems(config) : [];
+      for (const problem of found) (problem.level === "error" ? base.error : base.warn)(problem.where, problem.text);
+      checkBuilt = !found.some((problem) => problem.level === "error");
+    }
     if (mss) {
       const found = global.EsphomeMrMssBuilder ? global.EsphomeMrMssBuilder.problems(config) : [];
       for (const problem of found) (problem.level === "error" ? base.error : base.warn)(problem.where, problem.text);
@@ -1521,7 +1573,9 @@
   // built again from `logic.mss` whenever it, or the masts it reads, change.
   let built = { key: null, items: null };
   function logicItems(config) {
-    if (M().logicMode(config) !== "mss") return isObject(config?.logic) ? config.logic : {};
+    const mode = M().logicMode(config);
+    if (mode === "field" && isObject(config.logic.plan)) return planItems(config);
+    if (mode !== "mss") return isObject(config?.logic) ? config.logic : {};
     const builder = global.EsphomeMrMssBuilder;
     if (!builder) {
       if (!isObject(config.logic.mss)) return {};
@@ -1533,6 +1587,39 @@
     ]);
     if (built.key !== key) built = { key, items: builder.build(config) };
     return built.items;
+  }
+
+  // Field Logic with a track plan (plan-builder.js): the plan's built items
+  // come first, so they win a tie, then the Logic page's own. A Masts entry for
+  // a signal on the plan is the plan's: it already carries what yours added.
+  let planned = { key: null, items: null };
+  function planItems(config) {
+    const builder = global.EsphomeMrPlanBuilder;
+    if (!builder) throw new Error("This board has a track plan, but plan-builder.js is not loaded.");
+    const key = JSON.stringify([
+      config.logic,
+      list(config.signals?.masts).map((mast) => [mast?.name, list(mast?.aspects).map((aspect) => [aspect?.label, aspect?.states])]),
+      list(config.blocks).map((sensor) => sensor?.name),
+      list(config.points).map((point) => point?.name),
+    ]);
+    if (planned.key !== key) {
+      const own = config.logic;
+      const items = builder.build(config);
+      const onPlan = new Set(items.masts.map((entry) => entry.mast));
+      const joined = (first, second) => [...first, ...list(second)];
+      planned = {
+        key,
+        items: {
+          ...own,
+          blocks: joined(items.blocks, own.blocks),
+          masts: joined(items.masts, list(own.masts).filter((entry) => !(entry?.virtual !== true && onPlan.has(entry?.mast)))),
+          layers: joined(items.layers, own.layers),
+          resources: joined(items.resources, own.resources),
+          origins: items.origins,
+        },
+      };
+    }
+    return planned.items;
   }
 
   function layersOf(config) {

@@ -1,6 +1,6 @@
 # Field Logic Track Plan — Feature Spec (draft)
 
-Status: draft for review, not built. It changes how the Field Logic mode of the [Field Logic spec](field-logic-spec.md) is **set up**. The engine, the rule language and the fail-safe rules in that spec stay as they are, apart from the one question about [loops](#open-questions).
+Status: draft. The stored format and builder are built (`configurator/plan-builder.js`, work item 2); there is no editor yet. It changes how the Field Logic mode of the [Field Logic spec](field-logic-spec.md) is **set up**. The engine, the rule language and the fail-safe rules in that spec stay as they are, apart from the one question about [loops](#open-questions).
 
 ## Why
 
@@ -59,6 +59,7 @@ Nothing on the plan edits the Sensors, Turnouts or Signal Masts pages. It picks 
 
 - A **block break** is a point where one block stops and the next starts. A break can have a boundary sensor, which then holds both blocks, as today.
 - A **block** is the track between breaks and drawing ends. It has a name, a topic and its sensors. It publishes to JMRI like any Field Logic block.
+- A block with only a boundary sensor is checked, but still warned about, and cannot be where a train waits for a section.
 - A block with no sensor is **not detected**. It is drawn dashed, and nothing can be proved about it. A signal whose way ahead runs through one gets a warning.
 - A block can include a **sensor** on a linked board, but not a linked board's block. Two boards can then never hold each other occupied.
 - A **signal** stands at a break and faces trains going one way. A break with no signal needs nothing: the signal behind simply protects further.
@@ -94,7 +95,7 @@ Select something on the plan to see what can be added to it.
 
 Select the blocks, then **One train at a time**. The selection is outlined on the plan. The page lists the entrances it found: every signal with a route into the selection, and the block behind each, where a train waits. There is nothing else to pick. **Free it when clear for** (3 s) and **Hold after cancelling** (off) are under **More options**.
 
-It builds one section, and for each route from each entrance one reserving rule:
+It builds one section, and for each route from each entrance into it one reserving rule (a route that misses the section gets a plain rule):
 
 | Part | From the plan |
 |---|---|
@@ -124,8 +125,8 @@ Each end says what is beyond it:
 ## Worked example: gauntlet over a bridge
 
 1. **Draw** two tracks that join, run over the bridge as one line, and separate again. Both joins are *no turnout*. Give each outer stretch its arrow: top track left to right, bottom track right to left.
-2. **Sensors:** break the track at each end of the bridge. Name the top-left block **Left**, the middle **Bridge** and the bottom-right **Right**, and pick a sensor for each. The two departing stretches have none.
-3. **Signals:** **Left Bridge** at the left break facing right, **Right Bridge** at the right break facing left.
+2. **Sensors:** break all four lines just outside the joins. Name the top-left block **Left**, the middle **Bridge** (joins included) and the bottom-right **Right**, and pick a sensor for each. The two departing stretches have none.
+3. **Signals:** the breaks sit on the lines just outside each join. Put **Left Bridge** at the top-left break facing right, and **Right Bridge** at the bottom-right break facing left.
 4. **Ends:** set the two departing ends to *Plain track, no more signals*.
 5. **Behaviour:** select Bridge, then **One train at a time**.
 
@@ -157,21 +158,32 @@ Like MSS Logic, the plan is **described, then built**. A new builder (`plan-buil
 
 ## Stored format
 
-One new key, `logic.plan`. `logic.mode` stays `field`.
+One new key, `logic.plan`. `logic.mode` stays `field`. Positions are grid points, `[x, y]`, with y down the page.
 
 ```json
 "plan": {
-  "track": [ [[0,0],[2,0]], [[2,0],[3,1]] ],
-  "points": [ { "at": [3,1], "turnout": null } ],
+  "track": [ [[0,0],[3,0]], [[3,0],[4,1]] ],
+  "points": [ { "at": [5,1], "turnout": "P1", "straight": [6,1], "straightIs": "closed", "lock": true },
+              { "at": [4,1], "turnout": null } ],
   "arrows": [ { "from": [0,0], "to": [2,0] } ],
-  "breaks": [ { "at": [5,1], "sensors": [], "signals": [ { "mast": "Left Bridge", "facing": [6,1] } ] } ],
+  "breaks": [ { "at": [2,0], "sensors": [], "signals": [ { "mast": "Left Bridge", "facing": [3,0], "aspects": {}, "approachLight": "" } ] } ],
   "blocks": [ { "name": "Left", "at": [[0,0],[2,0]], "sensors": ["Left current"] } ],
-  "ends": [ { "at": [12,0], "beyond": "plain" } ],
-  "sections": [ { "name": "Bridge", "blocks": ["Bridge"] } ]
+  "ends": [ { "at": [12,0], "beyond": "plain" },
+            { "at": [12,2], "beyond": { "board": "kiama-south-p3q8w5", "mast": "Home", "blocks": ["Up"] } } ],
+  "sections": [ { "name": "Bridge section", "blocks": ["Bridge"], "release": "3s", "approachLock": "" } ],
+  "advanceApproach": false,
+  "approachDiverging": false
 }
 ```
 
-A file without `plan` loads and generates exactly as it does today.
+- `track` is straight pieces along the grid or at 45 degrees. Lines meet only at grid points.
+- A block break sits on plain track, between two lines, never on a turnout, crossing or end. A turnout or join is therefore always inside a block.
+- A point's `straight` is only needed where neither leg is in line with the third. `facing` is the next grid point along the track, the way the signal's train goes.
+- An arrow covers its stretch of track up to the next turnout, crossing or end.
+- A block is named by any piece of track in it (`at`).
+- `ends[].beyond` is `signalled` (the default), `plain`, or another board's signal and blocks.
+- `aspects` are the [MSS indications](mss-emulation-spec.md#masts) (`stop`, `approach`, `advance`, `clear`, `approachDiverging`, `divergingClear`, `divergingApproach`); a CATS mast needs none.
+- A file without `plan` loads and generates exactly as it does today.
 
 ## Problems
 
@@ -197,8 +209,11 @@ Each is marked on the plan, in the page's plain words, saying what is wrong, why
 
 This comes before Release 5 (merge to `main`) in the [implementation plan](field-logic-implementation-plan.md). The current Field Logic guide read-through and screenshots wait for step 6.
 
+## Continuous run
+
+Signals right round a loop read each other in a circle, which validation otherwise rejects. A loop made **only of the drawing's own signals** is allowed. Each checks its own track, and what a signal shows for each meaning ahead never feeds back into itself, so the loop settles (engine cases `plan-loop-block-signals` and `plan-loop-advance`, replayed by both engines). A loop with any other rule in it is still an error, as is a loop with only one signal.
+
 ## Open questions
 
-- **Continuous run.** Signals right round a loop read each other in a circle, which today's validation rejects. Such a chain looks safe, because each signal still checks its own blocks, but it has to be shown with engine cases in both engines before the check is relaxed for plan-built rules. Settle this in step 2.
 - **Checker size.** A drawn station can put many blocks and turnouts in one part. Measure the plans from step 2 against the [checker limits](field-logic-spec.md#checker-limits).
 - **How big a grid** fits the page before it needs to scroll or zoom.

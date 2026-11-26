@@ -1,0 +1,337 @@
+{
+  "name": "track plan: a turnout junction",
+  "covers": [
+    "Track plan: a turnout junction, its route signals and its lock"
+  ],
+  "about": "The home signal follows the signal on whichever route is set, shows Stop while the turnout moves, and the turnout locks under a train.",
+  "module": {
+    "sensors": [
+      "Approach current",
+      "Junction current",
+      "Main current",
+      "Branch current"
+    ],
+    "turnouts": [
+      "P1"
+    ],
+    "masts": [
+      "Home",
+      "Main exit",
+      "Branch exit",
+      "West"
+    ],
+    "plan": {
+      "track": [
+        [
+          [
+            0,
+            1
+          ],
+          [
+            5,
+            1
+          ]
+        ],
+        [
+          [
+            5,
+            1
+          ],
+          [
+            10,
+            1
+          ]
+        ],
+        [
+          [
+            5,
+            1
+          ],
+          [
+            6,
+            0
+          ]
+        ],
+        [
+          [
+            6,
+            0
+          ],
+          [
+            10,
+            0
+          ]
+        ]
+      ],
+      "points": [
+        {
+          "at": [
+            5,
+            1
+          ],
+          "turnout": "P1"
+        }
+      ],
+      "breaks": [
+        {
+          "at": [
+            3,
+            1
+          ],
+          "sensors": [],
+          "signals": [
+            {
+              "mast": "Home",
+              "facing": [
+                4,
+                1
+              ]
+            },
+            {
+              "mast": "West",
+              "facing": [
+                2,
+                1
+              ]
+            }
+          ]
+        },
+        {
+          "at": [
+            8,
+            1
+          ],
+          "sensors": [],
+          "signals": [
+            {
+              "mast": "Main exit",
+              "facing": [
+                9,
+                1
+              ]
+            }
+          ]
+        },
+        {
+          "at": [
+            8,
+            0
+          ],
+          "sensors": [],
+          "signals": [
+            {
+              "mast": "Branch exit",
+              "facing": [
+                9,
+                0
+              ]
+            }
+          ]
+        }
+      ],
+      "blocks": [
+        {
+          "name": "Approach",
+          "at": [
+            [
+              0,
+              1
+            ],
+            [
+              2,
+              1
+            ]
+          ],
+          "sensors": [
+            "Approach current"
+          ]
+        },
+        {
+          "name": "Junction",
+          "at": [
+            [
+              4,
+              1
+            ],
+            [
+              5,
+              1
+            ]
+          ],
+          "sensors": [
+            "Junction current"
+          ]
+        },
+        {
+          "name": "Main",
+          "at": [
+            [
+              8,
+              1
+            ],
+            [
+              10,
+              1
+            ]
+          ],
+          "sensors": [
+            "Main current"
+          ]
+        },
+        {
+          "name": "Branch",
+          "at": [
+            [
+              8,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ],
+          "sensors": [
+            "Branch current"
+          ]
+        }
+      ],
+      "ends": [
+        {
+          "at": [
+            10,
+            0
+          ],
+          "beyond": "plain"
+        }
+      ]
+    }
+  },
+  "steps": [
+    {
+      "at": 3,
+      "expect": {
+        "masts": {
+          "Home": "R281",
+          "Main exit": "R285",
+          "Branch exit": "R281",
+          "West": "R285"
+        },
+        "locks": {
+          "P1": false
+        }
+      }
+    },
+    {
+      "at": 10,
+      "do": [
+        {
+          "turnout": "P1",
+          "is": "moving"
+        }
+      ],
+      "expect": {
+        "masts": {
+          "Home": "R292"
+        }
+      }
+    },
+    {
+      "at": 30,
+      "do": [
+        {
+          "turnout": "P1",
+          "is": "thrown"
+        }
+      ],
+      "expect": {
+        "masts": {
+          "Home": "R283"
+        }
+      }
+    },
+    {
+      "at": 40,
+      "do": [
+        {
+          "sensor": "Branch current",
+          "is": "occupied"
+        }
+      ],
+      "expect": {
+        "masts": {
+          "Branch exit": "R292",
+          "Home": "R283"
+        }
+      }
+    },
+    {
+      "at": 41,
+      "expect": {
+        "masts": {
+          "Home": "R286"
+        }
+      }
+    },
+    {
+      "at": 50,
+      "do": [
+        {
+          "sensor": "Junction current",
+          "is": "occupied"
+        }
+      ],
+      "expect": {
+        "masts": {
+          "Home": "R292"
+        },
+        "locks": {
+          "P1": true
+        }
+      }
+    },
+    {
+      "at": 60,
+      "do": [
+        {
+          "sensor": "Junction current",
+          "is": "clear"
+        }
+      ],
+      "expect": {
+        "masts": {
+          "Home": "R286"
+        },
+        "locks": {
+          "P1": false
+        }
+      }
+    },
+    {
+      "at": 70,
+      "do": [
+        {
+          "turnout": "P1",
+          "is": "closed"
+        },
+        {
+          "sensor": "Main current",
+          "is": "occupied"
+        }
+      ],
+      "expect": {
+        "masts": {
+          "Main exit": "R292",
+          "Home": "R281"
+        }
+      }
+    },
+    {
+      "at": 71,
+      "expect": {
+        "masts": {
+          "Home": "R285"
+        }
+      }
+    }
+  ]
+}

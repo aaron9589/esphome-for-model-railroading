@@ -1,0 +1,331 @@
+{
+  "name": "track plan: a diamond crossing",
+  "covers": [
+    "Track plan: a diamond crossing, one train at a time"
+  ],
+  "about": "Two trains arrive together. One is given the diamond; the other waits until it has been clear for 3 seconds.",
+  "module": {
+    "sensors": [
+      "West current",
+      "Diamond current",
+      "East current",
+      "North current",
+      "South current"
+    ],
+    "masts": [
+      "West signal",
+      "North signal"
+    ],
+    "plan": {
+      "track": [
+        [
+          [
+            0,
+            3
+          ],
+          [
+            4,
+            3
+          ]
+        ],
+        [
+          [
+            4,
+            3
+          ],
+          [
+            8,
+            3
+          ]
+        ],
+        [
+          [
+            4,
+            0
+          ],
+          [
+            4,
+            3
+          ]
+        ],
+        [
+          [
+            4,
+            3
+          ],
+          [
+            4,
+            6
+          ]
+        ]
+      ],
+      "arrows": [
+        {
+          "from": [
+            0,
+            3
+          ],
+          "to": [
+            2,
+            3
+          ]
+        },
+        {
+          "from": [
+            4,
+            0
+          ],
+          "to": [
+            4,
+            1
+          ]
+        }
+      ],
+      "breaks": [
+        {
+          "at": [
+            2,
+            3
+          ],
+          "sensors": [],
+          "signals": [
+            {
+              "mast": "West signal",
+              "facing": [
+                3,
+                3
+              ]
+            }
+          ]
+        },
+        {
+          "at": [
+            4,
+            1
+          ],
+          "sensors": [],
+          "signals": [
+            {
+              "mast": "North signal",
+              "facing": [
+                4,
+                2
+              ]
+            }
+          ]
+        },
+        {
+          "at": [
+            6,
+            3
+          ],
+          "sensors": [],
+          "signals": []
+        },
+        {
+          "at": [
+            4,
+            5
+          ],
+          "sensors": [],
+          "signals": []
+        }
+      ],
+      "blocks": [
+        {
+          "name": "West",
+          "at": [
+            [
+              0,
+              3
+            ],
+            [
+              2,
+              3
+            ]
+          ],
+          "sensors": [
+            "West current"
+          ]
+        },
+        {
+          "name": "Diamond",
+          "at": [
+            [
+              3,
+              3
+            ],
+            [
+              4,
+              3
+            ]
+          ],
+          "sensors": [
+            "Diamond current"
+          ]
+        },
+        {
+          "name": "East",
+          "at": [
+            [
+              6,
+              3
+            ],
+            [
+              8,
+              3
+            ]
+          ],
+          "sensors": [
+            "East current"
+          ]
+        },
+        {
+          "name": "North",
+          "at": [
+            [
+              4,
+              0
+            ],
+            [
+              4,
+              1
+            ]
+          ],
+          "sensors": [
+            "North current"
+          ]
+        },
+        {
+          "name": "South",
+          "at": [
+            [
+              4,
+              5
+            ],
+            [
+              4,
+              6
+            ]
+          ],
+          "sensors": [
+            "South current"
+          ]
+        }
+      ],
+      "ends": [
+        {
+          "at": [
+            8,
+            3
+          ],
+          "beyond": "plain"
+        },
+        {
+          "at": [
+            4,
+            6
+          ],
+          "beyond": "plain"
+        }
+      ],
+      "sections": [
+        {
+          "name": "Crossing",
+          "blocks": [
+            "Diamond"
+          ]
+        }
+      ]
+    }
+  },
+  "steps": [
+    {
+      "at": 2,
+      "do": [
+        {
+          "sensor": "West current",
+          "is": "occupied"
+        },
+        {
+          "sensor": "North current",
+          "is": "occupied"
+        }
+      ]
+    },
+    {
+      "at": 7,
+      "expect": {
+        "masts": {
+          "West signal": "R281",
+          "North signal": "R292"
+        },
+        "resources": {
+          "Crossing": "ACTIVE"
+        }
+      }
+    },
+    {
+      "at": 15,
+      "do": [
+        {
+          "sensor": "Diamond current",
+          "is": "occupied"
+        }
+      ],
+      "expect": {
+        "masts": {
+          "West signal": "R292",
+          "North signal": "R292"
+        }
+      }
+    },
+    {
+      "at": 18,
+      "do": [
+        {
+          "sensor": "West current",
+          "is": "clear"
+        }
+      ]
+    },
+    {
+      "at": 20,
+      "do": [
+        {
+          "sensor": "East current",
+          "is": "occupied"
+        }
+      ]
+    },
+    {
+      "at": 25,
+      "do": [
+        {
+          "sensor": "Diamond current",
+          "is": "clear"
+        }
+      ]
+    },
+    {
+      "at": 54,
+      "expect": {
+        "masts": {
+          "North signal": "R292"
+        }
+      }
+    },
+    {
+      "at": 55,
+      "expect": {
+        "masts": {
+          "West signal": "R292",
+          "North signal": "R281"
+        },
+        "holders": {
+          "Crossing": "Crossing entrances/2"
+        }
+      }
+    }
+  ]
+}
