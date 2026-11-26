@@ -1,74 +1,102 @@
-# Field Logic Track Plan — Feature Spec (draft)
+# Field Logic Track Plan — Feature Spec
 
-Status: draft. The stored format and builder (`configurator/plan-builder.js`, work item 2) the grid editor (`plan-edit.js`, `logic-ui-plan.js`, work item 3) and one train at a time (from work item 4) are built. A signal's aspects and approach lighting, a turnout's lock, problems marked on the plan, keeping the picture in view and Try it on the plan are not built yet. It changes how the Field Logic mode of the [Field Logic spec](field-logic-spec.md) is **set up**. The engine, the rule language and the fail-safe rules in that spec stay as they are, apart from the one question about [loops](#open-questions).
+Status: design approved on 2026-11-26 from a clickable mock (#135, kept as a private design canvas). The stored format and builder (`configurator/plan-builder.js`, TP 2) and turnout locking are built. The page described here is not: the Field Logic page on `feature/logic` today is the old one, which this replaces. It changes how the Field Logic mode of the [Field Logic spec](field-logic-spec.md) is **set up**. The engine and its fail-safe rules stay; the [engine changes](#engine-and-board-changes) it needs are listed.
 
 ## Why
 
-Field Logic asks you to think in blocks, masts, sections, groups and rules before you see your own track. Starters help, but they are a way into that model, not a picture of the layout, and it is hard to know where to begin or what builds on what.
+Feedback on the first Field Logic page:
 
-The track plan turns this round. You **draw the track**, **place sensors and signals** on it, then **add behaviour** on top. The rules are worked out from the drawing.
+- Plant ends are not needed on a permanent layout: linked boards are enough.
+- Field Logic is a lot to understand. It should be **building blocks**, so you know where to start and what builds on what.
+- Instead of starters, you should **draw the track**, place blocks and signals, and put logic on top.
 
-![Sketch of the Logic page with a gauntlet over a bridge drawn as a track plan, the bridge selected as a one-train section](img/field-logic-plan/sketch.svg)
+## Two kinds of building block
 
-*A sketch of the idea, not a screenshot.*
+Everything on the page is one of two things.
+
+1. **The drawing.** You draw the track and place blocks, sensors, signals and turnouts on it. From the drawing the board works out what each signal shows, which moves would clash, and when each turnout is locked. You never add or choose any of that.
+2. **Your own pieces and rules.** You place buttons, switches and lamps on the drawing, and write rules, one sentence each, on the signal, turnout or lamp they affect. An **example** can write pieces and rules for you; they are ordinary pieces and rules you can read, change or remove.
+
+There is no third kind. No starters, no named behaviours, nothing to turn on to make the track safe, and no setting that picks how protection works. A new kind of layout must never need a new named behaviour: what the drawing can't say is a rule, and what rules can't say makes the rule words grow, on purpose and with tests ([Field Logic spec](field-logic-spec.md), principle 4).
 
 ## Decisions
 
 | Question | Decision |
 |---|---|
-| How is the track drawn? | On a grid, by dragging |
-| What happens to rule cards? | Kept, folded under **Advanced**, for what a drawing cannot say |
-| Plant ends in Field Logic | Removed from the page. Linked boards cover a permanent layout. MSS Logic keeps them |
-| MSS Logic | Unchanged for now. The plan is designed so MSS Logic can move to it later |
+| The old Field Logic page | Discarded: Blocks, Masts, Buttons, Sections, Groups and rule cards, Starters, Who uses what, the control table, Next steps and its Try it. The grid editor from TP 3 is rebuilt too |
+| Kept underneath | The engine (JS and C++), the rule table, the board YAML, the checker, and the drawing's stored format and builder |
+| Kept on the page | The mode picker, Share, Linked boards, and all of MSS Logic |
+| Files saved with the old page | Not supported. MSS Logic's *Convert to Field Logic* is removed |
+| Signals, sensors, turnouts | Can be made from the drawing. Their own pages keep the full settings |
+| Your own rules | On the signal, turnout or lamp they affect, as one sentence |
+| Size | A station: about 20 blocks, 10 signals and 8 turnouts on one board |
+| Plant ends in Field Logic | Not shown. [Linked boards](#linked-boards-instead-of-plant-ends) cover a permanent layout. MSS Logic keeps them |
+| MSS Logic | Unchanged. The drawing is designed so MSS Logic can move to it later |
 
 ## The page
 
-Field Logic shows these steps, in order, around one picture. The picture stays in view while you work.
+Above the steps, one line: the mode, Share, linked boards, and a link to their settings.
+
+Then the steps, in order: **Draw → Sensors → Signals → Behaviour and rules → Try it → Download**. An empty page offers Draw only, with one sentence: *Draw your track. Start at one end and drag to the other.* Each later step opens once the one before has something in it. A step with problems shows how many.
+
+Below the steps, the drawing on the left and, on the right, a panel for whatever is selected. The panel ends with what to do next. On a narrow screen the panel goes under the drawing.
 
 | Step | You do | You see |
 |---|---|---|
-| 1. Draw | drag track onto the grid | turnouts, joins and crossings appear where lines meet |
-| 2. Sensors | cut the track into blocks; pick each block's sensors | each block named and shaded |
-| 3. Signals | click a block break and a direction; pick a mast | the mast drawn on the plan, and what it protects when selected |
-| 4. Behaviour | add what the drawing cannot imply, such as a one-train section | each signal's sentence (**Explain**) |
-| 5. Try it | put trains on the plan, throw turnouts, run a train | the signals change on the same picture |
-| 6. Download | as today | problems marked on the plan |
-
-An empty page shows step 1 only, with one sentence: *Draw your track. Start at one end and drag to the other.*
-
-Settings and Linked boards stay above the steps. **Advanced** is below them (see [Advanced](#advanced)).
+| Draw | Drag track onto the grid. Settle each **?** (a join the drawing can't work out) | Turnouts, joins and crossings where lines meet |
+| Sensors | Cut the track into blocks; give each block its sensors, or make a new sensor there | Solid track has a sensor; dashed has none |
+| Signals | Put a signal at a block break, facing its trains; pick one or make one. Say what is beyond each end | The track a selected signal checks, shaded |
+| Behaviour and rules | Read what the drawing already does. Place pieces, write rules, or start from an example | What protects a selected block; a dotted line from a rule's thing to what it reads |
+| Try it | Put trains in blocks, throw turnouts, press buttons, run a train | The signals, locks and taken track change on the same picture, with what happened and why |
+| Download | As today | What the board will do in plain words, the checks, the Logic version |
 
 ## Drawing
 
-Track is drawn between grid points, in eight directions. Dragging adds track; **Erase** removes it. What a point becomes follows from the track that meets there:
+Track is drawn between grid points in eight directions: drag, or click one point then another; a drag that isn't straight bends at 45 degrees. **Erase** takes away a clicked piece or a dragged line. **Select** picks a piece of track, a point, a signal, a piece or an end. The arrow keys and Enter do the same.
 
 | Lines at a point | Becomes | You choose |
 |---|---|---|
 | 1 | an end of the drawing | [what is beyond it](#ends-of-the-drawing) |
 | 2 | plain track or a bend | — |
-| 3 | a turnout, or a **join with no turnout** (gauntlet track) | which turnout from the Turnouts page, which leg is straight, and the turnout position for each leg; or *no turnout* |
-| 4 | a crossing | — (double slips are not drawn; use [Advanced](#advanced)) |
+| 3 | a turnout, or a **join with no turnout** (gauntlet track) | the turnout (or make one), which leg is straight, which position is straight; or *no turnout*. Until chosen it shows **?** |
+| 4 | a crossing | — trains run straight through, never round the corner |
 
-A bend sharper than 45° is not allowed, so a drawing always shows which way a train can run through a point.
+A bend sharper than 45 degrees is not allowed. Each stretch of track runs **both ways** unless you make it **one way**; one way applies up to the next turnout, crossing or end.
 
-Each stretch of track runs **both ways** unless you give it an arrow for **one way**. Arrows are how the plan tells a train waiting to enter a section from one that has just left it, in place of the *trains also leave through here* tick.
+A station (about 20 blocks, 10 signals, 8 turnouts) fits without zoom; a bigger drawing scrolls.
 
-The editor has three tools. **Draw** adds track by dragging, or by clicking two points; a drag that is not straight bends at 45 degrees. **Erase** takes away a clicked piece, or a dragged line. **Select** picks a piece of track (its block and one-way arrow), a point (its signals, block break or turnout) or an end. The arrow keys and Enter do the same. A signal picked at a point adds the block break there.
+### Making hardware from the drawing
 
-Nothing on the plan edits the Sensors, Turnouts or Signal Masts pages. It picks their items by name.
+| Where | Make | You give |
+|---|---|---|
+| a block | a sensor | name, pin (free pins offered) |
+| a join | a turnout | name, servo channel or pin |
+| a block break | a signal | name, kind of mast, pin |
+| anywhere | a button, switch or lamp | name, pin |
+
+The Sensors, Turnouts and Signal Masts pages keep their full settings and list what the drawing made. Renaming there renames on the drawing.
 
 ## Blocks and signals
 
-- A **block break** is a point where one block stops and the next starts. A break can have a boundary sensor, which then holds both blocks, as today.
-- A **block** is the track between breaks and drawing ends. It has a name, a topic and its sensors. It publishes to JMRI like any Field Logic block.
-- A block with only a boundary sensor is checked, but still warned about, and cannot be where a train waits for a section.
-- A block with no sensor is **not detected**. It is drawn dashed, and nothing can be proved about it. A signal whose way ahead runs through one gets a warning.
-- A block can include a **sensor** on a linked board, but not a linked board's block. Two boards can then never hold each other occupied.
-- A **signal** stands at a break and faces trains going one way. A break with no signal needs nothing: the signal behind simply protects further.
+- A **block break** is where one block stops and the next starts. A break can have a boundary sensor, which then holds both blocks.
+- A **block** is the track between breaks and drawing ends: a name, a topic, its sensors. It publishes to JMRI like a sensor.
+- A block with no sensor is **not detected**: drawn dashed, and nothing can be proved about it.
+- A block can include a sensor on a linked board, but not a linked board's block, so two boards can never hold each other occupied.
+- A **signal** stands at a break and faces trains going one way.
 
-## What the drawing does on its own
+## Ends of the drawing
 
-For each signal, the builder follows the track forward to the next signal facing the same way, or to an end of the drawing. Each possible way through is a **route**.
+| Beyond | The signal before it |
+|---|---|
+| **End of signalled track** (default) | shows Approach at best |
+| **Plain track, no more signals** | can show Clear |
+| **Another board** | requires that board's chosen blocks clear, and reads its chosen signal. Unheard means occupied and Stop |
+
+## What the drawing works out
+
+### Routes and aspects
+
+For each signal, the builder follows the track to the next signal facing the same way, or to an end. Each way through is a **route**, also called a **move**.
 
 | From the drawing | Becomes |
 |---|---|
@@ -78,156 +106,177 @@ For each signal, the builder follows the track forward to the next signal facing
 | the next signal | the aspect: Approach behind a Stop, and so on, in the [Block signals](field-logic-spec.md#block-signals) order |
 | no route set | Stop |
 
-A signal never waits for an aspect the next signal cannot show (Clear from a signal capped at Approach, say): those rows are left out, and the checker does not report the drawing's own rules as never applying. A row left out only ever gives Stop.
+A signal asks only for the meanings it can show (prefilled for CATS masts). A rule row that waits for an aspect the next signal can never show is left out; leaving one out only ever gives Stop.
 
-This replaces the Block signals and Route signal starters. Each signal picks an aspect for each indication it can show, prefilled for CATS masts, as in the [MSS Signals grid](mss-emulation-spec.md#signals-by-indication). Advance Approach and Approach Diverging are off by default.
+### Protection: moves that clash
 
-**Turnouts lock in front of a train**, so points never move under or ahead of one that has been given a signal:
+Two moves **clash** when they would put trains on the same track: running over the same track in either direction, or across the same crossing by different lines. Two moves that need a turnout set differently never clash, since only one can be set.
+
+- **The board never clears two clashing moves at once.** This needs nothing on the page. It replaces "one train at a time" sections, which the page no longer has.
+- A signal none of whose moves clash with another's stays clear whenever the track ahead allows, as block signals do.
+- A signal with a move that can clash clears only for a train waiting at it (in the block behind, for half a second), and only once it has **taken** the track its move uses. A train that has just come the other way is not taken for one waiting.
+- A move takes the track it uses **all at once or not at all**, so two moves can never each hold part of what the other needs.
+- Track is taken in **pieces**: the track between turnouts, crossings, breaks and ends. A move takes only its own pieces, so on a scissors crossover a train along one line and a train along the other run together, and on a crossing loop a train can wait in one road while another runs into the other.
+- Each piece is freed once the train has passed through it and its block has been clear for 3 seconds. Each block's **Timing** can change that, and can keep the way for a while if a signal drops in front of a train (approach locking, off by default).
+- When several trains wait, the one that waited first goes first. To prefer one line, write a rule (see the example *Let one line go first at a crossing*).
+- Where two moves clash on track that no sensor of its own sees, the board can't tell when it is free: that is an error, saying to give that track a sensor.
+
+Selecting a block shows what protects it in words: which signals lead onto it, and that only one is cleared at a time.
+
+### Turnout locks
+
+A turnout is locked so its points never move in front of a train:
 
 | Locked while | Which turnouts | Railways call it |
 |---|---|---|
-| a train waits behind a signal that is not at Stop (Restricting included) | the turnouts of the route the signal is showing | approach locking |
+| a train waits behind a signal that is not at Stop | the turnouts of the route the signal is showing | approach locking |
 | a block on a signal's route, short of a turnout, is occupied | that turnout | track locking |
 | the turnout's own block is occupied | that turnout; can be unticked for each turnout | lock under a train |
 
-Each frees the turnout once the train has gone over it, a block at a time, so two trains can meet on a passing loop. Approach locking starts the scan after the signal clears, because rules read signals as the last scan left them. A signal with turnouts ahead and no sensor behind it cannot be approach locked, and the page says so. If a signal drops for another reason while a train approaches it, its approach lock drops with it: the train must stop at the signal.
+Each frees the turnout once the train has gone over it. Approach locking starts the scan after the signal clears. A signal with turnouts ahead and no sensor behind it can't be approach locked; the page warns.
 
-## Behaviour you add
+### Turnouts that move together
 
-Select something on the plan to see what can be added to it.
+Two turnouts joined by one diagonal between two parallel tracks make a **crossover**, and the drawing pairs them: throwing one throws the other, whether from a button, JMRI, CATS or a rule. Each still reports its own position, and a route over a crossover needs both. A pair can be changed on the turnout's panel.
 
-| Select | You can add |
+## Your own pieces and rules
+
+### Pieces
+
+| Piece | Is | You give |
+|---|---|---|
+| Button | a push button on the fascia, wired to GND | name, pin |
+| Switch | a toggle on the fascia, wired to GND | name, pin, what *on* means (such as Local) |
+| Lamp | an LED on the fascia | name, pin |
+
+A piece does nothing on its own: rules read buttons and switches, and rules light lamps.
+
+### Rules
+
+A rule lives on the thing it affects and is one sentence:
+
+| On | Rule |
 |---|---|
-| one or more blocks | **One train at a time** |
-| a signal | its aspects, **approach lighting** (dark until a chosen block is occupied) |
-| a turnout | untick **lock under a train** |
-| an end | what is beyond it |
+| a signal | **Keep at Stop while** … · **Keep at Stop unless** … · **No better than Approach while** … |
+| a turnout | **Lock it while** … · **Only its own buttons move it while** … (JMRI, CATS and rules can't, its fascia buttons can) |
+| a lamp | **Light while** … · **Flash while** … |
 
-### One train at a time
+The … is a condition: a block occupied or clear, or with a train in it for a time; a turnout closed or thrown; a signal at Stop or not, or *has shown Stop for* a time; a switch on or off; a button pressed in the last so many seconds; any of these on a linked board; joined with *and* or *or*.
 
-Select a block's track, then **Make this block one train at a time**. Tick more blocks to add them to the same section. The section's track is shaded on the plan. The page lists the entrances it found: every signal with a route into the selection, and the block behind each, where a train waits. There is nothing else to pick. **Free it when clear for** (3 s) and **Hold after cancelling** (off) are under **More options**.
+- A rule can only hold a signal back. It never clears one past what the drawing allows.
+- Rules do not throw turnouts in this version.
+- A selected signal or turnout lists its rules, and a dotted line on the drawing joins it to what its rules read.
+- The checker checks rules with everything else, and warns if one could keep a train waiting for good.
 
-It builds one section, and for each route from each entrance into it one reserving rule (a route that misses the section gets a plain rule):
+### Examples
 
-| Part | From the plan |
+An example writes pieces and rules for you, then is forgotten: nothing remembers it was an example. The first three:
+
+| Example | Writes |
 |---|---|
-| When | the block behind the signal is occupied, for 0.5 s |
-| Only if | the route's turnouts are set and its blocks are clear, so the section is only given to a signal that can clear |
-| Then | the signal shows the route's Clear; take the section. The turnouts are held by the locks above, not by the section, so each is freed once the train is past it |
-| Leaving guard | on, if a train can run out of the section into the waiting block (the arrows say) |
+| Hold a signal until a button is pressed | a button; on the signal, *Keep at Stop unless the button was pressed in the last 30 seconds* |
+| Hand a turnout to a local panel | a switch and a lamp; on each signal whose route crosses the turnout, *Keep at Stop while the switch is Local*; on the turnout, *Only its own buttons move it while the switch is Local and those signals have shown Stop for 30 seconds*; on the lamp, *Light while only the turnout's own buttons move it* and *Flash while the switch is Remote and the turnout is thrown* |
+| Let one line go first at a crossing | on each signal of the other line, *Keep at Stop while a train waits on the first line* |
 
-These sit in a second group beside the drawing's own rules. A signal shows the [most restrictive answer](field-logic-spec.md#who-wins-a-mast), so it stays at Stop until it holds the section, then shows what the track ahead allows, and drops as soon as the drawing's rules say so. This also answers both cases in issue #92 (route locking with a following aspect, and routes that share a block).
+The drawing already keeps signals at Stop while a turnout is set against them, so an example never writes that.
 
-The page **requires it** where two signals can put trains on the same track at once and no section covers both: head on, at a crossing, or one behind the other where two tracks join with no turnout. This is an error, so the board cannot be downloaded until it is settled. Two routes that need a turnout set different ways never count, since only one can be set. Beside the error is a button that makes the blocks where they meet one train at a time. The blocks a train waits in at either signal are left out, as are blocks with no sensor of their own; with none left, the page says to give that track a sensor. It offers one place at a time: a passing loop's two roads become two sections, so trains can still meet in it.
+## Try it
 
-A section lives on one board. A single line that spans two boards still needs one board to own both signals, or [Advanced](#advanced) rules.
+The same drawing, live. Click a block to put a train in or take it out, a turnout to throw it, a button to press it, a switch to flip it. **Run a train** from an end. Taken track is shaded, the route a signal has set is green, locked turnouts show a lock. A list says what happened, and the panel says why the selected signal shows what it does. Step, Skip ahead and Start again as today.
 
-## Ends of the drawing
+## Download
 
-Each end says what is beyond it:
+What the board will do, a sentence for each signal, each place two moves clash, and each rule. Then the checks (problems, the checker) and Download YAML, Download JMRI XML and Send to ESPHome. The Logic version as today.
 
-| Beyond | The signal before it |
-|---|---|
-| **End of signalled track** (default) | shows Approach at best |
-| **Plain track, no more signals** | can show Clear |
-| **Another board** | requires that board's chosen blocks clear, and reads its chosen signal. Unheard means occupied and Stop |
+## Problems
 
-**Another board** picks from Linked boards. This replaces plant ends for a permanent layout.
+Marked on the drawing where they are: red for errors, which stop the download, amber for warnings. Each says what is wrong, why, and what to do.
 
-## Worked example: gauntlet over a bridge
-
-1. **Draw** two tracks that join, run over the bridge as one line, and separate again. Both joins are *no turnout*. Give each outer stretch its arrow: top track left to right, bottom track right to left.
-2. **Sensors:** break all four lines just outside the joins. Name the top-left block **Left**, the middle **Bridge** (joins included) and the bottom-right **Right**, and pick a sensor for each. The two departing stretches have none.
-3. **Signals:** the breaks sit on the lines just outside each join. Put **Left Bridge** at the top-left break facing right, and **Right Bridge** at the bottom-right break facing left.
-4. **Ends:** set the two departing ends to *Plain track, no more signals*.
-5. **Behaviour:** select Bridge, then **One train at a time**.
-
-The result behaves as the [One-train section worked example](field-logic-spec.md#one-train-section) does: each signal clears only for a train waiting at it, and only while it holds the bridge. The departing stretches are not detected, so the page warns about each; here that is expected.
-
-## Advanced
-
-A folded part holding today's cards: **Rules** (groups and rule cards), **Sections**, **Buttons**, **Virtual masts**, and **Made by the plan**, the built blocks, sections and groups, read-only. Who uses what and the control table are there too.
-
-- Your own rules run beside the plan's. The most restrictive answer wins, so a rule can hold a plan signal back, for example until a button is pressed, but cannot clear it past what the plan allows.
-- A signal that only your own rules set works as it does today.
-- Your rules can read the plan's blocks and sections.
-- The **starter cards go**. Their builders stay, because the plan's builder uses the same code.
-
-## Linked boards instead of plant ends
-
-The Plant ends card is not shown in Field Logic. The one exception is a board that already has ends, such as one made by **Convert to Field Logic**, so nothing in a file is hidden. The engine, the C++ component and MSS Logic keep plant ends.
+- A **?** not settled: a join with no turnout chosen and not marked *no turnout*.
+- A signal that faces an end with no track ahead.
+- Nothing detected on a route (error).
+- Two moves that clash on track no sensor of its own sees (error).
+- Undetected track on a route (warning), a block no signal checks (warning), a signal that can't be approach locked (warning).
+- Everything the checker finds, pointed back at the signal, rule or block.
 
 ## How it is built
 
-Like MSS Logic, the plan is **described, then built**. A new builder (`plan-builder.js`) turns the plan into ordinary blocks, sections and groups. `logic-yaml.js` reads them beside your own, so the YAML, JMRI XML, checker and component see nothing new. Built items are never stored.
+The drawing is **described, then built**, like MSS Logic: `plan-builder.js` turns it into ordinary blocks, masts, rules and resources, which `logic-yaml.js` hands to the YAML, JMRI XML, checker and component. Built items are never stored.
 
-| Reused | New |
+### Engine and board changes
+
+| Change | Why |
 |---|---|
-| the engine, in JS and C++ | the grid editor |
-| the checker, Try it's core, Run a train | `logic.plan` and its builder |
-| the starters' rule builders, Explain | routes worked out from a drawing |
-| the MSS picture's lamps and trains, the Signals grid | joins and crossings on the picture |
+| A rule can take several resources at once, all or nothing | Moves take their pieces together, so two can never hold half each |
+| Switch inputs and lamp outputs | Pieces |
+| A turnout lock that stops JMRI, CATS and rules but lets its own buttons through | *Only its own buttons move it* |
+| Paired turnouts: one command throws both | Crossovers |
+| A condition that a signal *has shown Stop for* a time | Examples and rules that wait for the line to be held |
+
+Each change goes into the JS engine and the C++ core together, with hand-worked cases, as the [Field Logic spec](field-logic-spec.md) requires.
 
 ## Stored format
 
-One new key, `logic.plan`. `logic.mode` stays `field`. Positions are grid points, `[x, y]`, with y down the page.
+One key, `logic.plan`. `logic.mode` stays `field`. Positions are grid points, `[x, y]`, with y down the page.
 
 ```json
 "plan": {
   "track": [ [[0,0],[3,0]], [[3,0],[4,1]] ],
-  "points": [ { "at": [5,1], "turnout": "P1", "straight": [6,1], "straightIs": "closed", "lock": true },
+  "points": [ { "at": [5,1], "turnout": "P1", "straight": [6,1], "straightIs": "closed", "lock": true, "pairedWith": "P2" },
               { "at": [4,1], "turnout": null } ],
   "arrows": [ { "from": [0,0], "to": [2,0] } ],
   "breaks": [ { "at": [2,0], "sensors": [], "signals": [ { "mast": "Left Bridge", "facing": [3,0], "aspects": {}, "approachLight": "" } ] } ],
-  "blocks": [ { "name": "Left", "at": [[0,0],[2,0]], "sensors": ["Left current"] } ],
+  "blocks": [ { "name": "Left", "at": [[0,0],[2,0]], "sensors": ["Left current"], "release": "3s", "approachLock": "" } ],
   "ends": [ { "at": [12,0], "beyond": "plain" },
             { "at": [12,2], "beyond": { "board": "kiama-south-p3q8w5", "mast": "Home", "blocks": ["Up"] } } ],
-  "sections": [ { "name": "Bridge section", "blocks": ["Bridge"], "release": "3s", "approachLock": "" } ],
+  "pieces": [ { "kind": "switch", "name": "Industry switch", "at": [7,4], "pin": "GPIO33", "on": "Local" } ],
+  "rules": [ { "on": { "mast": "West Home" }, "kind": "stopWhile", "when": { "switch": "Industry switch", "is": "on" } } ],
   "advanceApproach": false,
   "approachDiverging": false
 }
 ```
 
 - `track` is straight pieces along the grid or at 45 degrees. Lines meet only at grid points.
-- A block break sits on plain track, between two lines, never on a turnout, crossing or end. A turnout or join is therefore always inside a block.
-- A point's `straight` is only needed where neither leg is in line with the third. `facing` is the next grid point along the track, the way the signal's train goes.
-- An arrow covers its stretch of track up to the next turnout, crossing or end.
-- A block is named by any piece of track in it (`at`).
-- `ends[].beyond` is `signalled` (the default), `plain`, or another board's signal and blocks.
-- `aspects` are the [MSS indications](mss-emulation-spec.md#masts) (`stop`, `approach`, `advance`, `clear`, `approachDiverging`, `divergingClear`, `divergingApproach`); a CATS mast needs none.
-- A file without `plan` loads and generates exactly as it does today.
+- A block break sits on plain track, never on a turnout, crossing or end, so a turnout or join is always inside a block.
+- A point's `straight` is needed only where neither leg is in line with the third. `pairedWith` is set when the drawing finds a crossover and kept if changed.
+- `facing` is the next grid point along the track, the way the signal's trains go.
+- A block is named by any piece of track in it (`at`). `release` and `approachLock` are its Timing, left out when usual.
+- `pieces[].kind` is `button`, `switch` or `lamp`. `rules[].on` is a `mast`, `turnout` or `lamp`; `kind` is one of the rule words above; `when` is a condition in the rule table's own form.
+- `aspects` are the [MSS indications](mss-emulation-spec.md#masts); a CATS mast needs none.
+- The `sections` key of TP 2 goes: protection replaces it.
+- A board in Field Logic reads only `logic.plan` (with Share and linked boards). The old page's keys (`blocks`, `layers`, `resources`, `buttons`, `masts`) are not read.
 
-## Problems
+## Linked boards instead of plant ends
 
-Each is marked on the plan, in the page's plain words, saying what is wrong, why and what to do:
-
-- A turnout point with no turnout chosen and not marked *no turnout*.
-- A signal that faces a drawing end with no track ahead of it.
-- A block with a sensor that no signal checks: it is on no signal's way ahead, and no train waits in it at a signal (warning).
-- A signal whose way ahead has an undetected block (warning).
-- Two signals that can put trains on the same track at once, with no one-train section (error, with the button above).
-- A signal with turnouts ahead and no sensor behind it, so it cannot be approach locked (warning).
-- Everything the checker finds, pointed back at the signal or section.
-
-## Work, in order
-
-| # | Work | Done when |
-|---|---|---|
-| 1 | Hide Plant ends in Field Logic; move the guide's chapter | a Field Logic board with no ends shows none |
-| 2 | Stored format and builder, no drawing yet | hand-written plans for the gauntlet, a turnout junction, a passing siding and a diamond replay hand-worked engine cases |
-| 3 | Grid editor: draw, blocks, signals, ends | each of those plans can be drawn from an empty page |
-| 4 | Behaviour, Advanced, problems on the plan | the gauntlet needs no rule card |
-| 5 | Try it and Run a train on the plan | as for MSS Logic today |
-| 6 | New Field Logic guide and its pictures | a newcomer builds the gauntlet from it |
-| later | MSS Logic on the same editor | its own spec |
-
-This comes before Release 5 (merge to `main`) in the [implementation plan](field-logic-implementation-plan.md). The current Field Logic guide read-through and screenshots wait for step 6.
+The Plant ends card is not shown in Field Logic. A permanent layout links boards instead, and an end of the drawing can be **Another board**. The engine, the C++ component and MSS Logic keep plant ends.
 
 ## Continuous run
 
-Signals right round a loop read each other in a circle, which validation otherwise rejects. A loop made **only of the drawing's own signals** is allowed. Each checks its own track, and what a signal shows for each meaning ahead never feeds back into itself, so the loop settles (engine cases `plan-loop-block-signals` and `plan-loop-advance`, replayed by both engines). A loop with any other rule in it is still an error, as is a loop with only one signal.
+Signals right round a loop read each other in a circle, which validation otherwise rejects. A loop made **only of the drawing's own signals** is allowed: each checks its own track, and what a signal shows for each meaning ahead never feeds back into itself, so the loop settles (engine cases `plan-loop-block-signals` and `plan-loop-advance`, replayed by both engines). A loop with any rule of yours in it is still an error, as is a loop with only one signal.
+
+## Checker
+
+The checker must check a station completely. Measured on the TP 2 plans: the gauntlet (120 states), junction (116) and diamond (536) are checked completely within the quick budget; the passing siding (7 signals, 2 turnouts) is not checked completely even by **Check every combination** (about 16,500 states in 20 s), because signals that read each other make one large part. Protection in pieces adds resources. Before the guide, the checker checks a drawing in smaller parts (TP 5).
+
+## Work, in order
+
+The milestone *Track plan* on GitHub has an issue for each.
+
+| # | Work | Done when |
+|---|---|---|
+| 0 | Clickable mock | approved (2026-11-26) |
+| 1 | Hide Plant ends in Field Logic | done |
+| 2 | Stored format and builder | done; fail-safe sign-off open |
+| 3 | First grid editor | done, replaced by 6 |
+| 4 | Protection: moves that clash, taken in pieces all at once, paired turnouts; sections removed | hand-worked cases for the gauntlet, a crossing loop meet, a scissors crossover with parallel moves, a diamond and a merge pass in both engines |
+| 5 | Checker on drawn plans | the passing siding and a station of the size above are checked completely |
+| 6 | The new page: steps, drawing, making hardware, protection shown | a newcomer on an empty page has one thing to do, and the four TP 2 drawings can be drawn |
+| 7 | Pieces, rules and examples | the gauntlet with a button before Left Bridge, and the industry siding with a local panel, built from an empty page |
+| 8 | Try it and Run a train on the drawing | a meet on a crossing loop runs on the drawing |
+| 9 | Remove the old page | no Field Logic screen but the new one is left |
+| 10 | New Field Logic guide | a newcomer builds the gauntlet from it |
 
 ## Open questions
 
-- **Checker size.** Measured on the step 2 plans: the gauntlet (120 states), junction (116) and diamond (536) are checked completely within the quick budget. The passing siding (7 signals, 2 turnouts) is not checked completely even by **Check every combination**: it reaches about 16,500 states in 20 s and falls back to random runs. That was already so with one section and no approach locking, so the cause is that a chain of signals reading each other makes one large part, not the locks. A drawn station will be bigger. Before the Field Logic guide (step 6), the checker needs a way to check a drawing's signals in smaller parts.
-- **How big a grid** fits the page before it needs to scroll or zoom.
+- **Signals not on the drawing.** A signal set only by rules (a shunt signal, say) has no place in this design. Add one if a layout needs it.
+- **Bigger drawings.** Zoom and pan, if a board needs more than a station.
