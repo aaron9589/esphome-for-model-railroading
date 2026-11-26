@@ -1,24 +1,25 @@
 // The Field Logic track plan's builder (docs/field-logic-plan-spec.md; work
-// item TP 2). The plan is a drawing: track between grid points, turnouts,
-// block breaks with their signals, blocks and their sensors, what is beyond
-// each end, and sections for one train at a time (`logic.plan`). This file
-// turns it into ordinary Field Logic items, which the engine cannot tell from
-// hand-made ones:
+// items TP 2 and TP 4). The plan is a drawing: track between grid points,
+// turnouts, block breaks with their signals, blocks and their sensors, and
+// what is beyond each end (`logic.plan`). This file turns it into ordinary
+// Field Logic items, which the engine cannot tell from hand-made ones:
 //
-//   build(config) -> { blocks, masts, layers, resources, origins }
+//   build(config) -> { blocks, masts, layers, resources, pairs, origins }
 //     blocks     one per named block with sensors, holding its boundary sensors
 //     masts      each plan signal, with the meaning of each aspect it shows
 //     layers     one group per signal (its routes), one "Turnout locks" group,
-//                then one group per section (its entrances)
-//     resources  one per section
+//                then one group per signal with a move that can clash (its
+//                moves, each taking its pieces of track)
+//     resources  one per piece of track that two moves can clash on (pieces
+//                of one block that the same moves use are one)
+//     pairs      turnouts that move together: [{ turnout, with, same }]
 //     origins    which part of the plan made each item
 //   problems(config) -> [{ level: "error" | "warning", text, where }]
 //     `where` is { view: "logic", part: PART } plus { at: [x, y] } or
-//     { mast } or { block } or { section }.
-//   trace(config) -> the plan worked out: regions, routes (for the editor)
-//   look(config) -> for the editor: { problems, sections: [{ name, blocks,
-//     entrances: [{ mast, waiting }] }] }. A warning about two signals that
-//     can meet carries `where.blocks`: the blocks to take one train at a time.
+//     { mast } or { block }.
+//   trace(config) -> the plan worked out: regions, pieces, routes (for the editor)
+//   look(config) -> for the editor: { problems, protects: [{ block, masts }] },
+//     the signals that take track in each block, when two or more do.
 //
 // Nothing built is stored. Plain JS with no DOM; it needs generator.js,
 // logic-yaml.js, logic-starters*.js and mss-builder.js loaded first.
@@ -31,11 +32,13 @@
   const Mss = () => global.EsphomeMrMssBuilder;
 
   const PART = "logic-plan";
+  const TIME = /^\d+(\.\d+)?(ms|s)$/; // as the engine reads a time
   const MAX_SPAN = 200; // grid units in one segment, so a bad file cannot hang the page
 
   const TEXT = Object.freeze({
     locksGroup: "Turnout locks",
-    sectionGroup: (name) => `${name} entrances`,
+    movesGroup: (mast) => `${mast} moves`,
+    piece: (block, n) => `${block} ${n}`,
     at: (p) => `the point at ${p[0]}, ${p[1]}`,
     badSegment: (n) => `Piece of track ${n} is not a straight line along the grid or at 45 degrees. Draw it again.`,
     diagonalCross: (p) => `Two lines cross between grid points near ${p[0]}, ${p[1]}. Move one so they cross at a grid point.`,
@@ -74,16 +77,12 @@
     aspectTwice: (mast, aspect, a, b) => `Signal "${mast}" shows "${aspect}" for both ${a} and ${b}, which mean different things to the signal behind. Pick a different aspect for one of them.`,
     undetected: (mast) => `Some track past signal "${mast}" has no sensor of its own, so a train standing there may not be seen.`,
     unwatched: (name) => `No signal on the drawing checks block "${name}", so a train standing there holds none of them at Stop. Put a signal before it, unless you only want to see it in JMRI.`,
-    headOn: (a, b) => `Signals "${a}" and "${b}" can let two trains onto the same track at once, so they could meet. Make that track one train at a time.`,
-    headOnNoSensor: (a, b) => `Signals "${a}" and "${b}" can let two trains onto the same track at once, so they could meet. Give that track a block with a sensor of its own, then make it one train at a time.`,
+    clashUnseen: (a, b) => `Signals "${a}" and "${b}" can let trains onto the same track, but no sensor of its own sees that track, so the board cannot tell when it is free. Give that track a block with a sensor of its own.`,
+    clashWaiting: (mast, other) => `Signals "${mast}" and "${other}" can let trains onto the same track, so "${mast}" clears only for a train waiting at it, but nothing sees a train there. Give the block behind it a sensor.`,
     noApproach: (mast) => `Nothing sees a train waiting at signal "${mast}", so its turnouts are not locked as a train comes up to it. Give the block behind it a sensor.`,
-    sectionNoName: "A one-train section has no name. Name it.",
-    sectionTwice: (name) => `Two sections are called "${name}". Give each its own name.`,
-    sectionNoBlocks: (name) => `Section "${name}" has no blocks. Select the track it covers.`,
-    sectionBlock: (name, block) => `Section "${name}" includes "${block}", which is not a block with a sensor of its own. Pick another, or give it one.`,
-    sectionBlockTwice: (block, a, b) => `Block "${block}" is in sections "${a}" and "${b}". A block can be in one section only.`,
-    sectionNoEntrance: (name) => `Section "${name}" has no way in past a signal. Put a signal where trains enter it.`,
-    sectionWaiting: (name, mast) => `Section "${name}": the track behind signal "${mast}" has no sensor, so the board cannot see a train waiting there. Give that block a sensor.`,
+    badTime: (name, what) => `Block "${name}" has a ${what} the board cannot read. Pick one from the list.`,
+    pairTwice: (name) => `Turnout "${name}" moves with two others. A turnout can move with one other only: unpair one.`,
+    pairMissing: (name, other) => `Turnout "${name}" moves with "${other}", which is not on the drawing. Pick another, or unpair it.`,
   });
 
   // ===== Geometry ============================================================
@@ -321,7 +320,10 @@
         } else if (isObject(member) && member.board && member.sensor !== undefined) sensors.push({ ...member });
         else if (isObject(member) && member.block !== undefined) error(TEXT.remoteSensorsOnly(name), { block: name });
       }
-      const block = { name, region: id, own: sensors, sensors: [...sensors], topic: text(def.topic) };
+      const block = { name, region: id, own: sensors, sensors: [...sensors], topic: text(def.topic), release: text(def.release), approachLock: text(def.approachLock) };
+      for (const [what, value] of [["free-after time", block.release], ["hold time", block.approachLock]]) {
+        if (value && !TIME.test(value)) error(TEXT.badTime(name, what), { block: name });
+      }
       blocks.push(block);
       regionBlock.set(id, block);
     }
@@ -427,7 +429,93 @@
       }
     }
 
-    return { plan, found, error, warn, near, region, regionBlock, blocks, points, signals, barred, detected };
+    // Pieces: the track between turnouts, crossings, breaks and ends. A
+    // crossing is a piece of its own, which both its lines use.
+    const pieceOf = new Map(); // edge -> piece
+    const pieceRegion = new Map(); // piece -> region
+    const boundary = (node) => near.get(node).length !== 2 || breaks.has(node);
+    for (const start of edges) {
+      if (pieceOf.has(start)) continue;
+      const id = `p${pieceRegion.size}`;
+      pieceRegion.set(id, region.get(start));
+      pieceOf.set(start, id);
+      const queue = [start];
+      while (queue.length) {
+        for (const node of queue.pop().split("|")) {
+          if (boundary(node)) continue;
+          for (const other of near.get(node)) {
+            const edge = edgeKey(node, other);
+            if (pieceOf.has(edge)) continue;
+            pieceOf.set(edge, id);
+            queue.push(edge);
+          }
+        }
+      }
+    }
+    for (const [node, point] of points) if (point.kind === "crossing") pieceRegion.set(`x${node}`, region.get(edgeKey(node, near.get(node)[0])));
+    for (const signal of signals) {
+      for (const route of signal.routes) {
+        const parts = [];
+        route.edges.forEach((edge, i) => {
+          const [a, b] = edge.split(">");
+          parts.push(pieceOf.get(edgeKey(a, b)));
+          if (i + 1 < route.edges.length && points.get(b)?.kind === "crossing") parts.push(`x${b}`);
+        });
+        route.pieces = [...new Set(parts)];
+      }
+    }
+
+    // Turnouts that move together: two joined by one diagonal, perhaps
+    // through a crossing, between two parallel tracks (a crossover): each
+    // reached by the other's diverging leg, their straight lines parallel and
+    // apart, facing opposite ways. A point's `pairedWith` changes that:
+    // another turnout, or none.
+    const crossovers = [];
+    for (const [node, point] of points) {
+      if (point.kind !== "turnout" || !point.turnout) continue;
+      let [prev, cur] = [node, near.get(node).find((o) => o !== point.stem && o !== point.straight)];
+      const seen = new Set([node]);
+      while (cur && !seen.has(cur)) {
+        seen.add(cur);
+        const next = near.get(cur);
+        const on = next.length === 2 ? next.find((o) => o !== prev)
+          : points.get(cur)?.kind === "crossing" ? next.find((o) => o !== prev && angle(cur, prev, o) === 180) : null;
+        if (!on) break;
+        [prev, cur] = [cur, on];
+      }
+      const other = points.get(cur);
+      if (!other || other.kind !== "turnout" || !other.turnout || other.turnout === point.turnout || cur < node) continue;
+      if (prev === other.stem || prev === other.straight) continue;
+      const [p, q, r, t] = [pointOf(node), pointOf(point.stem), pointOf(cur), pointOf(other.stem)];
+      const [ax, ay, bx, by] = [p[0] - q[0], p[1] - q[1], r[0] - t[0], r[1] - t[1]];
+      if (ax * by - ay * bx !== 0 || ax * bx + ay * by >= 0) continue;
+      // On two lines, not one: a passing loop's turnouts are on the same line.
+      if (ax * (r[1] - p[1]) - ay * (r[0] - p[0]) === 0) continue;
+      crossovers.push([point.turnout, other.turnout]);
+    }
+    const straightIs = new Map([...points.values()].filter((pt) => pt.turnout).map((pt) => [pt.turnout, pt.straightIs]));
+    const chosen = new Map();
+    for (const set of settings.values()) {
+      if (text(set.turnout) && Object.prototype.hasOwnProperty.call(set, "pairedWith")) chosen.set(text(set.turnout), text(set.pairedWith));
+    }
+    const pairs = [];
+    const paired = new Map();
+    const pair = (a, b) => {
+      if (pairs.some((x) => (x.turnout === a && x.with === b) || (x.turnout === b && x.with === a))) return;
+      for (const name of [a, b]) {
+        if (paired.has(name)) error(TEXT.pairTwice(name));
+        paired.set(name, true);
+      }
+      pairs.push({ turnout: a, with: b, same: straightIs.get(a) === straightIs.get(b) });
+    };
+    for (const [a, b] of crossovers) if (!chosen.has(a) && !chosen.has(b)) pair(a, b);
+    for (const [a, b] of chosen) {
+      if (!b) continue;
+      if (!straightIs.has(b)) error(TEXT.pairMissing(a, b));
+      else pair(a, b);
+    }
+
+    return { plan, found, error, warn, near, region, regionBlock, blocks, points, signals, barred, detected, pieceOf, pieceRegion, pairs };
   }
 
   // Whether two routes need a turnout set different ways, so cannot both be set.
@@ -630,135 +718,103 @@
       origin("group", name, {});
     }
 
-    // One train at a time.
-    const covered = []; // { regions: Set, entrances: Set }
-    const seenSections = []; // for the editor
-    const sectionNames = new Set(list(logic.resources).filter(isObject).map((res) => String(res.name ?? "")));
-    const claimed = new Map(); // block -> section
-    for (const def of list(plan.sections).filter(isObject)) {
-      const name = text(def.name);
-      const where = { section: name };
-      if (!name) {
-        error(TEXT.sectionNoName);
-        continue;
-      }
-      if (sectionNames.has(name)) {
-        error(TEXT.sectionTwice(name), where);
-        continue;
-      }
-      sectionNames.add(name);
-      const inside = [];
-      for (const blockName of list(def.blocks)) {
-        const block = blocks.find((b) => b.name === blockName && b.own.length);
-        if (!block) error(TEXT.sectionBlock(name, blockName), where);
-        else if (claimed.has(block.name)) error(TEXT.sectionBlockTwice(block.name, claimed.get(block.name), name), where);
-        else {
-          claimed.set(block.name, name);
-          inside.push(block);
+    // Protection: two moves clash when they use the same piece of track, in
+    // either direction or across a crossing, unless a turnout must be set
+    // differently for each. Each piece two moves can clash on is taken, all
+    // at once with the rest of a move's pieces, by every move that uses it.
+    const moves = [];
+    for (const signal of signals) for (const route of signal.routes) if (route.clear?.length) moves.push({ signal, route });
+    const contested = new Map(); // piece -> [signal, signal]: the first two that clash on it
+    moves.forEach((a, i) => {
+      for (const b of moves.slice(i + 1)) {
+        if (a.signal === b.signal || apart(a.route, b.route)) continue;
+        for (const piece of a.route.pieces) {
+          if (b.route.pieces.includes(piece) && !contested.has(piece)) contested.set(piece, [a.signal, b.signal]);
         }
-      }
-      if (!inside.length) {
-        error(TEXT.sectionNoBlocks(name), where);
-        continue;
-      }
-      const regions = new Set(inside.map((b) => b.region));
-      const entrances = signals.filter((s) => !regions.has(s.behind) && s.routes.some((route) => route.regions.some((id) => regions.has(id))));
-      if (!entrances.length) {
-        error(TEXT.sectionNoEntrance(name), where);
-        continue;
-      }
-      seenSections.push({
-        name,
-        blocks: inside.map((b) => b.name),
-        entrances: entrances.map((s) => ({ mast: s.mast, waiting: detected(s.behind) ? regionBlock.get(s.behind).name : "" })),
-      });
-      const rules = [];
-      for (const signal of entrances) {
-        if (!detected(signal.behind)) {
-          error(TEXT.sectionWaiting(name, signal.mast), { ...where, mast: signal.mast });
-          continue;
-        }
-        const waiting = regionBlock.get(signal.behind).name;
-        // A train can run out of the section into the waiting block unless an
-        // arrow on the way past the signal forbids it.
-        const leaves = !model.barred.has(`${signal.facing}>${signal.at}`);
-        for (const route of signal.routes.filter((r) => r.clear.length)) {
-          const enters = route.regions.some((id) => regions.has(id));
-          const aspect = signal.aspects[route.end?.kind === "plain" || route.next || route.end?.next
-            ? (route.diverging ? "divergingClear" : "clear")
-            : (route.diverging ? "divergingApproach" : "approach")];
-          const turnouts = route.turnouts.map(turnoutIs);
-          if (!enters) {
-            // A way that misses the section: the section has no say over it.
-            rules.push({ trigger: { while: clearOf(route.clear[0]) }, checks: [...turnouts, ...route.clear.slice(1).map(clearOf)], then: { mast: signal.mast, aspect } });
-            continue;
-          }
-          const trigger = { while: { block: waiting, is: "occupied" }, for: "0.5s" };
-          if (leaves) trigger.leavingGuard = true;
-          const then = { mast: signal.mast, aspect, reserve: name };
-          rules.push({ trigger, checks: [...turnouts, ...route.clear.map(clearOf)], then });
-        }
-      }
-      const resource = {
-        name,
-        blocks: inside.map((b) => b.name),
-        release: { while: { all: inside.map((b) => clearOf(b.name)) }, for: text(def.release) || "3s" },
-      };
-      if (text(def.approachLock)) resource.approachLock = def.approachLock;
-      resources.push(resource);
-      origin("section", name, where);
-      if (rules.length) {
-        const group = freeGroup(TEXT.sectionGroup(name));
-        layers.push({ name: group, starter: "plan-section", rules });
-        origin("group", group, where);
-      }
-      covered.push({ regions, entrances: new Set(entrances) });
-    }
-
-    // Two signals that can put trains on the same track at once: meeting
-    // head-on, or crossing, with no section to take.
-    const nodesOf = (route) => route.edges.map((edge) => edge.split(">"));
-    // Where two routes would put trains on the same track: the pieces of the
-    // first. None when a turnout must be set differently for each.
-    const clash = (a, b) => {
-      if (apart(a, b)) return [];
-      const at = [];
-      for (const [p, q] of nodesOf(a)) {
-        for (const [r, s] of nodesOf(b)) {
-          // Head on, or one behind the other where two tracks join.
-          if ((p === s && q === r) || (p === r && q === s)) at.push(edgeKey(p, q));
-          // The same crossing, by different lines.
-          else if (q === s && points.get(q)?.kind === "crossing" && p !== r && angle(q, p, r) !== 180) at.push(edgeKey(p, q));
-        }
-      }
-      return at;
-    };
-    signals.forEach((a, i) => {
-      for (const b of signals.slice(i + 1)) {
-        // Each pair of ways that could meet, with the blocks where they meet: a
-        // train can only be kept out of track it does not wait in, and only
-        // seen on track with a sensor of its own.
-        const open = [];
-        for (const ra of a.routes) {
-          for (const rb of b.routes) {
-            const at = clash(ra, rb);
-            // Safe when both ways must take the same section.
-            const takes = (route, c) => route.regions.some((id) => c.regions.has(id));
-            if (!at.length || covered.some((c) => c.entrances.has(a) && c.entrances.has(b) && takes(ra, c) && takes(rb, c))) continue;
-            const meet = new Set();
-            for (const edge of at) {
-              const id = model.region.get(edge);
-              if (id !== a.behind && id !== b.behind && detected(id)) meet.add(regionBlock.get(id).name);
-            }
-            open.push([...meet]);
-          }
-        }
-        if (!open.length) continue;
-        // The first way to settle: a passing loop's two roads are two sections.
-        const blocks = open.find((meet) => meet.length) || [];
-        error(blocks.length ? TEXT.headOn(a.mast, b.mast) : TEXT.headOnNoSensor(a.mast, b.mast), { mast: a.mast, blocks });
       }
     });
+    // Pieces of one block that the same moves use are taken as one.
+    const resourceOf = new Map(); // piece -> resource
+    const byKey = new Map();
+    const unseen = new Set();
+    for (const move of moves) {
+      for (const piece of move.route.pieces) {
+        if (!contested.has(piece) || resourceOf.has(piece)) continue;
+        const id = model.pieceRegion.get(piece);
+        if (!detected(id)) {
+          const [a, b] = contested.get(piece);
+          const key = `${a.mast}\u0000${b.mast}`;
+          if (!unseen.has(key)) error(TEXT.clashUnseen(a.mast, b.mast), { mast: a.mast });
+          unseen.add(key);
+          continue;
+        }
+        const users = moves.filter((m) => m.route.pieces.includes(piece)).map((m) => moves.indexOf(m)).join(",");
+        const key = `${id}|${users}`;
+        if (!byKey.has(key)) byKey.set(key, { region: id, block: regionBlock.get(id), pieces: [] });
+        byKey.get(key).pieces.push(piece);
+        resourceOf.set(piece, byKey.get(key));
+      }
+    }
+    const takenNames = new Set(list(logic.resources).filter(isObject).map((res) => String(res.name ?? "")));
+    const perBlock = new Map();
+    for (const res of byKey.values()) perBlock.set(res.region, [...(perBlock.get(res.region) || []), res]);
+    for (const [, inBlock] of perBlock) {
+      inBlock.forEach((res, i) => {
+        const block = res.block;
+        res.name = S().freeName(inBlock.length === 1 ? block.name : TEXT.piece(block.name, i + 1), takenNames);
+        takenNames.add(res.name);
+        const resource = { name: res.name, blocks: [block.name], release: { while: { block: block.name, is: "clear" }, for: block.release || "3s" } };
+        if (block.approachLock) resource.approachLock = block.approachLock;
+        resources.push(resource);
+        origin("piece", res.name, { block: block.name });
+      });
+    }
+
+    // A signal with a move that can clash clears only for a train waiting at
+    // it, once that move has taken its pieces. Its other moves miss them.
+    const protects = new Map(); // block -> Set of masts
+    for (const signal of signals) {
+      const mine = moves.filter((m) => m.signal === signal);
+      const takes = (move) => [...new Set(move.route.pieces.map((piece) => resourceOf.get(piece)).filter(Boolean))];
+      const clashes = mine.filter((move) => move.route.pieces.some((piece) => contested.has(piece)));
+      if (!clashes.length) continue;
+      if (!detected(signal.behind)) {
+        const piece = clashes[0].route.pieces.find((p) => contested.has(p));
+        const other = contested.get(piece).find((s) => s !== signal) || contested.get(piece)[0];
+        error(TEXT.clashWaiting(signal.mast, other.mast), { mast: signal.mast });
+        continue;
+      }
+      const waiting = regionBlock.get(signal.behind).name;
+      // A train that has just come the other way, through the piece ahead of
+      // the signal, is not taken for one waiting.
+      const ahead = resourceOf.get(model.pieceOf.get(edgeKey(signal.at, signal.facing)));
+      const back = `${signal.facing}>${signal.at}`;
+      const guard = ahead && !model.barred.has(back) && moves.some((m) => m.route.edges.includes(back)) ? [ahead.name] : null;
+      const rules = [];
+      for (const move of mine) {
+        const route = move.route;
+        const aspect = signal.aspects[route.end?.kind === "plain" || route.next || route.end?.next
+          ? (route.diverging ? "divergingClear" : "clear")
+          : (route.diverging ? "divergingApproach" : "approach")];
+        const turnouts = route.turnouts.map(turnoutIs);
+        const taken = takes(move);
+        if (!taken.length) {
+          // A way that misses the track it can clash on: block signals only.
+          rules.push({ trigger: { while: clearOf(route.clear[0]) }, checks: [...turnouts, ...route.clear.slice(1).map(clearOf)], then: { mast: signal.mast, aspect } });
+          continue;
+        }
+        for (const res of taken) {
+          if (!protects.has(res.block.name)) protects.set(res.block.name, new Set());
+          protects.get(res.block.name).add(signal.mast);
+        }
+        const trigger = { while: { block: waiting, is: "occupied" }, for: "0.5s" };
+        if (guard) trigger.leavingGuard = guard;
+        rules.push({ trigger, checks: [...turnouts, ...route.clear.map(clearOf)], then: { mast: signal.mast, aspect, reserve: taken.map((res) => res.name) } });
+      }
+      const name = freeGroup(TEXT.movesGroup(signal.mast));
+      layers.push({ name, starter: "plan-moves", rules });
+      origin("group", name, { mast: signal.mast });
+    }
 
     // A block no signal is concerned with: on no way past one, and not where a
     // train stands waiting at one.
@@ -770,7 +826,8 @@
     // Each message once.
     const seen = new Set();
     const problems = model.found.filter((p) => !seen.has(p.text) && seen.add(p.text));
-    return { items: { blocks: built, masts, layers, resources, origins }, problems, sections: seenSections };
+    const look = [...protects].filter(([, masts]) => masts.size > 1).map(([block, masts]) => ({ block, masts: [...masts] }));
+    return { items: { blocks: built, masts, layers, resources, pairs: model.pairs, origins }, problems, protects: look };
   }
 
   /** The built items, from the plan. `config` is not changed. */
@@ -782,7 +839,7 @@
   /** What the editor shows beside the drawing. */
   function look(config) {
     const done = work(config);
-    return { problems: done.problems, sections: done.sections };
+    return { problems: done.problems, protects: done.protects };
   }
 
   global.EsphomeMrPlanBuilder = { TEXT, PART, planOf, trace, build, problems, look };

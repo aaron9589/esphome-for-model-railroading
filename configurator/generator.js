@@ -1361,6 +1361,7 @@ function emitThrowScript(lines, point, thrown, publish, config) {
   lines.push(`          format: ${yamlQuote(`${point.name} -> ${label}`)}`);
   lines.push("          level: INFO");
   lines.push("          tag: point_control");
+  emitPairedThrow(lines, config, point, thrown, publish);
   if (publish) logicHooks(config).emitThrowStart(lines, config, point);
   emitLights(lines, "      ", point, thrown);
   lines.push("      - servo.write:");
@@ -1381,6 +1382,27 @@ function emitThrowScript(lines, point, thrown, publish, config) {
   lines.push("                retain: true");
   lines.push("                qos: 2");
   logicHooks(config).emitThrowEnd(lines, config, point, thrown);
+}
+
+// A crossover's two turnouts move together (Field Logic's track plan): a
+// command or button for one moves the other too, unless that one is locked or
+// already moving. Not at boot (announce is false), where each goes back to its
+// own saved position. The other's own throw finds this one already set.
+function emitPairedThrow(lines, config, point, thrown, mqtt) {
+  const pair = logicHooks(config).pairedTurnout(config, point.name);
+  const other = pair && uniqueIds(config.points || []).find((p) => p.name === pair.name && p.name !== point.name);
+  if (!other) return;
+  const otherThrown = pair.same ? thrown : !thrown;
+  const flags = lockFlags(config, other, mqtt);
+  const unlocked = flags.length ? ` && !${lockedExpr(flags)}` : "";
+  lines.push(`      # A crossover: ${other.id} moves with it.`);
+  lines.push("      - if:");
+  lines.push("          condition:");
+  lines.push(`            lambda: 'return announce && id(${other.id}_thrown) != ${otherThrown} && !id(${other.id}_throw_closed).is_running() && !id(${other.id}_throw_thrown).is_running()${unlocked};'`);
+  lines.push("          then:");
+  lines.push("            - script.execute:");
+  lines.push(`                id: ${other.id}_throw_${otherThrown ? "thrown" : "closed"}`);
+  lines.push("                announce: true");
 }
 
 function emitButtonAllowed(lines, point, flags) {

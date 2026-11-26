@@ -239,6 +239,12 @@
   // directions on one, are checked side by side, not multiplied together.
   // A part inside another is not checked again. Returns [{ board, refOf }]:
   // refOf maps the part's rule refs back to the board's.
+  // The sections a rule takes: one, or several at once (a track plan's move).
+  function reservesOf(rule) {
+    const value = rule?.then?.reserve;
+    return value === undefined ? [] : [].concat(value);
+  }
+
   function partsOf(board) {
     const logic = board.logic || {};
     const rules = list(logic.layers).flatMap((layer) => list(layer.rules).map((rule, i) => ({ layer: layer.name, i, rule })));
@@ -248,7 +254,7 @@
     const find = (i) => (parent[i] === i ? i : (parent[i] = find(parent[i])));
     const firstOf = new Map();
     rules.forEach(({ rule }, i) => {
-      for (const [what, name] of [["mast", rule?.then?.mast], ["reserve", rule?.then?.reserve]]) {
+      for (const [what, name] of [["mast", rule?.then?.mast], ...reservesOf(rule).map((res) => ["reserve", res])]) {
         if (name === undefined) continue;
         const key = `${what}${SEP}${name}`;
         if (firstOf.has(key)) parent[find(i)] = find(firstOf.get(key));
@@ -260,7 +266,7 @@
     const releaseOf = new Map(list(logic.resources).map((res) => [res?.name, res?.release]));
     const reads = new Map(rules.map((_, i) => [find(i), new Set()]));
     rules.forEach(({ rule }, i) => {
-      for (const cond of conditionsIn([rule?.trigger, rule?.checks, rule?.cancel, releaseOf.get(rule?.then?.reserve)])) {
+      for (const cond of conditionsIn([rule?.trigger, rule?.checks, rule?.cancel, ...reservesOf(rule).map((res) => releaseOf.get(res))])) {
         if (cond.board === undefined && cond.end === undefined && cond.mast !== undefined && setterOf.has(cond.mast)) reads.get(find(i)).add(setterOf.get(cond.mast));
       }
     });
@@ -280,7 +286,7 @@
         own.forEach((r, j) => refs.set(`${layer.name}/${j + 1}`, `${layer.name}/${r.i + 1}`));
         return { ...layer, rules: own.map((r) => r.rule) };
       }).filter((layer) => layer.rules.length);
-      const reserved = new Set(layers.flatMap((layer) => layer.rules.map((rule) => rule?.then?.reserve)).filter((name) => name !== undefined));
+      const reserved = new Set(layers.flatMap((layer) => layer.rules.flatMap(reservesOf)));
       const set = new Set(layers.flatMap((layer) => layer.rules.map((rule) => rule?.then?.mast)).filter((name) => name !== undefined));
       // Approach lighting only matters on a mast this part sets.
       const masts = Object.fromEntries(Object.entries(board.masts || {}).map(([name, mast]) => {
@@ -501,8 +507,9 @@
       for (const layer of list(board.logic?.layers)) {
         list(layer.rules).forEach((rule, i) => {
           const ref = `${layer.name}/${i + 1}`;
-          const section = rule?.then?.reserve;
-          if (section === undefined) return;
+          const sections = reservesOf(rule);
+          if (!sections.length) return;
+          const section = sections[0];
           const frozen = requestInputs(rule, board, inputs);
           const waiting = (node) => node.state.rules[ref] === "waiting";
           // States from which the rule can still be granted, its train waiting.
@@ -535,7 +542,7 @@
           if (stuck) return void found.push({ kind: "deadlock", rule: ref, section, sequence: stuck.path });
           // Starvation: a loop of states, the rule waiting throughout and its
           // train still there, in which another rule is granted the section.
-          const inLoop = starvedLoop(nodes, ref, frozen, section);
+          const inLoop = starvedLoop(nodes, ref, frozen, sections);
           if (inLoop) found.push({ kind: "starvation", rule: ref, section, sequence: inLoop.path });
         });
       }
@@ -636,8 +643,9 @@
   }
 
   // A loop of states where `ref` waits throughout (and its request's inputs
-  // do not change) and some other rule takes the section: the node to show.
-  function starvedLoop(nodes, ref, frozen, section) {
+  // do not change) and some other rule takes one of its sections: the node
+  // to show.
+  function starvedLoop(nodes, ref, frozen, sections) {
     const inSet = (node) => node.state.rules[ref] === "waiting";
     const ids = nodes.filter(inSet).map((node) => node.id);
     const member = new Set(ids);
@@ -680,9 +688,11 @@
       for (const v of comp) {
         for (const { to, input } of nodes[v].edges) {
           if (!inComp.has(to) || frozen.has(input)) continue;
-          const before = nodes[v].state.holders[section];
-          const after = nodes[to].state.holders[section];
-          if (after && after !== ref && after !== before) return nodes[v];
+          for (const section of sections) {
+            const before = nodes[v].state.holders[section];
+            const after = nodes[to].state.holders[section];
+            if (after && after !== ref && after !== before) return nodes[v];
+          }
         }
       }
     }
