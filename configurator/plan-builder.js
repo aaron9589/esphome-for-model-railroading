@@ -70,6 +70,7 @@
     notAspect: (mast, aspect, words) => `Signal "${mast}" has no aspect called "${aspect}". Pick another for ${words}.`,
     aspectTwice: (mast, aspect, a, b) => `Signal "${mast}" shows "${aspect}" for both ${a} and ${b}, which mean different things to the signal behind. Pick a different aspect for one of them.`,
     undetected: (mast) => `Some track past signal "${mast}" has no sensor of its own, so a train standing there may not be seen.`,
+    unwatched: (name) => `No signal on the drawing checks block "${name}", so a train standing there holds none of them at Stop. Put a signal before it, unless you only want to see it in JMRI.`,
     headOn: (a, b) => `Signals "${a}" and "${b}" can let two trains onto the same track at once. Make that track one train at a time.`,
     sectionNoName: "A one-train section has no name. Name it.",
     sectionTwice: (name) => `Two sections are called "${name}". Give each its own name.`,
@@ -667,6 +668,13 @@
         if (open) warn(TEXT.headOn(a.mast, b.mast), { mast: a.mast });
       }
     });
+
+    // A block no signal is concerned with: on no way past one, and not where a
+    // train stands waiting at one.
+    const watched = new Set(signals.flatMap((s) => [s.behind, ...s.routes.flatMap((route) => route.regions)]));
+    for (const block of blocks) {
+      if (block.sensors.length && !watched.has(block.region)) warn(TEXT.unwatched(block.name), { block: block.name });
+    }
 
     // Each message once.
     const seen = new Set();

@@ -131,12 +131,25 @@ Level crossing is left out: it needs a new output type, and becomes its own smal
 | 4.6 | **Hardware acceptance**: a plain-track module and a turnout-junction module paired, with a CATS hold on the junction mast | Human | MSS behaviour on track |
 | 4.7 | **Guide**: `mss-logic-guide.md` | Sonnet, Human reads | A newcomer builds and pairs two modules |
 
+## Track plan — before Release 5
+
+Setting up Field Logic by drawing the track, as the [track plan spec](field-logic-plan-spec.md) describes. Added after Release 4, from feedback on Field Logic. Milestone *Track plan*; not yet sized.
+
+| # | Work item | Class | Status | Done when |
+|---|---|---|---|---|
+| TP 1 (#123) | **Hide Plant ends in Field Logic**, and move the guide's chapter | Sonnet | merged | A Field Logic board with no ends shows none |
+| TP 2 (#124) | **Stored format and builder** (`plan-builder.js`), continuous runs included | Opus | merged; open for a fail-safe review | Hand-worked cases for the gauntlet, a turnout junction, a passing siding and a diamond pass |
+| TP 3 (#125) | **Grid editor**: draw track, blocks, signals, ends | Sonnet | not started | Each of those drawings can be made from an empty page |
+| TP 4 (#126) | **Behaviour, Advanced and problems** on the drawing | Sonnet | not started | The gauntlet needs no rule card |
+| TP 5 (#127) | **Try it and Run a train** on the drawing | Sonnet | not started | As for MSS Logic |
+| TP 6 (#128) | **New Field Logic guide** and its pictures | Sonnet, Human reads | not started | A newcomer builds the gauntlet from it |
+
 ## Release 5 — Wrap-up (5–8 days)
 
 | # | Work item | Class | Done when |
 |---|---|---|---|
 | 5.1 | **Docs index**: `README.md`, `docs/README.md` and `AGENTS.md` updated for the Logic page and both modes | Sonnet | Agents and newcomers are sent to the right guide |
-| 5.2 | **Newcomer read-through** of both guides on a fresh machine; fixes fed back into the page hints and guides | Human, Sonnet | Questions answered in the page, not in chat |
+| 5.2 | **Newcomer read-through** of both guides on a fresh machine (the Field Logic guide after TP 6); fixes fed back into the page hints and guides | Human, Sonnet | Questions answered in the page, not in chat |
 | 5.3 | **Merge to `main`**: tag `logic-v1.0.0`, set `LOGIC_COMPONENT_REF`, merge `main` in a final time, one PR from `feature/logic` into `main`, then check the live configurator after the Pages deploy | Human, Sonnet | The live page offers the Logic page, and a board downloaded from it builds |
 
 ## Milestones on the branch
@@ -149,7 +162,7 @@ What each release has on `feature/logic` that differs from the specs' end state.
 ## Order and dependencies
 
 ```
-R0 groundwork ─▶ R1 foundations ─▶ R2 Field Logic ─▶ R3 plant ends ─▶ R4 MSS Logic ─▶ R5 wrap-up ─▶ merge to main
+R0 groundwork ─▶ R1 foundations ─▶ R2 Field Logic ─▶ R3 plant ends ─▶ R4 MSS Logic ─▶ track plan ─▶ R5 wrap-up ─▶ merge to main
                                     (engine, checker,   (pairing,        (builder uses
                                      Try it, starters)   multi-board)     starters, Try it,
                                                                           plant ends)
@@ -189,4 +202,4 @@ The plan is done when `feature/logic` has merged into `main` and:
 - someone who has wired a detector but never read the specs follows each guide to working signals, and their questions are fed back into the page and the guides
 - the only open questions left are ones the specs list.
 
-Total: roughly 100–140 person-days across the six releases, most of it in Release 2.
+Total: roughly 100–140 person-days across the six releases, most of it in Release 2. The track plan is on top of that.

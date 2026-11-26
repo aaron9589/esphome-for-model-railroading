@@ -33,16 +33,16 @@
     <rect x="20" y="52" width="880" height="248" rx="8" fill="url(#grid)" stroke="#e5e7eb"/>
 
     <!-- selected section -->
-    <rect x="336" y="128" width="248" height="76" rx="12" fill="#dbeafe" stroke="#1d4ed8" stroke-width="2" stroke-dasharray="6 4"/>
-    <text x="460" y="147" text-anchor="middle" font-size="12" fill="#1d4ed8" font-weight="600">One train at a time</text>
+    <rect x="282" y="94" width="356" height="152" rx="12" fill="#dbeafe" stroke="#1d4ed8" stroke-width="2" stroke-dasharray="6 4"/>
+    <text x="460" y="121" text-anchor="middle" font-size="12" fill="#1d4ed8" font-weight="600">One train at a time</text>
 
     <!-- track: detected solid, undetected dashed -->
     <g fill="none" stroke-width="6" stroke-linecap="round" stroke-linejoin="round">
-      <path d="M60 110 H270 L340 170" stroke="#374151"/>
-      <path d="M340 170 H580" stroke="#1d4ed8"/>
-      <path d="M580 170 L650 110 H860" stroke="#9ca3af" stroke-dasharray="10 10"/>
-      <path d="M580 170 L650 230 H860" stroke="#374151"/>
-      <path d="M340 170 L270 230 H60" stroke="#9ca3af" stroke-dasharray="10 10"/>
+      <path d="M60 110 H270" stroke="#374151"/>
+      <path d="M60 230 H270" stroke="#9ca3af" stroke-dasharray="10 10"/>
+      <path d="M650 110 H860" stroke="#9ca3af" stroke-dasharray="10 10"/>
+      <path d="M650 230 H860" stroke="#374151"/>
+      <path d="M270 110 L340 170 L270 230 M340 170 H580 M650 110 L580 170 L650 230" stroke="#1d4ed8"/>
     </g>
     <!-- direction arrows -->
     <g fill="#6b7280">
@@ -51,32 +51,34 @@
       <path d="M830 221 l-16 9 16 9z"/>
       <path d="M90 221 l-16 9 16 9z"/>
     </g>
-    <!-- block breaks -->
+    <!-- block breaks, just outside the joins -->
     <g stroke="#111827" stroke-width="3">
-      <line x1="340" y1="156" x2="340" y2="184"/>
-      <line x1="580" y1="156" x2="580" y2="184"/>
+      <line x1="270" y1="96" x2="270" y2="124"/>
+      <line x1="270" y1="216" x2="270" y2="244"/>
+      <line x1="650" y1="96" x2="650" y2="124"/>
+      <line x1="650" y1="216" x2="650" y2="244"/>
     </g>
     <!-- joins -->
-    <g fill="#1d4ed8"><circle cx="340" cy="170" r="4"/><circle cx="580" cy="170" r="4"/></g>
+    <g fill="#111827"><circle cx="340" cy="170" r="4"/><circle cx="580" cy="170" r="4"/></g>
 
     <!-- signals -->
     <g>
-      <line x1="306" y1="92" x2="306" y2="126" stroke="#1f2937" stroke-width="3"/>
-      <rect x="297" y="64" width="18" height="32" rx="5" fill="#1f2937"/>
-      <circle cx="306" cy="73" r="5" fill="#ff0000"/><circle cx="306" cy="87" r="5" fill="#4b5563"/>
-      <text x="289" y="84" text-anchor="end" font-size="13">Left Bridge ▶</text>
+      <line x1="270" y1="90" x2="270" y2="100" stroke="#1f2937" stroke-width="3"/>
+      <rect x="261" y="60" width="18" height="32" rx="5" fill="#1f2937"/>
+      <circle cx="270" cy="69" r="5" fill="#ff0000"/><circle cx="270" cy="83" r="5" fill="#4b5563"/>
+      <text x="253" y="80" text-anchor="end" font-size="13">Left Bridge ▶</text>
 
-      <line x1="614" y1="214" x2="614" y2="248" stroke="#1f2937" stroke-width="3"/>
-      <rect x="605" y="244" width="18" height="32" rx="5" fill="#1f2937"/>
-      <circle cx="614" cy="253" r="5" fill="#ff0000"/><circle cx="614" cy="267" r="5" fill="#4b5563"/>
-      <text x="631" y="265" font-size="13">◀ Right Bridge</text>
+      <line x1="650" y1="240" x2="650" y2="250" stroke="#1f2937" stroke-width="3"/>
+      <rect x="641" y="248" width="18" height="32" rx="5" fill="#1f2937"/>
+      <circle cx="650" cy="257" r="5" fill="#ff0000"/><circle cx="650" cy="271" r="5" fill="#4b5563"/>
+      <text x="667" y="269" font-size="13">◀ Right Bridge</text>
     </g>
 
     <!-- block labels -->
     <g text-anchor="middle" font-weight="600">
-      <text x="170" y="96">Left</text>
+      <text x="150" y="136">Left</text>
       <text x="460" y="194">Bridge</text>
-      <text x="760" y="256">Right</text>
+      <text x="760" y="214">Right</text>
     </g>
     <g text-anchor="middle" font-size="12" fill="#6b7280">
       <text x="760" y="96">no sensor</text>
