@@ -561,12 +561,14 @@
         isTrue = rule.resource ? st.request : Boolean(st.fired);
         st.fired = false;
       } else {
-        const raw = condition(t.while);
+        const seen = condition(t.while);
         if (t.leavingGuard) {
-          if (!raw) st.guard = false;
+          if (!seen) st.guard = false;
           else if (!ctx.startup && st.prevRaw === false && rule.guard.some((res) => ctx.heldAtStart.has(res))) st.guard = true;
         }
-        st.prevRaw = raw;
+        st.prevRaw = seen;
+        // Rule 20: while guarded the trigger counts as false, for its *for* too.
+        const raw = seen && !st.guard;
         if (raw) {
           if (st.runTrue === null) st.runTrue = n;
           st.runFalse = null;

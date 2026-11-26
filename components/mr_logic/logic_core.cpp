@@ -691,16 +691,18 @@ void Engine::eval_trigger(uint16_t r, const Ctx &ctx) {
     is_true = rule.res_count > 0 ? st.request : st.fired;
     st.fired = false;
   } else {
-    bool raw = t.present && t.cond != NONE && condition(t.cond);
+    const bool seen = t.present && t.cond != NONE && condition(t.cond);
     if (t.leaving_guard) {
-      if (!raw)
+      if (!seen)
         st.guard = false;
       else if (!ctx.startup && st.prev_raw == 0) {
         for (uint16_t k = 0; k < t.guard_count; k++)
           if (ctx.held_at_start[t_.res_refs[t.guard_first + k]]) st.guard = true;
       }
     }
-    st.prev_raw = raw ? 1 : 0;
+    st.prev_raw = seen ? 1 : 0;
+    // Rule 20: while guarded the trigger counts as false, for its for too.
+    const bool raw = seen && !st.guard;
     if (raw) {
       if (st.run_true < 0) st.run_true = n_;
       st.run_false = -1;
