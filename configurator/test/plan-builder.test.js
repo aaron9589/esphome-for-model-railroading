@@ -146,6 +146,14 @@ test("track with no sensor is warned about", () => {
   has(of("gauntlet"), "warning", B.TEXT.undetected("Left Bridge"));
 });
 
+test("a block with only a boundary sensor is still checked, but warned about, and no train can wait in it", () => {
+  const config = broken("junction", (p) => { p.breaks[1].sensors = ["Junction current"]; p.blocks[2].sensors = []; });
+  has(config, "warning", B.TEXT.undetected("Main exit"));
+  const group = plain(B.build(config).layers).find((g) => g.name === "Main exit");
+  assert.equal(group.rules[0].trigger.while.block, "Main");
+  has(broken("gauntlet", (p) => { p.breaks[0].sensors = ["Left current"]; p.blocks[0].sensors = []; }), "error", B.TEXT.sectionWaiting("Bridge section", "Left Bridge"));
+});
+
 // ===== 4. The continuous run ===============================================
 
 const loopBoard = () => board({

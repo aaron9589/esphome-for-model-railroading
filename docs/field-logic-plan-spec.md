@@ -59,6 +59,7 @@ Nothing on the plan edits the Sensors, Turnouts or Signal Masts pages. It picks 
 
 - A **block break** is a point where one block stops and the next starts. A break can have a boundary sensor, which then holds both blocks, as today.
 - A **block** is the track between breaks and drawing ends. It has a name, a topic and its sensors. It publishes to JMRI like any Field Logic block.
+- A block with only a boundary sensor is checked, but still warned about, and cannot be where a train waits for a section.
 - A block with no sensor is **not detected**. It is drawn dashed, and nothing can be proved about it. A signal whose way ahead runs through one gets a warning.
 - A block can include a **sensor** on a linked board, but not a linked board's block. Two boards can then never hold each other occupied.
 - A **signal** stands at a break and faces trains going one way. A break with no signal needs nothing: the signal behind simply protects further.

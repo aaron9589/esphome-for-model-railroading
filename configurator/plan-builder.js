@@ -69,12 +69,12 @@
     needAspect: (mast, words) => `Pick what signal "${mast}" shows for ${words}.`,
     notAspect: (mast, aspect, words) => `Signal "${mast}" has no aspect called "${aspect}". Pick another for ${words}.`,
     aspectTwice: (mast, aspect, a, b) => `Signal "${mast}" shows "${aspect}" for both ${a} and ${b}, which mean different things to the signal behind. Pick a different aspect for one of them.`,
-    undetected: (mast) => `Some track past signal "${mast}" has no sensor, so a train standing there is not seen.`,
+    undetected: (mast) => `Some track past signal "${mast}" has no sensor of its own, so a train standing there may not be seen.`,
     headOn: (a, b) => `Signals "${a}" and "${b}" can let two trains onto the same track at once. Make that track one train at a time.`,
     sectionNoName: "A one-train section has no name. Name it.",
     sectionTwice: (name) => `Two sections are called "${name}". Give each its own name.`,
     sectionNoBlocks: (name) => `Section "${name}" has no blocks. Select the track it covers.`,
-    sectionBlock: (name, block) => `Section "${name}" includes "${block}", which is not a block with a sensor. Pick another.`,
+    sectionBlock: (name, block) => `Section "${name}" includes "${block}", which is not a block with a sensor of its own. Pick another, or give it one.`,
     sectionBlockTwice: (block, a, b) => `Block "${block}" is in sections "${a}" and "${b}". A block can be in one section only.`,
     sectionNoEntrance: (name) => `Section "${name}" has no way in past a signal. Put a signal where trains enter it.`,
     sectionWaiting: (name, mast) => `Section "${name}": the track behind signal "${mast}" has no sensor, so the board cannot see a train waiting there. Give that block a sensor.`,
@@ -335,7 +335,9 @@
         }
       }
     }
-    const detected = (id) => !!regionBlock.get(id)?.sensors.length;
+    // Detected: a sensor of its own sees a train anywhere in it. A boundary
+    // sensor alone is checked too, but it only sees its own spot.
+    const detected = (id) => !!regionBlock.get(id)?.own.length;
 
     const ends = new Map(list(plan.ends).filter((e) => isObject(e) && isPoint(e.at)).map((e) => [key(e.at), e.beyond]));
     const endAt = (node) => {
@@ -479,7 +481,7 @@
     for (const signal of signals) {
       const shown = new Set(["stop"]);
       for (const route of signal.routes) {
-        const local = route.regions.filter(detected).map((id) => regionBlock.get(id).name);
+        const local = route.regions.filter((id) => regionBlock.get(id)?.sensors.length).map((id) => regionBlock.get(id).name);
         route.clear = [...local, ...(route.end?.blocks || [])];
         if (!route.clear.length) error(TEXT.unproved(signal.mast), { mast: signal.mast });
         for (const slot of slotsOf(route)) shown.add(indication(plan, route, slot));
@@ -580,7 +582,7 @@
       sectionNames.add(name);
       const inside = [];
       for (const blockName of list(def.blocks)) {
-        const block = blocks.find((b) => b.name === blockName && b.sensors.length);
+        const block = blocks.find((b) => b.name === blockName && b.own.length);
         if (!block) error(TEXT.sectionBlock(name, blockName), where);
         else if (claimed.has(block.name)) error(TEXT.sectionBlockTwice(block.name, claimed.get(block.name), name), where);
         else {
