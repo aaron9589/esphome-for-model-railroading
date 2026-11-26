@@ -97,6 +97,7 @@ const el = {
   directPwmNote: document.getElementById("direct-pwm-note"),
   blocksList: document.getElementById("blocks-list"),
   expandersList: document.getElementById("expanders-list"),
+  pcaList: document.getElementById("pca-list"),
   pinBudget: document.getElementById("pin-budget"),
   pointsList: document.getElementById("points-list"),
   preview: document.getElementById("yaml-preview"),
@@ -1400,12 +1401,15 @@ function renderPoints() {
     }
     if (assigned) persist();
   }
+  // Turnouts on ESP pins first; with PCA9685 boards, each board's turnouts sit
+  // under it in the PCA9685 section, as expanders' sensors do.
   el.pointsList.replaceChildren();
+  el.pcaList.replaceChildren();
   if (!usesPca()) {
     state.points.forEach((point, index) => el.pointsList.append(renderPointCard(point, index)));
     return;
   }
-  state.pcaBoards.forEach((pcaBoard, b) => el.pointsList.append(renderPcaBoard(pcaBoard, b)));
+  state.pcaBoards.forEach((pcaBoard, b) => el.pcaList.append(renderPcaBoard(pcaBoard, b)));
   const add = document.createElement("button");
   add.type = "button";
   add.textContent = "Add PCA9685";
@@ -1425,7 +1429,7 @@ function renderPoints() {
   addRow.append(add, hintEl(expanderBuses && !(state.pcaBoards.length >= MAX_PCA_BOARDS)
     ? `Each PCA9685 has its own SDA and SCL pins. An ESP32 has ${busLimit} I2C buses, and an expander on the Sensors page has its own. Put it on a PCA9685 board's pins to free a bus.`
     : `Each PCA9685 has its own SDA and SCL pins. An ESP32 has ${MAX_PCA_BOARDS} I2C buses, so ${MAX_PCA_BOARDS} boards at most.`));
-  el.pointsList.append(addRow);
+  el.pcaList.append(addRow);
 }
 
 function i2cPinChoices(current) {
@@ -2473,7 +2477,6 @@ function updatePreview() {
   el.blocksEmpty.hidden = state.blocks.length > 0;
   el.pointsEmpty.hidden = state.points.length > 0;
   el.signalsEmpty.hidden = state.signals.masts.length > 0;
-  el.addPoint.hidden = usesPca();
   el.pointsEmpty.hidden = usesPca() || state.points.length > 0;
   el.directPwmNote.hidden = state.points.length === 0 || usesPca();
   renderMessages();
