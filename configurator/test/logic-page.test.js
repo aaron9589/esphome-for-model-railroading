@@ -6,7 +6,7 @@ import path from "node:path";
 import { configuratorDir, loadModules, test } from "./harness.js";
 
 // Every Logic page file, in index.html's order.
-export const LOGIC_UI_FILES = ["generator.js", "logic-yaml.js", "logic.js", "logic-checker.js", "logic-try.js", "logic-ui.js", "logic-ui-masts.js", "logic-ui-ends.js", "logic-ui-rules.js", "logic-ui-views.js", "logic-ui-start.js", "logic-ui-try.js", "logic-starters.js", "logic-starters-sections.js", "logic-starters-signals.js", "mss-builder.js", "plan-builder.js", "mss-templates.js", "logic-ui-mss-marks.js", "logic-ui-mss-steps.js", "logic-ui-mss-tracks.js", "logic-ui-mss-junctions.js", "logic-ui-mss-module.js", "logic-summary.js", "mss-convert.js", "mss-card.js"];
+export const LOGIC_UI_FILES = ["generator.js", "logic-yaml.js", "logic.js", "logic-checker.js", "logic-try.js", "logic-ui.js", "logic-ui-masts.js", "logic-ui-ends.js", "logic-ui-rules.js", "logic-ui-views.js", "logic-ui-start.js", "logic-ui-try.js", "logic-starters.js", "logic-starters-sections.js", "logic-starters-signals.js", "mss-builder.js", "plan-builder.js", "plan-edit.js", "logic-ui-plan.js", "mss-templates.js", "logic-ui-mss-marks.js", "logic-ui-mss-steps.js", "logic-ui-mss-tracks.js", "logic-ui-mss-junctions.js", "logic-ui-mss-module.js", "logic-summary.js", "mss-convert.js", "mss-card.js"];
 const context = loadModules(...LOGIC_UI_FILES);
 const { generateYaml, logicMode, myFirstBoardPreset, normalizeConfig, parseConfigFromYaml, sharesWithOtherBoards } =
   context.EsphomeMr;
@@ -40,7 +40,7 @@ test("no Logic page label uses a spec-only term, in any part", () => {
 
 test("every part file hands its TEXT to the lint", () => {
   const linted = new Set([...allText()].map(([, text]) => text));
-  for (const name of ["Masts", "Ends", "Rules", "Views", "Start", "MssSteps", "MssTracks", "MssJunctions", "MssModule"]) {
+  for (const name of ["Masts", "Ends", "Plan", "Rules", "Views", "Start", "MssSteps", "MssTracks", "MssJunctions", "MssModule"]) {
     const { TEXT: own } = context[`EsphomeMrLogicUi${name}`];
     assert.ok(Object.keys(own).length === 0 || linted.has(own), `EsphomeMrLogicUi${name}.TEXT is not registered with a part`);
   }
@@ -146,6 +146,11 @@ test("the checklist leads with choosing a mode, and ends with Download", () => {
   // Blocks and signals: done once there are blocks and a group of rules.
   assert.deepEqual(keys(checklistSteps(config, { blocks: true })), ["mode+", "blocks", "tryIt", "download"]);
   config.logic.layers = [{ name: "Group 1", rules: [] }];
+  assert.deepEqual(keys(checklistSteps(config, { blocks: true })), ["mode+", "blocks+", "tryIt", "download"]);
+  // A drawing with a signal on it is blocks and signals too.
+  config.logic = { mode: "field", plan: { breaks: [{ at: [1, 0], signals: [] }] } };
+  assert.deepEqual(keys(checklistSteps(config, { blocks: true })), ["mode+", "blocks", "tryIt", "download"]);
+  config.logic.plan.breaks[0].signals = [{ mast: "Home", facing: [2, 0] }];
   assert.deepEqual(keys(checklistSteps(config, { blocks: true })), ["mode+", "blocks+", "tryIt", "download"]);
   assert.equal(FEATURES.tryIt, true);
 });
