@@ -17,6 +17,7 @@ These are for people building or checking the Logic page. You do not need them t
 
 - [Field Logic spec](field-logic-spec.md): the design of the logic engine and the Field Logic mode.
 - [MSS emulation spec](mss-emulation-spec.md): the design of MSS Logic, on the same engine.
+- [Field Logic track plan spec](field-logic-plan-spec.md): a draft for setting up Field Logic by drawing the track. Not built.
 - [Implementation plan](field-logic-implementation-plan.md): the releases and work items for both.
 - [Screenshot checklist](screenshot-checklist.md): the screenshots the guides still need. The configurator pictures in the Field Logic and MSS Logic guides are taken by a script instead (`configurator/test/screenshots/`).
 
