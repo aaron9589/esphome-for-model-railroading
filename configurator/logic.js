@@ -103,6 +103,8 @@
           trig: null,
           phase: "idle",
           cancelAt: 0,
+          resources: [],
+          guard: [],
           trueNow: false,
           checksNow: false,
         };
@@ -118,15 +120,31 @@
       releaseMs: ms(def.release?.for),
       rules: [],
       holder: null,
+      passed: false,
       startupHeld: false,
       rel: null,
       releaseNow: false,
     }));
     const resourceByName = new Map();
     for (const r of resources) if (!resourceByName.has(r.name)) resourceByName.set(r.name, r);
+    // A rule takes one resource or several at once (a move's pieces): those
+    // that exist, each once, in the order named. A leaving guard watches the
+    // rule's own resources, or the ones it names.
+    const namesOf = (value) => (Array.isArray(value) ? value : value === undefined || value === null || value === "" ? [] : [value]);
+    const resourcesNamed = (value) => {
+      const found = [];
+      for (const name of namesOf(value)) {
+        const res = resourceByName.get(name);
+        if (res && !found.includes(res)) found.push(res);
+      }
+      return found;
+    };
     for (const rule of rules) {
-      rule.resource = rule.then.reserve ? resourceByName.get(rule.then.reserve) || null : null;
-      if (rule.resource) rule.resource.rules.push(rule);
+      rule.resources = resourcesNamed(rule.then.reserve);
+      rule.resource = rule.resources.length ? rule.resources[0] : null;
+      for (const res of rule.resources) res.rules.push(rule);
+      const guard = rule.def.trigger?.leavingGuard;
+      rule.guard = Array.isArray(guard) ? resourcesNamed(guard) : guard ? rule.resources : [];
     }
     for (const [what, value] of [...rules.map((r) => [r.ref, r.forMs]), ...resources.flatMap((r) => [[r.name, r.lockMs], [r.name, r.releaseMs]])]) {
       if (Number.isNaN(value)) throw new Error(`${what}: a time the engine cannot read. Use a time such as 0.5s or 500ms.`);
@@ -546,7 +564,7 @@
         const raw = condition(t.while);
         if (t.leavingGuard) {
           if (!raw) st.guard = false;
-          else if (!ctx.startup && st.prevRaw === false && rule.resource && ctx.heldAtStart.has(rule.resource)) st.guard = true;
+          else if (!ctx.startup && st.prevRaw === false && rule.guard.some((res) => ctx.heldAtStart.has(res))) st.guard = true;
         }
         st.prevRaw = raw;
         if (raw) {
@@ -582,11 +600,13 @@
       res.releaseNow = raw && (n - res.rel.runTrue) * SCAN_MS >= res.releaseMs;
     }
 
+    // A rule that no longer holds any of its resources is idle again.
+    const holdsAny = (rule) => rule.resources.some((res) => res.holder === rule);
     function free(res) {
-      if (res.holder) {
-        res.holder.phase = "idle";
-        res.holder = null;
-      }
+      const holder = res.holder;
+      res.holder = null;
+      res.passed = false;
+      if (holder && !holdsAny(holder)) holder.phase = "idle";
       res.startupHeld = false;
       res.rel.seq = { p: 0 };
       res.rel.done = false;
@@ -596,12 +616,15 @@
     const blocksClear = (res) => (res.def.blocks || []).every((b) => !occupied(b));
     const mastHeld = (rule) => rule.then.mast !== undefined && holds.get(rule.then.mast) === true;
     const isActive = (rule) => (rule.resource ? rule.phase === "active" : rule.trueNow && rule.checksNow);
-    const locksHeld = (rule) => (rule.resource ? ["active", "passed", "cancelling"].includes(rule.phase) : rule.trueNow && rule.checksNow);
+    const locksHeld = (rule) => (rule.resource ? rule.phase !== "idle" : rule.trueNow && rule.checksNow);
 
+    // A held resource is PASSED once its train has entered it; until then it
+    // is CANCELLING while its rule is, and otherwise ACTIVE.
     function resourceState(res) {
       if (res.startupHeld) return "PASSED";
       if (!res.holder) return "IDLE";
-      return { active: "ACTIVE", passed: "PASSED", cancelling: "CANCELLING" }[res.holder.phase];
+      if (res.passed) return "PASSED";
+      return res.holder.phase === "cancelling" ? "CANCELLING" : "ACTIVE";
     }
 
     // --- writes and publishes (rule 22) ---
@@ -725,7 +748,11 @@
             continue;
           }
           out.events.push({ release: res.name, by: "manual" });
+          // Its rule's mast goes to Stop; any other resources it holds stay
+          // held until its train has passed through them.
+          const holder = res.holder;
           free(res);
+          if (holder && holder.phase !== "idle") holder.phase = "passed";
           releasedNow.add(res);
           for (const rule of res.rules) {
             if (rule.then.mast === undefined) continue;
@@ -746,8 +773,8 @@
       }
       for (const rule of rules) {
         evalTrigger(rule, ctx);
-        const res = rule.resource;
-        if (!res || res.holder !== rule) continue;
+        if (!rule.resources.length || rule.phase === "idle") continue;
+        const mine = () => rule.resources.filter((res) => res.holder === rule);
         if (rule.phase === "active") {
           const t = rule.def.trigger || {};
           let cancel = false;
@@ -762,49 +789,66 @@
             if (t.when) rule.trig.request = true;
           }
           if (cancel) {
-            out.events.push({ cancel: res.name, rule: rule.ref });
-            if (res.lockMs > 0) {
-              rule.phase = "cancelling";
-              rule.cancelAt = n;
-            } else {
+            // Each resource: held for its approach locking time, or freed now.
+            rule.phase = "cancelling";
+            rule.cancelAt = n;
+            for (const res of mine()) {
+              out.events.push({ cancel: res.name, rule: rule.ref });
+              if (res.lockMs > 0) continue;
               out.events.push({ release: res.name, by: "cancel" });
               free(res);
-              continue;
             }
+            if (rule.phase === "idle") continue;
           }
         }
-        if ((rule.phase === "active" || rule.phase === "cancelling") && blockOccupiedOrWent(res)) {
+        // Passed: the train has entered a resource; the mast goes back to Stop.
+        for (const res of mine()) {
+          if (res.passed || !blockOccupiedOrWent(res)) continue;
+          res.passed = true;
           rule.phase = "passed";
           out.events.push({ pass: res.name, rule: rule.ref });
         }
-        if (rule.phase === "cancelling" && (n - rule.cancelAt) * SCAN_MS >= res.lockMs) {
-          out.events.push({ release: res.name, by: "time" });
-          free(res);
+        if (rule.phase === "cancelling") {
+          for (const res of mine()) {
+            if ((n - rule.cancelAt) * SCAN_MS < res.lockMs) continue;
+            out.events.push({ release: res.name, by: "time" });
+            free(res);
+          }
           continue;
         }
-        if (rule.phase === "passed" && res.releaseNow) {
+        if (rule.phase !== "passed") continue;
+        for (const res of mine()) {
+          if (!res.passed || !res.releaseNow) continue;
           out.events.push({ release: res.name, by: "release" });
           free(res);
         }
       }
 
-      // 6.3: grants, longest waiting first, then list order.
-      for (const res of resources) {
-        if (heldRes(res) || releasedNow.has(res) || !blocksClear(res)) continue;
-        const waiting = res.rules.filter((r) => r.phase === "idle" && r.trueNow && r.checksNow && !mastHeld(r));
-        if (!waiting.length) continue;
-        waiting.sort((a, b) => a.trig.since - b.trig.since || a.index - b.index);
-        const rule = waiting[0];
+      // 6.3: grants, longest waiting first, then list order. A rule takes all
+      // of its resources at once or none of them, and each resource it waits
+      // for is kept from the rules that started waiting after it.
+      const asking = rules.filter((r) => r.resources.length && r.phase === "idle" && r.trueNow && r.checksNow && !mastHeld(r));
+      asking.sort((a, b) => a.trig.since - b.trig.since || a.index - b.index);
+      const claimed = new Set();
+      const granted = new Map(); // resource -> rule
+      for (const rule of asking) {
+        const ok = rule.resources.every((res) => !claimed.has(res) && !heldRes(res) && !releasedNow.has(res) && blocksClear(res));
+        for (const res of rule.resources) claimed.add(res);
+        if (!ok) continue;
         rule.phase = "active";
-        res.holder = rule;
-        res.rel.seq = { p: 0 };
-        res.rel.done = false;
+        for (const res of rule.resources) {
+          res.holder = rule;
+          res.passed = false;
+          res.rel.seq = { p: 0 };
+          res.rel.done = false;
+          granted.set(res, rule);
+        }
         if (rule.def.trigger?.when) {
           rule.trig.request = false;
           rule.trig.since = null;
         }
-        out.events.push({ grant: res.name, rule: rule.ref });
       }
+      for (const res of resources) if (granted.has(res)) out.events.push({ grant: res.name, rule: granted.get(res).ref });
 
       // 6.4: who wins each mast (rule 12), approach lighting, then the locks.
       const newOut = new Map();

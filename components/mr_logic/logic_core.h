@@ -46,6 +46,7 @@ struct Trigger {
   bool present = false;
   bool when = false;
   bool leaving_guard = false;
+  uint16_t guard_first = 0, guard_count = 0;  // the resources the leaving guard watches: a range in Table::res_refs
   uint16_t cond = NONE;  // while
   uint16_t seq_first = 0, seq_count = 0;  // when, then ...: a range in Table::seq
   uint32_t for_ms = 0;
@@ -128,7 +129,9 @@ struct Rule {
   uint16_t checks_first = 0, checks_count = 0;  // a range in Table::kids
   uint16_t mast = NONE;  // a declared mast
   int16_t aspect = -1;  // within that mast's aspects; -1: not one of them
-  uint16_t resource = NONE;
+  // The resources it takes, all at once or none: a range in Table::res_refs.
+  // None: a plain rule.
+  uint16_t res_first = 0, res_count = 0;
   uint16_t locks_first = 0, locks_count = 0;  // a range in Table::locks
   uint16_t cancel = NONE;  // a moment node
 };
@@ -165,6 +168,7 @@ struct Table {
   std::vector<BlockRef> block_refs;
   std::vector<Member> members;
   std::vector<uint16_t> locks;  // turnout indices
+  std::vector<uint16_t> res_refs;  // resource indices
 
   std::vector<uint16_t> sensors;  // names; declared first, then any only named
   std::vector<uint16_t> buttons;
@@ -314,6 +318,7 @@ class Engine {
   };
   struct ResState {
     uint16_t holder = NONE;
+    bool passed = false;  // its holder's train has entered it
     bool startup_held = false, rel_done = false, release_now = false;
     int64_t rel_run_true = -1;
     uint16_t rel_seq_p = 0;
@@ -392,6 +397,8 @@ class Engine {
   void reset_trigger(uint16_t r);
   void reset_release(uint16_t i);
   bool held(uint16_t i) const;
+  bool holds_any(uint16_t r) const;
+  uint16_t res_of(uint16_t r, uint16_t k) const { return t_.res_refs[t_.rules[r].res_first + k]; }
   void eval_trigger(uint16_t r, const Ctx &ctx);
   void eval_release(uint16_t i);
   void free_res(uint16_t i);

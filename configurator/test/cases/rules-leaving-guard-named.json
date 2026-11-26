@@ -1,0 +1,439 @@
+{
+  "name": "leaving guard naming resources: only a train that came through them is taken for one leaving",
+  "covers": [
+    "a leaving guard that watches the resources it names"
+  ],
+  "about": "East takes Ahead and Other, and its leaving guard watches only Ahead. A train arrives in Loop while Side holds Other: it is waiting, and goes once Other is free. Later a West train comes through Ahead into Loop: it is taken for one leaving, and East stays at Stop while it stands there.",
+  "board": {
+    "sensors": [
+      "Loop",
+      "In",
+      "Side",
+      "Ahead",
+      "Other"
+    ],
+    "masts": {
+      "East": {
+        "aspects": {
+          "R292": "stop",
+          "R281": "clear"
+        }
+      },
+      "West": {
+        "aspects": {
+          "R292": "stop",
+          "R281": "clear"
+        }
+      },
+      "Side": {
+        "aspects": {
+          "R292": "stop",
+          "R281": "clear"
+        }
+      }
+    },
+    "logic": {
+      "resources": [
+        {
+          "name": "Ahead",
+          "blocks": [
+            "Ahead"
+          ],
+          "release": {
+            "while": {
+              "block": "Ahead",
+              "is": "clear"
+            },
+            "for": "1s"
+          }
+        },
+        {
+          "name": "Other",
+          "blocks": [
+            "Other"
+          ],
+          "release": {
+            "while": {
+              "block": "Other",
+              "is": "clear"
+            },
+            "for": "1s"
+          }
+        }
+      ],
+      "layers": [
+        {
+          "name": "East",
+          "rules": [
+            {
+              "trigger": {
+                "while": {
+                  "block": "Loop",
+                  "is": "occupied"
+                },
+                "for": "0.5s",
+                "leavingGuard": [
+                  "Ahead"
+                ]
+              },
+              "checks": [],
+              "then": {
+                "mast": "East",
+                "aspect": "R281",
+                "reserve": [
+                  "Ahead",
+                  "Other"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "West",
+          "rules": [
+            {
+              "trigger": {
+                "while": {
+                  "block": "In",
+                  "is": "occupied"
+                },
+                "for": "0.5s"
+              },
+              "checks": [],
+              "then": {
+                "mast": "West",
+                "aspect": "R281",
+                "reserve": "Ahead"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Side",
+          "rules": [
+            {
+              "trigger": {
+                "while": {
+                  "block": "Side",
+                  "is": "occupied"
+                },
+                "for": "0.5s"
+              },
+              "checks": [],
+              "then": {
+                "mast": "Side",
+                "aspect": "R281",
+                "reserve": "Other"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "steps": [
+    {
+      "at": 1,
+      "do": [
+        {
+          "sensor": "Side",
+          "is": "occupied"
+        }
+      ]
+    },
+    {
+      "at": 6,
+      "expect": {
+        "events": [
+          {
+            "grant": "Other",
+            "rule": "Side/1"
+          }
+        ],
+        "masts": {
+          "Side": "R281"
+        }
+      }
+    },
+    {
+      "at": 10,
+      "do": [
+        {
+          "sensor": "Loop",
+          "is": "occupied"
+        }
+      ]
+    },
+    {
+      "at": 15,
+      "expect": {
+        "rules": {
+          "East/1": "waiting"
+        },
+        "masts": {
+          "East": "R292"
+        }
+      }
+    },
+    {
+      "at": 20,
+      "do": [
+        {
+          "sensor": "Other",
+          "is": "occupied"
+        }
+      ],
+      "expect": {
+        "events": [
+          {
+            "pass": "Other",
+            "rule": "Side/1"
+          }
+        ],
+        "masts": {
+          "Side": "R292"
+        }
+      }
+    },
+    {
+      "at": 22,
+      "do": [
+        {
+          "sensor": "Side",
+          "is": "clear"
+        }
+      ]
+    },
+    {
+      "at": 25,
+      "do": [
+        {
+          "sensor": "Other",
+          "is": "clear"
+        }
+      ]
+    },
+    {
+      "at": 35,
+      "expect": {
+        "events": [
+          {
+            "release": "Other",
+            "by": "release"
+          },
+          {
+            "grant": "Ahead",
+            "rule": "East/1"
+          },
+          {
+            "grant": "Other",
+            "rule": "East/1"
+          }
+        ],
+        "masts": {
+          "East": "R281"
+        }
+      }
+    },
+    {
+      "at": 40,
+      "do": [
+        {
+          "sensor": "Ahead",
+          "is": "occupied"
+        }
+      ],
+      "expect": {
+        "events": [
+          {
+            "pass": "Ahead",
+            "rule": "East/1"
+          }
+        ],
+        "masts": {
+          "East": "R292"
+        }
+      }
+    },
+    {
+      "at": 42,
+      "do": [
+        {
+          "sensor": "Loop",
+          "is": "clear"
+        }
+      ]
+    },
+    {
+      "at": 45,
+      "do": [
+        {
+          "sensor": "Ahead",
+          "is": "clear"
+        }
+      ]
+    },
+    {
+      "at": 47,
+      "do": [
+        {
+          "sensor": "Other",
+          "is": "occupied"
+        }
+      ],
+      "expect": {
+        "events": [
+          {
+            "pass": "Other",
+            "rule": "East/1"
+          }
+        ]
+      }
+    },
+    {
+      "at": 50,
+      "do": [
+        {
+          "sensor": "Other",
+          "is": "clear"
+        }
+      ]
+    },
+    {
+      "at": 55,
+      "expect": {
+        "events": [
+          {
+            "release": "Ahead",
+            "by": "release"
+          }
+        ],
+        "holders": {
+          "Ahead": null,
+          "Other": "East/1"
+        }
+      }
+    },
+    {
+      "at": 60,
+      "expect": {
+        "events": [
+          {
+            "release": "Other",
+            "by": "release"
+          }
+        ],
+        "rules": {
+          "East/1": "idle"
+        }
+      }
+    },
+    {
+      "at": 70,
+      "do": [
+        {
+          "sensor": "In",
+          "is": "occupied"
+        }
+      ]
+    },
+    {
+      "at": 75,
+      "expect": {
+        "events": [
+          {
+            "grant": "Ahead",
+            "rule": "West/1"
+          }
+        ],
+        "masts": {
+          "West": "R281"
+        }
+      }
+    },
+    {
+      "at": 80,
+      "do": [
+        {
+          "sensor": "Ahead",
+          "is": "occupied"
+        }
+      ],
+      "expect": {
+        "events": [
+          {
+            "pass": "Ahead",
+            "rule": "West/1"
+          }
+        ],
+        "masts": {
+          "West": "R292"
+        }
+      }
+    },
+    {
+      "at": 82,
+      "do": [
+        {
+          "sensor": "In",
+          "is": "clear"
+        }
+      ]
+    },
+    {
+      "at": 85,
+      "do": [
+        {
+          "sensor": "Loop",
+          "is": "occupied"
+        }
+      ]
+    },
+    {
+      "at": 88,
+      "do": [
+        {
+          "sensor": "Ahead",
+          "is": "clear"
+        }
+      ]
+    },
+    {
+      "at": 95,
+      "expect": {
+        "rules": {
+          "East/1": "idle"
+        },
+        "masts": {
+          "East": "R292"
+        }
+      }
+    },
+    {
+      "at": 98,
+      "expect": {
+        "events": [
+          {
+            "release": "Ahead",
+            "by": "release"
+          }
+        ]
+      }
+    },
+    {
+      "at": 104,
+      "expect": {
+        "rules": {
+          "East/1": "idle"
+        },
+        "masts": {
+          "East": "R292"
+        },
+        "resources": {
+          "Ahead": "IDLE",
+          "Other": "IDLE"
+        }
+      }
+    }
+  ]
+}

@@ -196,6 +196,37 @@ const EXTRA_BOARDS = {
     },
     start: { board: "mid", links: { A: "west/B", B: "east/A", Nowhere: "x/y" } },
   },
+  // Rules that take several resources at once (a track plan's moves), with
+  // approach locking on some, and leaving guards on their own resources and
+  // on named ones.
+  "several resources": {
+    board: {
+      sensors: ["W", "N", "S", "A", "B", "C", "D"],
+      turnouts: ["P1"],
+      masts: { West: S2, North: S2, South: S2 },
+      logic: {
+        resources: [
+          { name: "A", blocks: ["A"], release: { while: { block: "A", is: "clear" }, for: "0.5s" }, approachLock: "1s" },
+          { name: "B", blocks: ["B"], release: { while: { block: "B", is: "clear" }, for: "0.3s" } },
+          { name: "C", blocks: ["C", "D"], release: { when: { block: "D", is: "occupied" }, then: [{ block: "D", is: "clear" }] }, approachLock: "0.4s" },
+        ],
+        layers: [
+          { name: "Moves", rules: [
+            { trigger: { while: { block: "W", is: "occupied" }, for: "0.5s", leavingGuard: true }, checks: [{ turnout: "P1", is: "closed" }],
+              then: { mast: "West", aspect: "R281", reserve: ["A", "B", "A", "Nowhere"], lock: ["P1"] } },
+            { trigger: { while: { block: "N", is: "occupied" }, for: "0.3s", leavingGuard: ["C"] }, checks: [],
+              then: { mast: "North", aspect: "R285", reserve: ["B", "C"] } },
+            { trigger: { when: { block: "S", is: "occupied" } }, checks: [{ block: "C", is: "clear" }],
+              then: { mast: "South", aspect: "R281", reserve: ["C"] }, cancel: { when: { block: "S", is: "clear" } } },
+            { trigger: { while: { block: "S", is: "clear" } }, checks: [], then: { mast: "South", aspect: "R285", reserve: [] } },
+          ] },
+          { name: "More", rules: [
+            { trigger: { while: { block: "D", is: "occupied" }, leavingGuard: ["A", "Nowhere"] }, checks: [], then: { mast: "North", aspect: "R281", reserve: ["A", "C"] } },
+          ] },
+        ],
+      },
+    },
+  },
   // One end, so that pairing with east/A often succeeds, then is heard.
   pairing: {
     board: {
