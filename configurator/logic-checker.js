@@ -708,10 +708,22 @@
     const table = tableOf(config);
     if (!table) return null;
     const json = JSON.stringify(table);
-    if (last.json === json) return last.result;
+    if (last.json === json) return mine(config, last.result);
     const result = checkBoard(table, options);
     last = { json, result };
-    return result;
+    return mine(config, result);
+  }
+
+  // A rule the track plan made that never applies is the drawing's own
+  // spare row, not something to change: no warning for it. Deadlocks and
+  // waiting forever are still reported.
+  function mine(config, result) {
+    if (!result) return result;
+    const made = new Set(list(global.EsphomeMrLogicYaml?.logicItems(config)?.layers)
+      .filter((layer) => String(layer?.starter || "").startsWith("plan-")).map((layer) => String(layer.name)));
+    if (!made.size) return result;
+    const ofPlan = (p) => p.kind === "never-active" && made.has(String(p.rule).slice(0, String(p.rule).lastIndexOf("/")));
+    return { ...result, problems: result.problems.filter((p) => !ofPlan(p)) };
   }
 
   /** Check every combination (BUDGETS.full), for the Download page's button. */
@@ -719,10 +731,10 @@
     const table = tableOf(config);
     if (!table) return null;
     const json = JSON.stringify(table);
-    if (last.json === json && last.result?.complete) return last.result;
+    if (last.json === json && last.result?.complete) return mine(config, last.result);
     const result = checkBoard(table, BUDGETS.full);
     last = { json, result };
-    return result;
+    return mine(config, result);
   }
 
   /** Whether the last check of these rules gave up: the Download page offers a full one. */

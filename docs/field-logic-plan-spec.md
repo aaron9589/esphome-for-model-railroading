@@ -78,9 +78,19 @@ For each signal, the builder follows the track forward to the next signal facing
 | the next signal | the aspect: Approach behind a Stop, and so on, in the [Block signals](field-logic-spec.md#block-signals) order |
 | no route set | Stop |
 
+A signal never waits for an aspect the next signal cannot show (Clear from a signal capped at Approach, say): those rows are left out, and the checker does not report the drawing's own rules as never applying. A row left out only ever gives Stop.
+
 This replaces the Block signals and Route signal starters. Each signal picks an aspect for each indication it can show, prefilled for CATS masts, as in the [MSS Signals grid](mss-emulation-spec.md#signals-by-indication). Advance Approach and Approach Diverging are off by default.
 
-**Turnouts lock under a train.** A turnout inside a detected block is locked while that block is occupied. This is on by default and can be unticked for each turnout.
+**Turnouts lock in front of a train**, so points never move under or ahead of one that has been given a signal:
+
+| Locked while | Which turnouts | Railways call it |
+|---|---|---|
+| a train waits behind a signal that is not at Stop (Restricting included) | the turnouts of the route the signal is showing | approach locking |
+| a block on a signal's route, short of a turnout, is occupied | that turnout | track locking |
+| the turnout's own block is occupied | that turnout; can be unticked for each turnout | lock under a train |
+
+Each frees the turnout once the train has gone over it, a block at a time, so two trains can meet on a passing loop. Approach locking starts the scan after the signal clears, because rules read signals as the last scan left them. A signal with turnouts ahead and no sensor behind it cannot be approach locked, and the page says so. If a signal drops for another reason while a train approaches it, its approach lock drops with it: the train must stop at the signal.
 
 ## Behaviour you add
 
@@ -103,12 +113,12 @@ It builds one section, and for each route from each entrance into it one reservi
 |---|---|
 | When | the block behind the signal is occupied, for 0.5 s |
 | Only if | the route's turnouts are set and its blocks are clear, so the section is only given to a signal that can clear |
-| Then | the signal shows the route's Clear; take the section; lock the route's turnouts |
+| Then | the signal shows the route's Clear; take the section. The turnouts are held by the locks above, not by the section, so each is freed once the train is past it |
 | Leaving guard | on, if a train can run out of the section into the waiting block (the arrows say) |
 
 These sit in a second group beside the drawing's own rules. A signal shows the [most restrictive answer](field-logic-spec.md#who-wins-a-mast), so it stays at Stop until it holds the section, then shows what the track ahead allows, and drops as soon as the drawing's rules say so. This also answers both cases in issue #92 (route locking with a following aspect, and routes that share a block).
 
-The page **asks for it** where it is plainly needed: two signals lead onto the same two-way track from opposite ends, or two routes cross at a crossing, and no section covers it. Beside the warning is a button that makes the blocks where they meet one train at a time. The blocks a train waits in at either signal are left out, as are blocks with no sensor of their own; with none left, the page says to give that track a sensor.
+The page **requires it** where two signals can put trains on the same track at once and no section covers both: head on, at a crossing, or one behind the other where two tracks join with no turnout. This is an error, so the board cannot be downloaded until it is settled. Two routes that need a turnout set different ways never count, since only one can be set. Beside the error is a button that makes the blocks where they meet one train at a time. The blocks a train waits in at either signal are left out, as are blocks with no sensor of their own; with none left, the page says to give that track a sensor. It offers one place at a time: a passing loop's two roads become two sections, so trains can still meet in it.
 
 A section lives on one board. A single line that spans two boards still needs one board to own both signals, or [Advanced](#advanced) rules.
 
@@ -195,7 +205,8 @@ Each is marked on the plan, in the page's plain words, saying what is wrong, why
 - A signal that faces a drawing end with no track ahead of it.
 - A block with a sensor that no signal checks: it is on no signal's way ahead, and no train waits in it at a signal (warning).
 - A signal whose way ahead has an undetected block (warning).
-- Two signals onto the same two-way track, or a crossing, with no one-train section (warning, with the button above).
+- Two signals that can put trains on the same track at once, with no one-train section (error, with the button above).
+- A signal with turnouts ahead and no sensor behind it, so it cannot be approach locked (warning).
 - Everything the checker finds, pointed back at the signal or section.
 
 ## Work, in order
@@ -218,5 +229,5 @@ Signals right round a loop read each other in a circle, which validation otherwi
 
 ## Open questions
 
-- **Checker size.** A drawn station can put many blocks and turnouts in one part. Measure the plans from step 2 against the [checker limits](field-logic-spec.md#checker-limits).
+- **Checker size.** Measured on the step 2 plans: the gauntlet (120 states), junction (116) and diamond (536) are checked completely within the quick budget. The passing siding (7 signals, 2 turnouts) is not checked completely even by **Check every combination**: it reaches about 16,500 states in 20 s and falls back to random runs. That was already so with one section and no approach locking, so the cause is that a chain of signals reading each other makes one large part, not the locks. A drawn station will be bigger. Before the Field Logic guide (step 6), the checker needs a way to check a drawing's signals in smaller parts.
 - **How big a grid** fits the page before it needs to scroll or zoom.
