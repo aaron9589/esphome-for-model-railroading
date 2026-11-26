@@ -1,7 +1,7 @@
 // The track plan's grid editor (docs/field-logic-plan-spec.md; work item TP 3).
 // Each drawing in test/cases/plan is made again from an empty page with the
 // editor's own changes, and must build the same as the hand-written one. Then
-// the editing rules, the picture's layout and picking.
+// the editing rules, one train at a time, the picture's layout and picking.
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
@@ -28,7 +28,7 @@ function boardFor(data) {
 }
 
 // Draw a case's plan the way a person would: track, turnouts, breaks and
-// signals, blocks, arrows, ends. Sections are work item TP 4, so they are set.
+// signals, blocks, arrows, ends, then one train at a time.
 function redraw(data) {
   const wanted = data.module.plan;
   const config = boardFor(data);
@@ -52,7 +52,10 @@ function redraw(data) {
     E.setDirection(config, a, b, b);
   }
   for (const end of wanted.ends || []) E.setEnd(config, end.at, end.beyond);
-  if (wanted.sections) config.logic.plan.sections = wanted.sections;
+  for (const section of wanted.sections || []) {
+    const name = E.addSection(config, section.blocks, (block) => `${block} section`);
+    E.setSection(config, name, { ...section });
+  }
   return config;
 }
 
@@ -193,6 +196,57 @@ test("a new block's name is one nothing else uses", () => {
   assert.equal(E.freeBlockName(config, (n) => `Track ${n}`), "Track 2");
 });
 
+const headOns = (config) => B.problems(config).filter((p) => Array.isArray(p.where.blocks));
+
+test("two signals that can meet say which blocks to take one train at a time, and that settles it", () => {
+  const expected = { gauntlet: ["Bridge"], diamond: ["Diamond"] };
+  for (const name of ["gauntlet", "passing-siding", "diamond"]) {
+    const config = redraw(readCase(name));
+    delete config.logic.plan.sections;
+    assert.ok(headOns(config).length, name);
+    if (expected[name]) assert.deepEqual(plain(headOns(config)[0].where.blocks), expected[name]);
+    // As the page's buttons would: take the first offered until none is left.
+    for (let n = 0; n < 5 && headOns(config).length; n += 1) {
+      E.addSection(config, headOns(config)[0].where.blocks, (block) => `${block} section`);
+    }
+    assert.deepEqual(plain(headOns(config)), [], name);
+    assert.deepEqual(plain(B.problems(config).filter((p) => p.level === "error")), [], name);
+  }
+});
+
+test("the gauntlet's ways in are found on the drawing", () => {
+  const found = plain(B.look(redraw(readCase("gauntlet"))).sections);
+  assert.deepEqual(found, [{ name: "Bridge section", blocks: ["Bridge"], entrances: [
+    { mast: "Left Bridge", waiting: "Left" }, { mast: "Right Bridge", waiting: "Right" }] }]);
+});
+
+test("sections that come to share a block become one, and your rules follow", () => {
+  const config = line();
+  config.logic.layers = [{ name: "Mine", rules: [{ then: { reserve: "B section" } }] }];
+  const make = (block, n) => (n > 1 ? `${block} section ${n}` : `${block} section`);
+  assert.equal(E.addSection(config, ["A"], make), "A section");
+  assert.equal(E.addSection(config, ["B"], make), "B section");
+  assert.equal(E.addSection(config, ["A", "B"], make), "A section");
+  assert.deepEqual(plan(config).sections, [{ name: "A section", blocks: ["A", "B"] }]);
+  assert.equal(config.logic.layers[0].rules[0].then.reserve, "A section");
+  assert.equal(E.addSection(config, [], make), null);
+});
+
+test("a section's settings: the usual ones are not stored, a taken name is refused, no blocks removes it", () => {
+  const config = line();
+  config.logic.resources = [{ name: "Mine" }];
+  config.logic.layers = [{ name: "G", rules: [{ then: { reserve: "A section" } }] }];
+  E.addSection(config, ["A"], (block) => `${block} section`);
+  E.setSection(config, "A section", { release: "5s", approachLock: "10s" });
+  assert.deepEqual(plan(config).sections[0], { name: "A section", blocks: ["A"], release: "5s", approachLock: "10s" });
+  E.setSection(config, "A section", { release: "", approachLock: "", name: "Mine" });
+  assert.deepEqual(plan(config).sections[0], { name: "A section", blocks: ["A"] });
+  E.setSection(config, "A section", { name: "Bridge" });
+  assert.equal(config.logic.layers[0].rules[0].then.reserve, "Bridge");
+  E.setSection(config, "Bridge", { blocks: [] });
+  assert.deepEqual(plan(config).sections, []);
+});
+
 test("the picture: detected track, a signal on the train's left, and what picking finds", () => {
   const config = redraw(readCase("gauntlet"));
   const shape = plain(P.layout(config));
@@ -206,6 +260,7 @@ test("the picture: detected track, a signal on the train's left, and what pickin
   assert.ok(right.head[1] > right.at[1]);
   // Right Bridge sits under the Right block, so that name goes above the track.
   assert.deepEqual(shape.blocks.map((b) => [b.name, b.above]), [["Left", false], ["Bridge", false], ["Right", true]]);
+  assert.deepEqual(shape.sections.map((s) => [s.name, s.label]), [["Bridge section", [6, -0.55]]]);
   assert.deepEqual(plain(P.pick(shape, ...left.head)), { kind: "point", at: [2, 0] });
   assert.deepEqual(plain(P.pick(shape, 4.1, 1.05)), { kind: "point", at: [4, 1] });
   assert.equal(P.pick(shape, 5.5, 1.2).kind, "piece");

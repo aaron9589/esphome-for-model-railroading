@@ -140,7 +140,7 @@ Setting up Field Logic by drawing the track, as the [track plan spec](field-logi
 | TP 1 (#123) | **Hide Plant ends in Field Logic**, and move the guide's chapter | Sonnet | merged | A Field Logic board with no ends shows none |
 | TP 2 (#124) | **Stored format and builder** (`plan-builder.js`), continuous runs included | Opus | merged; open for a fail-safe review | Hand-worked cases for the gauntlet, a turnout junction, a passing siding and a diamond pass |
 | TP 3 (#125) | **Grid editor**: draw track, blocks, signals, ends | Sonnet | merged | Each of those drawings can be made from an empty page |
-| TP 4 (#126) | **Behaviour, Advanced and problems** on the drawing | Sonnet | not started | The gauntlet needs no rule card |
+| TP 4 (#126) | **Behaviour, Advanced and problems** on the drawing | Sonnet | one train at a time merged; the rest not started | The gauntlet needs no rule card |
 | TP 5 (#127) | **Try it and Run a train** on the drawing | Sonnet | not started | As for MSS Logic |
 | TP 6 (#128) | **New Field Logic guide** and its pictures | Sonnet, Human reads | not started | A newcomer builds the gauntlet from it |
 

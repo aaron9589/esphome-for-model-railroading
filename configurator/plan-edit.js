@@ -436,6 +436,82 @@
     });
   }
 
+  // ===== One train at a time ================================================
+
+  /** The section that includes a block, or null. */
+  function sectionOf(config, block) {
+    return list(config?.logic?.plan?.sections).find((s) => isObject(s) && list(s.blocks).includes(block)) || null;
+  }
+
+  const sectionNames = (config) => new Set([
+    ...list(config?.logic?.plan?.sections), ...list(config?.logic?.resources),
+  ].map((item) => item?.name));
+
+  /**
+   * Take these blocks one train at a time. Sections that already hold any of
+   * them become one, which keeps the first's settings. `make(block, n)` names
+   * a new one. Returns its name.
+   */
+  function addSection(config, blocks, make) {
+    const wanted = [...new Set(blocks)].filter(Boolean);
+    if (!wanted.length) return null;
+    let name = null;
+    change(config, (plan) => {
+      const [kept, ...rest] = plan.sections.filter((s) => isObject(s) && list(s.blocks).some((b) => wanted.includes(b)));
+      if (kept) {
+        kept.blocks = [...new Set([...list(kept.blocks), ...rest.flatMap((s) => list(s.blocks)), ...wanted])];
+        for (const other of rest) {
+          plan.sections.splice(plan.sections.indexOf(other), 1);
+          followSection(config, other.name, kept.name);
+        }
+        name = kept.name;
+        return;
+      }
+      const taken = sectionNames(config);
+      let n = 1;
+      while (taken.has(make(wanted[0], n))) n += 1;
+      name = make(wanted[0], n);
+      plan.sections.push({ name, blocks: wanted });
+    });
+    return name;
+  }
+
+  // The Logic page's own rules that take or read a section, by its name.
+  function followSection(config, from, to) {
+    const visit = (value) => {
+      if (Array.isArray(value)) return value.forEach(visit);
+      if (!isObject(value)) return;
+      for (const key of ["reserve", "section"]) if (value[key] === from) value[key] = to;
+      Object.values(value).forEach(visit);
+    };
+    visit([config.logic?.layers, config.logic?.resources]);
+  }
+
+  /**
+   * Change a section: `name`, `blocks` (none removes it), `release` and
+   * `approachLock` (empty for the usual). A name another section has is refused.
+   */
+  function setSection(config, name, values) {
+    change(config, (plan) => {
+      const section = plan.sections.find((s) => isObject(s) && s.name === name);
+      if (!section) return;
+      const next = { ...values };
+      if (next.name !== undefined && next.name !== name) {
+        if (!next.name || sectionNames(config).has(next.name)) delete next.name;
+        else followSection(config, name, next.name);
+      }
+      Object.assign(section, next);
+      for (const key of ["release", "approachLock"]) if (!section[key]) delete section[key];
+      if (!list(section.blocks).length) plan.sections.splice(plan.sections.indexOf(section), 1);
+    });
+  }
+
+  function removeSection(config, name) {
+    change(config, (plan) => {
+      plan.sections = plan.sections.filter((s) => s?.name !== name);
+    });
+  }
+
   /** A name for a new block that nothing else uses: `make(n)` for n = 1, 2, ... */
   function freeBlockName(config, make) {
     const taken = new Set([
@@ -450,5 +526,6 @@
     graph, kindAt, neighbours, stretchOfBlock, blockAt, directionAt, path, breakAt,
     draw, erase, setDirection, setPoint, addBreak, removeBreak, setSignal, setBreakSensors,
     setBlock, removeBlock, setEnd, freeBlockName,
+    sectionOf, addSection, setSection, removeSection,
   };
 })(typeof globalThis !== "undefined" ? globalThis : window);

@@ -1,6 +1,6 @@
 # Field Logic Track Plan — Feature Spec (draft)
 
-Status: draft. The stored format and builder (`configurator/plan-builder.js`, work item 2) and the grid editor (`plan-edit.js`, `logic-ui-plan.js`, work item 3) are built. Sections, a signal's aspects and approach lighting, a turnout's lock, problems marked on the plan, keeping the picture in view and Try it on the plan are not built yet. It changes how the Field Logic mode of the [Field Logic spec](field-logic-spec.md) is **set up**. The engine, the rule language and the fail-safe rules in that spec stay as they are, apart from the one question about [loops](#open-questions).
+Status: draft. The stored format and builder (`configurator/plan-builder.js`, work item 2) the grid editor (`plan-edit.js`, `logic-ui-plan.js`, work item 3) and one train at a time (from work item 4) are built. A signal's aspects and approach lighting, a turnout's lock, problems marked on the plan, keeping the picture in view and Try it on the plan are not built yet. It changes how the Field Logic mode of the [Field Logic spec](field-logic-spec.md) is **set up**. The engine, the rule language and the fail-safe rules in that spec stay as they are, apart from the one question about [loops](#open-questions).
 
 ## Why
 
@@ -95,7 +95,7 @@ Select something on the plan to see what can be added to it.
 
 ### One train at a time
 
-Select the blocks, then **One train at a time**. The selection is outlined on the plan. The page lists the entrances it found: every signal with a route into the selection, and the block behind each, where a train waits. There is nothing else to pick. **Free it when clear for** (3 s) and **Hold after cancelling** (off) are under **More options**.
+Select a block's track, then **Make this block one train at a time**. Tick more blocks to add them to the same section. The section's track is shaded on the plan. The page lists the entrances it found: every signal with a route into the selection, and the block behind each, where a train waits. There is nothing else to pick. **Free it when clear for** (3 s) and **Hold after cancelling** (off) are under **More options**.
 
 It builds one section, and for each route from each entrance into it one reserving rule (a route that misses the section gets a plain rule):
 
@@ -108,7 +108,7 @@ It builds one section, and for each route from each entrance into it one reservi
 
 These sit in a second group beside the drawing's own rules. A signal shows the [most restrictive answer](field-logic-spec.md#who-wins-a-mast), so it stays at Stop until it holds the section, then shows what the track ahead allows, and drops as soon as the drawing's rules say so. This also answers both cases in issue #92 (route locking with a following aspect, and routes that share a block).
 
-The page **asks for it** where it is plainly needed: two signals lead onto the same two-way track from opposite ends, or two routes cross at a crossing, and no section covers it. The warning has a button that selects the blocks.
+The page **asks for it** where it is plainly needed: two signals lead onto the same two-way track from opposite ends, or two routes cross at a crossing, and no section covers it. Beside the warning is a button that makes the blocks where they meet one train at a time. The blocks a train waits in at either signal are left out, as are blocks with no sensor of their own; with none left, the page says to give that track a sensor.
 
 A section lives on one board. A single line that spans two boards still needs one board to own both signals, or [Advanced](#advanced) rules.
 
