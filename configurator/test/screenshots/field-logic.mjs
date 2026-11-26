@@ -392,40 +392,4 @@ async function openStarter(name) {
   await dialog.getByRole("button", { name: "Cancel" }).click();
 }
 
-// ===== Step A: Add an end ===================================================
-
-await card("logic-ends").getByRole("button", { name: "Add an end" }).click();
-const endA = card("logic-ends").locator(".logic-end").first();
-const track1 = endA.locator(".logic-end-tracks");
-await expectText(track1, "Track 1", "Step A");
-await track1.locator('select[aria-label="Add a sensor…"]').selectOption({ label: "Right current" });
-await field(track1, "What the track meets first").selectOption({ label: "A signal on this board" });
-await track1.locator('select[aria-label="First signal"]').selectOption({ label: "Right Bridge" });
-await field(endA, "Pair button pin").selectOption("GPIO32");
-await field(endA, "LED pin").selectOption("GPIO33");
-await blur();
-await expectNoMessages("Step A");
-await snap(endA, "18-plant-end");
-
-// ===== Step B: the end in Block signals' Next signal list ===================
-
-{
-  const dialog = await openStarter("Block signals");
-  await expectText(dialog, ["Direction", "Block it protects", "The next signal", "End of signalled track", "Both directions"], "Block signals");
-  await expectText(dialog.locator('select[aria-label="Next signal"] optgroup[label="What an end hears"]'), "Next signal heard at end A, track 1", "Step B");
-  await dialog.getByRole("button", { name: "Cancel" }).click();
-}
-
-// ===== Step C: Try it with a pretend neighbour ==============================
-
-await tryButton("Start again").click();
-const neighbours = tryIt.locator(".try-neighbours");
-await field(neighbours, "End A: pretend there is a neighbour").check();
-await neighbours.locator('[aria-label="Block 1: empty"]').click();
-await skip(1);
-await expectText(neighbours, "This board offers it: block clear, signal Stop", "Step C");
-await expectText(tryIt.locator(".try-train"), ["Carry on across the joint"], "Step C");
-await shotSpan(tryIt.getByText("Pretend neighbours", { exact: true }), neighbours, "19-pretend-neighbour");
-await field(neighbours, "End A: pretend there is a neighbour").uncheck();
-
 await done();

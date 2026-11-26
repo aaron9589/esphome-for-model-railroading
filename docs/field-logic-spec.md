@@ -294,7 +294,7 @@ Board names appear in topics (`board/<board>/Online`, `logic/<board>`, plant end
 
 A board's **plant** is the track and signals it looks after. A **field logic plant end** (*plant end* for short) is where that track leaves the board, onto track another board looks after. Plant ends let neighbouring plants read each other without either knowing the other in advance. They suit layouts that change, and modules that arrive at a meet in any order and either way round.
 
-- Plant ends are **per board**. Each board declares its own ends, and they are an engine input available in both [logic modes](#logic-modes). In Field Logic mode you declare them on the Logic page; MSS Logic builds them from its description.
+- Plant ends are **per board**. Each board declares its own ends, and they are an engine input available in both [logic modes](#logic-modes). In Field Logic mode the Logic page shows them only for a board that already has them (see the [track plan spec](field-logic-plan-spec.md#linked-boards-instead-of-plant-ends)); MSS Logic builds them from its description.
 - One board can cover several modules that always travel together. Only the joints at the outside of that set need ends.
 - Ends are named A, B, C… Each end's tracks are numbered left to right, looking out through the end. Facing each other at a joint, one end's track 1 meets the other end's last track. That is how a board works either way round.
 
@@ -588,7 +588,7 @@ Each board picks one **logic mode** on the Logic page:
 | Rules | written as cards, from starters or by hand | built from the module description; read-only |
 | Resources, rule buttons, manual release | yes | no (MSS has none) |
 | Linked boards | imported by name | no |
-| Plant ends | declared by hand | built from the description |
+| Plant ends | shown only for a board that already has them ([track plan](field-logic-plan-spec.md#linked-boards-instead-of-plant-ends)) | built from the description |
 | Mast tags | set per aspect | set by choosing an aspect for each MSS indication |
 | Layers view, control table, Try it, checker | yes | yes, showing the built items, read-only |
 | JMRI/CATS hold, logic switch | yes | yes |

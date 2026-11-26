@@ -1,4 +1,7 @@
 // The Logic page: Plant ends (logic-ends, order 35). Work item 3.3.
+// Field Logic shows it only for a board that already has ends, such as one made
+// by Convert to Field Logic: linked boards cover a permanent layout (track plan
+// spec). MSS Logic builds its own ends.
 // Loaded after logic-ui.js and logic-ui-masts.js; registers its part with
 // EsphomeMrLogicUi.registerPart. Every word it shows is in its TEXT, which
 // test/logic-page.test.js lints for spec-only terms.
@@ -22,7 +25,6 @@
     endsCard: "Plant ends",
     endsIntro: "An end is where track leaves this board and meets the board next door. Each track through an end lists the sensors between the end and the first signal facing a train coming in, and that signal. A track with no signal of its own can pass through to a track at another end.",
     endsIntro2: "Press Pair on both sides of a joint to join two boards. Each end can have a Pair button and an LED on this board. The LED blinks slowly while pairing, stays on when the other board is heard, and blinks fast when there is a problem.",
-    endsEmpty: "No ends yet. A board with no neighbours needs none.",
     addEnd: "Add an end",
     newEndName: (n) => `End ${n}`,
     endTitle: (name) => `End ${name}`,
@@ -227,6 +229,11 @@
     return choices;
   }
 
+  /** Whether the Plant ends card is drawn: only when the board has ends. */
+  function shown(config) {
+    return list(config.logic?.ends).some(isObject);
+  }
+
   // ===== Drawing ============================================================
 
   function el(tag, className, text) {
@@ -370,12 +377,12 @@
   }
 
   function renderEnds(root, config, ctx, ui) {
+    if (!shown(config)) return;
     const section = ui.card("logic-ends", TEXT.endsCard);
     section.append(ui.paragraph(TEXT.endsIntro), ui.paragraph(TEXT.endsIntro2));
     const holder = el("div");
     const ends = list(config.logic?.ends).filter(isObject);
     ends.forEach((end, i) => renderEnd(holder, end, i, config, ctx, ui));
-    if (!ends.length) holder.append(ui.paragraph(TEXT.endsEmpty, "empty"));
     section.append(holder, button(TEXT.addEnd, () => {
       addEnd(config);
       ctx.persist();
@@ -390,6 +397,7 @@
 
   global.EsphomeMrLogicUiEnds = {
     TEXT,
+    shown,
     freeEndName,
     addEnd,
     removeEnd,

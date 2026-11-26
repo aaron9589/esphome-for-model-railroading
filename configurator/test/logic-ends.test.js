@@ -47,6 +47,17 @@ const goodEnds = () => [
 
 // ===== Pure functions ======================================================
 
+test("the card is shown only for a board that already has ends", () => {
+  const config = board();
+  assert.equal(E.shown(config), false, "no ends key");
+  config.logic.ends = [];
+  assert.equal(E.shown(config), false, "an empty list");
+  E.addEnd(config);
+  assert.equal(E.shown(config), true);
+  E.removeEnd(config, 0);
+  assert.equal(E.shown(config), false, "the last end removed");
+});
+
 test("add and remove ends and tracks; names run A, B, C", () => {
   const config = board();
   assert.equal(E.addEnd(config).name, "A");

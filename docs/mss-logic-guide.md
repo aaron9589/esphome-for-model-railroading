@@ -375,6 +375,8 @@ Success looks like:
 - In MQTTX, West's `trains/track/end/<west>/B/1/Block` and `.../Mast` match what East's signals offer, and East's `.../A/1/...` the same the other way. Put a car on **W2 current**: East's **E Outer** should show Approach or Stop within a second or two, once the joint's message has crossed.
 - Take East's power off. West's end B no longer hears it, and West's **W toward B** shows Stop. That is the fail-safe: a neighbour that is not heard counts as occupied.
 
+**Setting it by hand.** If two boards will not pair, type the other board and end into the end's link box on each web page, such as `kiama-south-p3q8w5/B`. Both sides must name each other.
+
 **Which tracks meet.** Facing each other across a joint, one end's track 1 meets the other end's last track. So a double-track joint pairs the right tracks whichever way round the module is placed. Two ends with different track counts do not pair.
 
 **Ends that meet nothing.** East's ends B and C meet no module here. An unpaired end reads as occupied, so the signals behind it show Stop. To tell an end it is the end of the line, open that end's text box on the board's web page (for end B it is named `End B link`, its name in ESPHome) and type `end`. Then its Block reads clear, and the signal behind it shows Approach, as it would at a terminus. The box is saved across reboots.
@@ -404,7 +406,7 @@ Check one thing at a time, in this order.
 **A joint shows Stop.**
 1. Is the other module powered and on the same Wi-Fi and broker?
 2. Press Pair on both sides again, within 30 seconds.
-3. On the board's web page, read what the end says. If it names the wrong end, press Pair again on both. If a third end joined the 30 seconds, or the track counts differ, nothing is paired, and the board's logs say so.
+3. On the board's web page, read what the end says. If it names the wrong end, press Pair again on both. A line ending *Last pairing:* says why it was refused: no other end pressed Pair in time, more than two ends were pairing, or the two ends have different numbers of tracks. Fix that and press Pair on both again.
 4. In MQTTX, `trains/track/end/<board>/<end>/<track>/Block` and `.../Mast` from the other board should appear, retained. If they do not, check that board is Online: MSS Logic always shares, so it needs nothing ticked.
 
 **A signal stays at Stop with an empty track.**
