@@ -565,7 +565,7 @@ button:focus-visible {
 .name-with-suffix {
   display: flex;
   align-items: center;
-  gap: 0.25rem;
+  gap: 0.4rem;
 }
 
 .name-with-suffix input {
@@ -575,7 +575,31 @@ button:focus-visible {
 
 .name-suffix {
   font-family: var(--mono);
-  color: var(--muted);
+  font-weight: 650;
+  color: var(--accent);
+  background: var(--accent-soft);
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  padding: 0.3rem 0.5rem;
+  white-space: nowrap;
+}
+
+button.suffix-button {
+  white-space: nowrap;
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.suffix-confirm {
+  grid-column: 1 / -1;
+  padding: 0.75rem 0.9rem;
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  background: var(--accent-soft);
+}
+
+.suffix-confirm p {
+  margin: 0 0 0.5rem;
 }
 
 .suffix-action {

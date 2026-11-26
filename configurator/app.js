@@ -899,20 +899,28 @@ function boardNameFields() {
   });
   const fields = [nameField];
   if (suffix) {
+    // The name, its suffix as a tag, and New suffix beside them.
     const input = nameField.querySelector("input");
     const row = document.createElement("span");
     row.className = "name-with-suffix";
     const tail = document.createElement("span");
     tail.className = "name-suffix";
     tail.textContent = `-${suffix}`;
+    tail.title = "This board's own suffix";
+    const again = document.createElement("button");
+    again.type = "button";
+    again.className = "suffix-button";
+    again.textContent = "New suffix";
+    again.setAttribute("aria-expanded", String(askingSuffix));
+    again.addEventListener("click", () => {
+      askingSuffix = !askingSuffix;
+      render();
+      if (askingSuffix) document.querySelector(".suffix-confirm button.primary")?.focus();
+    });
     input.replaceWith(row);
-    row.append(input, tail);
-    fields.push(suffixAction("New suffix",
-      "Only for a copy of another board's file. Two boards must never share a suffix. The board's network name changes, so flash it next by USB.",
-      () => {
-        newNameSuffix(b);
-        return `New suffix -${b.nameSuffix}. Flash this board by USB next: its network name has changed.`;
-      }));
+    row.append(input, tail, again);
+    fields.push(askingSuffix ? suffixConfirm(b) : suffixNote(
+      "New suffix is for a copy of another board's file: two boards must never share a suffix."));
   } else {
     fields.push(suffixAction("Add a suffix",
       "Adds six characters, such as -k7m4x2, so this board's name is unique at a meet. Boards that share or run logic need one. The board's network name changes, so flash it next by USB.",
@@ -924,12 +932,54 @@ function boardNameFields() {
   return fields;
 }
 
+// Whether New suffix is asking before it changes the board's name.
+let askingSuffix = false;
+
+function suffixNote(text) {
+  const wrap = document.createElement("div");
+  wrap.className = "suffix-action full";
+  wrap.append(hintEl(text));
+  return wrap;
+}
+
+// New suffix, asked first: the network name changes, so the next flash is by USB.
+function suffixConfirm(b) {
+  const box = document.createElement("div");
+  box.className = "suffix-confirm full";
+  const ask = document.createElement("p");
+  ask.textContent = `Give this board a new suffix in place of -${b.nameSuffix}? Do this only for a copy of another board's file: two boards must never share a suffix. The board's network name changes, so flash it next by USB.`;
+  const yes = document.createElement("button");
+  yes.type = "button";
+  yes.className = "primary";
+  yes.textContent = "Yes, give it a new suffix";
+  yes.addEventListener("click", () => {
+    newNameSuffix(b);
+    askingSuffix = false;
+    persist();
+    render();
+    flash("ok", `New suffix -${b.nameSuffix}. Flash this board by USB next: its network name has changed.`);
+  });
+  const no = document.createElement("button");
+  no.type = "button";
+  no.textContent = "Cancel";
+  no.addEventListener("click", () => {
+    askingSuffix = false;
+    render();
+  });
+  const row = document.createElement("div");
+  row.className = "dialog-actions";
+  row.append(no, yes);
+  box.append(ask, row);
+  return box;
+}
+
+// Add a suffix, for an older board with none: the page's main button.
 function suffixAction(label, hint, apply) {
   const wrap = document.createElement("div");
   wrap.className = "suffix-action full";
   const button = document.createElement("button");
   button.type = "button";
-  button.className = "text";
+  button.className = "primary";
   button.textContent = label;
   button.addEventListener("click", () => {
     const message = apply();
