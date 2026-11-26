@@ -175,6 +175,8 @@ A rule that reserves a resource has a lifecycle:
   - **Off:** a cancel frees the resource at once.
 - **Release** belongs to the resource, so every rule that reserves it shares one release. The release is a *while* (usually "all blocks clear for 3s") or a *then* sequence. It is only armed once the rule is PASSED. Moments are counted from the grant onwards.
 - There is **no release timeout.** A timer that fires while a train is stalled on dirty track would free the section under it. Stuck holds are cleared by hand (see [Manual release](#manual-release)).
+- **Several resources at once.** A rule can reserve a list of resources, as a [track plan](field-logic-plan-spec.md#protection-moves-that-clash)'s move takes its pieces of track. It takes them **all at once or none**, so two rules can never each hold part of what the other needs. While it waits, every resource it wants is kept from rules that started waiting after it, so a rule that needs two cannot be starved by two that need one each. Each resource is then passed and released **on its own**: PASSED once one of its own blocks is occupied, released by its own release. The rule is PASSED, and its mast at Stop, from the first of them. A cancel frees each resource at once, or after its own approach locking time. A manual release of one frees that one; a rule that had not yet passed goes to PASSED, and the others stay held until its train has passed through them or they are released by hand.
+- **The leaving guard** watches the rule's own resources, or the ones it names, so that only a train that has come through those is taken for one leaving.
 
 ### Who wins a mast
 
@@ -979,6 +981,9 @@ In `configurator/test/`, run through `configurator/package.json`:
   - block signals: the worked example's four rows; the tumbledown with and without Advance Approach; Approach Diverging behind a diverging aspect, and Approach there when Approach Diverging is not used; a remote next mast going offline leaves Approach; a reversed or moving turnout in a block gives Stop
   - the two lock flags: the re-sync runs only when both are clear, not when one of two clears.
   - lock turnouts under a train: the turnout is locked while its block is occupied, and unlocked once it clears
+  - several resources: all at once or none, the one that waited first goes first, and each passed and freed on its own
+  - several resources: approach locking for each, and a manual release of one
+  - a leaving guard that watches the resources it names
   - route signal: the first row whose turnouts and blocks match wins; a moving turnout matches no row; a row that follows the next mast joins the block signals tumbledown
   - block signals round a continuous run settle, and drop and recover behind a train, with and without Advance Approach
 - **Fail safe:**

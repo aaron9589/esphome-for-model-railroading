@@ -3,6 +3,7 @@
 // pass resolves names to indices, so keys may come in any order.
 #include "logic_table.h"
 
+#include <algorithm>
 #include <cstdlib>
 #include <cstring>
 #include <utility>
@@ -221,7 +222,10 @@ struct RawRemote {
   std::vector<std::pair<uint16_t, uint16_t>> masts;  // name, remote mast def
 };
 struct RawRule {
-  uint16_t mast = NONE, aspect = NONE, reserve = NONE;
+  uint16_t mast = NONE, aspect = NONE;
+  std::vector<uint16_t> reserve;  // resource names
+  bool guard_named = false;  // the leaving guard names its resources (in guard), not the rule's own
+  std::vector<uint16_t> guard;
   std::vector<uint16_t> locks;
 };
 
@@ -278,6 +282,14 @@ class Compiler {
     bool first = true;
     while (r_.element(&first)) out.push_back(read_name());
     return out;
+  }
+  // A list of names, or one name; "" (or anything not a string) alone is none,
+  // as logic.js reads `reserve`.
+  std::vector<uint16_t> read_name_or_names() {
+    if (r_.peek() == '[') return read_names();
+    std::string text = r_.text();
+    if (text.empty()) return {};
+    return {intern(text)};
   }
 
   void read_board() {
@@ -591,7 +603,7 @@ class Compiler {
     std::string key;
     while (r_.member(&first, &key)) {
       if (key == "trigger") {
-        rule.trigger = read_trigger("a rule's for");
+        rule.trigger = read_trigger("a rule's for", &raw);
       } else if (key == "checks") {
         bool f2 = true;
         while (r_.element(&f2)) checks.push_back(read_condition());
@@ -604,7 +616,7 @@ class Compiler {
           else if (k == "aspect")
             raw.aspect = read_name();
           else if (k == "reserve")
-            raw.reserve = read_name();
+            raw.reserve = read_name_or_names();
           else if (k == "lock")
             raw.locks = read_names();
           else
@@ -630,7 +642,8 @@ class Compiler {
     raw_rules_.push_back(std::move(raw));
   }
 
-  Trigger read_trigger(const std::string &where) {
+  // A rule's trigger takes `raw`, for a leaving guard that names resources.
+  Trigger read_trigger(const std::string &where, RawRule *raw = nullptr) {
     Trigger t;
     t.present = true;
     uint16_t when = NONE;
@@ -648,7 +661,16 @@ class Compiler {
       } else if (key == "for") {
         t.for_ms = read_ms(where);
       } else if (key == "leavingGuard") {
-        t.leaving_guard = r_.boolean();
+        if (r_.peek() == '[') {
+          std::vector<uint16_t> names = read_names();
+          t.leaving_guard = true;
+          if (raw) {
+            raw->guard_named = true;
+            raw->guard = names;
+          }
+        } else {
+          t.leaving_guard = r_.boolean();
+        }
       } else {
         r_.skip();
       }
@@ -831,6 +853,19 @@ class Compiler {
     return NONE;
   }
 
+  // Appends to Table::res_refs the first resource of each name, each once.
+  void add_resources(const std::vector<uint16_t> &names) {
+    const size_t first = t_.res_refs.size();
+    for (uint16_t name : names) {
+      for (size_t r = 0; r < t_.resources.size(); r++) {
+        if (t_.resources[r].name != name) continue;
+        if (std::find(t_.res_refs.begin() + first, t_.res_refs.end(), r) == t_.res_refs.end())
+          t_.res_refs.push_back(static_cast<uint16_t>(r));
+        break;
+      }
+    }
+  }
+
   void resolve() {
     t_.sensors = declared_sensors_;
     t_.buttons = declared_buttons_;
@@ -911,12 +946,19 @@ class Compiler {
         for (uint16_t a = 0; a < m.aspect_count; a++)
           if (t_.aspects[m.aspect_first + a].name == raw.aspect) rule.aspect = static_cast<int16_t>(a);
       }
-      // The first resource of the name, as in logic.js.
-      for (size_t r = 0; raw.reserve != NONE && r < t_.resources.size(); r++) {
-        if (t_.resources[r].name == raw.reserve) {
-          rule.resource = static_cast<uint16_t>(r);
-          break;
-        }
+      // The first resource of each name, each once, in the order named, as
+      // in logic.js; a name with no resource is left out.
+      rule.res_first = static_cast<uint16_t>(t_.res_refs.size());
+      add_resources(raw.reserve);
+      rule.res_count = static_cast<uint16_t>(t_.res_refs.size() - rule.res_first);
+      // The leaving guard watches the rule's own resources, or those it names.
+      if (!raw.guard_named) {
+        rule.trigger.guard_first = rule.res_first;
+        rule.trigger.guard_count = rule.trigger.leaving_guard ? rule.res_count : 0;
+      } else {
+        rule.trigger.guard_first = static_cast<uint16_t>(t_.res_refs.size());
+        add_resources(raw.guard);
+        rule.trigger.guard_count = static_cast<uint16_t>(t_.res_refs.size() - rule.trigger.guard_first);
       }
       rule.locks_first = static_cast<uint16_t>(t_.locks.size());
       for (uint16_t name : raw.locks) t_.locks.push_back(add_to(&t_.turnouts, name));
@@ -924,7 +966,7 @@ class Compiler {
     }
     const size_t sizes[] = {t_.nodes.size(), t_.names.size(), t_.names.chars.size(), t_.rules.size(), t_.kids.size(),
                             t_.seq.size(), t_.aspects.size(), t_.states.size(), t_.block_refs.size(), t_.members.size(),
-                            t_.locks.size(), t_.remote_items.size(), t_.sensors.size(), t_.turnouts.size(),
+                            t_.locks.size(), t_.res_refs.size(), t_.remote_items.size(), t_.sensors.size(), t_.turnouts.size(),
                             t_.buttons.size(), t_.masts.size(), t_.remote_masts.size(), t_.resources.size(),
                             t_.ends.size(), t_.end_tracks.size(), t_.end_sensors.size()};
     for (size_t n : sizes)
@@ -977,6 +1019,7 @@ bool compile_table(const char *json, Table *out, std::string *error) {
   fit(&t.block_refs);
   fit(&t.members);
   fit(&t.locks);
+  fit(&t.res_refs);
   fit(&t.sensors);
   fit(&t.buttons);
   fit(&t.turnouts);

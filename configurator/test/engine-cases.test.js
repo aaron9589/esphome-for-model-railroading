@@ -192,7 +192,9 @@ function checkBoard(file, data) {
         if (!(then.mast in masts)) fail(where, `sets no mast ${then.mast}`);
         else if (!(then.aspect in masts[then.mast].aspects)) fail(where, `${then.mast} has no aspect ${then.aspect}`);
       }
-      if (then.reserve !== undefined && !resources.has(then.reserve)) fail(where, `reserves ${then.reserve}`);
+      for (const name of [].concat(then.reserve ?? [])) if (!resources.has(name)) fail(where, `reserves ${name}`);
+      const guard = rule.trigger?.leavingGuard;
+      if (Array.isArray(guard)) for (const name of guard) if (!resources.has(name)) fail(where, `leaving guard watches ${name}`);
       for (const t of then.lock || []) if (!turnouts.has(t)) fail(where, `locks ${t}`);
       if (rule.cancel) {
         if (!rule.trigger?.when) fail(where, "CANCEL is only for a when trigger");

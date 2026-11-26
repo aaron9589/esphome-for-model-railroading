@@ -1,0 +1,442 @@
+{
+  "name": "several resources: taken all at once or not at all, the one that waited first goes first, and each passed and freed on its own",
+  "covers": [
+    "several resources: all at once or none, the one that waited first goes first, and each passed and freed on its own"
+  ],
+  "about": "South takes C. North asks for B and C and must wait; West, which asked after North, wants A and B: both are free, but North waited first and needs B, so West waits too. North gets B and C together once C is free. Its train passes B, then C; B is freed on its own, and West gets A and B while North still holds C.",
+  "board": {
+    "sensors": [
+      "W",
+      "N",
+      "S",
+      "A",
+      "B",
+      "C"
+    ],
+    "masts": {
+      "West": {
+        "aspects": {
+          "R292": "stop",
+          "R281": "clear"
+        }
+      },
+      "North": {
+        "aspects": {
+          "R292": "stop",
+          "R281": "clear"
+        }
+      },
+      "South": {
+        "aspects": {
+          "R292": "stop",
+          "R281": "clear"
+        }
+      }
+    },
+    "logic": {
+      "resources": [
+        {
+          "name": "A",
+          "blocks": [
+            "A"
+          ],
+          "release": {
+            "while": {
+              "block": "A",
+              "is": "clear"
+            },
+            "for": "1s"
+          }
+        },
+        {
+          "name": "B",
+          "blocks": [
+            "B"
+          ],
+          "release": {
+            "while": {
+              "block": "B",
+              "is": "clear"
+            },
+            "for": "1s"
+          }
+        },
+        {
+          "name": "C",
+          "blocks": [
+            "C"
+          ],
+          "release": {
+            "while": {
+              "block": "C",
+              "is": "clear"
+            },
+            "for": "1s"
+          }
+        }
+      ],
+      "layers": [
+        {
+          "name": "Moves",
+          "rules": [
+            {
+              "trigger": {
+                "while": {
+                  "block": "W",
+                  "is": "occupied"
+                },
+                "for": "0.5s"
+              },
+              "checks": [],
+              "then": {
+                "mast": "West",
+                "aspect": "R281",
+                "reserve": [
+                  "A",
+                  "B"
+                ]
+              }
+            },
+            {
+              "trigger": {
+                "while": {
+                  "block": "N",
+                  "is": "occupied"
+                },
+                "for": "0.5s"
+              },
+              "checks": [],
+              "then": {
+                "mast": "North",
+                "aspect": "R281",
+                "reserve": [
+                  "B",
+                  "C"
+                ]
+              }
+            },
+            {
+              "trigger": {
+                "while": {
+                  "block": "S",
+                  "is": "occupied"
+                },
+                "for": "0.5s"
+              },
+              "checks": [],
+              "then": {
+                "mast": "South",
+                "aspect": "R281",
+                "reserve": [
+                  "C"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "steps": [
+    {
+      "at": 1,
+      "do": [
+        {
+          "sensor": "S",
+          "is": "occupied"
+        }
+      ]
+    },
+    {
+      "at": 2,
+      "do": [
+        {
+          "sensor": "N",
+          "is": "occupied"
+        }
+      ]
+    },
+    {
+      "at": 3,
+      "do": [
+        {
+          "sensor": "W",
+          "is": "occupied"
+        }
+      ]
+    },
+    {
+      "at": 6,
+      "expect": {
+        "masts": {
+          "South": "R281",
+          "North": "R292",
+          "West": "R292"
+        },
+        "events": [
+          {
+            "grant": "C",
+            "rule": "Moves/3"
+          }
+        ],
+        "resources": {
+          "C": "ACTIVE"
+        }
+      }
+    },
+    {
+      "at": 7,
+      "expect": {
+        "rules": {
+          "Moves/2": "waiting"
+        },
+        "resources": {
+          "B": "IDLE"
+        },
+        "events": []
+      }
+    },
+    {
+      "at": 8,
+      "expect": {
+        "rules": {
+          "Moves/1": "waiting",
+          "Moves/2": "waiting"
+        },
+        "resources": {
+          "A": "IDLE",
+          "B": "IDLE"
+        },
+        "masts": {
+          "West": "R292"
+        },
+        "events": []
+      }
+    },
+    {
+      "at": 10,
+      "do": [
+        {
+          "sensor": "C",
+          "is": "occupied"
+        }
+      ],
+      "expect": {
+        "events": [
+          {
+            "pass": "C",
+            "rule": "Moves/3"
+          }
+        ],
+        "masts": {
+          "South": "R292"
+        },
+        "resources": {
+          "C": "PASSED"
+        }
+      }
+    },
+    {
+      "at": 12,
+      "do": [
+        {
+          "sensor": "S",
+          "is": "clear"
+        }
+      ]
+    },
+    {
+      "at": 15,
+      "do": [
+        {
+          "sensor": "C",
+          "is": "clear"
+        }
+      ]
+    },
+    {
+      "at": 24,
+      "expect": {
+        "resources": {
+          "C": "PASSED"
+        },
+        "holders": {
+          "C": "Moves/3"
+        }
+      }
+    },
+    {
+      "at": 25,
+      "expect": {
+        "events": [
+          {
+            "release": "C",
+            "by": "release"
+          },
+          {
+            "grant": "B",
+            "rule": "Moves/2"
+          },
+          {
+            "grant": "C",
+            "rule": "Moves/2"
+          }
+        ],
+        "masts": {
+          "North": "R281",
+          "West": "R292"
+        },
+        "holders": {
+          "A": null,
+          "B": "Moves/2",
+          "C": "Moves/2"
+        },
+        "rules": {
+          "Moves/1": "waiting",
+          "Moves/2": "active",
+          "Moves/3": "idle"
+        }
+      }
+    },
+    {
+      "at": 30,
+      "do": [
+        {
+          "sensor": "B",
+          "is": "occupied"
+        }
+      ],
+      "expect": {
+        "events": [
+          {
+            "pass": "B",
+            "rule": "Moves/2"
+          }
+        ],
+        "masts": {
+          "North": "R292"
+        },
+        "resources": {
+          "B": "PASSED",
+          "C": "ACTIVE"
+        },
+        "rules": {
+          "Moves/2": "passed"
+        }
+      }
+    },
+    {
+      "at": 33,
+      "do": [
+        {
+          "sensor": "C",
+          "is": "occupied"
+        }
+      ],
+      "expect": {
+        "events": [
+          {
+            "pass": "C",
+            "rule": "Moves/2"
+          }
+        ],
+        "resources": {
+          "B": "PASSED",
+          "C": "PASSED"
+        }
+      }
+    },
+    {
+      "at": 35,
+      "do": [
+        {
+          "sensor": "N",
+          "is": "clear"
+        }
+      ]
+    },
+    {
+      "at": 36,
+      "do": [
+        {
+          "sensor": "B",
+          "is": "clear"
+        }
+      ]
+    },
+    {
+      "at": 45,
+      "expect": {
+        "holders": {
+          "A": null,
+          "B": "Moves/2"
+        },
+        "masts": {
+          "West": "R292"
+        }
+      }
+    },
+    {
+      "at": 46,
+      "expect": {
+        "events": [
+          {
+            "release": "B",
+            "by": "release"
+          },
+          {
+            "grant": "A",
+            "rule": "Moves/1"
+          },
+          {
+            "grant": "B",
+            "rule": "Moves/1"
+          }
+        ],
+        "masts": {
+          "West": "R281"
+        },
+        "holders": {
+          "A": "Moves/1",
+          "B": "Moves/1",
+          "C": "Moves/2"
+        },
+        "resources": {
+          "A": "ACTIVE",
+          "B": "ACTIVE",
+          "C": "PASSED"
+        }
+      }
+    },
+    {
+      "at": 50,
+      "do": [
+        {
+          "sensor": "C",
+          "is": "clear"
+        }
+      ]
+    },
+    {
+      "at": 60,
+      "expect": {
+        "events": [
+          {
+            "release": "C",
+            "by": "release"
+          }
+        ],
+        "holders": {
+          "C": null
+        },
+        "rules": {
+          "Moves/2": "idle",
+          "Moves/1": "active"
+        },
+        "resources": {
+          "C": "IDLE"
+        }
+      }
+    }
+  ]
+}

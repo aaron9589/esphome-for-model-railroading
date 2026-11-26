@@ -52,7 +52,7 @@ size_t Table::bytes() const {
   size_t n = names.chars.capacity() + vec_bytes(names.starts) + vec_bytes(nodes) + vec_bytes(kids) + vec_bytes(seq) + vec_bytes(aspects) +
              vec_bytes(states) + vec_bytes(block_refs) + vec_bytes(members) + vec_bytes(locks) + vec_bytes(sensors) +
              vec_bytes(buttons) + vec_bytes(turnouts) + vec_bytes(masts) + vec_bytes(remote_boards) +
-             vec_bytes(remote_masts) + vec_bytes(remote_items) + vec_bytes(blocks) + vec_bytes(resources) +
+             vec_bytes(remote_masts) + vec_bytes(remote_items) + vec_bytes(blocks) + vec_bytes(resources) + vec_bytes(res_refs) +
              vec_bytes(rules) + vec_bytes(layers) + vec_bytes(ends) + vec_bytes(end_tracks) + vec_bytes(end_sensors);
   for (const auto &s : states) n += s.text.capacity() > 15 ? s.text.capacity() + 1 : 0;
   return n;
@@ -66,7 +66,7 @@ Engine::Engine(const Table &table, const Start &start) : t_(table) {
   res_.resize(resources);
   res_rules_.resize(resources);
   for (size_t r = 0; r < rules; r++)
-    if (t_.rules[r].resource != NONE) res_rules_[t_.rules[r].resource].push_back(static_cast<uint16_t>(r));
+    for (uint16_t k = 0; k < t_.rules[r].res_count; k++) res_rules_[res_of(static_cast<uint16_t>(r), k)].push_back(static_cast<uint16_t>(r));
   field_.assign(masts, false);
   for (const auto &rule : t_.rules)
     if (rule.mast != NONE) field_[rule.mast] = true;
@@ -670,6 +670,13 @@ void Engine::reset_release(uint16_t i) {
 
 bool Engine::held(uint16_t i) const { return res_[i].holder != NONE || res_[i].startup_held; }
 
+// A rule that no longer holds any of its resources is idle again.
+bool Engine::holds_any(uint16_t r) const {
+  for (uint16_t k = 0; k < t_.rules[r].res_count; k++)
+    if (res_[res_of(r, k)].holder == r) return true;
+  return false;
+}
+
 void Engine::eval_trigger(uint16_t r, const Ctx &ctx) {
   const Rule &rule = t_.rules[r];
   RuleState &rs = rules_[r];
@@ -679,17 +686,19 @@ void Engine::eval_trigger(uint16_t r, const Ctx &ctx) {
   if (t.when) {
     if (advance(t.seq_first, t.seq_count, &st.seq_p)) {
       st.request = true;
-      if (rule.resource == NONE) st.fired = true;
+      if (rule.res_count == 0) st.fired = true;
     }
-    is_true = rule.resource != NONE ? st.request : st.fired;
+    is_true = rule.res_count > 0 ? st.request : st.fired;
     st.fired = false;
   } else {
     bool raw = t.present && t.cond != NONE && condition(t.cond);
     if (t.leaving_guard) {
       if (!raw)
         st.guard = false;
-      else if (!ctx.startup && st.prev_raw == 0 && rule.resource != NONE && ctx.held_at_start[rule.resource])
-        st.guard = true;
+      else if (!ctx.startup && st.prev_raw == 0) {
+        for (uint16_t k = 0; k < t.guard_count; k++)
+          if (ctx.held_at_start[t_.res_refs[t.guard_first + k]]) st.guard = true;
+      }
     }
     st.prev_raw = raw ? 1 : 0;
     if (raw) {
@@ -734,10 +743,10 @@ void Engine::eval_release(uint16_t i) {
 
 void Engine::free_res(uint16_t i) {
   ResState &res = res_[i];
-  if (res.holder != NONE) {
-    rules_[res.holder].phase = IDLE;
-    res.holder = NONE;
-  }
+  const uint16_t holder = res.holder;
+  res.holder = NONE;
+  res.passed = false;
+  if (holder != NONE && !holds_any(holder)) rules_[holder].phase = IDLE;
   res.startup_held = false;
   res.rel_seq_p = 0;
   res.rel_done = false;
@@ -767,22 +776,20 @@ bool Engine::mast_held(uint16_t r) const {
 }
 
 bool Engine::is_active(uint16_t r) const {
-  return t_.rules[r].resource != NONE ? rules_[r].phase == ACTIVE : (rules_[r].true_now && rules_[r].checks_now);
+  return t_.rules[r].res_count > 0 ? rules_[r].phase == ACTIVE : (rules_[r].true_now && rules_[r].checks_now);
 }
 
 bool Engine::locks_held(uint16_t r) const {
-  return t_.rules[r].resource != NONE ? rules_[r].phase != IDLE : (rules_[r].true_now && rules_[r].checks_now);
+  return t_.rules[r].res_count > 0 ? rules_[r].phase != IDLE : (rules_[r].true_now && rules_[r].checks_now);
 }
 
+// A held resource is PASSED once its train has entered it; until then it is
+// CANCELLING while its rule is, and otherwise ACTIVE.
 const char *Engine::resource_state(uint16_t i) const {
   if (res_[i].startup_held) return "PASSED";
   if (res_[i].holder == NONE) return "IDLE";
-  switch (rules_[res_[i].holder].phase) {
-    case ACTIVE: return "ACTIVE";
-    case PASSED: return "PASSED";
-    case CANCELLING: return "CANCELLING";
-    default: return "IDLE";
-  }
+  if (res_[i].passed) return "PASSED";
+  return rules_[res_[i].holder].phase == CANCELLING ? "CANCELLING" : "ACTIVE";
 }
 
 // --- writes and publishes (rules 21, 22) ----------------------------------
@@ -922,7 +929,11 @@ ScanOut Engine::scan() {
         continue;
       }
       out.events.push_back(LogEvent{LogEvent::RELEASE, name, "", "manual"});
+      // Its rule's mast goes to Stop; any other resources it holds stay held
+      // until its train has passed through them.
+      const uint16_t holder = res_[i].holder;
       free_res(static_cast<uint16_t>(i));
+      if (holder != NONE && rules_[holder].phase != IDLE) rules_[holder].phase = PASSED;
       released_now[i] = true;
       for (uint16_t r : res_rules_[i]) {
         uint16_t m = t_.rules[r].mast;
@@ -947,10 +958,7 @@ ScanOut Engine::scan() {
     eval_trigger(r, ctx);
     const Rule &rule = t_.rules[r];
     RuleState &rs = rules_[r];
-    if (rule.resource == NONE) continue;
-    const uint16_t i = rule.resource;
-    if (res_[i].holder != r) continue;
-    const std::string &name = t_.names[t_.resources[i].name];
+    if (rule.res_count == 0 || rs.phase == IDLE) continue;
     if (rs.phase == ACTIVE) {
       bool cancel = false;
       if (rule.trigger.when) {
@@ -966,55 +974,85 @@ ScanOut Engine::scan() {
         if (rule.trigger.when) rs.trig.request = true;
       }
       if (cancel) {
-        out.events.push_back(LogEvent{LogEvent::CANCEL, name, t_.rule_ref(r), ""});
-        if (t_.resources[i].approach_lock_ms > 0) {
-          rs.phase = CANCELLING;
-          rs.cancel_at = n_;
-        } else {
+        // Each resource: held for its approach locking time, or freed now.
+        rs.phase = CANCELLING;
+        rs.cancel_at = n_;
+        for (uint16_t k = 0; k < rule.res_count; k++) {
+          const uint16_t i = res_of(r, k);
+          if (res_[i].holder != r) continue;
+          const std::string &name = t_.names[t_.resources[i].name];
+          out.events.push_back(LogEvent{LogEvent::CANCEL, name, t_.rule_ref(r), ""});
+          if (t_.resources[i].approach_lock_ms > 0) continue;
           out.events.push_back(LogEvent{LogEvent::RELEASE, name, "", "cancel"});
           free_res(i);
-          continue;
         }
+        if (rs.phase == IDLE) continue;
       }
     }
-    if ((rs.phase == ACTIVE || rs.phase == CANCELLING) && block_occupied_or_went(i)) {
+    // Passed: the train has entered a resource; the mast goes back to Stop.
+    for (uint16_t k = 0; k < rule.res_count; k++) {
+      const uint16_t i = res_of(r, k);
+      if (res_[i].holder != r || res_[i].passed || !block_occupied_or_went(i)) continue;
+      res_[i].passed = true;
       rs.phase = PASSED;
-      out.events.push_back(LogEvent{LogEvent::PASS, name, t_.rule_ref(r), ""});
+      out.events.push_back(LogEvent{LogEvent::PASS, t_.names[t_.resources[i].name], t_.rule_ref(r), ""});
     }
-    if (rs.phase == CANCELLING && (n_ - rs.cancel_at) * SCAN_MS >= t_.resources[i].approach_lock_ms) {
-      out.events.push_back(LogEvent{LogEvent::RELEASE, name, "", "time"});
-      free_res(i);
+    if (rs.phase == CANCELLING) {
+      for (uint16_t k = 0; k < rule.res_count; k++) {
+        const uint16_t i = res_of(r, k);
+        if (res_[i].holder != r || (n_ - rs.cancel_at) * SCAN_MS < t_.resources[i].approach_lock_ms) continue;
+        out.events.push_back(LogEvent{LogEvent::RELEASE, t_.names[t_.resources[i].name], "", "time"});
+        free_res(i);
+      }
       continue;
     }
-    if (rs.phase == PASSED && res_[i].release_now) {
-      out.events.push_back(LogEvent{LogEvent::RELEASE, name, "", "release"});
+    if (rs.phase != PASSED) continue;
+    for (uint16_t k = 0; k < rule.res_count; k++) {
+      const uint16_t i = res_of(r, k);
+      if (res_[i].holder != r || !res_[i].passed || !res_[i].release_now) continue;
+      out.events.push_back(LogEvent{LogEvent::RELEASE, t_.names[t_.resources[i].name], "", "release"});
       free_res(i);
     }
   }
 
-  // 6.3: grants, longest waiting first, then list order.
-  for (size_t ii = 0; ii < t_.resources.size(); ii++) {
-    const uint16_t i = static_cast<uint16_t>(ii);
-    if (held(i) || released_now[i] || !blocks_clear(i)) continue;
-    uint16_t best = NONE;
-    for (uint16_t r : res_rules_[i]) {
-      const RuleState &rs = rules_[r];
-      if (rs.phase != IDLE || !rs.true_now || !rs.checks_now || mast_held(r)) continue;
-      if (best == NONE || rs.trig.since < rules_[best].trig.since || (rs.trig.since == rules_[best].trig.since && r < best))
-        best = r;
+  // 6.3: grants, longest waiting first, then list order. A rule takes all of
+  // its resources at once or none of them, and each resource it waits for is
+  // kept from the rules that started waiting after it.
+  std::vector<uint16_t> asking;
+  for (size_t ri = 0; ri < t_.rules.size(); ri++) {
+    const uint16_t r = static_cast<uint16_t>(ri);
+    const RuleState &rs = rules_[r];
+    if (t_.rules[r].res_count > 0 && rs.phase == IDLE && rs.true_now && rs.checks_now && !mast_held(r)) asking.push_back(r);
+  }
+  std::stable_sort(asking.begin(), asking.end(), [this](uint16_t a, uint16_t b) { return rules_[a].trig.since < rules_[b].trig.since; });
+  std::vector<bool> claimed(t_.resources.size(), false);
+  std::vector<uint16_t> granted(t_.resources.size(), NONE);
+  for (uint16_t r : asking) {
+    const Rule &rule = t_.rules[r];
+    bool ok = true;
+    for (uint16_t k = 0; k < rule.res_count; k++) {
+      const uint16_t i = res_of(r, k);
+      if (claimed[i] || held(i) || released_now[i] || !blocks_clear(i)) ok = false;
     }
-    if (best == NONE) continue;
-    RuleState &rs = rules_[best];
+    for (uint16_t k = 0; k < rule.res_count; k++) claimed[res_of(r, k)] = true;
+    if (!ok) continue;
+    RuleState &rs = rules_[r];
     rs.phase = ACTIVE;
-    res_[i].holder = best;
-    res_[i].rel_seq_p = 0;
-    res_[i].rel_done = false;
-    if (t_.rules[best].trigger.when) {
+    for (uint16_t k = 0; k < rule.res_count; k++) {
+      const uint16_t i = res_of(r, k);
+      res_[i].holder = r;
+      res_[i].passed = false;
+      res_[i].rel_seq_p = 0;
+      res_[i].rel_done = false;
+      granted[i] = r;
+    }
+    if (rule.trigger.when) {
       rs.trig.request = false;
       rs.trig.since = -1;
     }
-    out.events.push_back(LogEvent{LogEvent::GRANT, t_.names[t_.resources[i].name], t_.rule_ref(best), ""});
   }
+  for (size_t i = 0; i < t_.resources.size(); i++)
+    if (granted[i] != NONE) out.events.push_back(LogEvent{LogEvent::GRANT, t_.names[t_.resources[i].name], t_.rule_ref(granted[i]), ""});
 
   // 6.4: who wins each mast (rule 12), approach lighting, then the locks.
   std::vector<int16_t> new_out(t_.masts.size(), SHOWS_NOTHING);
@@ -1201,7 +1239,7 @@ State Engine::state() const {
         case PASSED: phase = "passed"; break;
         case CANCELLING: phase = "cancelling"; break;
         default:
-          phase = (t_.rules[r].resource != NONE && rules_[r].true_now && rules_[r].checks_now) ? "waiting" : "idle";
+          phase = (t_.rules[r].res_count > 0 && rules_[r].true_now && rules_[r].checks_now) ? "waiting" : "idle";
       }
     }
     s.rules.emplace_back(t_.rule_ref(static_cast<uint16_t>(r)), phase);
