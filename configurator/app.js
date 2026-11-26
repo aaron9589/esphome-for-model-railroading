@@ -92,7 +92,8 @@ const el = {
   boardIdentity: document.getElementById("board-identity"),
   boardNetwork: document.getElementById("board-network"),
   hotspotFields: document.getElementById("hotspot-fields"),
-  driverFields: document.getElementById("driver-fields"),
+  pointsBudget: document.getElementById("points-budget"),
+  signalsBudget: document.getElementById("signals-budget"),
   addPoint: document.getElementById("btn-add-point"),
   directPwmNote: document.getElementById("direct-pwm-note"),
   blocksList: document.getElementById("blocks-list"),
@@ -1066,23 +1067,6 @@ function renderBoard() {
   }));
 }
 
-function renderDriver() {
-  el.driverFields.replaceChildren(
-    field("Use PCA9685 boards", usesPca(), (checked) => {
-      state.pca9685 = checked;
-      if (!checked) {
-        for (const point of state.points) {
-          if (!point.servoPin) point.servoPin = nextServoPin();
-        }
-      }
-      persist();
-      render();
-    }, {
-      checkbox: true,
-      hint: "Off, each servo connects to an ESP pin with PWM and takes power from the board.",
-    })
-  );
-}
 
 // Sensors on ESP pins (or no pin yet). Sensors on an expander sit under it.
 function renderBlocks() {
@@ -1403,17 +1387,44 @@ function renderExpanders() {
   el.expandersList.append(row);
 }
 
+const plural = (n, word, many = `${word}s`) => `${n} ${n === 1 ? word : many}`;
+
+// The line under each page's heading: how many there are, and what is free.
 function renderPinBudget() {
   const free = freeSensorPins();
-  const hasExpander = (state.expanders || []).length > 0;
-  el.pinBudget.classList.toggle("is-out", free === 0 && !hasExpander);
+  const expanders = state.expanders || [];
+  const onExpanders = state.blocks.filter((block) => block.expander).length;
+  const count = plural(state.blocks.length, "sensor") + (onExpanders ? `, ${onExpanders} on ${plural(expanders.length, "expander")}` : "");
+  el.pinBudget.classList.toggle("is-out", free === 0 && !expanders.length);
   if (free > 0) {
-    el.pinBudget.textContent = `${free} ESP pin${free === 1 ? "" : "s"} free for sensors.`;
-  } else if (hasExpander) {
-    el.pinBudget.textContent = "No ESP pins free. New sensors go on expander pins.";
+    el.pinBudget.textContent = `${count}. ${plural(free, "ESP pin")} free for sensors.`;
+  } else if (expanders.length) {
+    el.pinBudget.textContent = `${count}. No ESP pins free: new sensors go on expander pins.`;
   } else {
-    el.pinBudget.textContent = "No ESP pins free for sensors. Add an expander (MCP23017) below for 16 more.";
+    el.pinBudget.textContent = `${count}. No ESP pins free for sensors. Add an expander (MCP23017) below for 16 more.`;
   }
+}
+
+function renderPointsBudget() {
+  const count = plural(state.points.length, "turnout");
+  if (usesPca()) {
+    const boards = state.pcaBoards.length;
+    const free = boards * 16 - state.points.length;
+    el.pointsBudget.classList.toggle("is-out", free <= 0);
+    el.pointsBudget.textContent = `${count} on ${plural(boards, "PCA9685 board")}. ${free > 0 ? plural(free, "channel") : "No channels"} free.`;
+  } else {
+    const free = safeOutputPins();
+    el.pointsBudget.classList.toggle("is-out", free === 0);
+    el.pointsBudget.textContent = `${count} on ESP pins. ${plural(free, "ESP pin")} free for servos.`;
+  }
+}
+
+function renderSignalsBudget() {
+  const masts = state.signals.masts;
+  const lamps = masts.reduce((n, mast) => n + (mast.lamps || []).length, 0);
+  const free = safeOutputPins();
+  el.signalsBudget.classList.toggle("is-out", free === 0);
+  el.signalsBudget.textContent = `${plural(masts.length, "signal mast")}, ${plural(lamps, "lamp")}. ${plural(free, "ESP pin")} free for signals.`;
 }
 
 function renderPoints() {
@@ -1431,17 +1442,36 @@ function renderPoints() {
   // under it in the PCA9685 section, as expanders' sensors do.
   el.pointsList.replaceChildren();
   el.pcaList.replaceChildren();
-  if (!usesPca()) {
-    state.points.forEach((point, index) => el.pointsList.append(renderPointCard(point, index)));
-    return;
-  }
-  state.pcaBoards.forEach((pcaBoard, b) => el.pcaList.append(renderPcaBoard(pcaBoard, b)));
-  const add = document.createElement("button");
-  add.type = "button";
-  add.textContent = "Add PCA9685";
   // Expanders on their own pins take an I2C bus too.
   const expanderBuses = i2cBuses(state).filter((bus) => bus.pca === null).length;
   const busLimit = i2cBusLimit(state.board.module);
+  const add = document.createElement("button");
+  add.type = "button";
+  add.textContent = "Add PCA9685";
+  if (!usesPca()) {
+    state.points.forEach((point, index) => el.pointsList.append(renderPointCard(point, index)));
+    // The first PCA9685: the turnouts above move onto it.
+    add.disabled = expanderBuses >= busLimit;
+    add.addEventListener("click", () => {
+      if (!state.pcaBoards.length) state.pcaBoards.push({ sda: "GPIO21", scl: "GPIO22" });
+      state.pca9685 = true;
+      for (const point of state.points) {
+        point.pcaBoard = 0;
+        point.channel = nextChannel(0, point);
+      }
+      persist();
+      render();
+      if (state.points.length) flash("ok", `Added PCA9685 1. ${plural(state.points.length, "turnout")} moved onto it: check each one's channel.`);
+    });
+    const firstRow = document.createElement("div");
+    firstRow.className = "add-board";
+    firstRow.append(add, hintEl(state.points.length
+      ? "The turnouts above move onto it, each on its own channel."
+      : "Up to 16 servos on each board."));
+    el.pcaList.append(firstRow);
+    return;
+  }
+  state.pcaBoards.forEach((pcaBoard, b) => el.pcaList.append(renderPcaBoard(pcaBoard, b)));
   add.disabled = state.pcaBoards.length >= MAX_PCA_BOARDS || state.pcaBoards.length + expanderBuses >= busLimit;
   add.addEventListener("click", () => {
     const pcaBoard = { sda: nextServoPin(), scl: "" };
@@ -1471,39 +1501,51 @@ function renderPcaBoard(pcaBoard, b) {
   card.className = "card servo-board";
   const turnouts = state.points.filter((point) => (point.pcaBoard || 0) === b).length;
   const { header } = foldHeader(card, `pca:${b}`, `PCA9685 ${b + 1}`, `${turnouts} turnout${turnouts === 1 ? "" : "s"}`);
-  if (b > 0) {
-    const remove = document.createElement("button");
-    remove.type = "button";
-    remove.className = "remove";
-    remove.textContent = "Remove board";
-    remove.addEventListener("click", () => {
-      // Its points move to PCA9685 1 rather than being deleted.
-      for (const point of state.points) {
-        const on = point.pcaBoard || 0;
-        if (on === b) {
-          point.pcaBoard = 0;
-          point.channel = nextChannel(0, point);
-        } else if (on > b) {
-          point.pcaBoard = on - 1;
-        }
-      }
-      // Expanders on its bus keep the same pins, now as their own.
-      for (const expander of state.expanders || []) {
-        if (expander.bus === b + 1) {
-          delete expander.bus;
-          expander.sda = String(pcaBoard.sda || "").toUpperCase();
-          expander.scl = String(pcaBoard.scl || "").toUpperCase();
-        } else if (expander.bus > b + 1) {
-          expander.bus -= 1;
-        }
-      }
-      state.pcaBoards.splice(b, 1);
-      unfoldFrom("pca", b);
+  // Remove board, on every board as on every expander. The last one takes the
+  // board back to servos on ESP pins.
+  const remove = document.createElement("button");
+  remove.type = "button";
+  remove.className = "remove";
+  remove.textContent = "Remove board";
+  remove.addEventListener("click", () => {
+    if (state.pcaBoards.length === 1) {
+      // Its pins are kept for a PCA9685 added later; expanders on them keep them too.
+      state.pca9685 = false;
+      for (const point of state.points) if (!point.servoPin) point.servoPin = nextServoPin();
+      unfoldFrom("pca", 0);
       persist();
       render();
-    });
-    header.append(remove);
-  }
+      if (state.points.length) flash("ok", `Removed PCA9685 1. ${plural(state.points.length, "turnout")} moved to ESP pins: check each one's servo pin.`);
+      return;
+    }
+    // Its turnouts move to the first board left rather than being deleted.
+    const moved = [];
+    for (const point of state.points) {
+      const on = point.pcaBoard || 0;
+      if (on === b) moved.push(point);
+      else if (on > b) point.pcaBoard = on - 1;
+    }
+    // Expanders on its bus keep the same pins, now as their own.
+    for (const expander of state.expanders || []) {
+      if (expander.bus === b + 1) {
+        delete expander.bus;
+        expander.sda = String(pcaBoard.sda || "").toUpperCase();
+        expander.scl = String(pcaBoard.scl || "").toUpperCase();
+      } else if (expander.bus > b + 1) {
+        expander.bus -= 1;
+      }
+    }
+    state.pcaBoards.splice(b, 1);
+    for (const point of moved) {
+      point.pcaBoard = 0;
+      point.channel = nextChannel(0, point);
+    }
+    unfoldFrom("pca", b);
+    persist();
+    render();
+    if (moved.length) flash("ok", `Removed PCA9685 ${b + 1}. Its ${plural(moved.length, "turnout")} moved to PCA9685 1: check each one's channel.`);
+  });
+  header.append(remove);
 
   const fields = document.createElement("div");
   fields.className = "fields";
@@ -2623,10 +2665,11 @@ function renderLogic() {
 
 function render() {
   renderBoard();
-  renderDriver();
   renderBlocks();
   renderExpanders();
   renderPinBudget();
+  renderPointsBudget();
+  renderSignalsBudget();
   renderPoints();
   renderSignals();
   renderLogic();
