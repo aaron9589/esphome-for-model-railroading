@@ -16,6 +16,9 @@
 //     `where` is { view: "logic", part: PART } plus { at: [x, y] } or
 //     { mast } or { block } or { section }.
 //   trace(config) -> the plan worked out: regions, routes (for the editor)
+//   look(config) -> for the editor: { problems, sections: [{ name, blocks,
+//     entrances: [{ mast, waiting }] }] }. A warning about two signals that
+//     can meet carries `where.blocks`: the blocks to take one train at a time.
 //
 // Nothing built is stored. Plain JS with no DOM; it needs generator.js,
 // logic-yaml.js, logic-starters*.js and mss-builder.js loaded first.
@@ -567,6 +570,7 @@
 
     // One train at a time.
     const covered = []; // { regions: Set, entrances: Set }
+    const seenSections = []; // for the editor
     const sectionNames = new Set(list(logic.resources).filter(isObject).map((res) => String(res.name ?? "")));
     const claimed = new Map(); // block -> section
     for (const def of list(plan.sections).filter(isObject)) {
@@ -601,6 +605,11 @@
         error(TEXT.sectionNoEntrance(name), where);
         continue;
       }
+      seenSections.push({
+        name,
+        blocks: inside.map((b) => b.name),
+        entrances: entrances.map((s) => ({ mast: s.mast, waiting: detected(s.behind) ? regionBlock.get(s.behind).name : "" })),
+      });
       const rules = [];
       for (const signal of entrances) {
         if (!detected(signal.behind)) {
@@ -648,24 +657,38 @@
     // Two signals that can put trains on the same track at once: meeting
     // head-on, or crossing, with no section to take.
     const nodesOf = (route) => route.edges.map((edge) => edge.split(">"));
+    // The pieces of the first route where the two would meet.
     const clash = (a, b) => {
+      const at = [];
       for (const [p, q] of nodesOf(a)) {
         for (const [r, s] of nodesOf(b)) {
-          if (p === s && q === r) return true;
+          if (p === s && q === r) at.push(edgeKey(p, q));
           // The same crossing, by different lines.
-          if (q === s && points.get(q)?.kind === "crossing" && p !== r && angle(q, p, r) !== 180) return true;
+          else if (q === s && points.get(q)?.kind === "crossing" && p !== r && angle(q, p, r) !== 180) at.push(edgeKey(p, q));
         }
       }
-      return false;
+      return at;
     };
     signals.forEach((a, i) => {
       for (const b of signals.slice(i + 1)) {
-        const open = a.routes.some((ra) => b.routes.some((rb) => {
-          // Safe when both ways must take the same section.
-          const takes = (route, c) => route.regions.some((id) => c.regions.has(id));
-          return clash(ra, rb) && !covered.some((c) => c.entrances.has(a) && c.entrances.has(b) && takes(ra, c) && takes(rb, c));
-        }));
-        if (open) warn(TEXT.headOn(a.mast, b.mast), { mast: a.mast });
+        let open = false;
+        // Where they meet: a train can only be kept out of track it does not
+        // wait in, and only seen on track with a sensor of its own.
+        const meet = new Set();
+        for (const ra of a.routes) {
+          for (const rb of b.routes) {
+            const at = clash(ra, rb);
+            // Safe when both ways must take the same section.
+            const takes = (route, c) => route.regions.some((id) => c.regions.has(id));
+            if (!at.length || covered.some((c) => c.entrances.has(a) && c.entrances.has(b) && takes(ra, c) && takes(rb, c))) continue;
+            open = true;
+            for (const edge of at) {
+              const id = model.region.get(edge);
+              if (id !== a.behind && id !== b.behind && detected(id)) meet.add(regionBlock.get(id).name);
+            }
+          }
+        }
+        if (open) warn(TEXT.headOn(a.mast, b.mast), { mast: a.mast, blocks: [...meet] });
       }
     });
 
@@ -679,7 +702,7 @@
     // Each message once.
     const seen = new Set();
     const problems = model.found.filter((p) => !seen.has(p.text) && seen.add(p.text));
-    return { items: { blocks: built, masts, layers, resources, origins }, problems };
+    return { items: { blocks: built, masts, layers, resources, origins }, problems, sections: seenSections };
   }
 
   /** The built items, from the plan. `config` is not changed. */
@@ -688,5 +711,11 @@
   /** The plan's own problems. */
   const problems = (config) => work(config).problems;
 
-  global.EsphomeMrPlanBuilder = { TEXT, PART, planOf, trace, build, problems };
+  /** What the editor shows beside the drawing. */
+  function look(config) {
+    const done = work(config);
+    return { problems: done.problems, sections: done.sections };
+  }
+
+  global.EsphomeMrPlanBuilder = { TEXT, PART, planOf, trace, build, problems, look };
 })(typeof globalThis !== "undefined" ? globalThis : window);
