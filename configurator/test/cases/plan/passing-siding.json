@@ -1,9 +1,10 @@
 {
   "name": "track plan: a passing siding with a single line to the east",
   "covers": [
-    "Track plan: a passing siding, one train at a time on the single line, with the leaving guard"
+    "Track plan: a passing siding, one train at a time on the single line, with the leaving guard",
+    "Track plan: turnouts lock as a train approaches a cleared signal, and free once it has passed"
   ],
-  "about": "A westbound train takes the single line into the loop. Arriving there, it is not taken for one asking to go back east. Once it has left, an eastbound train gets the line.",
+  "about": "A westbound train takes the single line into the loop. Arriving there, it is not taken for one asking to go back east. Once it has left, an eastbound train gets the line. The loop's two roads, its west points and the single line are each one train at a time, so two trains can meet in the loop. A turnout is locked from the scan after its signal clears for a waiting train (rules read the signals as the last scan left them), and freed once the train has gone over it. Main West leads into the west points, so it stays at Stop until a train waits at it; East Home, whose next signal it is, shows Approach. With the train on the single line, short of the east points, those points are locked.",
   "module": {
     "sensors": [
       "West line current",
@@ -339,6 +340,24 @@
           "blocks": [
             "Single"
           ]
+        },
+        {
+          "name": "West points",
+          "blocks": [
+            "West points"
+          ]
+        },
+        {
+          "name": "Main loop",
+          "blocks": [
+            "Main loop"
+          ]
+        },
+        {
+          "name": "Siding",
+          "blocks": [
+            "Siding"
+          ]
         }
       ]
     }
@@ -350,7 +369,7 @@
         "masts": {
           "East Home": "R292",
           "Main East": "R292",
-          "Main West": "R285",
+          "Main West": "R292",
           "East Advance": "R285"
         }
       }
@@ -368,12 +387,20 @@
       "at": 10,
       "expect": {
         "masts": {
-          "East Home": "R281",
+          "East Home": "R285",
           "Main East": "R292"
         },
         "holders": {
           "Single line": "Single line entrances/3"
         },
+        "locks": {
+          "PE": false
+        }
+      }
+    },
+    {
+      "at": 11,
+      "expect": {
         "locks": {
           "PE": true
         }
@@ -393,6 +420,14 @@
         },
         "resources": {
           "Single line": "PASSED"
+        }
+      }
+    },
+    {
+      "at": 22,
+      "expect": {
+        "locks": {
+          "PE": true
         }
       }
     },
@@ -487,6 +522,14 @@
         "holders": {
           "Single line": "Single line entrances/1"
         },
+        "locks": {
+          "PE": false
+        }
+      }
+    },
+    {
+      "at": 96,
+      "expect": {
         "locks": {
           "PE": true
         }

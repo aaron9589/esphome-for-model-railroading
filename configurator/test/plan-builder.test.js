@@ -135,11 +135,74 @@ test("a file of the wrong shape is reported, not thrown", () => {
   }
 });
 
-test("a crossing or a single line with no section is warned about; with one, it is not", () => {
+test("a crossing or a single line with no section is an error; with one, it is not", () => {
   const words = B.TEXT.headOn("West signal", "North signal");
-  has(broken("diamond", (p) => { p.sections = []; }), "warning", words);
-  assert.ok(!texts(of("diamond"), "warning").includes(words));
-  assert.ok(!texts(of("passing-siding"), "warning").includes(B.TEXT.headOn("Main East", "East Home")));
+  has(broken("diamond", (p) => { p.sections = []; }), "error", words);
+  assert.ok(!texts(of("diamond"), "error").includes(words));
+  // A passing loop needs each road, its points and the single line: the
+  // error offers one at a time, and the loop's roads are separate.
+  const loop = broken("passing-siding", (p) => { p.sections = p.sections.slice(0, 1); });
+  has(loop, "error", B.TEXT.headOn("West Home", "East Home"));
+  const offered = plain(B.problems(loop)).filter((p) => p.where.blocks).map((p) => p.where.blocks);
+  assert.deepEqual(offered, [["West points"], ["West points"], ["Main loop"]]);
+});
+
+// Two one-way tracks joining with no turnout, a signal on each: nothing but a
+// section stops both clearing at once.
+const merge = (change = () => {}) => {
+  const config = of("gauntlet");
+  config.logic.plan = {
+    track: [[[0, 0], [3, 0]], [[3, 0], [4, 1]], [[0, 2], [3, 2]], [[3, 2], [4, 1]], [[4, 1], [8, 1]]],
+    points: [{ at: [4, 1], turnout: null }],
+    arrows: [{ from: [0, 0], to: [1, 0] }, { from: [0, 2], to: [1, 2] }, { from: [5, 1], to: [6, 1] }],
+    breaks: [{ at: [2, 0], signals: [{ mast: "Left Bridge", facing: [3, 0] }] }, { at: [2, 2], signals: [{ mast: "Right Bridge", facing: [3, 2] }] }],
+    blocks: [{ name: "Left", at: [[0, 0], [1, 0]], sensors: ["Left current"] }, { name: "Right", at: [[0, 2], [1, 2]], sensors: ["Right current"] },
+      { name: "Bridge", at: [[5, 1], [6, 1]], sensors: ["Bridge current"] }],
+    ends: [{ at: [8, 1], beyond: "plain" }],
+  };
+  change(config.logic.plan, config);
+  return config;
+};
+
+test("fail safe: two tracks that join with no turnout cannot both clear onto it", () => {
+  const words = B.TEXT.headOn("Left Bridge", "Right Bridge");
+  has(merge(), "error", words);
+  assert.deepEqual(plain(B.problems(merge()).find((p) => p.text === words).where.blocks), ["Bridge"]);
+  assert.ok(!texts(merge((p) => { p.sections = [{ name: "Bridge section", blocks: ["Bridge"] }]; }), "error").includes(words));
+  // Through a turnout they cannot both be set.
+  const turnout = merge((p, config) => { config.points = [{ name: "P1" }]; p.points = [{ at: [4, 1], turnout: "P1", straight: [3, 0] }]; });
+  assert.deepEqual(texts(turnout, "error"), []);
+  // With no sensor where they meet, the page says to add one.
+  has(merge((p) => { p.blocks.pop(); }), "error", B.TEXT.headOnNoSensor("Left Bridge", "Right Bridge"));
+});
+
+test("fail safe: turnouts lock as a train comes up to a cleared signal, past it, and over them; sections do not hold them", () => {
+  const built = plain(B.build(of("passing-siding")));
+  const locks = built.layers.find((g) => g.name === "Turnout locks").rules;
+  const has1 = (block, checks, turnout) => locks.some((r) => r.trigger.while.block === block && r.then.lock.includes(turnout)
+    && JSON.stringify(r.checks) === JSON.stringify(checks));
+  assert.ok(has1("East points", [], "PE"), "under the train");
+  assert.ok(has1("Single", [], "PE"), "past East Home, short of the points");
+  assert.ok(has1("Far", [{ turnout: "PE", is: "closed" }, { not: { mast: "East Home", is: "stop" } }], "PE"), "coming up to East Home");
+  for (const group of built.layers.filter((g) => g.starter === "plan-section")) {
+    assert.ok(group.rules.every((r) => r.then.lock === undefined), group.name);
+  }
+  // With nothing to see a train coming, the page says so.
+  const blind = broken("passing-siding", (p) => { p.blocks = p.blocks.filter((b) => b.name !== "Far"); p.sections = p.sections.filter((s) => s.name !== "Single line"); });
+  has(blind, "warning", B.TEXT.noApproach("East Home"));
+});
+
+test("a row waiting for an aspect the next signal never shows is left out, and the checker says nothing about the plan's own rules", () => {
+  const config = of("junction");
+  const home = plain(B.build(config)).layers.find((g) => g.name === "Home");
+  // Main exit is capped at Approach; Branch exit shows only Clear.
+  assert.ok(!home.rules.some((r) => r.checks.some((c) => c.mast === "Main exit" && [c.is].flat().includes("clear"))));
+  assert.ok(!home.rules.some((r) => r.checks.some((c) => c.mast === "Branch exit" && c.is === "approach")));
+  assert.deepEqual(plain(validateConfig(config).warnings).filter((w) => /never apply|did not apply/.test(w)), []);
+  // Your own rule can hold Branch exit at Approach: that row comes back.
+  config.logic.masts = [{ mast: "Branch exit", tags: { R285: "approach" } }];
+  config.logic.layers = [{ name: "Mine", rules: [{ trigger: { while: { block: "Branch", is: "occupied" } }, checks: [], then: { mast: "Branch exit", aspect: "R285" } }] }];
+  assert.ok(plain(B.build(config)).layers.find((g) => g.name === "Home").rules.some((r) => r.checks.some((c) => c.mast === "Branch exit" && c.is === "approach")));
 });
 
 test("track with no sensor is warned about", () => {
