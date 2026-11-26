@@ -1,6 +1,6 @@
 # Field Logic Track Plan — Feature Spec (draft)
 
-Status: draft. The stored format and builder are built (`configurator/plan-builder.js`, work item 2); there is no editor yet. It changes how the Field Logic mode of the [Field Logic spec](field-logic-spec.md) is **set up**. The engine, the rule language and the fail-safe rules in that spec stay as they are, apart from the one question about [loops](#open-questions).
+Status: draft. The stored format and builder (`configurator/plan-builder.js`, work item 2) and the grid editor (`plan-edit.js`, `logic-ui-plan.js`, work item 3) are built. Sections, a signal's aspects and approach lighting, a turnout's lock, problems marked on the plan, keeping the picture in view and Try it on the plan are not built yet. It changes how the Field Logic mode of the [Field Logic spec](field-logic-spec.md) is **set up**. The engine, the rule language and the fail-safe rules in that spec stay as they are, apart from the one question about [loops](#open-questions).
 
 ## Why
 
@@ -52,6 +52,8 @@ Track is drawn between grid points, in eight directions. Dragging adds track; **
 A bend sharper than 45° is not allowed, so a drawing always shows which way a train can run through a point.
 
 Each stretch of track runs **both ways** unless you give it an arrow for **one way**. Arrows are how the plan tells a train waiting to enter a section from one that has just left it, in place of the *trains also leave through here* tick.
+
+The editor has three tools. **Draw** adds track by dragging, or by clicking two points; a drag that is not straight bends at 45 degrees. **Erase** takes away a clicked piece, or a dragged line. **Select** picks a piece of track (its block and one-way arrow), a point (its signals, block break or turnout) or an end. The arrow keys and Enter do the same. A signal picked at a point adds the block break there.
 
 Nothing on the plan edits the Sensors, Turnouts or Signal Masts pages. It picks their items by name.
 

@@ -2660,7 +2660,7 @@ function safeOutputPins() {
 }
 
 function renderLogic() {
-  renderLogicPage(el.logicPage, { config: state, field, hintEl, persist, render, showView, flash, pinChoices, blockPinChoices, mastPicture, addItems, safeOutputPins });
+  renderLogicPage(el.logicPage, { config: state, field, hintEl, persist, render, showView, flash, pinChoices, blockPinChoices, mastPicture, addItems, safeOutputPins, refresh: updatePreview });
 }
 
 function render() {

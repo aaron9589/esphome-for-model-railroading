@@ -114,7 +114,9 @@
     const steps = [{ key: "mode", done: mode !== "none", target: "logic-mode" }];
     // Blocks, and a group of rules that sets the signals.
     if (parts.blocks) {
-      const done = (config.logic?.blocks || []).length > 0 && (config.logic?.layers || []).length > 0;
+      // Or a track plan with a signal on it.
+      const drawn = list(config.logic?.plan?.breaks).some((brk) => list(brk?.signals).length > 0);
+      const done = drawn || ((config.logic?.blocks || []).length > 0 && (config.logic?.layers || []).length > 0);
       steps.push({ key: "blocks", done, target: "logic-blocks" });
     }
     if (FEATURES.tryIt && parts.blocks) steps.push({ key: "tryIt", done: false, target: "logic-try" });
@@ -293,7 +295,7 @@
       if (value.board === from) value.board = to;
       Object.values(value).forEach(visit);
     };
-    visit([config.logic?.blocks, config.logic?.layers, config.logic?.resources]);
+    visit([config.logic?.blocks, config.logic?.layers, config.logic?.resources, config.logic?.plan]);
   }
 
   function namesFrom(text) {
@@ -630,7 +632,7 @@
   //     text: TEXT_MASTS, render(root, config, ctx, ui) { ... } });
   //
   // Places, in the spec's order: checklist 0, mode 10, settings 20, linked
-  // boards 30, plant ends 35 (logic-ui-ends.js), blocks 40, masts 50, buttons 60,
+  // boards 30, track plan 33 (logic-ui-plan.js), plant ends 35 (logic-ui-ends.js), blocks 40, masts 50, buttons 60,
   // sections 70, groups 80, starters 85, layers view 90, control table 95.
   const parts = [];
 
@@ -802,7 +804,7 @@
   /**
    * Draw the Logic page into `root`. `ctx` carries the configurator's state and
    * helpers: { config, field, hintEl, persist, render, showView, flash,
-   * pinChoices, blockPinChoices, mastPicture(mastName, aspectLabel) }.
+   * pinChoices, blockPinChoices, mastPicture(mastName, aspectLabel), refresh }.
    */
   function renderLogicPage(root, ctx) {
     const config = ctx.config;
