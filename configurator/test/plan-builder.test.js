@@ -170,6 +170,17 @@ const loopBoard = () => board({
   },
 });
 
+test("a block with a sensor that no signal checks is warned about", () => {
+  // The worked drawings have none: a block behind a signal counts as watched.
+  for (const name of ["gauntlet", "junction", "passing-siding", "diamond"]) {
+    const config = of(name);
+    for (const block of config.logic.plan.blocks) assert.ok(!texts(config, "warning").includes(B.TEXT.unwatched(block.name)), `${name}: ${block.name}`);
+  }
+  // With no signals left on it, the drawing checks none of its blocks.
+  const bare = broken("gauntlet", (p) => { for (const brk of p.breaks) brk.signals = []; p.sections = []; });
+  for (const name of ["Left", "Bridge", "Right"]) has(bare, "warning", B.TEXT.unwatched(name));
+});
+
 test("signals round a loop drawn on the plan are allowed", () => {
   const config = loopBoard();
   assert.deepEqual(texts(config, "error"), []);

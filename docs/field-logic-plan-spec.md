@@ -191,7 +191,8 @@ Each is marked on the plan, in the page's plain words, saying what is wrong, why
 
 - A turnout point with no turnout chosen and not marked *no turnout*.
 - A signal that faces a drawing end with no track ahead of it.
-- A block with sensors that no signal protects, or a signal whose way ahead has an undetected block (warnings).
+- A block with a sensor that no signal checks: it is on no signal's way ahead, and no train waits in it at a signal (warning).
+- A signal whose way ahead has an undetected block (warning).
 - Two signals onto the same two-way track, or a crossing, with no one-train section (warning, with the button above).
 - Everything the checker finds, pointed back at the signal or section.
 
