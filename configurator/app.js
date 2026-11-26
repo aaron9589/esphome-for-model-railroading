@@ -685,6 +685,32 @@ function field(labelText, value, onInput, opts = {}) {
   return label;
 }
 
+// Help for something set on the running board's own web page, folded away
+// where that setting belongs. `lines` are [label, text] pairs or plain text.
+function runningBoardHelp(summary, intro, lines = []) {
+  const help = document.createElement("details");
+  help.className = "running-help full";
+  const title = document.createElement("summary");
+  title.textContent = summary;
+  const first = document.createElement("p");
+  const address = `http://${state.board.name || "<board-name>"}.local`;
+  const [before, after] = intro.split("{address}");
+  const code = document.createElement("code");
+  code.textContent = address;
+  first.append(before, ...(after === undefined ? [] : [code, after]));
+  help.append(title, first);
+  for (const line of lines) {
+    const p = document.createElement("p");
+    if (Array.isArray(line)) {
+      const strong = document.createElement("strong");
+      strong.textContent = line[0];
+      p.append(strong, ` ${line[1]}`);
+    } else p.textContent = line;
+    help.append(p);
+  }
+  return help;
+}
+
 function hintEl(text) {
   const hint = document.createElement("span");
   hint.className = "hint";
@@ -1655,7 +1681,10 @@ function renderPointCard(point, index) {
     }, {
       placeholder: "10s",
       hint: "How long the throw takes. Longer is slower, for a prototypical speed.",
-    })
+    }),
+    runningBoardHelp("Closed and thrown positions: set on the running board",
+      "After the board is online, open {address} in Chrome or Edge and move this turnout's sliders until it sits right closed and thrown.",
+      ["The board remembers them, so you can adjust a turnout later without a new YAML file."])
   );
   fields.append(renderPanel(point));
   card.append(header, fields);
@@ -2234,6 +2263,19 @@ function renderSignals() {
       ? "What the mast shows for each aspect. Click a lamp in the picture to set its colour."
       : "Add the lamps first, then set what each aspect shows.";
     aspects.append(aspectsHead, aspectHint);
+    if (mast.lamps.length) {
+      aspects.append(runningBoardHelp("Brightness, blink and pulse: set on the running board",
+        "After the board is online, open {address}. These sliders apply to every mast, and the board remembers them. Each one can go down to 0.1.",
+        [
+          ["Signal - Brightness", "How bright a steady lamp is. Starts at 44.6%."],
+          ["Signal - Blink - Brightness", "How bright a blinking lamp is while it is on. Starts at 66.6%."],
+          ["Signal - Blink - On", "How long a blinking lamp stays lit. Starts at 0.6 seconds."],
+          ["Signal - Blink - Off", "How long it stays dark. Starts at 0.2 seconds."],
+          ["Signal - Pulse - Brightness", "How bright a pulsing lamp gets at the top of the fade. Starts at 88.5%."],
+          ["Signal - Pulse - Rate", "How long the fade down and back up takes. Starts at 0.5 seconds."],
+          ["Signal - Pulse - Gap", "How long the lamp stays off between fades. Starts at 0.3 seconds."],
+        ]));
+    }
     const aspectList = document.createElement("div");
     aspectList.className = "aspect-list";
     mast.aspects.forEach((aspect, aspectIndex) => {

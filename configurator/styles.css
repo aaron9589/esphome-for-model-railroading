@@ -2744,3 +2744,41 @@ button.clear-page {
   border-radius: 6px;
   padding: 0.5rem 0.7rem;
 }
+
+/* Help for a setting made on the running board's web page, folded away
+   beside that setting. */
+.running-help {
+  grid-column: 1 / -1;
+  font-size: 0.85rem;
+  color: var(--muted);
+  margin: 0.15rem 0 0.4rem;
+}
+
+.running-help summary {
+  cursor: pointer;
+  width: fit-content;
+}
+
+.running-help summary::marker {
+  color: var(--accent);
+}
+
+.running-help[open] {
+  padding: 0.5rem 0.75rem;
+  border-left: 3px solid var(--line-strong);
+  background: var(--bg);
+  border-radius: 0 6px 6px 0;
+}
+
+.running-help[open] summary {
+  margin-bottom: 0.35rem;
+}
+
+.running-help p {
+  margin: 0.25rem 0 0;
+}
+
+.running-help code {
+  font-family: var(--mono);
+  font-size: 0.95em;
+}
