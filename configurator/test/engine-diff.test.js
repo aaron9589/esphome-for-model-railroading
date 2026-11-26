@@ -10,6 +10,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { configuratorDir, loadModules, test } from "./harness.js";
+import { builtPlanCases } from "./plan-cases.js";
 
 const bin = process.env.ENGINE_TESTS_BIN;
 const { EsphomeMrLogic: L } = loadModules("logic.js");
@@ -278,6 +279,21 @@ if (!bin) {
       return Object.entries(data.boards).map(([name, board]) => [`${file} (${name})`, { board, start: { ...(data.start?.[name] || {}), board: name } }]);
     });
   for (const [name, data] of Object.entries(EXTRA_BOARDS)) boards.push([name, data]);
+  // The track plan's cases, built into rule tables: replayed in the C++ core
+  // (plan-builder.test.js replays them in JS), then cross-checked like the rest.
+  const plans = builtPlanCases();
+  test(`the C++ core passes every track plan case (${plans.length})`, () => {
+    const planDir = fs.mkdtempSync(path.join(os.tmpdir(), "plan-cases-"));
+    for (const { name, data } of plans) fs.writeFileSync(path.join(planDir, `plan-${name}.json`), JSON.stringify(data));
+    try {
+      execFileSync(bin, [planDir], { encoding: "utf8", stdio: "pipe" });
+    } catch (err) {
+      assert.fail(`${err.stdout}${err.stderr}`);
+    } finally {
+      fs.rmSync(planDir, { recursive: true, force: true });
+    }
+  });
+  for (const { name, data } of plans) boards.push([`plan/${name}`, { board: data.board, start: data.start }]);
   for (const [file, { board, start = {} }] of boards) {
     const runs = file in EXTRA_BOARDS ? TRACES * 10 : TRACES;
     test(`JS and C++ agree on ${file}'s board, ${runs} random runs of ${SCANS} scans`, () => {

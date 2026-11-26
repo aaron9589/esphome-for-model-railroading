@@ -1,9 +1,9 @@
 {
   "name": "track plan: the gauntlet over a bridge",
   "covers": [
-    "Track plan: a gauntlet drawn with two joins and one train at a time"
+    "Track plan: a gauntlet drawn with two joins, its bridge taken by one move at a time"
   ],
-  "about": "Each signal clears only for a train waiting at it, only while it holds the bridge. The second train goes once the bridge has been clear for 3 seconds. The departing tracks have no sensors.",
+  "about": "The two moves clash on the bridge, so each signal clears only for a train waiting at it, once its move has taken the bridge. The second train goes once the bridge has been clear for 3 seconds. The departing tracks have no sensors.",
   "module": {
     "sensors": [
       "Left current",
@@ -280,14 +280,6 @@
           ],
           "beyond": "plain"
         }
-      ],
-      "sections": [
-        {
-          "name": "Bridge section",
-          "blocks": [
-            "Bridge"
-          ]
-        }
       ]
     }
   },
@@ -300,7 +292,7 @@
           "Right Bridge": "R292"
         },
         "resources": {
-          "Bridge section": "IDLE"
+          "Bridge": "IDLE"
         }
       }
     },
@@ -329,7 +321,7 @@
           "Right Bridge": "R292"
         },
         "resources": {
-          "Bridge section": "ACTIVE"
+          "Bridge": "ACTIVE"
         }
       }
     },
@@ -350,7 +342,7 @@
           "Right Bridge": "R292"
         },
         "rules": {
-          "Bridge section entrances/2": "waiting"
+          "Right Bridge moves/1": "waiting"
         }
       }
     },
@@ -368,7 +360,7 @@
           "Right Bridge": "R292"
         },
         "resources": {
-          "Bridge section": "PASSED"
+          "Bridge": "PASSED"
         }
       }
     },
@@ -397,7 +389,7 @@
           "Right Bridge": "R292"
         },
         "resources": {
-          "Bridge section": "PASSED"
+          "Bridge": "PASSED"
         }
       }
     },
@@ -409,10 +401,10 @@
           "Right Bridge": "R281"
         },
         "resources": {
-          "Bridge section": "ACTIVE"
+          "Bridge": "ACTIVE"
         },
         "holders": {
-          "Bridge section": "Bridge section entrances/2"
+          "Bridge": "Right Bridge moves/1"
         }
       }
     }

@@ -1,7 +1,7 @@
 // Drives the Field Logic track plan editor in Chromium, as a person would:
 // draws the gauntlet over a bridge with the mouse, sets it up from the panel,
-// takes the bridge one train at a time from the page's own button, and checks
-// the board then has no problems. npm test does not run it (it needs a
+// checks the board has no problems (the drawing protects the bridge by
+// itself), and changes the bridge's Timing. npm test does not run it (it needs a
 // browser). Run it after changing logic-ui-plan.js or plan-edit.js:
 //
 //   cd configurator
@@ -122,25 +122,22 @@ for (const [x, y] of [[12, 0], [0, 2]]) {
 const blocks = await page.evaluate(() => state.logic.plan.blocks.map((b) => [b.name, b.sensors]));
 assert.deepEqual(blocks, [["Left", ["Left current"]], ["Bridge", ["Bridge current"]], ["Right", ["Right current"]]]);
 
-// 3. The two signals can meet on the bridge: an error, with the way to fix it.
-const meet = 'Signals "Left Bridge" and "Right Bridge" can let two trains onto the same track at once';
-assert.ok((await problems()).errors.some((e) => e.startsWith(meet)));
-await card.getByRole("button", { name: "Make Bridge one train at a time" }).click();
-assert.deepEqual(await page.evaluate(() => state.logic.plan.sections), [{ name: "Bridge section", blocks: ["Bridge"] }]);
-const ways = (await card.locator(".plan-entrances").innerText()).split("\n");
-assert.deepEqual(ways, ["Left Bridge, for a train waiting in Left", "Right Bridge, for a train waiting in Right"]);
+// 3. The two signals can both send a train onto the bridge: the drawing
+// protects it by itself, and the bridge's panel says so.
 const after = await problems();
 assert.deepEqual(after.errors, []);
-assert.ok(after.warnings.every((w) => !w.startsWith(meet)));
+await click(6.5, 1);
+const protects = await card.locator(".plan-block-part").innerText();
+assert.ok(protects.includes('Signals "Left Bridge" and "Right Bridge" can each send a train onto this block.'), protects);
 
-// More options stays open while its settings change.
+// Timing stays open while its settings change.
 await card.locator(".plan-more summary").click();
-await page.selectOption("#logic-plan-section-release", "5s");
+await page.selectOption("#logic-plan-block-release", "5s");
 assert.equal(await card.locator(".plan-more").evaluate((d) => d.open), true);
-assert.equal(await page.evaluate(() => state.logic.plan.sections[0].release), "5s");
+assert.equal(await page.evaluate(() => state.logic.plan.blocks.find((b) => b.name === "Bridge").release), "5s");
 
-// The YAML has the section's release button.
-assert.ok(await page.evaluate(() => EsphomeMr.generateYaml(state).includes("Release Bridge section")));
+// The YAML has the bridge's release button.
+assert.ok(await page.evaluate(() => EsphomeMr.generateYaml(state).includes("Release Bridge")));
 
 // 4. The keyboard: arrow to a point and press Enter to pick it.
 await grid.focus();

@@ -1,9 +1,9 @@
 {
   "name": "track plan: a diamond crossing",
   "covers": [
-    "Track plan: a diamond crossing, one train at a time"
+    "Track plan: a 90 degree diamond, one line at a time over the crossing"
   ],
-  "about": "Two trains arrive together. One is given the diamond; the other waits until it has been clear for 3 seconds.",
+  "about": "The two lines' moves clash only on the crossing, which is the one piece of the Diamond block they share. Two trains arrive together: the signal listed first goes, the other waits until the diamond has been clear for 3 seconds.",
   "module": {
     "sensors": [
       "West current",
@@ -228,14 +228,6 @@
           ],
           "beyond": "plain"
         }
-      ],
-      "sections": [
-        {
-          "name": "Crossing",
-          "blocks": [
-            "Diamond"
-          ]
-        }
       ]
     }
   },
@@ -261,7 +253,7 @@
           "North signal": "R292"
         },
         "resources": {
-          "Crossing": "ACTIVE"
+          "Diamond": "ACTIVE"
         }
       }
     },
@@ -323,7 +315,7 @@
           "North signal": "R281"
         },
         "holders": {
-          "Crossing": "Crossing entrances/2"
+          "Diamond": "North signal moves/1"
         }
       }
     }

@@ -1,6 +1,6 @@
 # Field Logic Track Plan — Feature Spec
 
-Status: design approved on 2026-11-26 from a clickable mock (#135, kept as a private design canvas). The stored format and builder (`configurator/plan-builder.js`, TP 2) and turnout locking are built. The page described here is not: the Field Logic page on `feature/logic` today is the old one, which this replaces. It changes how the Field Logic mode of the [Field Logic spec](field-logic-spec.md) is **set up**. The engine and its fail-safe rules stay; the [engine changes](#engine-and-board-changes) it needs are listed.
+Status: design approved on 2026-11-26 from a clickable mock (#135, kept as a private design canvas). The stored format and builder (`configurator/plan-builder.js`, TP 2), turnout locking, and protection with paired crossovers (TP 4) are built. The page described here is not: the Field Logic page on `feature/logic` today is the old one, which this replaces. It changes how the Field Logic mode of the [Field Logic spec](field-logic-spec.md) is **set up**. The engine and its fail-safe rules stay; the [engine changes](#engine-and-board-changes) it needs are listed.
 
 ## Why
 
@@ -123,6 +123,13 @@ Two moves **clash** when they would put trains on the same track: running over t
 
 Selecting a block shows what protects it in words: which signals lead onto it, and that only one is cleared at a time.
 
+How the builder does it (TP 4), where the points above leave a choice:
+
+- A crossing is a piece of its own, which both its lines use. A move takes only the pieces another move can clash on; track no other move can reach is never taken. Pieces of one block that the same moves use are taken as one, named after the block (numbered when a block has several).
+- A signal's moves that miss every piece they could clash on still clear whenever the track ahead allows, like a block signal; only its moves that can clash wait for a train and take their track.
+- A train arriving behind a signal is taken for one that has just come the other way only while the piece just ahead of the signal is taken: the only way to arrive through it is past that signal the other way. A train arriving while some other track the signal's moves need is taken is waiting, and goes once that track is free. If that piece is not one two moves can clash on, no train is taken for one leaving; at worst the signal clears for a train moving away, and the move is cancelled as soon as it has gone.
+- A piece is passed once its block is occupied and freed by its own Timing, each on its own: a move whose train has passed its first piece shows Stop and keeps the rest until the train has gone through them. A piece the train never reaches stays taken until it is released by hand.
+
 ### Turnout locks
 
 A turnout is locked so its points never move in front of a train:
@@ -207,10 +214,10 @@ The drawing is **described, then built**, like MSS Logic: `plan-builder.js` turn
 
 | Change | Why |
 |---|---|
-| A rule can take several resources at once, all or nothing | Moves take their pieces together, so two can never hold half each |
+| A rule can take several resources at once, all or nothing (built, TP 4) | Moves take their pieces together, so two can never hold half each |
 | Switch inputs and lamp outputs | Pieces |
 | A turnout lock that stops JMRI, CATS and rules but lets its own buttons through | *Only its own buttons move it* |
-| Paired turnouts: one command throws both | Crossovers |
+| Paired turnouts: one command throws both (built, TP 4: on the board, not in the engine) | Crossovers |
 | A condition that a signal *has shown Stop for* a time | Examples and rules that wait for the line to be held |
 
 Each change goes into the JS engine and the C++ core together, with hand-worked cases, as the [Field Logic spec](field-logic-spec.md) requires.
@@ -268,7 +275,7 @@ The milestone *Track plan* on GitHub has an issue for each.
 | 1 | Hide Plant ends in Field Logic | done |
 | 2 | Stored format and builder | done; fail-safe sign-off open |
 | 3 | First grid editor | done, replaced by 6 |
-| 4 | Protection: moves that clash, taken in pieces all at once, paired turnouts; sections removed | hand-worked cases for the gauntlet, a crossing loop meet, a scissors crossover with parallel moves, a diamond and a merge pass in both engines |
+| 4 | Protection: moves that clash, taken in pieces all at once, paired turnouts; sections removed | done; fail-safe sign-off open |
 | 5 | Checker on drawn plans | the passing siding and a station of the size above are checked completely |
 | 6 | The new page: steps, drawing, making hardware, protection shown | a newcomer on an empty page has one thing to do, and the four TP 2 drawings can be drawn |
 | 7 | Pieces, rules and examples | the gauntlet with a button before Left Bridge, and the industry siding with a local panel, built from an empty page |

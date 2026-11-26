@@ -236,7 +236,7 @@ Built items have the builder's names: a block is `<track> block <n>`, where a tr
 
 ## Track plan cases
 
-`plan/` holds the cases for the [Field Logic track plan](../../../docs/field-logic-plan-spec.md) (work item TP 2). Like the MSS cases, each gives the drawing in `module` (`sensors`, `turnouts`, `masts` by name, each mast with the seven CATS aspects, and `plan`, which is `logic.plan`), not the rules. `test/plan-builder.test.js` builds the rule table and replays the timeline in the JS engine. Built blocks and sections keep the drawing's names; a signal's group is named for the signal, and a section's entrance group `<section> entrances`.
+`plan/` holds the cases for the [Field Logic track plan](../../../docs/field-logic-plan-spec.md) (work items TP 2 and TP 4). Like the MSS cases, each gives the drawing in `module` (`sensors`, `turnouts`, `masts` by name, each mast with the seven CATS aspects, and `plan`, which is `logic.plan`), not the rules. `test/plan-cases.js` builds each into its rule table; `test/plan-builder.test.js` replays the timeline in the JS engine, and `test/engine-diff.test.js` in the C++ core. Built blocks keep the drawing's names; a signal's group is named for the signal, and the group of its moves that take track `<signal> moves`. A piece of track two moves can clash on is named for its block, numbered in the order the moves first use them when a block has several (`East points 1`, `East points 2`, …).
 
 ## Which case covers which bullet
 

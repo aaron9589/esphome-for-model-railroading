@@ -1042,6 +1042,9 @@
     const here = config.board?.name || "";
     const names = new Set();
     const owner = new Map();
+    // The track plan's pieces of one block share it: each is its own track,
+    // and a move takes them all at once (plan-builder.js).
+    const pieces = new Set(list(logicItems(config).origins).filter((o) => o?.kind === "piece").map((o) => o.name));
     for (const res of resourcesOf(config)) {
       const name = String(res.name || "").trim();
       const label = name ? `Section "${name}"` : "A section";
@@ -1058,7 +1061,7 @@
           continue;
         }
         const other = owner.get(found.key);
-        if (other && other !== name) {
+        if (other && other !== name && !(pieces.has(other) && pieces.has(name))) {
           r.error(SECTIONS, `Block "${found.name}" is in sections "${other}" and "${name}". A block can be in one section only, or two trains could be let into it: remove it from one.`);
         } else owner.set(found.key, name);
       }
@@ -1149,8 +1152,8 @@
       } else if (typeof then.aspect === "string" && then.aspect) {
         r.error(GROUPS, `${who} shows "${then.aspect}" but names no signal. Pick the signal it sets.`);
       }
-      if (then.reserve !== undefined && !sections.has(String(then.reserve))) {
-        r.error(GROUPS, `${who} takes section "${then.reserve}", which is not under Sections. Add the section, or pick another.`);
+      for (const name of reservesOf(then)) {
+        if (!sections.has(String(name))) r.error(GROUPS, `${who} takes section "${name}", which is not under Sections. Add the section, or pick another.`);
       }
       for (const name of list(then.lock)) {
         if (!turnouts.has(name)) r.error(GROUPS, `${who} locks turnout "${name}", which is not on the Turnouts page. Pick another, or remove it.`);
@@ -1173,6 +1176,8 @@
   // trigger, checks and cancel, and in the release of the section it takes.
   // Another board's masts are left out: they are not set here.
   const planLayer = (layer) => String(layer?.starter || "").startsWith("plan-");
+  // What a rule takes: one section, or several at once (a track plan's move).
+  const reservesOf = (then) => (then?.reserve === undefined ? [] : [].concat(then.reserve));
 
   function mastReadsBySetter(config) {
     const releases = new Map(resourcesOf(config).map((res) => [String(res.name || ""), res.release]));
@@ -1182,7 +1187,7 @@
       const set = rule?.then?.mast;
       if (typeof set !== "string" || !set) continue;
       const parts = [rule.trigger, rule.checks, rule.cancel];
-      if (rule.then.reserve !== undefined) parts.push(releases.get(String(rule.then.reserve)));
+      for (const name of reservesOf(rule.then)) parts.push(releases.get(String(name)));
       for (const cond of conditionsIn(parts)) {
         if (cond.board !== undefined || typeof cond.mast !== "string" || !cond.mast) continue;
         if (!edges.has(set)) edges.set(set, new Map());
@@ -1615,6 +1620,7 @@
           masts: joined(items.masts, list(own.masts).filter((entry) => !(entry?.virtual !== true && onPlan.has(entry?.mast)))),
           layers: joined(items.layers, own.layers),
           resources: joined(items.resources, own.resources),
+          pairs: items.pairs,
           origins: items.origins,
         },
       };
@@ -1727,6 +1733,17 @@
   }
 
   // Turnouts a rule locks: they get a field-lock global.
+  // Turnouts that move together (the track plan's crossovers, plan-builder.js
+  // `pairs`): the other one's name, and whether it goes to the same command.
+  function pairedTurnout(config, name) {
+    if (M().logicMode(config) !== "field") return null;
+    for (const pair of list(logicItems(config).pairs)) {
+      if (pair?.turnout === name) return { name: pair.with, same: pair.same !== false };
+      if (pair?.with === name) return { name: pair.turnout, same: pair.same !== false };
+    }
+    return null;
+  }
+
   function lockedTurnoutNames(config) {
     const names = new Set();
     if (!fieldMode(config)) return names;
@@ -2358,6 +2375,7 @@
     versionCode,
     fieldMastNames,
     lockedTurnoutNames,
+    pairedTurnout,
     virtualMasts,
     isBootMast,
     emitBootMast,

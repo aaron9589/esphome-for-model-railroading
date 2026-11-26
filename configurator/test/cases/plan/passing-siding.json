@@ -1,10 +1,9 @@
 {
-  "name": "track plan: a passing siding with a single line to the east",
+  "name": "track plan: a meet on a crossing loop",
   "covers": [
-    "Track plan: a passing siding, one train at a time on the single line, with the leaving guard",
-    "Track plan: turnouts lock as a train approaches a cleared signal, and free once it has passed"
+    "Track plan: a crossing loop meet"
   ],
-  "about": "A westbound train takes the single line into the loop. Arriving there, it is not taken for one asking to go back east. Once it has left, an eastbound train gets the line. The loop's two roads, its west points and the single line are each one train at a time, so two trains can meet in the loop. A turnout is locked from the scan after its signal clears for a waiting train (rules read the signals as the last scan left them), and freed once the train has gone over it. Main West leads into the west points, so it stays at Stop until a train waits at it; East Home, whose next signal it is, shows Approach. With the train on the single line, short of the east points, those points are locked.",
+  "about": "A westbound train takes the single line, the east points and the main road. An eastbound train waits at West Home: the main road is taken, so it waits until the west points are set for the siding, then takes the siding. Arriving in the loop, neither is taken for a train waiting at the signal it came past (Main East, Siding West): only the piece of track it came through says so. Each waits at its own exit, and goes once the points ahead are set for it and the pieces it needs have been clear for 3 seconds. A turnout is locked from the scan after its signal clears for a waiting train, and while a train is short of it or over it.",
   "module": {
     "sensors": [
       "West line current",
@@ -333,32 +332,6 @@
             "Far current"
           ]
         }
-      ],
-      "sections": [
-        {
-          "name": "Single line",
-          "blocks": [
-            "Single"
-          ]
-        },
-        {
-          "name": "West points",
-          "blocks": [
-            "West points"
-          ]
-        },
-        {
-          "name": "Main loop",
-          "blocks": [
-            "Main loop"
-          ]
-        },
-        {
-          "name": "Siding",
-          "blocks": [
-            "Siding"
-          ]
-        }
       ]
     }
   },
@@ -384,15 +357,38 @@
       ]
     },
     {
+      "at": 9,
+      "expect": {
+        "masts": {
+          "East Home": "R292"
+        }
+      }
+    },
+    {
       "at": 10,
       "expect": {
         "masts": {
           "East Home": "R285",
           "Main East": "R292"
         },
-        "holders": {
-          "Single line": "Single line entrances/3"
-        },
+        "events": [
+          {
+            "grant": "Main loop",
+            "rule": "East Home moves/1"
+          },
+          {
+            "grant": "East points 1",
+            "rule": "East Home moves/1"
+          },
+          {
+            "grant": "East points 2",
+            "rule": "East Home moves/1"
+          },
+          {
+            "grant": "Single",
+            "rule": "East Home moves/1"
+          }
+        ],
         "locks": {
           "PE": false
         }
@@ -403,6 +399,69 @@
       "expect": {
         "locks": {
           "PE": true
+        }
+      }
+    },
+    {
+      "at": 12,
+      "do": [
+        {
+          "sensor": "West line current",
+          "is": "occupied"
+        }
+      ]
+    },
+    {
+      "at": 17,
+      "expect": {
+        "masts": {
+          "West Home": "R292"
+        },
+        "rules": {
+          "West Home moves/1": "waiting"
+        },
+        "resources": {
+          "West points 1": "IDLE",
+          "West points 2": "IDLE"
+        }
+      }
+    },
+    {
+      "at": 18,
+      "do": [
+        {
+          "turnout": "PW",
+          "is": "thrown"
+        }
+      ],
+      "expect": {
+        "masts": {
+          "West Home": "R286"
+        },
+        "events": [
+          {
+            "grant": "West points 1",
+            "rule": "West Home moves/2"
+          },
+          {
+            "grant": "West points 3",
+            "rule": "West Home moves/2"
+          },
+          {
+            "grant": "Siding",
+            "rule": "West Home moves/2"
+          }
+        ],
+        "rules": {
+          "West Home moves/1": "idle"
+        }
+      }
+    },
+    {
+      "at": 19,
+      "expect": {
+        "locks": {
+          "PW": true
         }
       }
     },
@@ -418,17 +477,40 @@
         "masts": {
           "East Home": "R292"
         },
+        "events": [
+          {
+            "pass": "Single",
+            "rule": "East Home moves/1"
+          }
+        ],
         "resources": {
-          "Single line": "PASSED"
+          "Single": "PASSED",
+          "East points 2": "ACTIVE"
         }
       }
     },
     {
       "at": 22,
-      "expect": {
-        "locks": {
-          "PE": true
+      "do": [
+        {
+          "sensor": "West points current",
+          "is": "occupied"
         }
+      ],
+      "expect": {
+        "masts": {
+          "West Home": "R292"
+        },
+        "events": [
+          {
+            "pass": "West points 1",
+            "rule": "West Home moves/2"
+          },
+          {
+            "pass": "West points 3",
+            "rule": "West Home moves/2"
+          }
+        ]
       }
     },
     {
@@ -438,7 +520,19 @@
           "sensor": "East points current",
           "is": "occupied"
         }
-      ]
+      ],
+      "expect": {
+        "events": [
+          {
+            "pass": "East points 2",
+            "rule": "East Home moves/1"
+          },
+          {
+            "pass": "East points 1",
+            "rule": "East Home moves/1"
+          }
+        ]
+      }
     },
     {
       "at": 26,
@@ -450,13 +544,47 @@
       ]
     },
     {
+      "at": 27,
+      "do": [
+        {
+          "sensor": "West line current",
+          "is": "clear"
+        }
+      ]
+    },
+    {
       "at": 30,
       "do": [
         {
           "sensor": "Main loop current",
           "is": "occupied"
         }
-      ]
+      ],
+      "expect": {
+        "events": [
+          {
+            "pass": "Main loop",
+            "rule": "East Home moves/1"
+          }
+        ]
+      }
+    },
+    {
+      "at": 32,
+      "do": [
+        {
+          "sensor": "Siding current",
+          "is": "occupied"
+        }
+      ],
+      "expect": {
+        "events": [
+          {
+            "pass": "Siding",
+            "rule": "West Home moves/2"
+          }
+        ]
+      }
     },
     {
       "at": 35,
@@ -465,10 +593,28 @@
           "sensor": "Single current",
           "is": "clear"
         }
+      ],
+      "expect": {
+        "masts": {
+          "Main East": "R292",
+          "Main West": "R292"
+        },
+        "rules": {
+          "Main East moves/1": "idle"
+        }
+      }
+    },
+    {
+      "at": 36,
+      "do": [
+        {
+          "sensor": "West points current",
+          "is": "clear"
+        }
       ]
     },
     {
-      "at": 40,
+      "at": 38,
       "do": [
         {
           "sensor": "East points current",
@@ -477,58 +623,127 @@
       ]
     },
     {
-      "at": 75,
+      "at": 40,
+      "do": [
+        {
+          "turnout": "PW",
+          "is": "closed"
+        },
+        {
+          "turnout": "PE",
+          "is": "thrown"
+        }
+      ]
+    },
+    {
+      "at": 41,
       "expect": {
         "masts": {
+          "Main West": "R292",
+          "Siding East": "R292",
           "Main East": "R292",
-          "East Home": "R292"
+          "Siding West": "R292"
         },
-        "resources": {
-          "Single line": "IDLE"
-        },
-        "holders": {
-          "Single line": null
-        },
-        "locks": {
-          "PE": false
+        "rules": {
+          "Main West moves/1": "waiting",
+          "Siding East moves/1": "waiting",
+          "Main East moves/1": "idle",
+          "Siding West moves/1": "idle"
         }
       }
     },
     {
-      "at": 80,
-      "do": [
-        {
-          "sensor": "Main loop current",
-          "is": "clear"
-        }
-      ]
-    },
-    {
-      "at": 90,
-      "do": [
-        {
-          "sensor": "Main loop current",
-          "is": "occupied"
-        }
-      ]
-    },
-    {
-      "at": 95,
+      "at": 65,
       "expect": {
+        "events": [
+          {
+            "release": "Single",
+            "by": "release"
+          }
+        ],
         "masts": {
-          "Main East": "R281",
-          "East Home": "R292"
-        },
-        "holders": {
-          "Single line": "Single line entrances/1"
-        },
-        "locks": {
-          "PE": false
+          "Main West": "R292",
+          "Siding East": "R292"
         }
       }
     },
     {
-      "at": 96,
+      "at": 66,
+      "expect": {
+        "events": [
+          {
+            "release": "West points 1",
+            "by": "release"
+          },
+          {
+            "release": "West points 3",
+            "by": "release"
+          },
+          {
+            "grant": "West points 1",
+            "rule": "Main West moves/1"
+          },
+          {
+            "grant": "West points 2",
+            "rule": "Main West moves/1"
+          }
+        ],
+        "masts": {
+          "Main West": "R285",
+          "Siding East": "R292"
+        },
+        "holders": {
+          "Siding": "West Home moves/2",
+          "West points 3": null
+        }
+      }
+    },
+    {
+      "at": 67,
+      "expect": {
+        "locks": {
+          "PW": true
+        }
+      }
+    },
+    {
+      "at": 68,
+      "expect": {
+        "events": [
+          {
+            "release": "East points 2",
+            "by": "release"
+          },
+          {
+            "release": "East points 1",
+            "by": "release"
+          },
+          {
+            "grant": "East points 2",
+            "rule": "Siding East moves/1"
+          },
+          {
+            "grant": "East points 3",
+            "rule": "Siding East moves/1"
+          },
+          {
+            "grant": "Single",
+            "rule": "Siding East moves/1"
+          }
+        ],
+        "masts": {
+          "Siding East": "R283",
+          "Main East": "R292",
+          "Siding West": "R292"
+        },
+        "holders": {
+          "Main loop": "East Home moves/1",
+          "East points 1": null
+        }
+      }
+    },
+    {
+      "at": 69,
       "expect": {
         "locks": {
           "PE": true
