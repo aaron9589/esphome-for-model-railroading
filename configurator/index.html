@@ -99,9 +99,9 @@
             <p id="pin-budget" class="pin-budget"></p>
             <div id="blocks-list"></div>
             <p id="blocks-empty" class="empty" hidden>No sensors yet.</p>
-            <div class="expanders" id="expanders-card">
+            <div class="boards-section" id="expanders-card">
               <h3>Expanders (MCP23017)</h3>
-              <p class="card-copy">An expander adds 16 sensor pins over I2C. Wire a detector to an expander pin and GND, the same as an ESP pin. It can share a PCA9685 board's SDA and SCL pins, or have its own. Its sensors are listed under it.</p>
+              <p class="card-copy">An expander adds 16 sensor pins over I2C. Use one when the ESP runs out of pins. Wire a detector to an expander pin and GND, the same as an ESP pin. It can share a PCA9685 board's SDA and SCL pins, or have its own, and its sensors are listed under it.</p>
               <div id="expanders-list"></div>
             </div>
             <div class="pager">
@@ -116,20 +116,24 @@
                 <h2>Turnouts</h2>
                 <p>Servos for the turnouts, with optional fascia buttons and a remote lock.</p>
               </div>
-              <button type="button" id="btn-add-point" class="primary">Add turnout</button>
+              <div class="view-actions">
+                <button type="button" id="btn-add-point" class="primary">Add turnout</button>
+              </div>
             </header>
             <aside class="note">
               <p>Closed and thrown positions are set on the running board, at <code>http://&lt;board-name&gt;.local</code>.</p>
             </aside>
-            <div class="card" id="driver-card">
-              <h3>Servos</h3>
-              <div class="fields" id="driver-fields"></div>
-            </div>
             <aside class="note caution" id="direct-pwm-note" hidden>
               <p>You can generally only run 3-4 servos this way. They take power from the ESP. More than that needs an external supply, which is why a PCA9685 is used to scale up.</p>
             </aside>
             <div id="points-list"></div>
             <p id="points-empty" class="empty" hidden>No turnouts yet. Skip this if the board only watches the track.</p>
+            <div class="boards-section" id="pca-section">
+              <h3>PCA9685 boards</h3>
+              <p class="card-copy">A PCA9685 drives up to 16 servos over I2C, with the servos on their own 5V supply rather than the ESP's. Use one for more than 3-4 servos. Each board has its own SDA and SCL pins, and its turnouts are listed under it.</p>
+              <div class="fields" id="driver-fields"></div>
+              <div id="pca-list"></div>
+            </div>
             <div class="pager">
               <button type="button" data-goto="blocks">Back: sensors</button>
               <button type="button" class="primary" data-goto="signals">Next: signal masts</button>
@@ -142,13 +146,15 @@
                 <h2>Signal Masts</h2>
                 <p>Each mast is its own LED strip, or one pin per lamp. List its lamps from the top down, then set what each aspect shows.</p>
               </div>
-              <button type="button" id="btn-add-mast" class="primary">Add mast</button>
+              <div class="view-actions">
+                <button type="button" id="btn-add-mast" class="primary">Add mast</button>
+              </div>
             </header>
-            <aside class="note" id="cats-template-note">
-              <p>JMRI needs the CATS signal template before these masts can show their aspects. <a href="#cats-template" data-goto="yaml" data-scroll="cats-template">Get it on the Download page</a>.</p>
-            </aside>
             <div id="signals-list"></div>
             <p id="signals-empty" class="empty" hidden>No signal masts yet. Skip this if the board has no signals.</p>
+            <aside class="note" id="cats-template-note">
+              <p>Using CATS, or the signal masts in the JMRI file from the Download page? JMRI needs the CATS signal template once for them. <a href="#cats-template" data-goto="yaml" data-scroll="cats-template">Get it on the Download page</a>.</p>
+            </aside>
             <details class="note note-settings" id="signal-web-note">
               <summary>Brightness and blink settings, on the running board</summary>
               <p>After the board is online, open <code>http://&lt;board-name&gt;.local</code>. These sliders apply to every mast, and the ESP remembers them. Each one can go down to 0.1.</p>

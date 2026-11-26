@@ -80,7 +80,7 @@ async function addSensors(p, names) {
 // remove it on a board with none.
 async function setTurnout(p, name) {
   await nav(p, "points");
-  const card = p.locator("#points-list .row-card").first();
+  const card = p.locator("[data-panel=points] .row-card").first(); // on ESP pins, or under a PCA9685
   if (name) await fieldIn(card, "Name").fill(name);
   else await card.getByRole("button", { name: "Remove", exact: true }).click();
 }

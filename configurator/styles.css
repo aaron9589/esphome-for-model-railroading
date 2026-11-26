@@ -250,6 +250,11 @@ main {
 .view-actions {
   display: flex;
   gap: 0.45rem;
+  flex-shrink: 0;
+}
+
+.view-actions button {
+  white-space: nowrap;
 }
 
 .card,
@@ -402,12 +407,17 @@ main {
   padding: 0.5rem 0.75rem;
 }
 
-/* Expanders, each a card like a PCA9685 with its sensors under it. */
-.expanders {
+/* Expanders on the Sensors page and PCA9685 boards on the Turnouts page: the
+   same section, each board a card with its sensors or turnouts under it. */
+.boards-section {
   margin-top: 1.5rem;
 }
 
-.expanders > h3 {
+.boards-section > .fields {
+  margin-bottom: 0.75rem;
+}
+
+.boards-section > h3 {
   margin: 0 0 0.35rem;
   font-size: 0.82rem;
   font-weight: 650;
