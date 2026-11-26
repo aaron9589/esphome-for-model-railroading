@@ -61,7 +61,7 @@
     positions: Object.freeze({ closed: "Closed", thrown: "Thrown" }),
     beyondLabel: "After the last block",
     beyondChoices: Object.freeze({ mast: "The next signal", end: "End of signalled track" }),
-    beyondHint: "The next signal can be on this board, on a linked board, one JMRI or CATS sets, or the signal an end of this board hears from the board next door.",
+    beyondHint: "The next signal can be on this board, on a linked board, or one JMRI or CATS sets.",
     nextLabel: "Next signal",
     useAdvance: "Use Advance Approach",
     useAdvanceHint: "Two signals of warning: the signal before an Approach shows Advance Approach.",
