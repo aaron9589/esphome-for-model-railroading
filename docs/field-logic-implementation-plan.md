@@ -133,23 +133,28 @@ Level crossing is left out: it needs a new output type, and becomes its own smal
 
 ## Track plan — before Release 5
 
-Setting up Field Logic by drawing the track, as the [track plan spec](field-logic-plan-spec.md) describes. Added after Release 4, from feedback on Field Logic. Milestone *Track plan*; not yet sized.
+Setting up Field Logic with two kinds of building block, the drawing and your own pieces and rules, as the [track plan spec](field-logic-plan-spec.md) describes. Added after Release 4, from feedback on Field Logic; the old Field Logic page is rebuilt from scratch from a mock approved on 2026-11-26. Milestone *Track plan*; not yet sized.
 
 | # | Work item | Class | Status | Done when |
 |---|---|---|---|---|
-| TP 1 (#123) | **Hide Plant ends in Field Logic**, and move the guide's chapter | Sonnet | merged | A Field Logic board with no ends shows none |
-| TP 2 (#124) | **Stored format and builder** (`plan-builder.js`), continuous runs included | Opus | merged; open for a fail-safe review | Hand-worked cases for the gauntlet, a turnout junction, a passing siding and a diamond pass |
-| TP 3 (#125) | **Grid editor**: draw track, blocks, signals, ends | Sonnet | merged | Each of those drawings can be made from an empty page |
-| TP 4 (#126) | **Behaviour, Advanced and problems** on the drawing | Sonnet | one train at a time merged; the rest not started | The gauntlet needs no rule card |
-| TP 5 (#127) | **Try it and Run a train** on the drawing | Sonnet | not started | As for MSS Logic |
-| TP 6 (#128) | **New Field Logic guide** and its pictures | Sonnet, Human reads | not started | A newcomer builds the gauntlet from it |
+| TP 0 (#135) | **Clickable mock** of the new page | Opus | approved | The spec and issues are rewritten from it |
+| TP 1 (#123) | **Hide Plant ends in Field Logic** | Sonnet | merged | A Field Logic board with no ends shows none |
+| TP 2 (#124) | **Stored format and builder** (`plan-builder.js`), continuous runs and turnout locking included | Opus | merged; fail-safe sign-off open | Hand-worked cases for the gauntlet, a junction, a passing siding and a diamond pass |
+| TP 3 (#125) | **First grid editor** | Sonnet | merged; replaced by TP 6 | — |
+| TP 4 (#139) | **Protection**: moves that clash, taken in pieces all at once (engine change in JS and C++), paired crossovers; sections removed | Opus | not started | Hand-worked cases for the gauntlet, a crossing loop meet, a scissors crossover, a diamond and a merge pass in both engines |
+| TP 5 (#137) | **Checker on drawn plans** | Opus | not started | The passing siding and a station of 20 blocks, 10 signals and 8 turnouts are checked completely |
+| TP 6 (#136) | **The new page**: steps, drawing, making hardware, protection shown, problems on the drawing | Sonnet | not started | A newcomer on an empty page has one thing to do; the TP 2 drawings can be drawn |
+| TP 7 (#126) | **Pieces, rules and examples**, with the switch, lamp and turnout-lock changes on the board | Opus, Sonnet | not started | The gauntlet with a button, and an industry siding with a local panel, built from an empty page |
+| TP 8 (#127) | **Try it and Run a train** on the drawing | Sonnet | not started | A meet on a crossing loop runs on the drawing |
+| TP 9 (#138) | **Remove the old Field Logic page** and its keys | Sonnet | not started | No Field Logic screen but the new one is left |
+| TP 10 (#128) | **New Field Logic guide** and its pictures | Sonnet, Human reads | not started | A newcomer builds the gauntlet from it |
 
 ## Release 5 — Wrap-up (5–8 days)
 
 | # | Work item | Class | Done when |
 |---|---|---|---|
 | 5.1 | **Docs index**: `README.md`, `docs/README.md` and `AGENTS.md` updated for the Logic page and both modes | Sonnet | Agents and newcomers are sent to the right guide |
-| 5.2 | **Newcomer read-through** of both guides on a fresh machine (the Field Logic guide after TP 6); fixes fed back into the page hints and guides | Human, Sonnet | Questions answered in the page, not in chat |
+| 5.2 | **Newcomer read-through** of both guides on a fresh machine (the Field Logic guide after TP 10); fixes fed back into the page hints and guides | Human, Sonnet | Questions answered in the page, not in chat |
 | 5.3 | **Merge to `main`**: tag `logic-v1.0.0`, set `LOGIC_COMPONENT_REF`, merge `main` in a final time, one PR from `feature/logic` into `main`, then check the live configurator after the Pages deploy | Human, Sonnet | The live page offers the Logic page, and a board downloaded from it builds |
 
 ## Milestones on the branch
