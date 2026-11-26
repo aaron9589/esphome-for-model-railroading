@@ -81,8 +81,11 @@ td { padding: 0 6mm 0 0; }
       body.push(`<p>Approach lighting: ${approach !== undefined ? `on, lit when a train is in ${esc(approach)}` : "off"}.</p></div>`);
     }
 
+    // A track plan's blocks and sections are built; MSS Logic lists them on
+    // its module card.
+    const items = (config.logic?.mode === "field" ? Y.logicItems(config) : config.logic) || {};
     body.push("<h2>Blocks</h2>");
-    const blocks = list(config.logic?.blocks);
+    const blocks = list(items.blocks);
     if (!blocks.length) body.push("<p>No blocks.</p>");
     for (const block of blocks) {
       body.push(`<div class="item"><h3>${esc(block.name)}</h3>`);
@@ -99,7 +102,7 @@ td { padding: 0 6mm 0 0; }
       body.push("</div>");
     }
 
-    const sections = list(config.logic?.resources).filter((res) => res && typeof res === "object");
+    const sections = list(items.resources).filter((res) => res && typeof res === "object");
     if (sections.length) {
       body.push("<h2>Sections</h2>");
       for (const section of sections) {

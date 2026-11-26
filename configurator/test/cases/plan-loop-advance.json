@@ -1,0 +1,444 @@
+{
+  "name": "continuous run: with Advance Approach",
+  "covers": [
+    "block signals round a continuous run settle, and drop and recover behind a train, with and without Advance Approach"
+  ],
+  "about": "The same loop with Advance Approach: it passes through Approach and Advance Approach to Clear and stays there, and steps back behind a train.",
+  "board": {
+    "sensors": [
+      "B1",
+      "B2",
+      "B3"
+    ],
+    "masts": {
+      "S1": {
+        "aspects": {
+          "R292": "stop",
+          "R285": "approach",
+          "ADV_NORM": "advance",
+          "R281": "clear"
+        }
+      },
+      "S2": {
+        "aspects": {
+          "R292": "stop",
+          "R285": "approach",
+          "ADV_NORM": "advance",
+          "R281": "clear"
+        }
+      },
+      "S3": {
+        "aspects": {
+          "R292": "stop",
+          "R285": "approach",
+          "ADV_NORM": "advance",
+          "R281": "clear"
+        }
+      }
+    },
+    "logic": {
+      "layers": [
+        {
+          "name": "S1",
+          "rules": [
+            {
+              "trigger": {
+                "while": {
+                  "block": "B1",
+                  "is": "clear"
+                }
+              },
+              "checks": [
+                {
+                  "mast": "S2",
+                  "is": "diverging"
+                },
+                {
+                  "not": {
+                    "mast": "S2",
+                    "is": [
+                      "stop",
+                      "restricting"
+                    ]
+                  }
+                }
+              ],
+              "then": {
+                "mast": "S1",
+                "aspect": "R285"
+              }
+            },
+            {
+              "trigger": {
+                "while": {
+                  "block": "B1",
+                  "is": "clear"
+                }
+              },
+              "checks": [
+                {
+                  "mast": "S2",
+                  "is": [
+                    "advance",
+                    "clear"
+                  ]
+                }
+              ],
+              "then": {
+                "mast": "S1",
+                "aspect": "R281"
+              }
+            },
+            {
+              "trigger": {
+                "while": {
+                  "block": "B1",
+                  "is": "clear"
+                }
+              },
+              "checks": [
+                {
+                  "mast": "S2",
+                  "is": "approach"
+                }
+              ],
+              "then": {
+                "mast": "S1",
+                "aspect": "ADV_NORM"
+              }
+            },
+            {
+              "trigger": {
+                "while": {
+                  "block": "B1",
+                  "is": "clear"
+                }
+              },
+              "checks": [
+                {
+                  "mast": "S2",
+                  "is": [
+                    "stop",
+                    "restricting"
+                  ]
+                }
+              ],
+              "then": {
+                "mast": "S1",
+                "aspect": "R285"
+              }
+            }
+          ]
+        },
+        {
+          "name": "S2",
+          "rules": [
+            {
+              "trigger": {
+                "while": {
+                  "block": "B2",
+                  "is": "clear"
+                }
+              },
+              "checks": [
+                {
+                  "mast": "S3",
+                  "is": "diverging"
+                },
+                {
+                  "not": {
+                    "mast": "S3",
+                    "is": [
+                      "stop",
+                      "restricting"
+                    ]
+                  }
+                }
+              ],
+              "then": {
+                "mast": "S2",
+                "aspect": "R285"
+              }
+            },
+            {
+              "trigger": {
+                "while": {
+                  "block": "B2",
+                  "is": "clear"
+                }
+              },
+              "checks": [
+                {
+                  "mast": "S3",
+                  "is": [
+                    "advance",
+                    "clear"
+                  ]
+                }
+              ],
+              "then": {
+                "mast": "S2",
+                "aspect": "R281"
+              }
+            },
+            {
+              "trigger": {
+                "while": {
+                  "block": "B2",
+                  "is": "clear"
+                }
+              },
+              "checks": [
+                {
+                  "mast": "S3",
+                  "is": "approach"
+                }
+              ],
+              "then": {
+                "mast": "S2",
+                "aspect": "ADV_NORM"
+              }
+            },
+            {
+              "trigger": {
+                "while": {
+                  "block": "B2",
+                  "is": "clear"
+                }
+              },
+              "checks": [
+                {
+                  "mast": "S3",
+                  "is": [
+                    "stop",
+                    "restricting"
+                  ]
+                }
+              ],
+              "then": {
+                "mast": "S2",
+                "aspect": "R285"
+              }
+            }
+          ]
+        },
+        {
+          "name": "S3",
+          "rules": [
+            {
+              "trigger": {
+                "while": {
+                  "block": "B3",
+                  "is": "clear"
+                }
+              },
+              "checks": [
+                {
+                  "mast": "S1",
+                  "is": "diverging"
+                },
+                {
+                  "not": {
+                    "mast": "S1",
+                    "is": [
+                      "stop",
+                      "restricting"
+                    ]
+                  }
+                }
+              ],
+              "then": {
+                "mast": "S3",
+                "aspect": "R285"
+              }
+            },
+            {
+              "trigger": {
+                "while": {
+                  "block": "B3",
+                  "is": "clear"
+                }
+              },
+              "checks": [
+                {
+                  "mast": "S1",
+                  "is": [
+                    "advance",
+                    "clear"
+                  ]
+                }
+              ],
+              "then": {
+                "mast": "S3",
+                "aspect": "R281"
+              }
+            },
+            {
+              "trigger": {
+                "while": {
+                  "block": "B3",
+                  "is": "clear"
+                }
+              },
+              "checks": [
+                {
+                  "mast": "S1",
+                  "is": "approach"
+                }
+              ],
+              "then": {
+                "mast": "S3",
+                "aspect": "ADV_NORM"
+              }
+            },
+            {
+              "trigger": {
+                "while": {
+                  "block": "B3",
+                  "is": "clear"
+                }
+              },
+              "checks": [
+                {
+                  "mast": "S1",
+                  "is": [
+                    "stop",
+                    "restricting"
+                  ]
+                }
+              ],
+              "then": {
+                "mast": "S3",
+                "aspect": "R285"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "steps": [
+    {
+      "at": 0,
+      "expect": {
+        "masts": {
+          "S1": "R285",
+          "S2": "R285",
+          "S3": "R285"
+        }
+      }
+    },
+    {
+      "at": 1,
+      "expect": {
+        "masts": {
+          "S1": "ADV_NORM",
+          "S2": "ADV_NORM",
+          "S3": "ADV_NORM"
+        }
+      }
+    },
+    {
+      "at": 2,
+      "expect": {
+        "masts": {
+          "S1": "R281",
+          "S2": "R281",
+          "S3": "R281"
+        }
+      }
+    },
+    {
+      "at": 4,
+      "expect": {
+        "masts": {
+          "S1": "R281",
+          "S2": "R281",
+          "S3": "R281"
+        }
+      }
+    },
+    {
+      "at": 5,
+      "do": [
+        {
+          "sensor": "B3",
+          "is": "occupied"
+        }
+      ],
+      "expect": {
+        "masts": {
+          "S1": "R281",
+          "S2": "R281",
+          "S3": "R292"
+        }
+      }
+    },
+    {
+      "at": 6,
+      "expect": {
+        "masts": {
+          "S1": "R281",
+          "S2": "R285",
+          "S3": "R292"
+        }
+      }
+    },
+    {
+      "at": 7,
+      "expect": {
+        "masts": {
+          "S1": "ADV_NORM",
+          "S2": "R285",
+          "S3": "R292"
+        }
+      }
+    },
+    {
+      "at": 10,
+      "expect": {
+        "masts": {
+          "S1": "ADV_NORM",
+          "S2": "R285",
+          "S3": "R292"
+        }
+      }
+    },
+    {
+      "at": 12,
+      "do": [
+        {
+          "sensor": "B3",
+          "is": "clear"
+        }
+      ],
+      "expect": {
+        "masts": {
+          "S1": "ADV_NORM",
+          "S2": "R285",
+          "S3": "R281"
+        }
+      }
+    },
+    {
+      "at": 13,
+      "expect": {
+        "masts": {
+          "S1": "ADV_NORM",
+          "S2": "R281",
+          "S3": "R281"
+        }
+      }
+    },
+    {
+      "at": 14,
+      "expect": {
+        "masts": {
+          "S1": "R281",
+          "S2": "R281",
+          "S3": "R281"
+        }
+      }
+    }
+  ]
+}

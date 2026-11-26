@@ -1,0 +1,496 @@
+{
+  "name": "track plan: a passing siding with a single line to the east",
+  "covers": [
+    "Track plan: a passing siding, one train at a time on the single line, with the leaving guard"
+  ],
+  "about": "A westbound train takes the single line into the loop. Arriving there, it is not taken for one asking to go back east. Once it has left, an eastbound train gets the line.",
+  "module": {
+    "sensors": [
+      "West line current",
+      "West points current",
+      "Main loop current",
+      "Siding current",
+      "East points current",
+      "Single current",
+      "Far current"
+    ],
+    "turnouts": [
+      "PW",
+      "PE"
+    ],
+    "masts": [
+      "West Home",
+      "Main West",
+      "Siding West",
+      "Main East",
+      "Siding East",
+      "East Home",
+      "East Advance"
+    ],
+    "plan": {
+      "track": [
+        [
+          [
+            0,
+            1
+          ],
+          [
+            4,
+            1
+          ]
+        ],
+        [
+          [
+            4,
+            1
+          ],
+          [
+            12,
+            1
+          ]
+        ],
+        [
+          [
+            12,
+            1
+          ],
+          [
+            20,
+            1
+          ]
+        ],
+        [
+          [
+            4,
+            1
+          ],
+          [
+            5,
+            0
+          ]
+        ],
+        [
+          [
+            5,
+            0
+          ],
+          [
+            11,
+            0
+          ]
+        ],
+        [
+          [
+            11,
+            0
+          ],
+          [
+            12,
+            1
+          ]
+        ]
+      ],
+      "points": [
+        {
+          "at": [
+            4,
+            1
+          ],
+          "turnout": "PW"
+        },
+        {
+          "at": [
+            12,
+            1
+          ],
+          "turnout": "PE"
+        }
+      ],
+      "breaks": [
+        {
+          "at": [
+            2,
+            1
+          ],
+          "sensors": [],
+          "signals": [
+            {
+              "mast": "West Home",
+              "facing": [
+                3,
+                1
+              ]
+            }
+          ]
+        },
+        {
+          "at": [
+            6,
+            1
+          ],
+          "sensors": [],
+          "signals": [
+            {
+              "mast": "Main West",
+              "facing": [
+                5,
+                1
+              ]
+            }
+          ]
+        },
+        {
+          "at": [
+            6,
+            0
+          ],
+          "sensors": [],
+          "signals": [
+            {
+              "mast": "Siding West",
+              "facing": [
+                5,
+                0
+              ]
+            }
+          ]
+        },
+        {
+          "at": [
+            10,
+            1
+          ],
+          "sensors": [],
+          "signals": [
+            {
+              "mast": "Main East",
+              "facing": [
+                11,
+                1
+              ]
+            }
+          ]
+        },
+        {
+          "at": [
+            10,
+            0
+          ],
+          "sensors": [],
+          "signals": [
+            {
+              "mast": "Siding East",
+              "facing": [
+                11,
+                0
+              ]
+            }
+          ]
+        },
+        {
+          "at": [
+            14,
+            1
+          ],
+          "sensors": [],
+          "signals": []
+        },
+        {
+          "at": [
+            18,
+            1
+          ],
+          "sensors": [],
+          "signals": [
+            {
+              "mast": "East Home",
+              "facing": [
+                17,
+                1
+              ]
+            },
+            {
+              "mast": "East Advance",
+              "facing": [
+                19,
+                1
+              ]
+            }
+          ]
+        }
+      ],
+      "blocks": [
+        {
+          "name": "West line",
+          "at": [
+            [
+              0,
+              1
+            ],
+            [
+              2,
+              1
+            ]
+          ],
+          "sensors": [
+            "West line current"
+          ]
+        },
+        {
+          "name": "West points",
+          "at": [
+            [
+              3,
+              1
+            ],
+            [
+              4,
+              1
+            ]
+          ],
+          "sensors": [
+            "West points current"
+          ]
+        },
+        {
+          "name": "Main loop",
+          "at": [
+            [
+              6,
+              1
+            ],
+            [
+              10,
+              1
+            ]
+          ],
+          "sensors": [
+            "Main loop current"
+          ]
+        },
+        {
+          "name": "Siding",
+          "at": [
+            [
+              6,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ],
+          "sensors": [
+            "Siding current"
+          ]
+        },
+        {
+          "name": "East points",
+          "at": [
+            [
+              12,
+              1
+            ],
+            [
+              13,
+              1
+            ]
+          ],
+          "sensors": [
+            "East points current"
+          ]
+        },
+        {
+          "name": "Single",
+          "at": [
+            [
+              14,
+              1
+            ],
+            [
+              18,
+              1
+            ]
+          ],
+          "sensors": [
+            "Single current"
+          ]
+        },
+        {
+          "name": "Far",
+          "at": [
+            [
+              18,
+              1
+            ],
+            [
+              20,
+              1
+            ]
+          ],
+          "sensors": [
+            "Far current"
+          ]
+        }
+      ],
+      "sections": [
+        {
+          "name": "Single line",
+          "blocks": [
+            "Single"
+          ]
+        }
+      ]
+    }
+  },
+  "steps": [
+    {
+      "at": 3,
+      "expect": {
+        "masts": {
+          "East Home": "R292",
+          "Main East": "R292",
+          "Main West": "R285",
+          "East Advance": "R285"
+        }
+      }
+    },
+    {
+      "at": 5,
+      "do": [
+        {
+          "sensor": "Far current",
+          "is": "occupied"
+        }
+      ]
+    },
+    {
+      "at": 10,
+      "expect": {
+        "masts": {
+          "East Home": "R281",
+          "Main East": "R292"
+        },
+        "holders": {
+          "Single line": "Single line entrances/3"
+        },
+        "locks": {
+          "PE": true
+        }
+      }
+    },
+    {
+      "at": 20,
+      "do": [
+        {
+          "sensor": "Single current",
+          "is": "occupied"
+        }
+      ],
+      "expect": {
+        "masts": {
+          "East Home": "R292"
+        },
+        "resources": {
+          "Single line": "PASSED"
+        }
+      }
+    },
+    {
+      "at": 25,
+      "do": [
+        {
+          "sensor": "East points current",
+          "is": "occupied"
+        }
+      ]
+    },
+    {
+      "at": 26,
+      "do": [
+        {
+          "sensor": "Far current",
+          "is": "clear"
+        }
+      ]
+    },
+    {
+      "at": 30,
+      "do": [
+        {
+          "sensor": "Main loop current",
+          "is": "occupied"
+        }
+      ]
+    },
+    {
+      "at": 35,
+      "do": [
+        {
+          "sensor": "Single current",
+          "is": "clear"
+        }
+      ]
+    },
+    {
+      "at": 40,
+      "do": [
+        {
+          "sensor": "East points current",
+          "is": "clear"
+        }
+      ]
+    },
+    {
+      "at": 75,
+      "expect": {
+        "masts": {
+          "Main East": "R292",
+          "East Home": "R292"
+        },
+        "resources": {
+          "Single line": "IDLE"
+        },
+        "holders": {
+          "Single line": null
+        },
+        "locks": {
+          "PE": false
+        }
+      }
+    },
+    {
+      "at": 80,
+      "do": [
+        {
+          "sensor": "Main loop current",
+          "is": "clear"
+        }
+      ]
+    },
+    {
+      "at": 90,
+      "do": [
+        {
+          "sensor": "Main loop current",
+          "is": "occupied"
+        }
+      ]
+    },
+    {
+      "at": 95,
+      "expect": {
+        "masts": {
+          "Main East": "R281",
+          "East Home": "R292"
+        },
+        "holders": {
+          "Single line": "Single line entrances/1"
+        },
+        "locks": {
+          "PE": true
+        }
+      }
+    }
+  ]
+}

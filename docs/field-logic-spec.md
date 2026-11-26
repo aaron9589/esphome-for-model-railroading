@@ -736,7 +736,7 @@ The budgets (`BUDGETS` in `logic-checker.js`):
 
 - Every referenced item, aspect, button and resource exists. Remote inputs need MQTT on.
 - A block is in at most one resource. Across imported boards, it is in resources on only one board.
-- No cycles: a rule cannot read, directly or through other rules, a mast it sets.
+- No cycles: a rule cannot read, directly or through other rules, a mast it sets. The one exception is a [continuous run](field-logic-plan-spec.md#continuous-run) drawn on a track plan.
 - Each chosen aspect exists on its mast, and aspect labels on a field-controlled mast are unique.
 - A button's pin is free, like any other pin.
 - Two layers giving different aspects with the same tag on one mast: warning.
@@ -980,6 +980,7 @@ In `configurator/test/`, run through `configurator/package.json`:
   - the two lock flags: the re-sync runs only when both are clear, not when one of two clears.
   - lock turnouts under a train: the turnout is locked while its block is occupied, and unlocked once it clears
   - route signal: the first row whose turnouts and blocks match wins; a moving turnout matches no row; a row that follows the next mast joins the block signals tumbledown
+  - block signals round a continuous run settle, and drop and recover behind a train, with and without Advance Approach
 - **Fail safe:**
   - the start-up scan with a train in the section (held, PASSED, releases after the delay), and with all clear
   - a toggle switch's boot move waits for the start-up scan, so a turnout under a train stays put

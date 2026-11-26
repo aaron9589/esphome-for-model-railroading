@@ -234,6 +234,10 @@ Built items have the builder's names: a block is `<track> block <n>`, where a tr
 
 **Appendix B** is taken as the MSS Design Standard's table of occupancy ahead to indication: the next block occupied gives Stop; the one after it, Approach; the third, Advance Approach (Clear without it); all three clear, Clear.
 
+## Track plan cases
+
+`plan/` holds the cases for the [Field Logic track plan](../../../docs/field-logic-plan-spec.md) (work item TP 2). Like the MSS cases, each gives the drawing in `module` (`sensors`, `turnouts`, `masts` by name, each mast with the seven CATS aspects, and `plan`, which is `logic.plan`), not the rules. `test/plan-builder.test.js` builds the rule table and replays the timeline in the JS engine. Built blocks and sections keep the drawing's names; a signal's group is named for the signal, and a section's entrance group `<section> entrances`.
+
 ## Which case covers which bullet
 
 | Spec bullet (Tests) | Cases |
@@ -268,3 +272,4 @@ Built items have the builder's names: a block is `<track> block <n>`, where a tr
 | Plant ends: track numbering at a joint, with one board turned round | `ends-three-boards-turned` |
 | Plant ends: changing a link changes no rule and not the version code | `ends-link-change` |
 | Plant ends: pairing | `pairing-two-ends`, `pairing-third-end`, `pairing-track-mismatch`, `pairing-expires` |
+| Rules: block signals round a continuous run | `plan-loop-block-signals`, `plan-loop-advance` |

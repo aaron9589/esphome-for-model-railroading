@@ -155,6 +155,8 @@ function normalizeLogic(config) {
   // MSS Logic's description: an object, or nothing. mss-builder.js reads the
   // rest of it defensively and validation names what is wrong.
   if (logic.mss !== undefined && !isObject(logic.mss)) delete logic.mss;
+  // The track plan likewise (plan-builder.js).
+  if (logic.plan !== undefined && !isObject(logic.plan)) delete logic.plan;
   if (logic.remoteBoards !== undefined) {
     logic.remoteBoards = Array.isArray(logic.remoteBoards) ? logic.remoteBoards.filter(isObject) : [];
     for (const board of logic.remoteBoards) {
