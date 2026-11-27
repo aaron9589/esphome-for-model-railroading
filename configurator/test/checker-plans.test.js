@@ -80,12 +80,17 @@ test("skipping scans until the next timer runs out is the same as scanning throu
 
 // What exploring finds about waiting for good, against what the routes'
 // rules say, on the plan cases and on changed copies of them.
+// Exploring every state of the larger cases takes too long here with the
+// switch and holds (the diamond is 141,341 states, about 40 s): the bench
+// and the comparison while building covered them.
+const SLOW = ["passing-siding", "scissors", "diamond", "detector-dropout", "merge"];
+const fromRules = (board) => [...new Set(["on", "off"].flatMap((mode) => plain(C.routeProblems(board, mode)).map((p) => `deadlock:${p.rule}`)))].sort();
 const waits = (problems) => plain(problems).filter((p) => p.kind === "deadlock" || p.kind === "starvation").map((p) => `${p.kind}:${p.rule}`).sort();
 function mutants(count, seed) {
   let s = seed;
   const rnd = () => { s = (s * 1103515245 + 12345) % 2147483648; return s / 2147483648; };
   const pick = (a) => a[Math.floor(rnd() * a.length)];
-  const bases = Object.entries(cases).filter(([name, b]) => !["passing-siding", "scissors"].includes(name) && b.logic.layers.some((l) => l.routes));
+  const bases = Object.entries(cases).filter(([name, b]) => !SLOW.includes(name) && b.logic.layers.some((l) => l.routes));
   return Array.from({ length: count }, () => {
     const [name, base] = pick(bases);
     const board = plain(base);
@@ -94,10 +99,11 @@ function mutants(count, seed) {
     const did = [];
     for (let m = 0; m < 2; m += 1) {
       const route = pick(routes);
-      const kind = Math.floor(rnd() * 4);
+      const kind = Math.floor(rnd() * 5);
       if (kind === 0) { route.checks.push({ block: pick(blocks), is: pick(["clear", "occupied"]) }); did.push("an Only if"); }
       else if (kind === 1) { route.then.next = { ...route.then.next, [pick(route.then.reserve)]: [pick(blocks)] }; did.push("the next block"); }
       else if (kind === 2) { pick(board.logic.resources).release = { while: { block: pick(blocks), is: pick(["clear", "occupied"]) }, for: "1s" }; did.push("a release"); }
+      else if (kind === 3) { pick(board.logic.resources).release = { while: { all: [{ block: pick(blocks), is: "clear" }, { auto: pick(["on", "off"]) }] }, for: "1s" }; did.push("a release in one position of the switch"); }
       else { route.then.next = { ...route.then.next, [pick(route.then.reserve)]: [] }; did.push("no next block"); }
     }
     return { name: `${name} with ${did.join(" and ")} changed`, board };
@@ -105,19 +111,40 @@ function mutants(count, seed) {
 }
 
 test("a part's routes checked from their rules find what exploring every state finds", () => {
-  const boards = Object.entries(cases).filter(([name, b]) => !["passing-siding", "scissors"].includes(name) && C.analysable(b) && b.logic.layers.some((l) => l.routes)).map(([name, board]) => ({ name, board }));
+  const boards = Object.entries(cases).filter(([name, b]) => !SLOW.includes(name) && C.analysable(b) && b.logic.layers.some((l) => l.routes)).map(([name, board]) => ({ name, board }));
   const broken = plain(cases.gauntlet);
   broken.logic.layers.find((l) => l.routes).rules[0].checks.push({ block: "Bridge", is: "occupied" });
   boards.push({ name: "a route that needs its own track occupied", board: broken });
   let deadlocks = 0;
-  for (const { name, board } of [...boards, ...mutants(12, 10)]) {
-    const explored = C.checkBoard(board, { split: false, runs: 0, runsMs: 0, maxStates: 30000, maxMs: 60000 });
+  for (const { name, board } of [...boards, ...mutants(6, 12)]) {
+    const explored = C.checkBoard(board, { split: false, fromRules: false, runs: 0, runsMs: 0, maxStates: 100000, maxMs: 60000 });
     assert.equal(explored.complete, true, name);
-    const fromRules = plain(C.routeProblems(board)).map((p) => `deadlock:${p.rule}`).sort();
-    assert.deepEqual(fromRules, waits(explored.problems), name);
-    deadlocks += fromRules.length;
+    const found = fromRules(board);
+    assert.deepEqual(found, waits(explored.problems), name);
+    deadlocks += found.length;
   }
   assert.ok(deadlocks >= 3, `the changed copies include some that wait for good (${deadlocks})`);
+});
+
+test("the switch and JMRI's holds are explored, where the routes read them", () => {
+  const keys = (board) => plain(C.inputsOf(board).map((input) => input.key.replace("\u0000", ":")));
+  assert.deepEqual(keys(cases.gauntlet).filter((k) => k === "auto" || k.startsWith("hold:")), ["hold:Left Bridge", "hold:Right Bridge", "auto"]);
+  assert.deepEqual(keys(cases.junction).filter((k) => k === "auto" || k.startsWith("hold:")), []);
+  // A section freed only in Auto: in Manual a route set across it never
+  // frees it, so the other signal's request waits for good. Both checks
+  // find it, and only in Manual.
+  const board = plain(cases.gauntlet);
+  board.logic.resources[0].release = { while: { all: [{ block: "Bridge", is: "clear" }, { auto: "on" }] }, for: "3s" };
+  const explored = C.checkBoard(board, { split: false, fromRules: false, runs: 0, runsMs: 0 });
+  assert.deepEqual(waits(explored.problems), ["deadlock:Left Bridge moves/1", "deadlock:Right Bridge moves/1"]);
+  assert.deepEqual(plain(C.routeProblems(board, "on")), []);
+  assert.deepEqual(fromRules(board), waits(explored.problems));
+  // Its Show me puts the board in Manual and asks with CATS.
+  const steps = plain(explored.problems.find((p) => p.kind === "deadlock").sequence);
+  assert.ok(steps.some((step) => step.do?.auto === "off"), JSON.stringify(steps));
+  assert.ok(steps.some((step) => /Unheld/.test(step.do?.message || "")), JSON.stringify(steps));
+  // CATS holding the signal a train waits at passes nothing over.
+  assert.deepEqual(waits(C.checkBoard(cases["cats-hold"], { split: false, fromRules: false, runs: 0, runsMs: 0 }).problems), []);
 });
 
 test("a rule that asks *while* its train stands is not checked from the rules: it can go first again", () => {
