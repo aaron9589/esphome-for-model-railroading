@@ -1,6 +1,6 @@
 # Field Logic Track Plan — Feature Spec
 
-Status: design approved on 2026-11-26 from a clickable mock (#135, kept as a private design canvas). Protection amended on 2026-11-27 to follow prototype interlocking: [routes are asked for, set and released](#routes-asked-for-set-and-released), not inferred from a train standing at a signal. The stored format and builder (`configurator/plan-builder.js`, TP 2) and turnout locking are built. The page described here is not: the Field Logic page on `feature/logic` today is the old one, which this replaces. It changes how the Field Logic mode of the [Field Logic spec](field-logic-spec.md) is **set up**. The engine and its fail-safe rules stay; the [engine changes](#engine-and-board-changes) it needs are listed.
+Status: design approved on 2026-11-26 from a clickable mock (#135, kept as a private design canvas). Protection amended on 2026-11-27 to follow prototype interlocking: [routes are asked for, set and released](#routes-asked-for-set-and-released), not inferred from a train standing at a signal; who asks is [Auto or Manual](#auto-or-manual). The stored format and builder (`configurator/plan-builder.js`, TP 2) and turnout locking are built. The page described here is not: the Field Logic page on `feature/logic` today is the old one, which this replaces. It changes how the Field Logic mode of the [Field Logic spec](field-logic-spec.md) is **set up**. The engine and its fail-safe rules stay; the [engine changes](#engine-and-board-changes) it needs are listed.
 
 ## Why
 
@@ -33,7 +33,7 @@ There is no third kind. No starters, no named behaviours, nothing to turn on to 
 | Plant ends in Field Logic | Not shown. [Linked boards](#linked-boards-instead-of-plant-ends) cover a permanent layout. MSS Logic keeps them |
 | MSS Logic | Unchanged. The drawing is designed so MSS Logic can move to it later |
 | Protection | As on the prototype (route relay, SSI, Microlok): a signal that leads onto track another signal's route can use clears only for a route that has been **asked for** and **set**, and the route is **released behind the train**. Amended 2026-11-27 |
-| Who asks for a route | Each such signal, one way: CATS or JMRI (by unholding it, the default), a **signal button** on the fascia, or the board itself (automatic) |
+| Who asks for a route | **Auto**: the board, for each train that arrives. **Manual**: a person, through CATS or JMRI (clearing the signal) or the signal's button on the fascia. One Auto/Manual switch for the board; a signal can be marked **Manual only** |
 | Turnouts | The board never moves them to set a route. You (or CATS) set the turnouts, then ask, as with levers or CTC |
 
 ## The page
@@ -48,9 +48,9 @@ Below the steps, the drawing on the left and, on the right, a panel for whatever
 |---|---|---|
 | Draw | Drag track onto the grid. Settle each **?** (a join the drawing can't work out) | Turnouts, joins and crossings where lines meet |
 | Sensors | Cut the track into blocks; give each block its sensors, or make a new sensor there | Solid track has a sensor; dashed has none |
-| Signals | Put a signal at a block break, facing its trains; pick one or make one. Say what is beyond each end, and for a controlled signal who asks for its routes | The track a selected signal checks, shaded; controlled signals marked |
+| Signals | Put a signal at a block break, facing its trains; pick one or make one. Say what is beyond each end. Give a controlled signal a button, or mark it Manual only, if wanted | The track a selected signal checks, shaded; controlled signals marked |
 | Behaviour and rules | Read what the drawing already does. Place pieces, write rules, or start from an example | What protects a selected block; a dotted line from a rule's thing to what it reads |
-| Try it | Put trains in blocks, throw turnouts, ask for routes (a signal's button, or hold and clear it as CATS would), run a train | The signals, set routes, locks and taken track change on the same picture, with what happened and why |
+| Try it | Put trains in blocks, throw turnouts, ask for routes (a signal's button, or hold and clear it as CATS would), flip Auto/Manual, run a train | The signals, set routes, locks and taken track change on the same picture, with what happened and why |
 | Download | As today | What the board will do in plain words, the checks, the Logic version |
 
 ## Drawing
@@ -115,33 +115,40 @@ A signal asks only for the meanings it can show (prefilled for CATS masts). A ru
 
 Protection follows prototype interlocking. A route is set only when it has been asked for, it takes all its track at once, and it gives that track back piece by piece behind the train. Nothing on the page turns protection on or chooses how it works.
 
-#### Controlled and automatic signals
+#### Controlled signals and block signals
 
 Two routes **clash** when they would put trains on the same track: over the same track in either direction, or across the same crossing by different lines. Two routes that need a turnout set differently never clash, since only one can be set.
 
 | A signal is | When | It shows |
 |---|---|---|
-| **Automatic** | none of its routes can clash with another signal's | the best aspect the track ahead allows, on the route the turnouts are set for, as block signals do. A CATS or JMRI hold keeps it at Stop |
-| **Controlled** | one of its routes can clash | Stop, until a route from it is [set](#setting-a-route); then what the track ahead allows on that route |
+| a **block signal** | none of its routes can clash with another signal's | the best aspect the track ahead allows, on the route the turnouts are set for. A CATS or JMRI hold keeps it at Stop. Nothing asks for it |
+| a **controlled signal** | one of its routes can clash | Stop, until a route from it is [set](#setting-a-route); then what the track ahead allows on that route |
 
 A controlled signal's routes that can clash with nothing are routes like any other: they too need asking for.
 
-#### Asking for a route
+#### Auto or Manual
 
-Each controlled signal is asked for in one way, chosen on its panel:
+A route is set only when something asks for it. Who asks is the only thing Auto and Manual change; what the board checks before the signal clears is the same either way.
 
-| Asked by | Asks | Cancels |
+| | Asks for a route | Cancels it (before the train has entered) |
 |---|---|---|
-| **CATS or JMRI** (default) | the signal goes from Held to Unheld | Held, before the train has entered |
-| **Signal button** | the button is pressed | pressed again, before the train has entered |
-| **Automatic** | a train has been in the block behind for half a second, [heading through](#which-way-a-train-is-heading) | that train leaves the block behind, before it has entered |
+| **Auto** | the board, when a train [enters the block behind the signal from the far side](#which-way-a-train-is-heading) | that train leaving the block behind |
+| **Manual** | CATS or JMRI clearing the signal (Held to Unheld), or the signal's button being pressed: whichever comes first | the signal being held, or its button being pressed again |
+
+- **The Auto/Manual switch.** One for the board, set on the running layout: on the board's web page, on MQTT (`trains/track/light/auto/<board>`, a JMRI light `MLauto/<board>`, so CATS or a JMRI panel can flip it), and optionally a toggle on the fascia. It starts as the configurator says (Auto by default) and is kept across a restart, as the logic switch is.
+- **Manual only.** A controlled signal marked Manual only on its panel is always Manual, whatever the switch says: a junction a person always works, say.
+- **Flipping the switch** changes only who asks from then on. Routes already set stay set and release behind their trains as usual. Requests waiting from the side being switched away from are dropped.
+- **Underneath, a request is an event.** Auto and Manual write each controlled signal's *ask when* and *cancel when* (a train entering a block from another, a signal unheld or held, a button pressed); your own rules may add others in a later version. A request is non-vital: whatever starts it, the route still sets only if the checks below pass.
+
+#### Asking for a route
 
 - **The route asked for is the one the turnouts are set for** when it is set. The board does not move turnouts: set them first (from their own buttons, JMRI or CATS), then ask, as a signaller pulls levers or a dispatcher lines switches and then calls the signal.
 - **A request waits** until a route can be set, and is kept until it is set or cancelled. If the turnouts are moving or set for no route, or the track is taken or occupied, it is set as soon as it can be. When several wait, the one asked first is set first; to prefer one line, write a rule.
 - **A request is used up** when its train enters the route. The signal goes back to Stop at once, and the next train needs asking for again.
-- **Nothing is asked at power-up**, or when the logic switch goes on. An Unheld left on the broker is not a request: after the board restarts, CATS must hold the signal and clear it again, as a real interlocking comes back with every signal at Stop. Restarting CATS does that for every signal: it sets each one afresh as it starts.
+- **An Unheld left on the broker is not a request**: only a change from Held to Unheld asks. After the board restarts, CATS must hold the signal and clear it again, as a real interlocking comes back with every signal at Stop. Restarting CATS does that for every signal: it sets each one afresh as it starts.
 - **CATS in Hold Only mode** unholds a signal exactly when its own logic wants it off Stop (`PhysicalSignal.setAspect` calls `setHeld(rule == STOP)`), and holds it again once its model sees the train go by. CATS sends Unheld again when its aspect changes (Approach to Clear, say); only a change from Held to Unheld asks. CATS keeps the direction of traffic on its own lines.
-- **A signal button** is a push button on the fascia, wired to GND, beside its signal. The board's web page has the same button for each signal asked by button.
+- **A signal button** is optional: a push button on the fascia, wired to GND, beside its signal. The board's web page has the same button for each signal that has one.
+- **In Auto, a CATS or JMRI hold still holds a signal at Stop**, and cancels its route before the train has entered.
 
 #### Setting a route
 
@@ -164,7 +171,7 @@ Track is taken in **pieces**: the track between turnouts, crossings, breaks and 
 
 #### Which way a train is heading
 
-Only an automatic request needs to know. Each block remembers where its train came from: the neighbouring block that was occupied when it became occupied. A train waiting behind a signal asks only if it came from the side away from the signal, so a train that has just come the other way through the signal never asks. If the board can't tell (after power-up, from track with no sensor, or with both neighbours occupied), the train counts as heading through: stranding a waiting train is worse, and the route's locking still protects the track.
+Only Auto needs to know. Each block remembers where its train came from: the neighbouring block that was occupied when it became occupied. In Auto, a train entering the block behind a signal asks only if it came from the side away from the signal, so a train that has just come the other way through the signal never asks. If the board can't tell (it came from track with no sensor, or both neighbours were occupied), the train counts as heading through: stranding a waiting train is worse, and the route's locking still protects the track.
 
 Selecting a block shows what protects it in words: which signals' routes lead onto it, that only one is set at a time, and which is set now.
 
@@ -175,11 +182,11 @@ A turnout is locked so its points never move in front of a train:
 | Locked while | Which turnouts | Railways call it |
 |---|---|---|
 | a route over it is set | that turnout, until the piece it is in is freed behind the train, or the route is cancelled | route locking |
-| a train waits behind an automatic signal that is not at Stop | the turnouts of the route the signal is showing | approach locking |
-| a block on an automatic signal's route, short of a turnout, is occupied | that turnout | track locking |
+| a train waits behind a block signal that is not at Stop | the turnouts of the route the signal is showing | approach locking |
+| a block on a block signal's route, short of a turnout, is occupied | that turnout | track locking |
 | the turnout's own block is occupied | that turnout; can be unticked for each turnout | lock under a train |
 
-Approach locking on an automatic signal starts the scan after the signal clears. A signal with turnouts ahead and no sensor behind it can't be approach locked; the page warns.
+Approach locking on a block signal starts the scan after the signal clears. A signal with turnouts ahead and no sensor behind it can't be approach locked; the page warns.
 
 ### Turnouts that move together
 
@@ -228,11 +235,11 @@ The drawing already keeps signals at Stop while a turnout is set against them, s
 
 ## Try it
 
-The same drawing, live. Click a block to put a train in or take it out, a turnout to throw it, a button to press it, a switch to flip it, a controlled signal to ask for or cancel its route (as its button, or CATS, would). **Run a train** from an end. Taken track is shaded, a set route is green, locked turnouts show a lock. A list says what happened, and the panel says why the selected signal shows what it does. Step, Skip ahead and Start again as today.
+The same drawing, live. Click a block to put a train in or take it out, a turnout to throw it, a button to press it, a switch to flip it, a controlled signal to ask for or cancel its route (as its button, or CATS, would), the Auto/Manual switch to flip it. **Run a train** from an end. Taken track is shaded, a set route is green, locked turnouts show a lock. A list says what happened, and the panel says why the selected signal shows what it does. Step, Skip ahead and Start again as today.
 
 ## Download
 
-What the board will do, a sentence for each signal (automatic, or controlled and who asks for it), each place two routes clash, and each rule. Then the checks (problems, the checker) and Download YAML, Download JMRI XML and Send to ESPHome. The Logic version as today.
+What the board will do, a sentence for each signal (a block signal, or controlled and Manual only or not), each place two routes clash, and each rule. Then the checks (problems, the checker) and Download YAML, Download JMRI XML and Send to ESPHome. The Logic version as today.
 
 ## Problems
 
@@ -242,7 +249,7 @@ Marked on the drawing where they are: red for errors, which stop the download, a
 - A signal that faces an end with no track ahead.
 - Nothing detected on a route (error).
 - Two routes that clash on track no sensor of its own sees (error).
-- A controlled signal asked for automatically with no sensor behind it (error: no train can ask), asked for by a signal button with no pin (error), or by CATS or JMRI on a board with MQTT off (error).
+- A controlled signal that nothing can ask for: with no sensor behind it, no train can ask in Auto (error unless it is Manual only); with MQTT off and no button, nothing can ask in Manual (error).
 - Undetected track on a route (warning), a block no signal checks (warning), a signal that can't be approach locked (warning).
 - Everything the checker finds, pointed back at the signal, rule or block.
 
@@ -255,11 +262,13 @@ The drawing is **described, then built**, like MSS Logic: `plan-builder.js` turn
 | Change | Why |
 |---|---|
 | A rule can take several resources at once, all or nothing | A route takes its pieces together, so two can never hold half each |
-| A moment when a mast goes from Held to Unheld, and back | CATS and JMRI ask for and cancel routes. No moment from the start-up messages, so nothing left on the broker asks |
+| A moment when a mast goes from Held to Unheld, and back | In Manual, CATS and JMRI ask for and cancel routes. No moment from the start-up messages, so nothing left on the broker asks |
+| A cancel that also withdraws a request still waiting | A button pressed again, or a hold, takes back a request not yet set |
+| The Auto/Manual switch as an input | Auto and Manual |
 | A release that also waits for the train in the next block along the route | Sequential release: a detector dropout frees nothing |
 | A turnout lock held by a resource, not by the whole rule | Route locking frees each turnout with its piece |
 | Manual release of everything a rule holds | **Release** for a route |
-| A block's record of the block its train came from, as a condition | Automatic requests know which way a train is heading |
+| A moment when a train enters a block from a given neighbouring block | In Auto, only a train heading through a signal asks |
 | Switch inputs and lamp outputs | Pieces |
 | A turnout lock that stops JMRI, CATS and rules but lets its own buttons through | *Only its own buttons move it* |
 | Paired turnouts: one command throws both | Crossovers |
@@ -277,12 +286,13 @@ One key, `logic.plan`. `logic.mode` stays `field`. Positions are grid points, `[
   "points": [ { "at": [5,1], "turnout": "P1", "straight": [6,1], "straightIs": "closed", "lock": true, "pairedWith": "P2" },
               { "at": [4,1], "turnout": null } ],
   "arrows": [ { "from": [0,0], "to": [2,0] } ],
-  "breaks": [ { "at": [2,0], "sensors": [], "signals": [ { "mast": "Left Bridge", "facing": [3,0], "aspects": {}, "approachLight": "", "ask": "button", "button": "GPIO25" } ] } ],
+  "breaks": [ { "at": [2,0], "sensors": [], "signals": [ { "mast": "Left Bridge", "facing": [3,0], "aspects": {}, "approachLight": "", "manualOnly": false, "button": "GPIO25" } ] } ],
   "blocks": [ { "name": "Left", "at": [[0,0],[2,0]], "sensors": ["Left current"], "release": "3s", "approachLock": "" } ],
   "ends": [ { "at": [12,0], "beyond": "plain" },
             { "at": [12,2], "beyond": { "board": "kiama-south-p3q8w5", "mast": "Home", "blocks": ["Up"] } } ],
   "pieces": [ { "kind": "switch", "name": "Industry switch", "at": [7,4], "pin": "GPIO33", "on": "Local" } ],
   "rules": [ { "on": { "mast": "West Home" }, "kind": "stopWhile", "when": { "switch": "Industry switch", "is": "on" } } ],
+  "auto": { "startsOn": true, "pin": "GPIO26" },
   "advanceApproach": false,
   "approachDiverging": false
 }
@@ -292,7 +302,8 @@ One key, `logic.plan`. `logic.mode` stays `field`. Positions are grid points, `[
 - A block break sits on plain track, never on a turnout, crossing or end, so a turnout or join is always inside a block.
 - A point's `straight` is needed only where neither leg is in line with the third. `pairedWith` is set when the drawing finds a crossover and kept if changed.
 - `facing` is the next grid point along the track, the way the signal's trains go.
-- A controlled signal's `ask` is `jmri` (CATS or JMRI, the default, left out), `button` or `auto`; with `button`, `button` is its pin. An automatic signal ignores both.
+- A controlled signal's `manualOnly` (left out when false) and `button` (its pin, left out when it has none). A block signal ignores both.
+- `auto` is the Auto/Manual switch: `startsOn` (Auto at first, the default) and the fascia toggle's `pin` (left out when there is none).
 - A block is named by any piece of track in it (`at`). `release` and `approachLock` are its Timing, left out when usual.
 - `pieces[].kind` is `button`, `switch` or `lamp`. `rules[].on` is a `mast`, `turnout` or `lamp`; `kind` is one of the rule words above; `when` is a condition in the rule table's own form.
 - `aspects` are the [MSS indications](mss-emulation-spec.md#masts); a CATS mast needs none.
@@ -321,7 +332,7 @@ The milestone *Track plan* on GitHub has an issue for each.
 | 1 | Hide Plant ends in Field Logic | done |
 | 2 | Stored format and builder | done; fail-safe sign-off open |
 | 3 | First grid editor | done, replaced by 6 |
-| 4 | Routes: controlled and automatic signals; asked for by CATS or JMRI, a signal button or automatically; set all at once, released behind the train; route locking; paired turnouts; sections removed | hand-worked cases pass in both engines: the gauntlet asked for by CATS, a crossing loop meet by signal buttons, a scissors crossover with parallel routes, a diamond and a merge asked for automatically, a detector dropout that frees nothing, and CATS holding a signal as its train passes |
+| 4 | Routes: controlled signals and block signals; asked for in Auto by the board, in Manual by CATS or JMRI or a signal button, with the Auto/Manual switch and Manual only; set all at once, released behind the train; route locking; paired turnouts; sections removed | hand-worked cases pass in both engines: the gauntlet asked for by CATS, a crossing loop meet by signal buttons, a scissors crossover with parallel routes, a diamond and a merge in Auto, the switch flipped with a route set, a detector dropout that frees nothing, and CATS holding a signal as its train passes |
 | 5 | Checker on drawn plans | the passing siding and a station of the size above are checked completely |
 | 6 | The new page: steps, drawing, making hardware, protection shown | a newcomer on an empty page has one thing to do, and the four TP 2 drawings can be drawn |
 | 7 | Pieces, rules and examples | the gauntlet with a button before Left Bridge, and the industry siding with a local panel, built from an empty page |
@@ -334,5 +345,5 @@ The milestone *Track plan* on GitHub has an issue for each.
 - **Signals not on the drawing.** A signal set only by rules (a shunt signal, say) has no place in this design. Add one if a layout needs it.
 - **Bigger drawings.** Zoom and pan, if a board needs more than a station.
 - **Approach locking on by default?** The prototype always has it. Here it stays off by default, as before, with a hold time on each block.
-- **Two ways to ask for one signal**, such as a local panel taking a junction over from CATS. Not in this version; the example *Hand a turnout to a local panel* will need rewriting for routes.
+- **An Auto/Manual switch for part of a board** (a station, say), or for each signal. One switch for the board, and Manual only per signal, in this version. The example *Hand a turnout to a local panel* will need rewriting for routes.
 - **Fleeting** (a route that stays set for every train) and **entrance-exit** buttons (press two signals and the board sets the turnouts). Not in this version: entrance-exit needs the board to move turnouts.
