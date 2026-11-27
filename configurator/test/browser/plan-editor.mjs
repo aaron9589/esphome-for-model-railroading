@@ -165,7 +165,7 @@ await shot("5-behaviour");
 await page.click("#logic-plan-next");
 
 // 5. Try it, then Download.
-assert.ok(await page.locator("#logic-try").isVisible());
+assert.ok(await page.locator("#logic-try-grid").isVisible());
 await page.click("#logic-plan-next");
 await page.click("#logic-plan-next");
 assert.equal(await page.locator('.view[data-panel="yaml"]').isVisible(), true);

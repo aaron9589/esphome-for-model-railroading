@@ -23,7 +23,7 @@
       }),
       field: Object.freeze({
         label: "Field Logic",
-        about: "This board decides its own signals from rules you build on this page, so they keep working when JMRI is closed. Signals that no rule sets stay with JMRI or CATS.",
+        about: "This board decides its own signals from the track you draw on this page, so they keep working when JMRI is closed. Signals not on the drawing stay with JMRI or CATS.",
       }),
       mss: Object.freeze({
         label: "MSS Logic",

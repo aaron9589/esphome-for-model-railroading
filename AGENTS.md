@@ -25,7 +25,7 @@ This repo is a beginner path for model-railroad ESP32 boards that talk to JMRI/C
 | `docs/first-board-setup-guide.md` | Paste Configurator YAML, USB flash, MQTT smoke test, failure checks |
 | `docs/jmri-mqtt-verification-guide.md` | JMRI sensor/turnout topics and panel checks |
 | `docs/README.md` | Docs index (every guide and spec, in reading order), then detector wiring, point calibration, layout notes |
-| `docs/field-logic-guide.md` | Field Logic guide, written a chapter per release: suffix, expanders, Share, blocks, linked boards, then a worked gauntlet: the One-train section starter, signals, Try it, problems, flashing and MQTTX checks, locks, block signals, signals that read the board next door |
+| `docs/field-logic-guide.md` | Field Logic guide, for the track plan page: the gauntlet over a bridge from an empty board (suffix, Draw, Sensors, Signals, what protects the bridge, a button and a rule, Try it, problems, download, flash, MQTTX, JMRI, CATS hold), then expanders, linked boards, a crossing loop and an industry siding with a local panel |
 | `docs/field-logic-spec.md` | Draft spec for the logic engine and the Field Logic mode (rules, layers, starters, remote inputs, plant ends, MCP23017 sensor pins); the design reference, built on `feature/logic` |
 | `docs/field-logic-plan-spec.md` | Approved spec for the new Field Logic page (milestone *Track plan*, #123-#139): two kinds of building block, the drawing (which protects the track by itself) and your own pieces and rules. Replaces the old Field Logic page |
 | `docs/field-logic-implementation-plan.md` | Draft build plan for both specs: releases, work items, spikes, risks |
@@ -126,7 +126,7 @@ This repo is a beginner path for model-railroad ESP32 boards that talk to JMRI/C
 2. `docs/README.md` — the docs index, then detector wiring, point setup, and the layout.
 3. `docs/first-board-setup-guide.md` — paste the YAML, flash by USB, confirm MQTT.
 4. `docs/jmri-mqtt-verification-guide.md` — sensor and turnout topics.
-5. `docs/field-logic-guide.md` — Field Logic: a board that works out its own signals from rules, including reading the board next door. Read it before the MSS guide, which leans on its groundwork.
+5. `docs/field-logic-guide.md` — Field Logic: draw your track, and the board works out its own signals from the drawing, including reading the board next door. Read it before the MSS guide, which leans on its groundwork.
 6. `docs/mss-logic-guide.md` — MSS Logic: describe a module (ends, tracks, junctions) and pair it at a meet, with no rules.
 7. `advanced-samples/` — non-configurator patterns only.
 
