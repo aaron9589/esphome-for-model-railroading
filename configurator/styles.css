@@ -3222,3 +3222,93 @@ button.clear-page {
   margin: 0.75rem 0 0.25rem;
   font-size: 0.95rem;
 }
+
+/* Try it on the drawing (TP 8). */
+.plan-live {
+  stroke-width: 12;
+  stroke-linecap: round;
+  pointer-events: none;
+  opacity: 0.75;
+}
+
+.plan-live.is-train {
+  stroke: #dc2626;
+  opacity: 0.9;
+}
+
+.plan-live.is-route {
+  stroke: #16a34a;
+}
+
+.plan-live.is-taken {
+  stroke: #94a3b8;
+}
+
+.plan-live-lamp {
+  stroke: var(--ink);
+  stroke-width: 1.5;
+  pointer-events: none;
+}
+
+.plan-live-turnout {
+  font-size: 11px;
+  font-weight: 700;
+  fill: var(--muted);
+  pointer-events: none;
+}
+
+.plan-live-lock {
+  fill: var(--ink);
+  pointer-events: none;
+}
+
+.plan-live-piece {
+  fill: #fbbf24;
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+.plan-live-piece.is-flash {
+  animation: plan-flash 1s steps(2, start) infinite;
+}
+
+@keyframes plan-flash {
+  to { visibility: hidden; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .plan-live-piece.is-flash { animation: none; }
+}
+
+.plan-run {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.5rem 1rem;
+  margin: 0.5rem 0;
+}
+
+.plan-legend .plan-chip {
+  display: inline-block;
+  width: 18px;
+  height: 6px;
+  border-radius: 3px;
+  vertical-align: middle;
+}
+
+.plan-chip.is-train { background: #dc2626; }
+.plan-chip.is-taken { background: #94a3b8; }
+.plan-chip.is-route { background: #16a34a; }
+.plan-chip.is-locked { background: var(--ink); width: 8px; height: 8px; }
+
+.plan-log {
+  margin: 0;
+  padding-left: 1rem;
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
+.plan-body.is-try .plan-left,
+.plan-body.is-try .plan-panel {
+  flex-basis: 100%;
+}
