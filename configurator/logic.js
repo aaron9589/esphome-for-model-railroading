@@ -1428,6 +1428,8 @@
   // A state, and how long it must have held: blocks and sensors say it in
   // their own words; anything else has the time added after it.
   function sayCondition(c, forText) {
+    // A condition's own for (rule 34) reads as the trigger's does.
+    if (!forText && c && c.for !== undefined && c.within === undefined) forText = c.for;
     const said = sayState(c, forText);
     const own = c.block !== undefined || c.sensor !== undefined;
     if (!forText || own || !said) return said;
@@ -1435,10 +1437,17 @@
   }
 
   function sayState(c, forText) {
+    // Held at some time in the last while (rule 38).
+    if (c.within !== undefined) {
+      const { within, ...rest } = c;
+      if (rest.button !== undefined) return `${rest.button} was pressed in the last ${duration(within)}`;
+      return `${sayState(rest, forText)}, or was in the last ${duration(within)}`;
+    }
     if (c.all) return sayAll(c.all);
     if (c.any) return `either ${c.any.map((x) => sayCondition(x)).join(c.any.some((x) => x.all) ? ", or " : " or ")}`;
     if (c.not) {
       const inner = c.not;
+      if (inner.for !== undefined || inner.within !== undefined) return `it is not the case that ${sayCondition(inner)}`;
       if (inner.mast !== undefined && inner.is !== "diverging") return `${where(inner.mast, inner.board)} does not show ${orList([].concat(inner.is).map((t) => TAG_WORDS[t]))}`;
       if (inner.mast !== undefined) return `${where(inner.mast, inner.board)} does not show a diverging aspect`;
       if (inner.block !== undefined || inner.sensor !== undefined) return sayCondition({ ...inner, is: inner.is === "clear" ? "occupied" : "clear" });

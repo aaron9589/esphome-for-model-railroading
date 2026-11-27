@@ -726,6 +726,13 @@ function pinChoices() {
   }));
 }
 
+// The pins nothing else uses yet, and `current` (the pin already picked).
+function freePinChoices(current) {
+  const used = usedPins();
+  const own = String(current || "").toUpperCase();
+  return pinChoices().filter((choice) => choice.value === own || !used.has(choice.value));
+}
+
 function blockPinChoices(current) {
   const choices = [
     ...pinChoices(),
@@ -2660,7 +2667,7 @@ function safeOutputPins() {
 }
 
 function renderLogic() {
-  renderLogicPage(el.logicPage, { config: state, field, hintEl, persist, render, showView, flash, pinChoices, blockPinChoices, mastPicture, addItems, safeOutputPins, refresh: updatePreview });
+  renderLogicPage(el.logicPage, { config: state, field, hintEl, persist, render, showView, flash, pinChoices, freePinChoices, blockPinChoices, mastPicture, addItems, safeOutputPins, refresh: updatePreview });
 }
 
 function render() {

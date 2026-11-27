@@ -1,15 +1,10 @@
 # Field Logic Guide
 
-Field Logic lets a board work out its own signals from rules you build on the configurator's **Logic** page, so the signals keep working when JMRI is closed.
+Field Logic lets a board work out its own signals, so they keep working when JMRI is closed. You do not write rules for it. You **draw your track** on the configurator's **Logic** page, cut it into blocks, and stand signals on it. The board works out from the drawing which trains may go where, and it keeps them apart by itself. Your own buttons, switches, lamps and rules come on top, and they can only hold a signal back. They can never clear one that the drawing would keep at Stop.
 
-This guide is written in chapters, one for each part of the Logic page as it is built. So far it covers:
+This guide builds one example from an empty board: a **gauntlet over a bridge**. Then it has two shorter chapters: a **crossing loop** with two turnouts, and an **industry siding** worked from a local panel.
 
-- the groundwork: a name that is unique at a meet (the **suffix**), more sensor pins with an **expander**, **Share with other boards**, **blocks** (a stretch of track made of several sensors, which JMRI sees as one sensor) and **linked boards**
-- a first working set of signals: a **starter** (One-train section) that writes the rules for you, the **signals** it sets, **Try it**, the checker's **problems**, then **downloading and flashing**
-- two more starters in short: **Lock turnouts under a train** and **Block signals**
-- **signals that read the board next door**, over linked boards.
-
-The groundwork works on its own: a block reports to JMRI and CATS like any sensor. The rest of the guide uses a second worked example, a **gauntlet over a bridge**, which you can build from an empty board. MSS Logic, the second mode, has its own [MSS Logic Guide](mss-logic-guide.md).
+MSS Logic, the second mode, has its own [MSS Logic Guide](mss-logic-guide.md). Read this guide first.
 
 Use this after the [First Board Setup Guide](first-board-setup-guide.md) and the [JMRI MQTT Verification Guide](jmri-mqtt-verification-guide.md). Your board should be online in ESPHome, and JMRI should have its MQTT connection set up.
 
@@ -19,79 +14,54 @@ Use this after the [First Board Setup Guide](first-board-setup-guide.md) and the
 
 ## The worked example
 
-One board, `kiama-north`, watches one stretch of track called **Int 2**. It has three sensors:
+Two tracks come together to cross a single bridge, then separate again. Only one train may be on the bridge at a time, and a signal at each end tells the driver when it may go.
 
-- **Int 2 current**: the current detector you already know, which sees anything drawing track power anywhere in Int 2
-- **Int 2 East** and **Int 2 West**: an optical sensor at each end of Int 2, which sees any car at that spot, powered or not.
+- Three blocks: **Left**, **Bridge** and **Right**. Each has a current detector: **Left current**, **Bridge current** and **Right current**.
+- Two signals: **Left Bridge**, for trains heading right onto the bridge, and **Right Bridge**, for trains heading left.
+- Each outer track carries trains one way only. A train from Left crosses the bridge and leaves on its own track at the top right. It never goes back out through Right.
 
-A current detector misses unpowered cars, so the tail of a train can leave Int 2 reading clear behind it. An optical sensor at the boundary covers that gap. Grouped as a block, Int 2 reads occupied while **any** of the three sees something.
+The Bridge block runs from one signal to the other, and out along both tracks that trains leave by. Wire its detector's feeders to all of that track, so a train is seen until it has left the board.
 
-> **Screenshot placeholder:** a sketch of Int 2: the current detector's feeder across the whole block, and an optical sensor in the track at each end.
+> **Screenshot placeholder:** a sketch of the gauntlet: two tracks converging onto a bridge, the Left, Bridge and Right blocks marked, and a signal at each end of the bridge.
 
 ---
 
-## Step 1: Check the board's name has a suffix
+## Step 1: The board's name, and a clean start
 
-Boards that share or run logic need a name that no other board at a meet has. The configurator adds six characters to every new board's name, such as `kiama-north-k7m4x2`. Those six characters are this board's own, and they stay when you rename it.
+Boards that run logic need a name that no other board at a meet has. The configurator adds six characters to every new board's name, such as `gauntlet-k7m4x2`. Those six characters are this board's own, and they stay when you rename it.
 
 1. Open the configurator's **Board** page.
-2. Look at **Board name**. You type the first part in the box. The suffix is the dash and six characters in the blue tag just after the box, such as `-k7m4x2`. If it is there, go on to Step 2.
-3. If there is none, there is a blue **Add a suffix** button under the box. Click it.
+2. Type **gauntlet** in **Board name**, and fill in your Wi-Fi as in the first board guide.
+3. Look just after the box. The suffix is the dash and six characters in the blue tag, such as `-k7m4x2`. If there is none, click the blue **Add a suffix** button under the box.
 
-Adding a suffix changes the board's network name, so the next flash must be by USB (Step 6).
+![The Board name field: gauntlet typed in the box, -k7m4x2 in a blue tag just after it, and the New suffix button beside that](img/field-logic/01-board-name.png)
 
-**Copied a file?** If you made this board from another board's `board.yaml`, click **New suffix**, beside the suffix, then **Yes, give it a new suffix**. Two boards must never share a suffix. This changes the network name too, so flash by USB next.
+**Copied a file?** If you made this board from another board's `board.yaml`, click **New suffix**, then **Yes, give it a new suffix**. Two boards must never share a suffix. A new suffix changes the board's network name, so the next flash must be by USB.
 
-![The Board name field: kiama-north typed in the box, -k7m4x2 in a blue tag just after it, and the New suffix button beside that](img/field-logic/01-board-name.png)
+A new board comes with an example sensor (**Kiama/Up XOver**) and an example turnout (**Kiama/Up Loop**). The gauntlet uses neither. On the **Sensors** page, click **Clear this page**, then **Yes, clear the Sensors page**. Do the same on the **Turnouts** page.
 
----
-
-## Step 2: Add the sensors
-
-Both kinds of sensor go on the **Sensors** page, and both are wired the same way: the sensor's output to the pin, and its GND to GND. The Sensors page does not need to know which kind each one is.
-
-1. Click **Add sensor**, at the top right of the Sensors page. A new card appears at the bottom of the list, on the next free pin.
-2. Type **Int 2 current** in its **Name**. The **MQTT topic** fills in as `trains/track/sensor/Int 2 current`. Change the **Pin** if your wire is on another one.
-3. Add **Int 2 East** and **Int 2 West** the same way.
-4. Leave **Debounce** at `500ms`. It bridges the gap between two cars passing an optical sensor.
-
-For an optical sensor, use a module with a digital output (often labelled `DO` or `OUT`) that goes low when it sees something. The ESP pin has no pull-up of its own, so the module must drive the wire itself, as a current detector does (see [detector wiring](README.md)). Most modules with a `DO` pin have their own pull-up and do. A bare sensor with no module board needs a pull-up resistor. Power the module from the ESP's 3.3V pin, and wire `OUT` to the sensor pin and `GND` to GND. Check the module's own notes before you power it. (An expander pin does have a pull-up, so either kind works there.)
-
-![The three new sensor cards on the Sensors page: Int 2 current on GPIO4, Int 2 East on GPIO13 and Int 2 West on GPIO16, each with Debounce 500ms](img/field-logic/02-sensors.png)
-
-Success looks like:
-- The three sensors are listed, each with its own pin, and there is no red message at the top of the page.
+You do not need to add sensors or signals on their own pages first. The Logic page makes each one where it goes on the drawing.
 
 ---
 
-## Step 3 (if you run out of pins): Add an expander
-
-Logic boards need a lot of inputs: a current detector for every block and an optical sensor at every boundary. When the Sensors page says no ESP pins are free, add an **MCP23017 expander**. It adds 16 sensor pins over I2C.
-
-1. On the **Sensors** page, scroll past the sensors to **Expanders (MCP23017)** and click **Add expander**. A card called **MCP 1** appears. Click its title to fold it away, and again to open it.
-2. Check its **I2C bus**:
-   - On a board with a PCA9685 for turnouts, it already says **Shares PCA9685 1** with that board's two pins. Keep it. That saves two ESP pins, and the addresses do not clash.
-   - Otherwise, pick **Its own SDA and SCL pins**, then set its **SDA pin** and **SCL pin**.
-3. Set **Address** to match the A0, A1 and A2 links on the expander board. All three to GND is `0x20`. Two expanders on the same bus need different addresses.
-4. Click the **Add sensor** button inside the MCP 1 card (not the one at the top of the page). The new sensor is listed under the expander, on its first free pin, such as **MCP 1 · A0**. Name it, and change its **Pin** to the expander pin you wired, such as **MCP 1 · B3**. Wire it the same as an ESP pin: the sensor's output to the expander pin, and GND to GND.
-
-A sensor you already have can move to the expander too: pick an expander pin in its **Pin** list, and its card moves under the expander.
-
-![The MCP 1 card: I2C bus Shares PCA9685 1 (GPIO21, GPIO22), Address 0x20, and the sensor Int 3 current listed under it on pin MCP 1 · A0, with the card's own Add sensor button below](img/field-logic/03-expander.png)
-
-The card's title says how many of its 16 pins are used (here *1 of 16 pins*).
-
-If an expander stops answering while the board is running, its pins keep their last value. So any block with a sensor on that expander reads **occupied** until the expander answers again. A train is never lost that way. The sensor's own JMRI sensor may keep its last value meanwhile.
-
----
-
-## Step 4: Choose Field Logic, and share
+## Step 2: Choose Field Logic
 
 1. Open the **Logic** page.
-2. Set **Logic** to **Field Logic**.
-3. Under **Settings**, leave **Share with other boards** ticked. It is on by default in Field Logic.
+2. Under **Logic**, pick **Field Logic**.
 
-Share makes the board publish what other boards need to read it:
+The page now shows one line for the mode, the six steps, and an empty drawing:
+
+![The top of the Logic page in Field Logic: the line Logic: Field Logic, Share with other boards: on, Linked boards: none, and Settings and linked boards; the steps 1 Draw to 6 Download, with Draw picked; and the empty Your track drawing with Draw, Erase and Select](img/field-logic/02-field-logic.png)
+
+The steps are **Draw**, **Sensors**, **Signals**, **Behaviour and rules**, **Try it** and **Download**. A step opens once the one before it has something in it. A step with problems shows how many, such as *2 problems*. Each step ends with a blue **Next** button.
+
+### Settings and linked boards
+
+Click **Settings and linked boards**, at the right of the top line, to see them. Click **Hide the settings** to fold them away again.
+
+![Settings and linked boards opened: the Logic card set to Field Logic, Share with other boards ticked under Settings, and the Linked boards card with no linked boards and its Link a board's file and Type a board's name buttons](img/field-logic/03-settings.png)
+
+Leave **Share with other boards** ticked. It makes the board publish what other boards need to read it:
 
 | What | Topic | JMRI sees it? |
 |---|---|---|
@@ -102,431 +72,398 @@ Share makes the board publish what other boards need to read it:
 
 The board also checks that no other board on the broker has its name. If one does, it says **Clash** on the board's web page, under **Board name check**, and in its logs.
 
-A board with no logic can tick Share too, so the boards next to it can read its sensors.
-
-![The top of the Logic page: Next steps with its first line crossed out and marked Done and Add blocks and signals marked Next, Logic set to Field Logic, and Share with other boards ticked under Settings](img/field-logic/04-field-logic.png)
-
-**Next steps**, at the top of the Logic page, is your checklist. Each line is a link to the part of the page it means. Choosing Field Logic crosses off the first line, and **Add blocks and signals** is marked **Next**.
+**Linked boards** are for reading the board next door. See [Reading another board's sensors](#reading-another-boards-sensors).
 
 ---
 
-## Step 5: Add the block
+## Step 3: Draw the track
 
-1. On the Logic page, under **Blocks**, click **Add a block**.
-2. Type **Int 2** as its **Name**. The **MQTT topic** fills in as `trains/track/sensor/Int 2`.
-3. Open the **Add a sensor…** list under **Sensors in this block** and pick **Int 2 current**. Then pick **Int 2 East**, then **Int 2 West**. Each one you pick joins the list above it.
+The drawing is a grid of dots. Track runs from dot to dot, straight across, straight up and down, or at 45 degrees. Below, a *space* is the gap from one dot to the next.
 
-The block now reads occupied while any of the three sees something.
+1. With **Draw** picked, press on a dot, drag to another dot, and let go. That draws one straight line. Two clicks, one at each end, do the same.
+2. Draw the gauntlet on three rows of dots, one space apart, leaving a space free at the left:
+   - the top left track: three spaces along the top row, then a slope one space down and right, to the middle row
+   - the bottom left track: three spaces along the bottom row, then a slope one space up and right, to the same dot
+   - the bridge: four spaces along the middle row
+   - the right side, the same as the left turned round: a slope up and three spaces along the top row, and a slope down and three spaces along the bottom row.
 
-![The Int 2 block: its Name, its MQTT topic trains/track/sensor/Int 2, and Int 2 current, Int 2 East and Int 2 West under Sensors in this block, with the Add a sensor… list below them](img/field-logic/05-block.png)
+   Lines that meet at a dot join there.
+3. Drew one wrong? Pick **Erase** and drag along it.
 
-**A sensor between two blocks.** An optical sensor at a boundary belongs to the blocks on both sides of it. If the next block east is Int 3, add Int 2 East to Int 3 as well. Each block then holds occupied until the last car has passed the boundary. A sensor in three or more blocks gets a warning, because a boundary only has two sides.
+Where three lines meet, the page draws a red **?**. It cannot tell whether there is a turnout there. The Draw step shows *2 problems* until you say.
+
+4. Click **Select**, then click the first **?**. The panel beside the drawing says **Where three lines meet**.
+
+![The gauntlet drawn, with a red ? where each pair of tracks meets; the left ? is picked, and the panel says Where three lines meet, with Turnout set to Pick one… and a New turnout here box; under the drawing, Problems in this step asks to pick the turnout at 4, 1 and at 8, 1, or choose no turnout for gauntlet track](img/field-logic/04-join.png)
+
+5. Under **Turnout**, pick **No turnout: two tracks that join, as on a gauntlet**. Do the same for the other **?**.
+6. Say which way trains run on the outer tracks. Click the top left track. Under **Trains run**, pick **Only right**. Make the bottom left track **Only left**, the top right track **Only right**, and the bottom right track **Only left**. An arrow on the track shows the way.
+
+One way applies up to the next turnout, crossing or end. The bridge itself stays **Both ways**.
+
+![The gauntlet with both joins settled and an arrow on each outer track; the bottom right track is picked, with Trains run set to Only left](img/field-logic/05-drawn.png)
 
 Success looks like:
-- The block lists its three sensors, and none says *not found*.
-- No red message at the top of the page.
-- **Next steps** still shows *Add blocks and signals* as **Next**. That is right: it turns **Done** once the board has rules to set its signals too, which comes with [the gauntlet](#start-from-a-starter-one-train-section).
-
-If a message says a block *uses sensor "…", which is not on the Sensors page*, that sensor was deleted or renamed somewhere else. Renaming a sensor on the Sensors page renames it in every block too, so this usually means it was deleted. Pick another sensor, or remove that one from the block.
+- The Draw step shows a tick and no problems.
+- Click **Next: blocks and sensors**.
 
 ---
 
-## Step 6: Flash the board and watch MQTT
+## Step 4: Blocks and sensors
 
-1. Download the YAML and install it, as in the [First Board Setup Guide](first-board-setup-guide.md). If you clicked **Add a suffix** or **New suffix** in Step 1, install by USB (**Install → Plug into this computer**). Otherwise install wirelessly, as usual.
-2. Open **MQTTX**, connect to `127.0.0.1:1883` with no username, and subscribe to `trains/#`.
+A **block** is the stretch of track between two **block breaks**: short lines across the track. Signals stand at block breaks, so each signal's place needs one.
+
+1. Click the dot on the top left track where Left Bridge will stand, two spaces in from the left end. The panel says **Point on the track**. Click **Add a block break**.
+2. Click the dot on the bottom right track where Right Bridge will stand, two spaces in from the right end, and add a break there too.
+
+That cuts the track into three pieces: the top left end, everything in the middle, and the bottom right end.
+
+3. Click the top left piece. Under **Block name**, type **Left**. The **MQTT topic** fills in as `trains/track/sensor/Left`.
+4. Under **New sensor in this block**, the name is already **Left current**. Click **Add the sensor**. The page makes the sensor on the next free pin and ticks it under **Sensors in this block**. A green note says which pin it took. Its full settings are on the Sensors page.
+5. Do the same for the middle piece (**Bridge**, with **Bridge current**) and the bottom right piece (**Right**, with **Right current**).
+
+![The Sensors step: the drawing with the Left, Bridge and Right blocks named and the Bridge block picked; the panel shows Block Bridge, its MQTT topic, and Bridge current ticked under Sensors in this block; under the drawing, three warnings that no signal checks each block yet](img/field-logic/06-blocks.png)
+
+A block with no sensor is drawn dashed: nothing sees a train there.
+
+The three yellow warnings say that no signal checks each block yet. That is right for now. They go in the next step.
+
+**Optical sensors at a break.** A current detector misses unpowered cars, so the tail of a train can leave a block reading clear. An optical sensor at the block break covers that. Click the break, and tick the sensor under **Sensors at this break**. A sensor at a break holds the blocks on both sides occupied.
+
+**Wiring.** Wire each sensor's output to its pin, and its GND to GND (see [detector wiring](README.md)). An optical sensor module needs a digital output (often labelled `DO` or `OUT`) that goes low when it sees something, and a pull-up of its own. Most modules with a `DO` pin have one.
+
+**Timing.** Each block has a folded **Timing** section. **Free its track when clear for** is how long the block must stay clear behind a train before another train can have its track (3 seconds unless you change it). **Hold after cancelling** keeps the track for a while if a signal drops in front of a train (railways call this approach locking).
 
 Success looks like:
-- `trains/track/sensor/board/kiama-north-k7m4x2/Online` shows `ACTIVE`.
-- Covering **Int 2 East** with your hand shows `ACTIVE` on `trains/track/sensor/Int 2 East` **and** on `trains/track/sensor/Int 2`.
-- Uncovering it shows `INACTIVE` on both. Each change comes about half a second after the sensor sees it (the Debounce).
-- `trains/track/sensor/Int 2/State` shows the same, and MQTTX marks it as retained.
-
-In the board's ESPHome **Logs**, the block logs `Int 2 | OCCUPIED` and `Int 2 | UNOCCUPIED`.
-
-> **Screenshot placeholder:** MQTTX showing `trains/track/sensor/Int 2` and `trains/track/sensor/Int 2 East` both ACTIVE, and the board's Online topic.
+- The three blocks are named and drawn solid, each with its sensor ticked.
+- The **Sensors** page lists Left current, Bridge current and Right current.
+- Click **Next: signals**.
 
 ---
 
-## Step 7: See the block in JMRI
+## Step 5: Signals
 
-1. On the configurator's **Download** page, under **JMRI tables**, tick **Logic**. Its hint says *This board's Online sensor, 1 block and the Logic on / off light.* You can untick the others if JMRI already has them.
-2. Click **Download JMRI XML**.
-3. In PanelPro, use **File → Load table content and panels** and pick the file. Then use **File → Store table content and panels** so JMRI keeps them.
-4. Open the **Sensor Table** (Tools → Tables → Sensors).
+1. Click the block break on the top left track. Its panel has a **New signal for trains heading right** box.
+2. Type **Left Bridge** in its **Name**. Leave **Kind of mast** on **One head: a red, a yellow and a green LED**, and click **Make the signal**.
+3. Click the block break on the bottom right track. In **New signal for trains heading left**, make **Right Bridge** the same way.
+
+The page makes each mast on the **Signal Masts** page, with its lamps on free pins and its aspects from the CATS list, and stands it on the drawing. Its head is on the driver's left, and its arrow points the way its trains go.
+
+> **Running out of pins?** A mast of three LEDs takes three pins. If the board has too few left, the page says so and makes nothing. Pick **One head: one WS2812B LED** instead: one pin for the whole mast.
+
+4. Say what is beyond each end that trains leave by. Click the dot at the right end of the top right track. Under **Beyond this end**, pick **Plain track, no more signals: the signal before it can show Clear**. Do the same at the left end of the bottom left track. Each end now says *plain track*.
+
+![The Signals step: Left Bridge standing at the top left break, facing right, and Right Bridge at the bottom right break, facing left, with plain track at the two ends trains leave by; Left Bridge's break is picked, showing Signal for trains heading right set to Left Bridge, Button for Left Bridge, Left Bridge is Manual only, the approach lighting choice and Aspects for each meaning](img/field-logic/07-signals.png)
+
+Other choices at the end of a track are **End of signalled track** (the signal before it shows Approach at best) and **Another board** (see [Reading another board's sensors](#reading-another-boards-sensors)).
+
+A signal's panel has more, all optional:
+
+- **Button for** the signal: a push button on the fascia, wired to GND. See [Auto and Manual](#auto-and-manual).
+- **Manual only**: always asked for by a person, whatever the Auto/Manual switch says.
+- **Light only while a train comes up to it**: approach lighting. The signal is dark until the block behind it is occupied.
+- **Aspects for each meaning**: which of the mast's aspects it shows for Stop, Approach, Clear and the rest. The usual ones are filled in for you.
 
 Success looks like:
-- `MSInt 2` and `MSboard/kiama-north-k7m4x2/Online` are in the table.
-- `MSboard/kiama-north-k7m4x2/Online` is **Active**.
-- Covering an optical sensor turns `MSInt 2` **Active**. Uncovering it turns it **Inactive**.
-
-> **Screenshot placeholder:** JMRI Sensor Table with `MSInt 2` Active and the board's Online sensor.
-
-CATS can use `MSInt 2` as the block's detector and ignore the three sensors inside it. Those keep their own topics, so a panel that already uses them still works.
+- No message at the top of the page. Each step up to **Try it** has a tick.
+- The **Signal Masts** page lists Left Bridge and Right Bridge.
+- Click **Next: behaviour and rules**.
 
 ---
 
-## Reading another board's sensors
+## Step 6: See what protects the bridge
 
-A block can include a sensor from the board next door. For example, an optical sensor at the edge of one board can hold a block on the next board. That board must have **Share with other boards** ticked.
+You have not written a single rule, and the bridge is already protected. Click things on the drawing to see how.
 
-1. On the Logic page, under **Linked boards**, click **Link a board's file** and pick the other board's `board.yaml`. Only its names and topics are kept, never its Wi-Fi or passwords. The board is listed by its full name, marked *From its file*, with a count of its sensors, turnouts and signals.
-   - No file to hand? Click **Type a board's name** and type its name exactly, suffix included. Then list its sensors one per line, as they are named on that board. This only works for sensors on the usual `trains/track/sensor/<name>` topics; for a board with its own topics, link its file.
-2. In the block's **Add a sensor…** list, that board's sensors and blocks are listed under its name, below this board's own. Pick one, such as **Int 1 East**.
-3. When the other board changes, click **Refresh** on it and pick its file again. The configurator says what changed.
+**Click the Bridge block.** The panel says:
 
-![The Linked boards card with kiama-south-p3q8w5 linked From its file: 2 sensors, 1 turnout, 0 signals, with its Refresh and Remove buttons](img/field-logic/06-linked-board.png)
+> *Signals "Left Bridge" and "Right Bridge" each have a route onto this block. Only one of those routes can be set at a time: a route takes all its track at once, and gives it back behind its train.*
 
-In the block, a sensor from another board is listed with that board's name after it:
+The two routes are drawn in blue.
 
-![The Int 2 block's sensors: Int 2 current, Int 2 East, Int 2 West and Int 1 East (from kiama-south-p3q8w5)](img/field-logic/07-linked-sensor.png)
+![The Behaviour and rules step with the Bridge block picked: both routes over the bridge drawn in blue, and the panel explaining that only one of them can be set at a time](img/field-logic/08-bridge.png)
 
-A sensor from another board counts as **occupied** until this board has heard from it, and whenever that board is offline. A block that uses one therefore reads occupied until both boards are running and connected. It is never clear by mistake.
+**Click Left Bridge.** The panel says it is a **controlled signal**: a route from it can clash with another signal's, so it clears only for a route that has been **asked for** and **set**.
+
+Here is what that means for a train:
+
+1. **Asked for.** A train arrives in Left. The board asks for Left Bridge's route over the bridge.
+2. **Set.** If the bridge is free, and no other route holds any of its track, the route is set. It takes the Bridge block for this train, and Left Bridge clears.
+3. **Released.** Once the train is in the Bridge block, Left Bridge goes back to Stop. When the train has gone and the Bridge block has been clear for its 3 seconds, the bridge is given back.
+
+While Left Bridge's route holds the bridge, Right Bridge's cannot be set, so a train in Right waits at Stop. The two signals can never both clear.
+
+A signal whose routes can never clash with another's is a **block signal**. It does not need asking: it shows the best the track ahead allows.
+
+### Auto and Manual
+
+The board has an **Auto** switch (on its web page, and as a light in JMRI). It decides who asks for a controlled signal's route:
+
+- **Auto** (the usual): the board asks, when a train arrives at the signal. If the train never comes, the request is dropped once the block behind has been clear for its time.
+- **Manual**: a person asks. CATS or JMRI asks by clearing (unholding) the signal, or someone presses the signal's **Button**. Holding the signal again, or pressing its button again, cancels the request.
 
 ---
 
-## The gauntlet over a bridge
+## Step 7: A button and a rule
 
-From here the guide uses a second example. Two tracks come together to cross a single bridge, then separate again. Only one train may be on the bridge at a time, and a signal at each end tells the driver when it is safe.
+Now add something of your own: Left Bridge should stay at Stop until the driver presses a **go** button on the fascia.
 
-- Three blocks: **Left**, **Bridge** and **Right**.
-- Two signals: **Left Bridge**, at the Left end of the bridge, and **Right Bridge**, at the Right end.
-- The tracks converge onto the bridge and separate again, so a train that crosses from Left leaves onto its own track beyond Right. It never goes back out through the Right block.
+1. Still in **Behaviour and rules**, click **Left Bridge**.
+2. Click **Example: hold this signal until a button is pressed**.
 
-You can add this to the board you already have, or start a new one. Either way, the board needs these before you start. If you built the Int 2 example, you have done this kind of step already.
+The page puts a button called **Left Bridge go** on the drawing below the signal, marked **B**, and writes one rule on Left Bridge. A red message says the button has no pin yet.
 
-1. **Sensors page:** one sensor for each block. Call them **Left current**, **Bridge current** and **Right current**. A sensor and a block cannot share a name, which is why they have a different name here.
-2. **Signal Masts page:** two masts, **Left Bridge** and **Right Bridge**, each with a red lamp over a green one. For each mast:
-   1. Click **Add mast** and type its **Name**.
-   2. Under **Lamps**, click **Add lamp**, then **Add lamp at the top**. The top lamp (Lamp 2) will be red and the bottom one (Lamp 1) green.
-   3. Under **Aspects**, pick **R292** in the list at the bottom and click **Add CATS aspect**. Type **Stop** over its name. Click the top lamp in its small mast picture, then **Red**. Tick **Show at startup**.
-   4. Pick **R281**, click **Add CATS aspect**, and type **Clear** over its name. Click the bottom lamp, then **Green**.
+3. Click the **B** on the drawing. Under **Pin**, pick the pin the button is wired to. Skip pins marked *(strapping)*: the ESP32 reads those at start-up.
 
-   R292 and R281 are the CATS template's names for Stop and Clear. Starting from them fills in each aspect's **JMRI aspect**, which every aspect needs, and later its meaning on the Logic page.
-3. **Logic page:** Logic set to **Field Logic**, as in Step 4. Under **Blocks**, add **Left**, **Bridge** and **Right**, and put each one's current sensor in it (Step 5).
+![The Left Bridge go button picked on the drawing: its panel says Button: Left Bridge go, A push button on the fascia, wired to GND, with its Name and Pin](img/field-logic/09-button.png)
 
-![The Left Bridge mast on the Signal Masts page: two lamps, the Stop aspect with the top lamp red and Show at startup ticked, and the Clear aspect with the bottom lamp green, their JMRI aspects R292 and R281](img/field-logic/08-gauntlet-mast.png)
+4. Click **Left Bridge** again. Under **Rules on Left Bridge** is the rule, as one sentence:
 
-> **Screenshot placeholder:** a sketch of the gauntlet: two tracks converging onto a bridge, blocks Left, Bridge and Right marked, and a signal at each end of the bridge.
+> *Keep at Stop unless: Left Bridge go was pressed in the last 30 seconds.*
+
+A dotted line on the drawing joins the signal to what its rule reads.
+
+![Left Bridge picked: the panel says it is a controlled signal, then Rules on Left Bridge with the sentence Keep at Stop unless: Left Bridge go was pressed in the last 30 seconds, and the Add a rule box; a dotted line joins the signal to the B button](img/field-logic/10-rule.png)
+
+A rule can only hold a signal back. With this one, Left Bridge still needs its route set over the bridge, **and** the button pressed in the last 30 seconds.
+
+**Your own rules.** Use **Add a rule** under any signal, turnout or lamp:
+
+1. Pick the **Rule**: for a signal, *Keep at Stop while*, *Keep at Stop unless* or *No better than Approach while*; for a turnout, *Lock it while* or *Only its own buttons move it while*; for a lamp, *Light while* or *Flash while*.
+2. Pick what it reads under **Condition 1**: a block, turnout, signal, switch or button, and what it must be. **Add a condition** adds another, with **All of them** or **Any of them**.
+3. Click **Save the rule**. It reads back as a sentence. **Remove** takes it away.
+
+**Buttons, switches and lamps.** Click an empty dot on the drawing to put one there. Pick its **Kind**, give it a name and a pin, and click **Put it here**. A switch is a toggle on the fascia, on when closed to GND. A lamp is an LED.
 
 Success looks like:
-- No red message at the top of the page.
-- **Next steps** still shows *Add blocks and signals* as **Next**. The starter in the next part writes the rules, and then it turns **Done**.
+- No message at the top of the page.
+- Click **Next: try it**.
 
 ---
 
-## Start from a starter: One-train section
-
-You do not write rules for the gauntlet. A **starter** asks a few plain questions and writes the rules for you, in a **group** you can change afterwards. The starter for this track is **One-train section**: a stretch of track that only one train may be on at a time, with a protected entrance at each end. It also suits a single-line bridge or tunnel, a diamond crossing and a staging throat.
-
-1. On the Logic page, find the **Start here** card, below **Sections**. (Once you have a group, the same cards are folded away under **Add from starter**: click *Each starter writes a new group of rules.* to open them.)
-2. Click **One-train section**, the first card. A form opens.
-3. Fill it in, then click **Add**. If something is missing, the form lists it under *Fix these first:*.
-
-![The Start here card: a card for each starter, One-train section first, then Lock turnouts under a train, Block signals, Route signal, Level crossing (coming in a later version), Approach lighting and Write a rule from scratch](img/field-logic/09-start-here.png)
-
-### The questions
-
-| The form says | What it means | For the gauntlet |
-|---|---|---|
-| **Name** | The name of the section, and of the group of rules. It shows in the logs and in MQTTX. It starts as *Section*: type over it. | `Bridge` |
-| **Blocks in the section** | The track that only one train may use at a time. Click **Add a block** and pick each one. | `Bridge` only |
-| **Entrance 1**, **Entrance 2** | One for each way into the section. You need two to four. **Add an entrance** adds another. | Two |
-| **A train waiting in** | The block where a train stands, asking to go in. | Left for entrance 1, Right for entrance 2 |
-| **Signal** | The signal that protects that entrance. | Left Bridge, then Right Bridge |
-| **shows** | What it shows to let the train go in. This is filled in for you when the signal has an aspect that means Clear. | Clear |
-
-Each entrance needs its own waiting block. Two entrances cannot wait in the same one.
-
-Under **More options** (folded away, and the starter works without opening it):
-
-| The form says | What it means | Default |
-|---|---|---|
-| **Free the section when its blocks are clear for** | How long the section's blocks must stay empty before the next train may go in. This covers the tail of a train, and a gap between two cars. | 3 seconds |
-| **Hold after cancelling** | If a signal drops in front of a train, keep the section for a while anyway, so the next train cannot be let in under it. Railways call this approach locking. | Off |
-| **Trains also leave through entrance 1** (and 2) | See the next part. | Unticked |
-
-Filled in for the gauntlet, with **More options** opened, the form looks like this. Each **shows** has a small picture of the signal in that aspect:
-
-![The One-train section form: Name Bridge, the Bridge block in Blocks in the section, entrance 1 waiting in Left with Left Bridge showing Clear, entrance 2 waiting in Right with Right Bridge showing Clear, and More options open at 3 seconds, Hold after cancelling Off and both Trains also leave boxes unticked](img/field-logic/10-one-train-form.png)
-
-### The section it makes
-
-When you click **Add**, the page writes two things.
-
-- A **section** called Bridge, under **Sections**. A section is track only one train may use at a time. It holds the Bridge block, and it is freed when the Bridge block has been clear for 3 seconds: the card says so in a sentence, *Free the section when Bridge has been clear for 3 seconds.* You can see and edit it under **Sections**.
-- A **group** called Bridge under **Groups**, with one rule for each entrance. Each rule is one sentence: *when this happens, show that.* **Rule 1** shows its sentence in the shaded box at the top, then its three parts, **When**, **Only if** and **Then**:
-  - **When:** *While* Left is *occupied*. Its **More options** has **For** set to half a second, so a flicker is ignored.
-  - **Only if:** nothing else is needed, so it says *Nothing else: the rule needs only its When.*
-  - **Then:** **Signal** Left Bridge **Shows** Clear, and **Take the section** is Bridge.
-
-![The Groups card: the Bridge group, and Rule 1 with its sentence "Left Bridge shows Clear when a train has been in Left for half a second and the Bridge section is free.", When set to While Left occupied, Only if empty, and Then set to Left Bridge showing Clear and taking the Bridge section](img/field-logic/11-bridge-group.png)
-
-The signal only clears when the section is free. Once Left Bridge has the section, Right Bridge cannot have it, so Right Bridge stays at Stop until the first train has gone through and the section is freed. This is why a gauntlet is safe: the two signals cannot both be Clear.
-
-### Trains also leave through here
-
-From the sensors alone, the board cannot tell a train **waiting** in Left from a train that is **leaving** the section through Left. The tick box tells it which.
-
-- **Leave it unticked for the gauntlet.** The tracks separate beyond the bridge, so a train in Left or Right is always waiting its turn.
-- **Tick it for a single line,** such as one track over a bridge or through a tunnel, where trains come out of the section through the same block they went in by. Tick it on both entrances. A train waiting at one end then goes first, and a train that has just arrived while the section is taken is treated as one leaving. It cannot ask for the section until its block has been clear once.
-
-Success looks like:
-- The Groups card shows the Bridge group with two rules, and the Sections card shows Bridge.
-- The Masts card lists Left Bridge and Right Bridge.
-- **Next steps** shows *Add blocks and signals* as **Done**, and *Try it* as **Next**.
-
----
-
-## The signals
-
-The rules set the signals, so the page needs to know what each aspect **means**. Open the **Masts** card. A signal joins it when a rule first sets it. Left Bridge and Right Bridge are there now.
-
-Each aspect is drawn as a small picture of the mast, lit in that aspect. For each signal:
-
-1. Under **Aspects**, check each aspect's **Meaning**: the list under its name. This is what the aspect tells the driver: Stop, Restricting, Approach, Advance Approach or Clear. Stop should say **Stop** and Clear should say **Clear**. They already do here, because the aspects came from the CATS list (R292 and R281), and CATS aspects arrive with their meaning filled in. For any other aspects, check them yourself: an aspect left at Stop is treated as Stop.
-2. **Diverging route** is for a train that takes a turnout at reduced speed. The gauntlet does not need it.
-3. **At stop and at start-up** is what the signal shows when the rules say Stop, and from power-on, before anything has been worked out. **Automatic** picks the aspect that means Stop. Pick another aspect if you want something particular, such as a red-over-red.
-4. **Set by logic** is shown next to each signal that this board decides. JMRI and CATS cannot change it while logic is on, apart from a hold (see [CATS hold](#cats-hold)).
-
-![The Masts card with Left Bridge, marked Set by logic: its Stop aspect (red) with Meaning Stop, its Clear aspect (green) with Meaning Clear, At stop and at start-up on Automatic (Stop), Approach lighting on Always lit, and the Explain button at the top right](img/field-logic/12-masts.png)
-
-**Approach lighting** is for a signal that stays dark until a train is near. Leave it on **Always lit** for the gauntlet.
-
-**Aspect names must be different** on each signal that logic uses. If two aspects on one mast have the same name, the page says so.
-
-### Explain
-
-Every signal that logic sets has an **Explain** button, at the top right of its card. Click it. A shaded box opens at the bottom of the card, with one plain sentence for each thing the signal can show, worked out from the rules, so it is always what the board does:
-
-- *Left Bridge shows Clear when a train has been in Left for half a second and the Bridge section is free.*
-- *Otherwise it shows Stop.*
-- *If JMRI or CATS holds it, it shows Stop.* (See [CATS hold](#cats-hold).)
-
-![Explain open under Left Bridge, with the three sentences above](img/field-logic/13-explain.png)
-
-If a sentence is not what you meant, the rule behind it is wrong. Fix the rule, and Explain changes with it. The button now says **Hide**: click it to close the box.
-
-Success looks like:
-- Each signal has a meaning for every aspect, and Explain says what you expect.
-- No red message at the top of the page.
-
----
-
-## Try it
+## Step 8: Try it
 
 **Try it** lets you work the track on the page before you flash anything. Nothing here touches the layout or the board.
 
-1. Scroll to the **Try it** card, below **Start here**. Its buttons are along the top: **Run**, **Step**, **Skip ahead 1 second**, **Skip ahead 10 seconds** and **Start again**. The gauntlet starter knows the shape of the track, so under **Track** you see a picture: Left, Bridge and Right in a row, with a signal on a post between each, both red.
-2. Under **Signals**, Left Bridge and Right Bridge both show **Stop**. Under **Sections**, Bridge is **Free**.
-3. **Put a train in Left.** Click the Left block in the picture. A red bar, the train, appears in it.
-4. Click **Skip ahead 1 second**. The rule waits half a second to be sure the train is really there, so you must let a little time pass.
+- Click a **block** to put a train in it, and again to take it out.
+- Click a **turnout** to throw it (unless it is locked), a **button** to press it, a **switch** to flip it.
+- Click a **signal** to see what it shows and why. **Ask for a route** and **Cancel its route** do what its button, or CATS, would.
+- **Step** moves time on a tenth of a second. **Skip ahead 1 second** and **Skip ahead 10 seconds** move it further. **Start again** clears everything.
+- **Switch to Manual** flips the Auto switch.
 
-Success looks like:
-- **Left Bridge** shows **Clear**: green in the picture and under **Signals**.
-- **Bridge** says *Taken, waiting for the train*, and which rule took it.
-- **Right Bridge** is still at **Stop**.
+Train in red, a route set and waiting for its train in green, track taken by a route in grey, and a locked turnout with a black square.
 
-![Try it with a train in Left: the Left block holds a red train, the Left Bridge signal is green and Right Bridge red; under Signals, Left Bridge Clear and Right Bridge Stop; under Sections, Bridge Taken, waiting for the train (Rule 1 in group "Bridge")](img/field-logic/14-try-it.png)
+1. **Put a train in Left.** Click the Left block, then **Skip ahead 1 second**.
 
-Now carry on. After each, click **Skip ahead 1 second**:
+The board has asked for Left Bridge's route and set it: the whole route over the bridge is green. But Left Bridge still shows **Stop**, because nobody has pressed the go button.
 
-1. **Put a train in Bridge** (click Bridge). The section says *A train is in it*.
-2. **Take the train out of Left** (click Left again). Left Bridge goes back to Stop, as the train has gone by.
-3. **Put a train in Right** while Bridge is still occupied. Right Bridge stays at Stop. That train must wait.
-4. **Take the train out of Bridge.** Click **Skip ahead 10 seconds**. The section is **Free** again (it waits 3 seconds of clear track first). Right Bridge, with its train still waiting in Right, now shows Clear.
+![Try it with a train in Left: the route from Left over the bridge and out at the top right drawn in green, Left Bridge red, and the panel for Signal Left Bridge saying Shows Stop, with its Why sentences and What happened](img/field-logic/11-try-route.png)
 
-That is the whole gauntlet. If something does not match, click **Start again** and try it a step at a time with **Step**, which moves time on by a tenth of a second.
+2. **Press the button.** Click the **B**, then **Step**. Left Bridge shows **Clear**.
+3. **Put a train in Right**, then **Skip ahead 1 second**. Click Right Bridge: it shows **Stop**. The bridge is Left Bridge's, so this train waits.
 
-The other controls:
+![Left Bridge green after the button was pressed, and a second train waiting in Right with Right Bridge at Stop; the panel for Right Bridge says Shows Stop](img/field-logic/12-try-clear.png)
 
-- **Run** lets time pass at normal speed. **Stop** stops it.
-- Under **Inputs** are the sensors the rules read (here Left current, Right current and Bridge current), each **Clear** or **Occupied**. You can change one there instead of clicking the picture.
-- Under **Other boards** is each linked board, ticked while it is switched on and heard. Untick it to see what happens when that board is off.
-- A value that is **Not known** is what another board reads when it is switched off or has not been heard from. It counts as occupied, so a signal never clears by mistake.
+4. **Let the first train cross.** Click Bridge (the train is on it), then Left (it has left Left), and **Skip ahead 1 second** after each. Then click Bridge again (it has left), and **Skip ahead 10 seconds** twice.
+5. Click Right Bridge. It now shows **Clear**: the bridge was given back 3 seconds after the train left it, and the waiting train's route was set.
 
-### Run a train
+**Why** under a signal says what it shows in each case, one sentence for each part that sets it: the drawing's own (named after the signal, and *<signal> moves* for its routes) and each of your rules (*Left Bridge rule 1*). **What happened** lists what the board did, newest first.
 
-Clicking blocks one at a time is slow. **Run a train** does it for you. It is at the bottom of the Try it card.
-
-1. Under **Run a train**, pick **Direction** (*As drawn, left to right*), **Starting in** (Left) and **Length in blocks** (1 is a short train). With more than one strip of track, there is also **Along**: pick the group, such as Bridge.
-2. Click **Run a train**.
-3. A table appears. Each row is one move of the train, named in the **Step** column, such as *Train enters Left* and *Train leaves Left*. **Blocks with a train** shows where the train is, and the other columns draw every signal as it is at that step.
-
-![Run a train for the gauntlet: Direction As drawn, left to right, Starting in Left, Length in blocks 1, and the table of steps, with Left Bridge Clear at Train enters Left and Stop again at Train enters Bridge](img/field-logic/15-run-a-train.png)
-
-Run a train walks straight along the strip, so after the bridge this train runs on into Right. In the gauntlet a train never leaves that way, so the board takes it for a train waiting in Right: at *Train leaves Bridge*, Right Bridge shows Clear for it. That is the rules working as they should.
-
-Run it both ways, and with a train waiting at the other end. Most mistakes show up here.
-
-### Show timing details
-
-You do not need this to make the gauntlet work. Open **Show timing details** when a signal does not do what you expected and you want to know why. It shows:
-
-- **Time**: how far the pretend clock has moved.
-- **Rules**: each rule and what it is doing. *Not in use*, *Waiting for its section*, *Has its section*, *The train is in the section*, or *Gave up, section still held*.
-- **Waiting order**: when two entrances want the section, who is next. The one that has waited longest goes first. If two have waited equally, the one listed first in the group goes first.
-- **What happened**: a list in plain words, such as *Rule 1 in group "Bridge" took section "Bridge"* and *Section "Bridge" is free again when its release condition held*.
-
-If Right Bridge will not clear, look at **Rules**. A rule that says *Waiting for its section* is behind another one, and **What happened** says who has it.
+**Run a train.** Pick a signal under **Run a train from** and click **Run a train**. A train runs from the block behind it along the route its turnouts are set for, block by block.
 
 ---
 
 ## Problems
 
-The page checks your work as you go. A message appears in the box at the top of every page, including the Download page. Each says **what is wrong, why it matters, and what to do**, and names the item. For example:
-
-> *Section "Bridge" has block "Left", which is not on this board. Add it under Blocks, or remove it from the section.*
+The page checks your work as you go. Messages appear in the box at the top of every page, and under the drawing as **Problems in this step**. The step they belong to shows a count. Each says what is wrong and what to do.
 
 - A red message is an **error**. It stops the download until you fix it.
-- A yellow message is a **warning**. It never stops the download, but read it, because it often points at a real mistake.
-- Click **Show** at the end of a message. The page takes you to the part that needs fixing. Fix it, and the message goes.
+- A yellow message is a **warning**. It never stops the download, but read it.
+- Click **Show** to go to the step it belongs to.
 
-![The message box: a red error, Block "Int 2" uses sensor "Int 2 West", which is not on the Sensors page, and a yellow warning, Sensor "Int 2 East" is in 3 blocks (Int 2, Left, Right), each ending in a Show link](img/field-logic/16-problems.png)
+![The message box: a red error, Button "Left Bridge go" has no pin. Pick the pin it is wired to, with a Show link](img/field-logic/13-problems.png)
 
-In the picture, Int 2 West was removed on the Sensors page while the Int 2 block still used it (the red error), and Int 2 East was put in the Left and Right blocks as well as Int 2 (the yellow warning). Adding Int 2 West back on the Sensors page, with the same name, and taking Int 2 East out of Left and Right clears both.
-
-### What the checker says
-
-Once nothing else is wrong, the page also runs a **checker**. It tries your rules against every mix of trains it can think of, then tells you what it found. A checker message has a **Show** link that does more than go to the page: it carries you to Try it and plays the exact steps that cause the problem, so you can watch it happen. Click **Step** to go on from there.
-
-| The message begins | It means | What to do |
-|---|---|---|
-| *Rule 1 in group "Bridge" can be left waiting for section "Bridge" forever, with its train still there.* | A train can stand in front of a signal for ever. This is an **error**. | Click **Show** and watch what holds the section. Then check what has to happen for it to be free: its release, and the blocks listed in the section. |
-| *… can be passed over forever: other trains keep getting section "Bridge" while it waits.* | A train at one entrance could be starved by trains at the other. A **warning**. | Click **Show**. On a busy layout, think about whether that is acceptable. |
-| *… can never apply: no mix of trains, turnouts and signals makes its When and Only if true together.* | A rule asks for something impossible, usually a block that must be both occupied and clear. | Open the rule and look at its When and Only if. |
-| *Signal "Left Bridge" can never show anything but Stop.* | No rule that sets it can ever apply. | Check the rules that set it. |
-| *This board has too many combinations to check every one, so the checker tried N random runs.* | The board is large, and the checker could not try everything. | Treat a clean result as good, not as proof. Use Try it and Run a train as well. |
-
-The checker only knows what you have told the page. It knows only one train fits in a section if you put that track in a section, and it cannot tell that two signals lead onto the same track unless a section says so.
-
-Other messages you may meet, and what to do:
+Some you may meet:
 
 | The message says | What to do |
 |---|---|
-| *… reads signal "…", which is not on the Signal Masts page* | The signal was deleted or renamed on the Signal Masts page. Add it again, or pick another. Renaming on the page renames it in the rules; deleting does not. |
-| *Block "…" is in sections "…" and "…". A block can be in one section only* | Take the block out of one section. Two sections over one block could let two trains in. |
-| *… starts when something happens and has no Cancel* | A warning on a rule that starts with **When**. Add a **Cancel when…** if the train might not come. |
-| *Signal "…" is set to … by group "…" and to … by group "…"* | A warning: two groups set one signal. It shows the most cautious of them. Check that is what you want. |
-| *… sets signal "…" and also reads it* | A rule waits on itself. Read the signal ahead instead. |
+| *Pick the turnout at the point at …, or choose no turnout for gauntlet track.* | Click the **?** in the Draw step and say what is there. |
+| *No signal on the drawing checks block "…"* | A warning: a train standing there holds no signal at Stop. Put a signal before it, unless you only want to see the block in JMRI. |
+| *Some track past signal "…" has no sensor of its own* | A train standing on that track may not be seen. Put that track in a block with a sensor. |
+| *Button "…" is on GPIO…, which "…" already uses* | A pin can do one job. Pick another pin. |
+
+Once nothing else is wrong, the page also runs a **checker**. It tries the drawing and your rules against every mix of trains it can, and warns if a train could wait for ever, or a rule can never apply. A big station is checked from its routes instead. A head-on meeting with a train that came in from beyond an end of the drawing is not counted: the layout beyond holds that train, or you release the route by hand.
 
 ---
 
-## Download and flash
+## Step 9: Download and flash
 
 ### The Logic version
 
-1. Open the **Download** page. With Field Logic, the first card is **Logic version**, with a short code such as `ee555edb`. It matches the board when the board is running exactly what you checked. Under it are the **Download summary** button and **Warnings about the logic**, which lists any warnings (or says *No warnings about the logic.*).
-2. If errors are left, the page says how many must be fixed first, and the Download button is greyed out.
+1. Click **Next: download**, or open the **Download** page. With Field Logic, the first card is **Logic version**, with a short code such as `1c4e6ea0`. Under it are **Download summary** and **Warnings about the logic**.
 
-Write the version down, or leave the page open. After you flash, the board shows the same code on its web page (**Logic version**). If they differ, the board is running an older file: flash again.
+![The Logic version card on the Download page: the code 1c4e6ea0, the Download summary button, and Warnings about the logic saying No warnings about the logic.](img/field-logic/14-logic-version.png)
 
-### Download summary
+Your code may be different: it is worked out from your drawing and rules, and changes whenever they do. After you flash, the board shows the same code on its web page (**Logic version**). If they differ, the board is running an older file: flash again.
 
-Click **Download summary**. It saves a one-page file, `<board name>-summary.html`. Open it in a browser and print it. It lists:
-
-- each signal the logic sets, with its Explain sentences
-- each block, with its sensors and the pin each is wired to
-- each section, and when it is freed.
-
-It carries the Logic version too. Keep it on the workbench or under the module, so that whoever wires or repairs it next knows what it is meant to do.
-
-![The Logic version card on the Download page: the code ee555edb, the Download summary button, and Warnings about the logic saying No warnings about the logic.](img/field-logic/17-logic-version.png)
-
-Your code may be different: it is worked out from your own rules, and changes whenever they do.
+**Download summary** saves a one-page file, `<board name>-summary.html`, to print and keep under the module: each signal with what it shows, each block with its sensors and their pins. It carries the Logic version too.
 
 ### Flash
 
-Flash the board as in Step 6 of the groundwork, from the Download page, or with **Send to ESPHome**. Install by USB if you added a suffix. A board that has run logic before can be updated wirelessly.
+Download the YAML and install it, as in the [First Board Setup Guide](first-board-setup-guide.md). Install by USB if you added a suffix. Otherwise install wirelessly. The first build is long, because ESPHome fetches the Field Logic component from GitHub.
 
-The first build is long, because ESPHome fetches the Field Logic component from GitHub. The board then starts with the logic **on** (unless you unticked **Logic on at start-up** under **Settings**).
+Success looks like the board's web page showing:
+- **Logic version**, with the same code as the Download page
+- a **Field logic** switch and an **Auto** switch, both on
+- a **Release Left Bridge** and a **Release Right Bridge** button.
 
-Success looks like:
-- The board's web page shows **Logic version** with the same code as the Download page.
-- It has a **Field logic** switch, which is on, and a **Release Bridge** button.
+> **Screenshot placeholder:** the board's web page with the Field logic and Auto switches, Logic version and the two Release buttons.
 
 ### Check it in MQTTX
 
-Open MQTTX, connect to `127.0.0.1:1883` with no username, and subscribe to `trains/#`. The names below are for the board `gauntlet-k7m4x2`. Yours will have its own.
+Open MQTTX, connect to `127.0.0.1:1883` with no username, and subscribe to `trains/#`. The names below are for the board `gauntlet-k7m4x2`. Yours will have its own suffix.
 
 | Topic | What it shows |
 |---|---|
-| `trains/track/sensor/logic/gauntlet-k7m4x2/Bridge/Held` | `ACTIVE` while a rule has the Bridge section, and `INACTIVE` when it is free. This is the one to watch first. |
-| `trains/track/logic/gauntlet-k7m4x2/Bridge/State` | The section in a word: `IDLE` (free), `ACTIVE` (taken, waiting for the train), `PASSED` (a train is in it) or `CANCELLING` (held a while after the request stopped). |
-| `trains/track/signalmast/Left Bridge/State` | The aspect Left Bridge is showing, by its JMRI aspect name (the part of the aspect's JMRI match before the first `;`). Present when **Share with other boards** is ticked. |
-| `trains/track/light/logic/gauntlet-k7m4x2` | `ON` or `OFF`: the **Logic on / off** light. |
+| `trains/track/sensor/Left` (and `Bridge`, `Right`) | Each block: `ACTIVE` while occupied, `INACTIVE` when clear. |
+| `trains/track/sensor/logic/gauntlet-k7m4x2/Bridge/Held` | `ACTIVE` while a route holds the bridge, `INACTIVE` when it is free. Watch this one first. |
+| `trains/track/logic/gauntlet-k7m4x2/Bridge/State` | The bridge in a word: `IDLE` (free), `ACTIVE` (taken, waiting for the train), `PASSED` (the train is on it) or `CANCELLING` (held a while after the request was dropped). |
+| `trains/track/signalmast/Left Bridge/State` | The aspect Left Bridge is showing, by its JMRI aspect name. |
+| `trains/track/light/logic/gauntlet-k7m4x2` | `ON` or `OFF`: the **Field logic** switch. |
+| `trains/track/light/auto/gauntlet-k7m4x2` | `ON` in Auto, `OFF` in Manual. |
 | `trains/track/logic/gauntlet-k7m4x2/Version` | The Logic version, as the board sent it when it connected. |
 
 Try it for real:
 
-1. Cover the **Left current** sensor with your hand, or run a train into Left. After half a second, `Bridge/Held` goes `ACTIVE`, `Bridge/State` goes `ACTIVE`, and Left Bridge goes Clear.
-2. Let the train onto the bridge. `Bridge/State` goes `PASSED`.
-3. Clear the track. 3 seconds after the Bridge block clears, `Bridge/State` goes `IDLE` and `Held` goes `INACTIVE`.
+1. Run a train into Left (or cover the Left current detector). `Bridge/Held` goes `ACTIVE`, and `Bridge/State` goes `ACTIVE`. Left Bridge stays at Stop.
+2. Press the go button. Left Bridge goes Clear.
+3. Let the train onto the bridge. `Bridge/State` goes `PASSED`, and Left Bridge goes back to Stop.
+4. Once the train has left the Bridge block, and 3 seconds later, `Bridge/State` goes `IDLE` and `Held` goes `INACTIVE`.
 
 > **Screenshot placeholder:** MQTTX showing the Bridge Held and State topics, and Left Bridge's State.
 
-**Logic on / off.** The board's web page has a **Field logic** switch. Turn it off, and the board hands its signals back to JMRI and CATS, which set them as they did before. Turn it on, and the board works them out again. The light `MLlogic/gauntlet-k7m4x2` does the same from JMRI. Signals that no rule sets are never affected.
+### In JMRI
 
-**Release.** If a detector fails, or a train stalls, the section can stay held. Click **Release Bridge** on the board's web page to free it by hand. The signals go to Stop, and a later pass of the rules can grant the section again. Releasing with a train still in the section is your call.
+On the Download page, under **JMRI tables**, tick **Logic**, then click **Download JMRI XML** and load it in PanelPro (**File → Load table content and panels**, then **File → Store table content and panels**). It adds:
 
-From JMRI, tick **Logic** on the Download page before you download the JMRI XML. It adds the on / off light, a **Release** turnout for each section (`MTlogic/<board>/Bridge/Release`), and a sensor that mirrors Held. Throwing the Release turnout presses the button, and it snaps back by itself. A release that arrives in the first 5 seconds after the board connects is ignored, because it may have been waiting on the broker for hours.
+- a sensor for each block (`MSLeft`, `MSBridge`, `MSRight`) and the board's Online sensor
+- `MSlogic/gauntlet-k7m4x2/Bridge/Held`, which mirrors Held
+- a **Release** turnout for each signal's routes, such as `MTlogic/gauntlet-k7m4x2/Left Bridge moves/Release`
+- the lights `MLlogic/gauntlet-k7m4x2` (Field logic on or off) and `MLauto/gauntlet-k7m4x2` (Auto or Manual).
 
-> **Screenshot placeholder:** the board's web page with the Field logic switch, Logic version and the Release Bridge button.
+CATS can use `MSBridge` as the block's detector.
+
+### Logic on and off, and Release
+
+**Field logic.** Turn the switch off, and the board hands its signals back to JMRI and CATS. Turn it on, and the board works them out again. The light `MLlogic/<board>` does the same from JMRI. Signals that are not on the drawing are never affected.
+
+**Release.** If a detector fails or a train stalls, a route can stay set. Press **Release Left Bridge** on the board's web page (or throw its Release turnout in JMRI) to free that signal's route by hand. The signal goes to Stop. Releasing with a train still on the track is your call. A release that arrives in the first 5 seconds after the board connects is ignored, because it may have been waiting on the broker for hours.
 
 ### CATS hold
 
-CATS has a **Hold Only** option on a signal template. With it, CATS does not set the aspect. It only **holds** the signal at Stop when its own logic says Stop, and lets go when it says go. With Field Logic on, the board does the rest.
+CATS has a **Hold Only** option on a signal template. With it, CATS does not set the aspect. It only holds the signal at Stop, and lets go.
 
-- A held signal shows Stop, whatever the rules say.
-- A rule that wants a held signal does not get the section. It keeps waiting, and takes the section when the signal is no longer held.
-- A hold that was left on the broker when JMRI closed keeps the signal at Stop. That is on purpose. To clear it, unhold the signal in CATS or JMRI, or press **Release** for that section, which clears the board's copy of the hold.
-
----
-
-## Lock turnouts under a train
-
-A short starter for a turnout that must not be thrown with a train on it. **Lock turnouts under a train** writes one rule for each turnout: while its block is occupied, the turnout stays locked.
-
-1. On the Logic page, find **Add from starter** and click *Each starter writes a new group of rules.* to open its cards. Click **Lock turnouts under a train**.
-2. Give the group a **Group name**.
-3. Pick each **Turnout**, and the **Block it sits in**. **Add a turnout** adds another row.
-4. Click **Add**.
-
-While the block is occupied, the turnout ignores its fascia button and JMRI or CATS. When the block clears, it unlocks. A turnout with a toggle switch then catches up with where the switch now is.
-
-You can try it in Try it: put a train in the block and the turnout shows *Locked by the rules*.
+- A held signal shows Stop, whatever the drawing says.
+- In **Manual**, letting go of the hold asks for the signal's route, and holding it again cancels the request.
+- A hold left on the broker when JMRI closed keeps the signal at Stop. That is on purpose. Unhold the signal in CATS or JMRI to clear it.
 
 ---
 
-## Block signals
+## More sensor pins: an expander
 
-**Block signals** is the starter for a run of plain track with a signal for each block. Each signal shows **Stop** while the block ahead of it has a train in it. Further back, it shows **Approach**, then **Clear**, as the train moves on. The signals behind a train step down: Stop, then Approach, then Clear, as it gets further away. A signal that is at Stop for any reason, such as a one-train section in use, drops the signals behind it too.
+Logic boards need a lot of inputs. When the Sensors page says no ESP pins are free, add an **MCP23017 expander**. It adds 16 sensor pins over I2C.
 
-1. Under **Add from starter**, open the cards as above and click **Block signals**.
-2. Give the **Direction** a name, such as Up. List the signals in the order trains run: each row is a **Signal** and the **Block it protects**, which is the one just beyond it. **Add a signal** adds a row.
-3. Under **After the last block**, choose **The next signal** (then pick it in **Next signal**), or **End of signalled track**.
-4. For signals facing the other way too, tick **Both directions**. It adds a second group for them, over the same blocks.
-5. Click **Add**.
+1. On the **Sensors** page, scroll past the sensors to **Expanders (MCP23017)** and click **Add expander**. A card called **MCP 1** appears.
+2. Check its **I2C bus**. On a board with a PCA9685 for turnouts, it says **Shares PCA9685 1**: keep it. Otherwise pick **Its own SDA and SCL pins** and set them.
+3. Set **Address** to match the A0, A1 and A2 links on the expander board. All three to GND is `0x20`.
+4. Click the **Add sensor** button inside the MCP 1 card. The sensor is listed under the expander, on its first free pin, such as **MCP 1 · A0**. Change its **Pin** to the one you wired.
 
-Where two blocks share no sensor at their boundary, the page warns that a signal could clear while an unpowered car is still there. Put an optical sensor at the boundary in both blocks, as for Int 2 in Step 5.
+![The MCP 1 card: I2C bus Shares PCA9685 1, Address 0x20, and the sensor Bridge east listed under it on pin MCP 1 · A0](img/field-logic/19-expander.png)
 
-Block signals do not stop two trains meeting head-on on single track. Put a One-train section over the single line as well. Its signals keep the entrance at Stop while the line is in use, and the block signals step down behind them.
+The sensor is then on the Logic page's block lists like any other: tick it under **Sensors in this block**, or under **Sensors at this break**.
 
-The same chapters apply: Try it draws the strip, **Run a train** walks along it, and Explain says what each signal shows.
+If an expander stops answering, any block with a sensor on it reads **occupied** until it answers again. A train is never lost that way.
 
 ---
 
-## Signals that read the board next door
+## Reading another board's sensors
 
-Signals can follow the board next door, using [Linked boards](#reading-another-boards-sensors). That board needs **Share with other boards** ticked.
+A block can include a sensor from the board next door, such as an optical sensor at the edge of that board. That board must have **Share with other boards** ticked.
 
-1. Under **Linked boards**, link the other board's `board.yaml`.
-2. In a **Block signals** group, choose **The next signal** under **After the last block**. In the **Next signal** list, the other board's signals are under its name. Pick the first one a train meets there.
-3. If the sensor at the edge is on the other board, add that **sensor** to your block. Add the sensor, not the other board's block: two boards that include each other's blocks could hold both occupied for good.
+1. Click **Settings and linked boards**. Under **Linked boards**, click **Link a board's file** and pick the other board's `board.yaml`. Only its names and topics are kept, never its Wi-Fi or passwords.
+   - No file to hand? Click **Type a board's name**, type its full name, suffix included, and list its sensors one per line.
+2. When the other board changes, click **Refresh** on it and pick its file again.
 
-If the other board is off or not heard, its sensors read occupied and its signals read Stop.
+![The Linked boards card with kiama-south-p3q8w5 linked From its file, with its Refresh and Remove buttons](img/field-logic/20-linked-board.png)
 
-For modules that join a different neighbour at each meet, use [MSS Logic](mss-logic-guide.md), where you pair them on the day.
+3. In the **Sensors** step, click a block. Under **Sensors in this block**, that board's sensors are listed under its name, below this board's. Tick the one you want.
+
+![The Left block picked in the Sensors step: under Sensors in this block, Left current ticked under This board, and South end ticked under kiama-south-p3q8w5](img/field-logic/21-linked-sensor.png)
+
+A sensor from another board counts as **occupied** until this board has heard from it, and whenever that board is offline. A block that uses one reads occupied until both boards are running. It is never clear by mistake.
+
+An end of the drawing can lead to a linked board too: under **Beyond this end**, pick **Another board**, then its next signal and its blocks that must be clear.
+
+---
+
+## A crossing loop
+
+A single line with a loop where two trains can pass. Start a new board, or clear the Sensors, Turnouts, Signal Masts and Logic pages of this one (Logic keeps Field Logic and Share).
+
+**Draw.** A main line 16 spaces long, and the loop above it: a slope up from three spaces in, eight spaces along the row above, and a slope back down, three spaces from the other end. Where the slopes leave the main line, the page draws a **?**.
+
+1. Click each **?**. Under **New turnout here**, name it (**West turnout**, **East turnout**) and click **Make the turnout**. The page makes the turnout on the Turnouts page.
+2. **Straight line goes** is already **The line that carries straight on**. Change **Turnout is straight when** if yours is straight when thrown.
+3. Leave **Lock it while a train is on it** ticked, so its points never move under a train.
+
+![A turnout picked on the crossing loop: Turnout set to West turnout, Straight line goes, Turnout is straight when Closed, Moves with, and Lock it while a train is on it ticked](img/field-logic/15-loop-turnout.png)
+
+Two turnouts that make a crossover are found on the drawing and move together. **Moves with** pairs two by hand.
+
+**Sensors.** Put a block break on the main line one space in from each end, and on both tracks two spaces inside each turnout. Name six blocks, each with a sensor: **West**, **West points**, **Main**, **Loop**, **East points** and **East**. The turnout's block (West points) runs from the outer break to both inner ones.
+
+**Signals.** Six signals, one at each inner break facing out of the loop, and one at each outer break facing in: **West Home** (heading right), **Main West** and **Loop West** (heading left), **Main East** and **Loop East** (heading right), **East Home** (heading left). Six signals of three LEDs each would need more pins than the board has, so make each one **One head: one WS2812B LED**. Make both ends **Plain track**.
+
+**Behaviour.** Every route here can clash with another, so all six are controlled signals. Each route from a signal takes everything to the next signal at once: the turnout's block, the turnout set and locked, and the loop or main line. Nothing to add.
+
+**Try it: a meet.** Click **East turnout** to throw it to the loop. Put a train in **West** and one in **East**, and **Skip ahead 1 second**. Both routes are set: West Home's along the main line, East Home's into the loop. They share no track, so both trains can come in.
+
+![Try it on the crossing loop: trains in West and East, East turnout thrown, the route from West Home along the main line and the route from East Home into the loop both set in green, and West Home and East Home showing Approach](img/field-logic/16-loop-meet.png)
+
+West Home and East Home show **Approach**, not Clear, because the signals at the far end of the loop are at Stop: each train must stop there for the other. A one-head mast has no aspect for a diverging route of its own, so East Home shows Approach into the loop too.
+
+---
+
+## An industry siding with a local panel
+
+A main line with a siding off it, worked by a switch and a lamp on a local panel. While the panel has it, the siding's turnout moves only from its own fascia buttons, not from JMRI or CATS.
+
+**Draw, sensors and signals,** as before:
+- a main line 12 spaces long, with a slope up from four spaces in, to a siding four spaces long that ends there
+- a turnout where they meet (**Siding turnout**)
+- block breaks two spaces in from each main line end, and one on the siding a space past the slope
+- four blocks: **West**, **Main** (the turnout and the main line between the breaks), **Siding** and **East**
+- two signals, **West Home** heading right and **East Home** heading left, each **One head: one WS2812B LED**, and both main line ends **Plain track**.
+
+The siding's own end is left as it is: **End of signalled track**.
+
+**Behaviour and rules.** Click the turnout, then **Example: hand this turnout to a local panel**. The page puts a switch, **Siding turnout local**, and a lamp, **Siding turnout lamp**, under the turnout, and writes rules:
+
+- On the turnout: *Only its own buttons move it while: Siding turnout local is on and West Home has shown Stop for 30 seconds and East Home has shown Stop for 30 seconds.*
+- On each signal: *Keep at Stop while: Siding turnout local is on.*
+- On the lamp: *Light while* the panel has the turnout, and *Flash while: Siding turnout local is off and Siding turnout is thrown.* A flashing lamp says: put the turnout back before you hand over.
+
+Click the switch and the lamp on the drawing and give each a pin. A dotted line runs from the turnout to everything its rule reads.
+
+![The Siding turnout picked in Behaviour and rules: its rule Only its own buttons move it while Siding turnout local is on and West Home and East Home have shown Stop for 30 seconds, with dotted lines from the turnout to both signals and to the S switch; the L lamp below the switch](img/field-logic/17-local-panel.png)
+
+So the person at the panel turns the switch on. Both signals go to Stop at once. Thirty seconds later, so that a train already given a signal has had time to stop, the turnout is the panel's, and the lamp lights. They work the siding with the turnout's own buttons. To hand back, they close the turnout and turn the switch off.
+
+**Try it.** Flip the switch, then **Skip ahead 10 seconds** three times. Both signals show Stop, the lamp is lit, and the turnout shows the black square: JMRI and CATS cannot move it.
+
+![Try it on the siding after the switch was turned on: both signals red, the S switch and the L lamp lit, and the turnout marked with the black locked square](img/field-logic/18-local-try.png)
+
+On the board, the turnout's fascia buttons still work while the panel has it. Commands from JMRI and CATS are ignored until the switch is off again.
 
 ---
 
@@ -534,35 +471,30 @@ For modules that join a different neighbour at each meet, use [MSS Logic](mss-lo
 
 Check one thing at a time, in this order.
 
-**The block stays occupied with nothing on the track.**
+**A block stays occupied with nothing on the track.**
 1. In MQTTX, check each sensor in the block. One of them is `ACTIVE`, or it is from another board.
 2. For a sensor from another board, check that board's Online topic shows `ACTIVE`. If it shows nothing, tick **Share with other boards** on that board, flash it, then click **Refresh** on it here.
 3. For a sensor on an expander, look in the board's Logs for an I2C or MCP23017 warning. Check the expander's power, SDA, SCL and address links.
 
-**The block is not in JMRI.**
-1. On the Download page, check **Logic** was ticked when you downloaded the JMRI XML.
-2. If the configurator lists the block as left out, its MQTT topic has no `track/sensor/` in it. Set the topic back to `trains/track/sensor/<name>`.
+**A signal will not clear.**
+1. In Try it, put a train in the block behind it and skip ahead. Click the signal and read **Why**. If it clears there, the drawing is fine and the fault is in the wiring or the board.
+2. Is its route set? In Try it, set track is green. If not, another route holds some of its track: **What happened** says which.
+3. Is one of your rules holding it? **Why** lists each rule that sets it.
+4. On the board: check the **Auto** switch. In Manual, nothing asks for the route until CATS, JMRI or its button does.
+5. Check the signal is not held by CATS or JMRI (see [CATS hold](#cats-hold)).
+
+**A route never frees.**
+1. Each block on the route must be clear for its **Free its track when clear for** time. Look at each block's sensors in MQTTX. One that reads `ACTIVE` with nothing on the track holds the route. A sensor on a linked board counts as occupied while that board is offline.
+2. In an emergency, press **Release** for that signal on the board's web page.
+
+**Every signal shows Stop, and the drawing seems right.**
+1. Check the **Field logic** switch on the board's web page is on, and `trains/track/light/logic/<board>` is `ON`.
+2. Check **Logic version** on the board's web page matches the Download page. If not, flash again.
 
 **The Online sensor stays Inactive.**
 1. Check the board shows **Online** in ESPHome.
 2. Check the board's MQTT broker is `layout-mqtt.local`, as in the first board guide.
 
-**The signal will not clear.**
-1. In Try it, put a train in the block that asks for it. If the signal clears there, the rules are fine and the fault is in the wiring or the board. If not, open **Show timing details** and look at **Rules**.
-2. A rule that says *Waiting for its section* is behind another rule or a held section. Check the section in MQTTX: `.../Held` should be `INACTIVE` when the track is empty.
-3. A held section with an empty track means a block is still reading occupied. Check each of its sensors, as in the first answer above. Or press **Release** for the section.
-4. Check the signal is not held by CATS or JMRI (see [CATS hold](#cats-hold)).
-
-**Every signal shows Stop, and the rules seem right.**
-1. Check the **Field logic** switch on the board's web page is on, and `trains/track/light/logic/<board>` is `ON`.
-2. Check **Logic version** on the board's web page matches the Download page. If not, flash again.
-3. Check **Meaning** for each aspect under Masts. An aspect left at Stop counts as Stop.
-
 **The page says there is a problem, and Show goes nowhere.**
-1. Scroll the Logic page: the part may be further down. Fix the first red message first, because others often follow from it.
-2. Rename or delete on the Sensors, Turnouts or Signal Masts page? Deleting leaves the old name in the rules, and the message names it.
-
-**The section never frees.**
-1. Under **Sections**, check **Free the section when…**. With the default, every block in the section must be clear for 3 seconds.
-2. Look at each block's sensors in MQTTX. One that reads `ACTIVE` with nothing on the track holds the section. A sensor on a linked board counts as occupied while that board is offline.
-3. In an emergency, press **Release** for the section.
+1. Fix the first red message first, because others often follow from it.
+2. Renamed or deleted something on the Sensors, Turnouts or Signal Masts page? Deleting leaves the old name on the drawing, and the message names it.

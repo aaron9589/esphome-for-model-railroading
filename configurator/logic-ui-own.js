@@ -219,7 +219,7 @@
     const on = { switch: sw, is: "on" };
     const held = joinParts("all", [on, ...signals.map((mast) => ({ mast, is: "stop", for: "30s" }))]);
     return {
-      pieces: [{ kind: "switch", name: sw, at, on: "Local" }, { kind: "lamp", name: lamp, at: [at[0] + 1, at[1]] }],
+      pieces: [{ kind: "switch", name: sw, at, on: "Local" }, { kind: "lamp", name: lamp, at: [at[0], at[1] + 1] }],
       rules: [
         ...signals.map((mast) => ({ on: { mast }, kind: "stopWhile", when: on })),
         { on: { turnout }, kind: "ownButtonsWhile", when: held },

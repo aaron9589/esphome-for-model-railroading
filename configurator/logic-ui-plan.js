@@ -117,6 +117,7 @@
     makeSignal: "Make the signal",
     madeTurnout: (name, where) => `Made turnout "${name}" on ${where}. Its full settings are on the Turnouts page.`,
     madeSensor: (name, where) => `Made sensor "${name}" on ${where}. Its full settings are on the Sensors page.`,
+    noPins: (name, n) => `Not enough free pins for "${name}": it needs ${n === 1 ? "one" : n}. Pick a WS2812B kind, which takes one pin for the whole mast, or free some pins.`,
     madeSignal: (name) => `Made signal "${name}". Its lamps and wiring are on the Signal Masts page.`,
     needName: "Give it a name first.",
     nameTaken: (name) => `"${name}" is already taken on this board. Pick another name.`,
@@ -223,7 +224,9 @@
     const xs = [...nodes, ...placed].map((p) => p[0]);
     const ys = [...nodes, ...placed].map((p) => p[1]);
     // At least one spare cell all round, and room to draw to the right and below.
-    const x = Math.min(-1, ...xs.map((v) => v - 1));
+    // An end's note is written past the end, so a left end needs two cells.
+    const labelled = list(plan?.ends).filter((e) => isObject(e) && Array.isArray(e.at) && (e.beyond === "plain" || isObject(e.beyond))).map((e) => e.at[0]);
+    const x = Math.min(-1, ...xs.map((v) => v - 1), ...labelled.map((v) => v - 2));
     const y = Math.min(-2, ...ys.map((v) => v - 2));
     const view = { x, y, w: Math.max(15, ...xs.map((v) => v + 3)) - x, h: Math.max(6, ...ys.map((v) => v + 3)) - y };
 
@@ -433,7 +436,15 @@
     for (const end of shape.ends) {
       const [x, y] = [px(end.at[0]), px(end.at[1])];
       drawing.append(svg("circle", { class: "plan-end", cx: x, cy: y, r: 4 }));
-      if (end.label) drawing.append(svg("text", { class: "plan-note", x, y: y - 12, "text-anchor": end.way[0] > 0 ? "end" : end.way[0] < 0 ? "start" : "middle" }, end.label));
+      // The note goes past the end, in line with the track, clear of block names.
+      if (end.label) {
+        const [dx, dy] = end.way;
+        const sideways = Math.abs(dx) > 0.3;
+        drawing.append(svg("text", {
+          class: "plan-note", x: x + dx * 10, y: sideways ? y + 4 + dy * 10 : y + dy * 16,
+          "text-anchor": dx > 0.3 ? "start" : dx < -0.3 ? "end" : "middle",
+        }, end.label));
+      }
     }
     for (const signal of shape.signals) {
       const [x, y] = [px(signal.head[0]), px(signal.head[1])];
@@ -858,6 +869,9 @@
     panel.append(box);
   }
 
+  // The pins a button, switch or lamp can take: the free ones, and its own.
+  const freePins = (ctx, current) => (ctx.freePinChoices ? ctx.freePinChoices(current) : ctx.pinChoices());
+
   const pinOf = (items, name) => {
     const item = list(items).find((i) => i?.name === name);
     return item?.gpio || item?.servoPin || item?.pin || (Number.isInteger(item?.channel) ? `PCA9685 channel ${item.channel}` : "");
@@ -956,7 +970,7 @@
   // A signal's button and Manual only, once it stands on the drawing.
   function signalOptions(fields, config, ctx, at, signal, i) {
     const current = String(signal.button ?? "");
-    const pins = [{ value: "", label: TEXT.buttonNone }, ...ctx.pinChoices()];
+    const pins = [{ value: "", label: TEXT.buttonNone }, ...freePins(ctx, current)];
     if (current && !pins.some((p) => p.value === current)) pins.push({ value: current, label: current });
     fields.append(choice(ctx, `logic-plan-button-${i}`, TEXT.buttonLabel(signal.mast), current, pins,
       (v) => E().setSignalOptions(config, at, signal.facing, { button: v }), TEXT.buttonHint));
@@ -1030,7 +1044,11 @@
       if (list(brk?.signals).some((sig) => isObject(sig) && Array.isArray(sig.facing) && wayWords(at, sig.facing) === way)) return;
       maker(panel, ctx, `logic-plan-new-signal-${i}`, TEXT.newSignal(way), freeName(config, TEXT.signalName), TEXT.makeSignal, (name, kindSelect) => {
         const [rows, style] = KINDS[kindSelect.value] || KINDS.oneHead;
-        ctx.addItems({ masts: [MT.mast(name, MT.ROWS[rows], MT.HEADS[rows], style)] });
+        const mast = MT.mast(name, MT.ROWS[rows], MT.HEADS[rows], style);
+        // Each LED of an individual-LED mast takes a pin; a strip takes one.
+        const need = mast.mode === "gpio" ? list(mast.lamps).length : 1;
+        if (ctx.safeOutputPins && ctx.safeOutputPins() < need) return ctx.flash("err", TEXT.noPins(name, need));
+        ctx.addItems({ masts: [mast] });
         E().setSignal(config, at, other, name);
         ctx.flash("ok", TEXT.madeSignal(name));
         changed(ctx, `#logic-plan-signal-${i}`);
@@ -1170,11 +1188,12 @@
   }
 
   // A free grid point near another, for an example's piece.
-  function freeSpot(config, near) {
+  // A free grid point near `near`; `tall`: and the one under it free too.
+  function freeSpot(config, near, tall = false) {
     const taken = new Set([...E().graph(config.logic.plan).near.keys(), ...list(config.logic.plan.pieces).filter((p) => Array.isArray(p?.at)).map((p) => key(p.at))]);
     for (let d = 1; d < 6; d += 1) {
       for (const at of [[near[0], near[1] + d], [near[0], near[1] - d], [near[0] + d, near[1] + d], [near[0] - d, near[1] + d]]) {
-        if (!taken.has(key(at)) && !taken.has(key([at[0] + 1, at[1]]))) return at;
+        if (!taken.has(key(at)) && !(tall && taken.has(key([at[0], at[1] + 1])))) return at;
       }
     }
     return [near[0], near[1] + 6];
@@ -1197,7 +1216,7 @@
         const kind = ctx.field(TEXT.pieceKind, "switch", () => {}, { select: ["button", "switch", "lamp"].map((k) => ({ value: k, label: O.TEXT.kinds[k] })), full: true });
         kindSelect = kind.querySelector("select");
         kindSelect.id = "logic-plan-new-piece-kind";
-        const pin = ctx.field(TEXT.piecePin, "", () => {}, { select: [{ value: "", label: TEXT.pinNone }, ...ctx.pinChoices()], full: true });
+        const pin = ctx.field(TEXT.piecePin, "", () => {}, { select: [{ value: "", label: TEXT.pinNone }, ...freePins(ctx, "")], full: true });
         pinSelect = pin.querySelector("select");
         pinSelect.id = "logic-plan-new-piece-pin";
         box.append(kind, pin);
@@ -1222,7 +1241,7 @@
         changed(ctx, "#logic-plan-piece-name");
       });
       fields.append(nameField);
-      const pins = [{ value: "", label: TEXT.pinNone }, ...ctx.pinChoices()];
+      const pins = [{ value: "", label: TEXT.pinNone }, ...freePins(ctx, piece.pin)];
       fields.append(choice(ctx, "logic-plan-piece-pin", TEXT.piecePin, String(piece.pin ?? ""), pins, (v) => E().setPiece(config, piece.name, { pin: v })));
       panel.append(fields);
       if (piece.kind === "lamp") rulesPart(panel, config, ctx, { kind: "lamp", name: piece.name });
@@ -1244,7 +1263,7 @@
       const turnout = list(config.logic.plan.points).find((p) => isObject(p) && key(p.at ?? [NaN, NaN]) === key(at))?.turnout;
       if (!turnout) return void panel.append(ui.paragraph(TEXT.noSignalHere, "hint"));
       rulesPart(panel, config, ctx, { kind: "turnout", name: turnout });
-      const local = button(O.TEXT.examples.local, () => example(ctx, config, O.exampleLocalPanel(config, turnout, signalsOver(config, turnout), freeSpot(config, at))), "link-button");
+      const local = button(O.TEXT.examples.local, () => example(ctx, config, O.exampleLocalPanel(config, turnout, signalsOver(config, turnout), freeSpot(config, at, true))), "link-button");
       local.id = "logic-plan-example-local";
       panel.append(local);
       return;

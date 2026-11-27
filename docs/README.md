@@ -7,7 +7,7 @@ Install, the configurator, and the first flash are on the [README](../README.md)
 1. [First Board Setup Guide](first-board-setup-guide.md): paste the configurator's YAML, flash by USB, and check MQTT. It has the failure checks too.
 2. [JMRI MQTT Verification Guide](jmri-mqtt-verification-guide.md): check sensors and turnouts in JMRI.
 3. This page, below: detector wiring, point calibration and the layout.
-4. [Field Logic Guide](field-logic-guide.md): the Logic page's Field Logic mode, where a board works out its signals from rules.
+4. [Field Logic Guide](field-logic-guide.md): the Logic page's Field Logic mode, where you draw your track and the board works out its signals from the drawing.
 5. [MSS Logic Guide](mss-logic-guide.md): the Logic page's MSS Logic mode, where you describe a module and pair it at a meet. Read the Field Logic guide first.
 6. [advanced-samples](../advanced-samples/README.md): hand-edited patterns that are not configurator-compatible.
 
