@@ -1414,7 +1414,7 @@
     }
   }
 
-  global.EsphomeMrLogicUiPlan = { TEXT, PART, CELL, layout, pick, marks };
+  global.EsphomeMrLogicUiPlan = { TEXT, PART, CELL, layout, pick, marks, drawPicture };
 
   if (global.EsphomeMrLogicUi) {
     global.EsphomeMrLogicUi.registerPart({ id: PART, order: 33, modes: ["field"], text: TEXT, render: renderPlan });

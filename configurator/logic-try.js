@@ -696,6 +696,10 @@
         ends: endDefs.map((end) => ({ name: end.name, state: state.ends?.[end.name], text: TEXT.endStates[state.ends?.[end.name]] || "" })),
         neighbours: neighbours(),
         waiting: engine.checkerView().order.map(ruleWords),
+        // TP 8: the Auto/Manual switch, lamps and panel locks, for the drawing.
+        auto: state.auto,
+        lamps: { ...(state.lamps || {}) },
+        panel: { ...(state.panel || {}) },
         log: log.map((entry) => ({ ...entry })),
         version,
       };

@@ -6,7 +6,7 @@ import path from "node:path";
 import { configuratorDir, loadModules, test } from "./harness.js";
 
 // Every Logic page file, in index.html's order.
-export const LOGIC_UI_FILES = ["generator.js", "logic-yaml.js", "logic.js", "logic-checker.js", "logic-try.js", "logic-ui.js", "logic-ui-masts.js", "logic-ui-ends.js", "logic-ui-rules.js", "logic-ui-views.js", "logic-ui-start.js", "logic-ui-try.js", "logic-starters.js", "logic-starters-sections.js", "logic-starters-signals.js", "mss-builder.js", "plan-builder.js", "plan-edit.js", "logic-ui-field.js", "logic-ui-own.js", "logic-ui-plan.js", "mss-templates.js", "logic-ui-mss-marks.js", "logic-ui-mss-steps.js", "logic-ui-mss-tracks.js", "logic-ui-mss-junctions.js", "logic-ui-mss-module.js", "logic-summary.js", "mss-convert.js", "mss-card.js"];
+export const LOGIC_UI_FILES = ["generator.js", "logic-yaml.js", "logic.js", "logic-checker.js", "logic-try.js", "logic-ui.js", "logic-ui-masts.js", "logic-ui-ends.js", "logic-ui-rules.js", "logic-ui-views.js", "logic-ui-start.js", "logic-ui-try.js", "logic-starters.js", "logic-starters-sections.js", "logic-starters-signals.js", "mss-builder.js", "plan-builder.js", "plan-edit.js", "logic-ui-field.js", "logic-ui-own.js", "logic-ui-plan.js", "logic-ui-plan-try.js", "mss-templates.js", "logic-ui-mss-marks.js", "logic-ui-mss-steps.js", "logic-ui-mss-tracks.js", "logic-ui-mss-junctions.js", "logic-ui-mss-module.js", "logic-summary.js", "mss-convert.js", "mss-card.js"];
 const context = loadModules(...LOGIC_UI_FILES);
 const { generateYaml, logicMode, myFirstBoardPreset, normalizeConfig, parseConfigFromYaml, sharesWithOtherBoards } =
   context.EsphomeMr;

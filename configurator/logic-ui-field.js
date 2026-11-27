@@ -208,11 +208,6 @@
 
   if (global.EsphomeMrLogicUi) {
     global.EsphomeMrLogicUi.registerPart({ id: PART, order: 5, modes: ["field"], text: TEXT, render: renderField });
-    // After Try it: the way on to Download.
-    global.EsphomeMrLogicUi.registerPart({
-      id: "logic-field-next", order: 89, modes: ["field"], text: {},
-      show: (config) => currentStep(config) === "try",
-      render: (root, config, ctx) => root.append(nextButton(config, ctx, "try")),
-    });
+
   }
 })(typeof globalThis !== "undefined" ? globalThis : window);
