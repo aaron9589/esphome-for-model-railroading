@@ -224,8 +224,6 @@ struct RawRemote {
 struct RawRule {
   uint16_t mast = NONE, aspect = NONE;
   std::vector<uint16_t> reserve;  // resource names
-  bool guard_named = false;  // the leaving guard names its resources (in guard), not the rule's own
-  std::vector<uint16_t> guard;
   std::vector<std::pair<uint16_t, uint16_t>> locks;  // turnout, the resource it is held with (NONE: the rule)
   std::vector<uint8_t> lock_own;  // per lock: a panel lock (rule 37)
   uint16_t lamp = NONE;  // a name (rule 36)
@@ -617,7 +615,7 @@ class Compiler {
     std::string key;
     while (r_.member(&first, &key)) {
       if (key == "trigger") {
-        rule.trigger = read_trigger("a rule's for", &raw);
+        rule.trigger = read_trigger("a rule's for");
       } else if (key == "checks") {
         bool f2 = true;
         while (r_.element(&f2)) checks.push_back(read_condition());
@@ -715,8 +713,7 @@ class Compiler {
     }
   }
 
-  // A rule's trigger takes `raw`, for a leaving guard that names resources.
-  Trigger read_trigger(const std::string &where, RawRule *raw = nullptr) {
+  Trigger read_trigger(const std::string &where) {
     Trigger t;
     t.present = true;
     uint16_t when = NONE;
@@ -733,17 +730,6 @@ class Compiler {
         while (r_.element(&f2)) thens.push_back(read_condition());
       } else if (key == "for") {
         t.for_ms = read_ms(where);
-      } else if (key == "leavingGuard") {
-        if (r_.peek() == '[') {
-          std::vector<uint16_t> names = read_names();
-          t.leaving_guard = true;
-          if (raw) {
-            raw->guard_named = true;
-            raw->guard = names;
-          }
-        } else {
-          t.leaving_guard = r_.boolean();
-        }
       } else {
         r_.skip();
       }
@@ -1075,15 +1061,6 @@ class Compiler {
       rule.res_first = static_cast<uint16_t>(t_.res_refs.size());
       add_resources(raw.reserve);
       rule.res_count = static_cast<uint16_t>(t_.res_refs.size() - rule.res_first);
-      // The leaving guard watches the rule's own resources, or those it names.
-      if (!raw.guard_named) {
-        rule.trigger.guard_first = rule.res_first;
-        rule.trigger.guard_count = rule.trigger.leaving_guard ? rule.res_count : 0;
-      } else {
-        rule.trigger.guard_first = static_cast<uint16_t>(t_.res_refs.size());
-        add_resources(raw.guard);
-        rule.trigger.guard_count = static_cast<uint16_t>(t_.res_refs.size() - rule.trigger.guard_first);
-      }
       t_.res_next.resize(t_.res_refs.size());
       // Sequential release: each resource's next blocks, as named.
       for (const auto &next : raw.next) {

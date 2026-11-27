@@ -59,7 +59,7 @@ As in the spec's Stored format, with these shapes:
   - `{ "block": "Left", "is": "occupied", "notFrom": ["Bridge"] }`: a train entered, and not from those blocks (rule 31);
   - `{ "any": [<moment>, …] }`: any of them happened;
   - on any moment, `"if": <condition>` counts it only while that condition holds, and `"for": "1s"` only once its state has then held that long (rule 32).
-- **Trigger:** `{ "while": <condition>, "for": "0.5s", "leavingGuard": true }`, or `{ "when": <moment>, "then": [<moment>, …] }`. `for` and `leavingGuard` are optional. `leavingGuard` is `true` (it watches the rule's own resources) or a list of the resources it watches.
+- **Trigger:** `{ "while": <condition>, "for": "0.5s" }`, or `{ "when": <moment>, "then": [<moment>, …] }`. `for` is optional. (The leaving guard went in TP 9: a track plan's routes are asked for, set and released instead.)
 - **Checks:** a list of conditions, all of which must hold.
 - **Then:** `{ "mast": "Left Bridge", "aspect": "R281", "reserve": "Bridge", "lock": ["P1"] }`. Each part is optional. `reserve` is a resource or a list of them, taken all at once (a track plan's move and its pieces). A name with no resource is left out, and each is taken once. A lock is a turnout, held while the rule holds anything, or `{ "turnout": "P1", "with": "Bridge" }`, held only while the rule holds that resource (one it does not take makes it the rule's). `next` gives, for each resource, the blocks its train must be seen going into before it is freed: `{ "Bridge": ["Right"] }` (sequential release, rule 9). A lock `{ "turnout": "P1", "own": true }` lets only the turnout's own buttons move it (rule 37). `"lamp": "Panel", "light": "on" | "flash"` lights a lamp (rule 36).
 - **Cancel** (a *when* trigger only): `{ "when": <moment> }`. **Withdraw** (likewise): `{ "when": <moment> }`, which takes back a request still waiting but leaves a granted rule alone.
@@ -183,8 +183,8 @@ These are the spec's rules made exact enough to write expected values. Where the
 16. **Manual release.** In the next scan: the resource is freed (`release … by manual`, logged even if it was free **(decided:** a press is always logged at `WARN`**)**), its rules' turnouts are unlocked, the holds on the masts its rules set are cleared, and those masts show Stop that scan. A rule that still holds other resources is PASSED **(decided:** its mast must not stay clear over track it no longer holds, and the rest stays held until its train has gone through, which is the safe way round**)**; its turnouts stay locked while it holds any. An MQTT release (`via: mqtt`) in the first 5 seconds after this board connects is ignored instead (`ignored`). Either way `CLOSED` is published.
 17. **Logic switch.** Switching off: the next scan is the last. It frees every resource (`release … by switch`), drops the field locks, and each field-controlled mast shows what today's handler picks from the last JMRI message it got, or its stop aspect if none. While off, there are no scans: a JMRI message changes the mast at once, exactly as today. Switching on: the next scan is a start-up scan, with every field-controlled mast starting at its stop aspect.
 18. **Today's handler** (logic off, and JMRI-driven masts): an exact match on one of an aspect's `states` wins; otherwise a message containing `; Unlit` is dark; otherwise one containing `; Held` shows the aspect named `R292` or `Stop` (dark if there is none); otherwise the name before the first `;`, with trailing spaces removed, picks the first aspect with that name; otherwise the message is ignored.
-19. **Start-up scan.** An ordinary scan, except: a resource with an occupied block is held and PASSED with no holder (`pass … rule null`), and releases through its release; no leaving guard is set. *for* timers start at the start-up scan, so rules whose trigger is already true all become true together and list order decides **(decided:** the board cannot know how long a detector was occupied before power-on**)**. The scan logs `{ "startup": true }` first. A board waits for this scan before a toggle switch's boot move.
-20. **Leaving guard.** A trigger with `leavingGuard` is guarded from a scan in which its block is occupied but was clear at the previous scan, if one of the resources it watches (its rule's own, or those it names) is held at that moment, that is, as the previous scan left it: a release pressed before the same scan acts only at the scan, after the train arrived. While guarded it counts as false, and its *for* counts it false too **(decided:** otherwise a trigger that was true before the guard, or whose *for* ran on while guarded, would be true as the guard lifts, and the mast would clear just as the train leaves**)**. The guard lifts at the first scan in which the block is clear.
+19. **Start-up scan.** An ordinary scan, except: a resource with an occupied block is held and PASSED with no holder (`pass … rule null`), and releases through its release. *for* timers start at the start-up scan, so rules whose trigger is already true all become true together and list order decides **(decided:** the board cannot know how long a detector was occupied before power-on**)**. The scan logs `{ "startup": true }` first. A board waits for this scan before a toggle switch's boot move.
+20. *(Removed in TP 9: the leaving guard. Routes asked for, set and released do its work.)*
 21. **Locks.** `locks` is the field lock: any active lock rule, or a holding reserving rule, locks; a lock held with a resource only while the rule holds that resource. `locked` is the field lock or the remote lock. When `locked` goes from true to false, the scan logs `resync`: that is when the board moves a toggle-switch turnout to match its switch. One flag clearing while the other is set does nothing, and nor does a repeated `UNLOCKED`.
 22. **Writes and publishes** happen only on change, from the end of one scan to the end of the next. On a broker connect (including at start), the next scan publishes every resource's Held and State. Nothing is published while disconnected. Order: masts in board order, then locks in turnout order; resources in list order, Held before State, then release echoes.
 
@@ -287,7 +287,6 @@ Built items have the builder's names: a block is `<track> block <n>`, where a tr
 | Rules: cancel before passing; flicker shorter than *for* | `rules-cancel-and-flicker` |
 | Rules: approach locking | `rules-approach-locking-off`, `-time`, `-overrun`, `-manual` |
 | Rules: detector dropout shorter than the release delay | `rules-detector-dropout` |
-| Rules: the leaving guard | `rules-leaving-guard` |
 | Rules: who wins a mast | `rules-who-wins` |
 | Rules: block signals | `blocksig-worked-example`, `blocksig-tumbledown-advance`, `blocksig-tumbledown-no-advance`, `blocksig-approach-diverging`, `blocksig-remote-offline`, `blocksig-turnout-in-block` |
 | Rules: the two lock flags | `rules-two-lock-flags` |
@@ -296,7 +295,6 @@ Built items have the builder's names: a block is `<track> block <n>`, where a tr
 | Pieces: a button pressed in the last few seconds (rule 38) | `rules-button-within` |
 | Rules: several resources, all at once, first come first; passed and freed one by one | `rules-several-resources` |
 | Rules: several resources, approach locking and manual release | `rules-several-resources-cancel` |
-| Rules: a leaving guard that names its resources | `rules-leaving-guard-named` |
 | Rules: route signal | `starter-route-signal` |
 | Fail safe: start-up with a train in the section, and all clear | `failsafe-startup-train`, `failsafe-startup-clear` |
 | Fail safe: toggle switch boot move waits | `failsafe-toggle-boot-wait` |
@@ -305,7 +303,6 @@ Built items have the builder's names: a block is `<track> block <n>`, where a tr
 | Fail safe: held mast not granted; held after grant cancels | `failsafe-hold-grant` |
 | Fail safe: with logic on, the aspect name is ignored | `failsafe-hold-aspect-ignored` |
 | Fail safe: a stale hold stays at Stop until released | `failsafe-stale-hold` |
-| Fail safe: start-up counts a leaving-guard train as waiting | `failsafe-startup-leaving-guard` |
 | Fail safe: switching off and on | `failsafe-switch-off-on` |
 | Plant ends: an end offers its Block and Mast; a pass-through | `ends-offer` |
 | Plant ends: two paired ends cannot hold each other occupied | `ends-no-echo` |

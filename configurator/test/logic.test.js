@@ -59,8 +59,6 @@ test("Explain says when a mast follows several groups, and a when trigger as it 
   assert.ok(exit.includes("Exit shows the most restrictive of what these groups say."));
   const platform = plain(L.explainMast(withLabels(loadCase("scan-short-pulses").board), "Platform Exit"));
   assert.equal(platform[0], "Platform Exit shows Clear when Depart has been pressed and a train is in Platform and the Line section is free.");
-  const guard = plain(L.explainMast(withLabels(loadCase("rules-leaving-guard").board), "Right Bridge"));
-  assert.match(guard[0], /that train did not arrive while the section was in use and Left is clear/);
   const remote = plain(L.explainMast(withLabels(loadCase("failsafe-remote-not-known").board), "D"));
   assert.equal(remote[0], "D shows Clear when Home on south shows Clear.");
 });

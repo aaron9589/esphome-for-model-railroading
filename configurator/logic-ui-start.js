@@ -19,10 +19,6 @@
     addFromStarterHint: "Each starter writes a new group of rules.",
     comingSoon: "Coming in a later version",
     starters: Object.freeze({
-      "one-train-section": Object.freeze({
-        title: "One-train section",
-        about: "One train at a time on a gauntlet, a single-line bridge or tunnel, or a diamond, with a signal at each end.",
-      }),
       "lock-turnouts": Object.freeze({
         title: "Lock turnouts under a train",
         about: "A turnout cannot be thrown while a train is on it.",
@@ -70,7 +66,7 @@
   // The cards, in the spec's order (Starters), with Write a rule from scratch
   // last. Approach lighting is not a starter: its card takes the person to
   // Masts, where it is set for each signal.
-  const STARTERS = Object.freeze(["one-train-section", "lock-turnouts", "block-signals", "route-signal", "level-crossing"]);
+  const STARTERS = Object.freeze(["lock-turnouts", "block-signals", "route-signal", "level-crossing"]);
   const CARD_KEYS = Object.freeze([...STARTERS, "approach-lighting", "scratch"]);
 
   // Starters 2.8 has built, by key: { open(config, ctx, ui) }.
@@ -151,15 +147,6 @@
 
   const PICTURES = Object.freeze({
     // Double track narrowing to one through the section, a signal at each end.
-    "one-train-section": [
-      path("M4 20 H30 L42 30 H78 L90 20 H116"),
-      path("M4 40 H30 L42 30"),
-      path("M78 30 L90 40 H116"),
-      line(42, 30, 78, 30, "sp-section"),
-      mast(36, 20, ["red"]),
-      mast(84, 20, ["green"]),
-      train(6, 20, 20),
-    ],
     // A train on a turnout, with a padlock over it.
     "lock-turnouts": [
       line(4, 38, 116, 38),

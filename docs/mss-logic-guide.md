@@ -432,20 +432,6 @@ Check one thing at a time, in this order.
 
 ---
 
-## Step 12: Convert to Field Logic
-
-At the bottom of the Logic page in MSS Logic mode there is **Convert to Field Logic**. It turns the module into ordinary Field Logic. The blocks, signals, rules and ends the page made are copied over as items you can edit, and the page switches mode. The board behaves the same and its Logic version does not change. It still pairs at a meet.
-
-Use it when a module needs something MSS Logic does not do, such as a section that only one train may enter. Add the rules in Field Logic, as in the [Field Logic Guide](field-logic-guide.md). Also use it on a copy to try the module in Try it (Step 8).
-
-**It goes one way.** The MSS description is dropped, because nothing would keep it in step with the copies. Keep a copy of the board's file (`board.yaml`) before you click if you may want the description back. If a block, signal or rule group in Field Logic already has the same name as one MSS Logic would make, or the description has an error, it will not convert and tells you which to rename or fix.
-
-Click **Convert to Field Logic**. The card asks you to confirm first: click **Yes, convert**, or **Cancel** to leave it as it is. Once converted, the page shows *Converted to Field Logic.* and the **Logic** list says **Field Logic**.
-
-![The Convert to Field Logic card asking: Convert this board to Field Logic? The MSS description is replaced by editable items, and this cannot be undone. With Yes, convert and Cancel buttons](img/mss-logic/19-convert.png)
-
----
-
 ## What MSS Logic does differently from MSS
 
 - **A lost neighbour means Stop.** On an MSS bus, an unplugged cable floats high and reads clear. Here, a neighbour that is not heard counts as occupied.
@@ -453,4 +439,4 @@ Click **Convert to Field Logic**. The card asks you to confirm first: click **Ye
 - **It is not instant.** Each signal is about 100 ms behind the next, and there is MQTT time across a joint.
 - **A stop passes back as far as there are signals**, not only two blocks. With Advance Approach on, that gives the same four aspects as MSS.
 - **A car on a junction holds every leg**, not only the active route's.
-- **No head-on protection.** That matches MSS, which is built for following moves. Convert to Field Logic and add a one-train section if you need it.
+- **No head-on protection.** That matches MSS, which is built for following moves. For a board that needs it, draw its track in Field Logic, whose routes protect it.
