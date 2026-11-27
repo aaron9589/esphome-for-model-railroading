@@ -4,14 +4,18 @@
 // what is beyond each end (`logic.plan`). This file turns it into ordinary
 // Field Logic items, which the engine cannot tell from hand-made ones:
 //
-//   build(config) -> { blocks, masts, layers, resources, pairs, origins }
-//     blocks     one per named block with sensors, holding its boundary sensors
+//   build(config) -> { blocks, masts, layers, resources, buttons, pairs, origins }
+//     blocks     one per named block with sensors, holding its boundary
+//                sensors, with its neighbouring blocks (`next`)
 //     masts      each plan signal, with the meaning of each aspect it shows
-//     layers     one group per signal (its routes), one "Turnout locks" group,
-//                then one group per signal with a move that can clash (its
-//                moves, each taking its pieces of track)
-//     resources  one per piece of track that two moves can clash on (pieces
-//                of one block that the same moves use are one)
+//     layers     one group per signal (what each route shows), one "Turnout
+//                locks" group, then one routes group per controlled signal
+//                (its routes, asked for, set and released)
+//     resources  one per piece of track a route takes: those two routes can
+//                clash on, and the piece just past a controlled signal (a
+//                piece is taken with another of its block when every route
+//                using it uses that one too)
+//     buttons    each signal's button, on its pin
 //     pairs      turnouts that move together: [{ turnout, with, same }]
 //     origins    which part of the plan made each item
 //   problems(config) -> [{ level: "error" | "warning", text, where }]

@@ -136,8 +136,9 @@ await page.selectOption("#logic-plan-block-release", "5s");
 assert.equal(await card.locator(".plan-more").evaluate((d) => d.open), true);
 assert.equal(await page.evaluate(() => state.logic.plan.blocks.find((b) => b.name === "Bridge").release), "5s");
 
-// The YAML has the bridge's release button.
-assert.ok(await page.evaluate(() => EsphomeMr.generateYaml(state).includes("Release Bridge")));
+// The YAML has a Release button for each signal's route over the bridge.
+assert.ok(await page.evaluate(() => EsphomeMr.generateYaml(state).includes('release_group("Left Bridge moves")')));
+assert.ok(await page.evaluate(() => EsphomeMr.generateYaml(state).includes('release_group("Right Bridge moves")')));
 
 // 4. The keyboard: arrow to a point and press Enter to pick it.
 await grid.focus();
