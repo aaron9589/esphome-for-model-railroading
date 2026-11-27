@@ -39,7 +39,11 @@ function redraw(data) {
   }
   for (const brk of wanted.breaks || []) {
     assert.ok(E.addBreak(config, brk.at), `break at ${brk.at}`);
-    for (const signal of brk.signals || []) E.setSignal(config, brk.at, signal.facing, signal.mast);
+    for (const signal of brk.signals || []) {
+      E.setSignal(config, brk.at, signal.facing, signal.mast);
+      const { mast, facing, ...options } = signal;
+      if (Object.keys(options).length) E.setSignalOptions(config, brk.at, facing, options);
+    }
     if (brk.sensors?.length) E.setBreakSensors(config, brk.at, brk.sensors);
   }
   const unit = ([a, b]) => [a, [a[0] + Math.sign(b[0] - a[0]), a[1] + Math.sign(b[1] - a[1])]];
@@ -66,6 +70,7 @@ function builtOf(config) {
     resources: sorted(items.resources),
     layers: sorted(items.layers.map((layer) => ({ ...layer, rules: sorted(layer.rules) }))),
     pairs: sorted(items.pairs),
+    buttons: sorted(items.buttons),
     problems: B.problems(config).map((p) => `${p.level}: ${p.text}`).sort(),
   };
 }
@@ -149,6 +154,20 @@ test("changing a signal drops the old one's aspects; choosing none removes it", 
   assert.deepEqual(plan(config).breaks[0].signals, [{ mast: "Away", facing: [4, 0] }]);
   E.setSignal(config, [3, 0], [4, 0], "");
   assert.deepEqual(plan(config).breaks[0].signals, []);
+});
+
+test("a signal's button and Manual only are kept on it, and left out when not set", () => {
+  const config = line();
+  E.setSignal(config, [3, 0], [4, 0], "Home");
+  E.setSignalOptions(config, [3, 0], [4, 0], { button: " GPIO25 ", manualOnly: true });
+  assert.deepEqual(plan(config).breaks[0].signals, [{ mast: "Home", facing: [4, 0], button: "GPIO25", manualOnly: true }]);
+  E.setSignalOptions(config, [3, 0], [4, 0], { manualOnly: false });
+  assert.deepEqual(plan(config).breaks[0].signals, [{ mast: "Home", facing: [4, 0], button: "GPIO25" }]);
+  E.setSignalOptions(config, [3, 0], [4, 0], { button: "" });
+  assert.deepEqual(plan(config).breaks[0].signals, [{ mast: "Home", facing: [4, 0] }]);
+  // No signal facing that way: nothing changes.
+  E.setSignalOptions(config, [3, 0], [2, 0], { button: "GPIO26" });
+  assert.deepEqual(plan(config).breaks[0].signals, [{ mast: "Home", facing: [4, 0] }]);
 });
 
 test("one way applies to the whole stretch, replaces what was there, and survives erasing part of it", () => {

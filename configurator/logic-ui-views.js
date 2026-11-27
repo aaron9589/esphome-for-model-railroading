@@ -62,6 +62,8 @@
 
   const isObject = (value) => value && typeof value === "object" && !Array.isArray(value);
   const list = (value) => (Array.isArray(value) ? value : []);
+  // A rule's lock: a turnout's name, or { turnout, with } (a track plan's route locking).
+  const lockTurnout = (item) => (isObject(item) ? item.turnout : item);
   const capital = (text) => (text ? text.charAt(0).toUpperCase() + text.slice(1) : text);
   const unique = (items) => [...new Set(items)];
 
@@ -154,7 +156,7 @@
           add(row(kindOf(cond), cond).readBy, group);
         }
         if (typeof then.mast === "string" && then.mast) add(row("mast", then.mast).setBy, group);
-        for (const name of list(then.lock)) if (typeof name === "string" && name) add(row("turnout", name).setBy, group);
+        for (const name of list(then.lock).map(lockTurnout)) if (typeof name === "string" && name) add(row("turnout", name).setBy, group);
         for (const section of taken) {
           for (const ref of list(section.blocks)) {
             const block = row("block", ref);
@@ -253,7 +255,7 @@
         if (!isObject(rule)) return;
         const then = isObject(rule.then) ? rule.then : {};
         const mast = typeof then.mast === "string" ? then.mast : "";
-        const locks = list(then.lock).filter((name) => typeof name === "string" && name);
+        const locks = list(then.lock).map(lockTurnout).filter((name) => typeof name === "string" && name);
         const reserves = [].concat(then.reserve ?? []).filter((name) => name !== "").map(String);
         const reserve = reserves.join(", ");
         if (!mast && !locks.length && !reserve) return;

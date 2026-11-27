@@ -376,6 +376,26 @@
     });
   }
 
+  /**
+   * A controlled signal's options: `button`, the pin of its button on the
+   * fascia ("" for none), and `manualOnly`. Each is left out when not set.
+   */
+  function setSignalOptions(config, at, facing, values) {
+    change(config, (plan) => {
+      const signal = list(breakAt(plan, at)?.signals).find((s) => isObject(s) && same(s.facing, facing));
+      if (!signal) return;
+      if ("button" in values) {
+        const pin = String(values.button ?? "").trim();
+        if (pin) signal.button = pin;
+        else delete signal.button;
+      }
+      if ("manualOnly" in values) {
+        if (values.manualOnly === true) signal.manualOnly = true;
+        else delete signal.manualOnly;
+      }
+    });
+  }
+
   /** The sensors that stand at a block break. */
   function setBreakSensors(config, at, sensors) {
     change(config, (plan) => {
@@ -431,7 +451,7 @@
 
   global.EsphomeMrPlanEdit = {
     graph, kindAt, neighbours, stretchOfBlock, blockAt, directionAt, path, breakAt,
-    draw, erase, setDirection, setPoint, addBreak, removeBreak, setSignal, setBreakSensors,
+    draw, erase, setDirection, setPoint, addBreak, removeBreak, setSignal, setSignalOptions, setBreakSensors,
     setBlock, removeBlock, setEnd, freeBlockName,
   };
 })(typeof globalThis !== "undefined" ? globalThis : window);

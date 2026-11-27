@@ -32,6 +32,7 @@
   const Mss = () => global.EsphomeMrMssBuilder;
 
   const PART = "logic-plan";
+  const AUTO_CANCEL = "1s"; // in Auto, a train gone from behind a signal this long has not gone past it
   const TIME = /^\d+(\.\d+)?(ms|s)$/; // as the engine reads a time
   const MAX_SPAN = 200; // grid units in one segment, so a bad file cannot hang the page
 
@@ -78,7 +79,10 @@
     undetected: (mast) => `Some track past signal "${mast}" has no sensor of its own, so a train standing there may not be seen.`,
     unwatched: (name) => `No signal on the drawing checks block "${name}", so a train standing there holds none of them at Stop. Put a signal before it, unless you only want to see it in JMRI.`,
     clashUnseen: (a, b) => `Signals "${a}" and "${b}" can let trains onto the same track, but no sensor of its own sees that track, so the board cannot tell when it is free. Give that track a block with a sensor of its own.`,
-    clashWaiting: (mast, other) => `Signals "${mast}" and "${other}" can let trains onto the same track, so "${mast}" clears only for a train waiting at it, but nothing sees a train there. Give the block behind it a sensor.`,
+    clashWaiting: (mast, other) => `Signals "${mast}" and "${other}" can let trains onto the same track, so in Auto "${mast}" clears only for a train that arrives at it, but nothing sees a train there. Give the block behind it a sensor, or make it Manual only.`,
+    unseenEntry: (mast) => `Nothing sees a train go past signal "${mast}", so the board cannot tell when the route it set has been used. Give the block just past it a sensor of its own.`,
+    noAsking: (mast) => `Nothing can ask for a route from signal "${mast}" in Manual: MQTT is off, so CATS and JMRI cannot, and it has no button. Give it a button, or turn MQTT on.`,
+    button: (mast) => `${mast} button`,
     noApproach: (mast) => `Nothing sees a train waiting at signal "${mast}", so its turnouts are not locked as a train comes up to it. Give the block behind it a sensor.`,
     badTime: (name, what) => `Block "${name}" has a ${what} the board cannot read. Pick one from the list.`,
     pairTwice: (name) => `Turnout "${name}" moves with two others. A turnout can move with one other only: unpair one.`,
@@ -515,7 +519,7 @@
       else pair(a, b);
     }
 
-    return { plan, found, error, warn, near, region, regionBlock, blocks, points, signals, barred, detected, pieceOf, pieceRegion, pairs };
+    return { plan, found, error, warn, near, region, regionBlock, blocks, points, signals, barred, detected, pieceOf, pieceRegion, pairs, breaksAt: breaks };
   }
 
   // Whether two routes need a turnout set different ways, so cannot both be set.
@@ -718,10 +722,10 @@
       origin("group", name, {});
     }
 
-    // Protection: two moves clash when they use the same piece of track, in
-    // either direction or across a crossing, unless a turnout must be set
-    // differently for each. Each piece two moves can clash on is taken, all
-    // at once with the rest of a move's pieces, by every move that uses it.
+    // Protection (spec, Routes asked for, set and released). Two moves clash
+    // when they use the same piece of track, in either direction or across a
+    // crossing, unless a turnout must be set differently for each. A signal
+    // with a move that can clash is controlled; every other is a block signal.
     const moves = [];
     for (const signal of signals) for (const route of signal.routes) if (route.clear?.length) moves.push({ signal, route });
     const contested = new Map(); // piece -> [signal, signal]: the first two that clash on it
@@ -733,86 +737,149 @@
         }
       }
     });
-    // Pieces of one block that the same moves use are taken as one.
-    const resourceOf = new Map(); // piece -> resource
-    const byKey = new Map();
-    const unseen = new Set();
-    for (const move of moves) {
-      for (const piece of move.route.pieces) {
-        if (!contested.has(piece) || resourceOf.has(piece)) continue;
-        const id = model.pieceRegion.get(piece);
-        if (!detected(id)) {
-          const [a, b] = contested.get(piece);
-          const key = `${a.mast}\u0000${b.mast}`;
-          if (!unseen.has(key)) error(TEXT.clashUnseen(a.mast, b.mast), { mast: a.mast });
-          unseen.add(key);
-          continue;
-        }
-        const users = moves.filter((m) => m.route.pieces.includes(piece)).map((m) => moves.indexOf(m)).join(",");
-        const key = `${id}|${users}`;
-        if (!byKey.has(key)) byKey.set(key, { region: id, block: regionBlock.get(id), pieces: [] });
-        byKey.get(key).pieces.push(piece);
-        resourceOf.set(piece, byKey.get(key));
-      }
+    const controlled = signals.filter((signal) => moves.some((m) => m.signal === signal && m.route.pieces.some((piece) => contested.has(piece))));
+    // A controlled signal's routes also take the piece just past it, so a
+    // train entering any of them is seen, and the request is used up.
+    const firstPiece = (signal) => model.pieceOf.get(edgeKey(signal.at, signal.facing));
+    const takes = new Set(contested.keys());
+    for (const signal of controlled) {
+      const piece = firstPiece(signal);
+      if (detected(model.pieceRegion.get(piece))) takes.add(piece);
+      else error(TEXT.unseenEntry(signal.mast), { mast: signal.mast });
     }
+    // A piece of a block is taken with another of the same block when every
+    // move that uses it uses that one too: it keeps no train out that the
+    // other does not.
+    const resourceOf = new Map(); // piece -> resource
+    const perBlock = new Map(); // region -> [resource]
+    const unseen = new Set();
+    const pieceList = [];
+    for (const move of moves) for (const piece of move.route.pieces) if (takes.has(piece) && !pieceList.includes(piece)) pieceList.push(piece);
+    const usersOf = (piece) => new Set(moves.filter((m) => m.route.pieces.includes(piece)));
+    const byUsers = pieceList.map((piece, i) => ({ piece, i, users: usersOf(piece) })).sort((a, b) => b.users.size - a.users.size || a.i - b.i);
+    for (const { piece, users } of byUsers) {
+      const id = model.pieceRegion.get(piece);
+      if (!detected(id)) {
+        const [a, b] = contested.get(piece);
+        const key = `${a.mast}\u0000${b.mast}`;
+        if (!unseen.has(key)) error(TEXT.clashUnseen(a.mast, b.mast), { mast: a.mast });
+        unseen.add(key);
+        continue;
+      }
+      if (!perBlock.has(id)) perBlock.set(id, []);
+      let res = perBlock.get(id).find((r) => [...users].every((m) => r.users.has(m)));
+      if (!res) {
+        res = { region: id, block: regionBlock.get(id), pieces: [], users };
+        perBlock.get(id).push(res);
+      }
+      res.pieces.push(piece);
+      resourceOf.set(piece, res);
+    }
+    // Blocks, and the resources in each, in the order the moves first use them.
+    const firstUse = (res) => Math.min(...res.pieces.map((p) => pieceList.indexOf(p)));
+    const blockOrder = [...perBlock.values()].filter((inBlock) => inBlock.length).map((inBlock) => inBlock.sort((a, b) => firstUse(a) - firstUse(b)));
+    blockOrder.sort((a, b) => firstUse(a[0]) - firstUse(b[0]));
     const takenNames = new Set(list(logic.resources).filter(isObject).map((res) => String(res.name ?? "")));
-    const perBlock = new Map();
-    for (const res of byKey.values()) perBlock.set(res.region, [...(perBlock.get(res.region) || []), res]);
-    for (const [, inBlock] of perBlock) {
+    for (const inBlock of blockOrder) {
       inBlock.forEach((res, i) => {
         const block = res.block;
         res.name = S().freeName(inBlock.length === 1 ? block.name : TEXT.piece(block.name, i + 1), takenNames);
         takenNames.add(res.name);
-        const resource = { name: res.name, blocks: [block.name], release: { while: { block: block.name, is: "clear" }, for: block.release || "3s" } };
-        if (block.approachLock) resource.approachLock = block.approachLock;
-        resources.push(resource);
+        resources.push({ name: res.name, blocks: [block.name], release: { while: { block: block.name, is: "clear" }, for: block.release || "3s" } });
         origin("piece", res.name, { block: block.name });
       });
     }
 
-    // A signal with a move that can clash clears only for a train waiting at
-    // it, once that move has taken its pieces. Its other moves miss them.
+    // A controlled signal shows Stop until a route from it is set: asked for
+    // (Auto: a train entering the block behind from the far side; Manual:
+    // CATS or JMRI unholding it, or its button), then set, taking its track
+    // all at once, and released behind the train piece by piece.
+    const auto = isObject(plan.auto) ? plan.auto : {};
+    const mqtt = config?.board?.mqttEnabled !== false;
+    const buttons = [];
     const protects = new Map(); // block -> Set of masts
-    for (const signal of signals) {
-      const mine = moves.filter((m) => m.signal === signal);
-      const takes = (move) => [...new Set(move.route.pieces.map((piece) => resourceOf.get(piece)).filter(Boolean))];
-      const clashes = mine.filter((move) => move.route.pieces.some((piece) => contested.has(piece)));
-      if (!clashes.length) continue;
-      if (!detected(signal.behind)) {
-        const piece = clashes[0].route.pieces.find((p) => contested.has(p));
-        const other = contested.get(piece).find((s) => s !== signal) || contested.get(piece)[0];
+    const builtBlock = (id) => (regionBlock.get(id)?.sensors.length ? regionBlock.get(id).name : null);
+    const startOf = new Map(signals.map((s) => [s.mast, model.region.get(edgeKey(s.at, s.facing))]));
+    for (const signal of controlled) {
+      const manualOnly = signal.def.manualOnly === true;
+      const pin = text(signal.def.button);
+      // A train waiting is seen only by a sensor of the block's own.
+      const behind = detected(signal.behind) ? regionBlock.get(signal.behind).name : null;
+      if (!behind && !manualOnly) {
+        const piece = moves.find((m) => m.signal === signal).route.pieces.find((p) => contested.has(p));
+        const other = (contested.get(piece) || []).find((s) => s !== signal) || signal;
         error(TEXT.clashWaiting(signal.mast, other.mast), { mast: signal.mast });
-        continue;
       }
-      const waiting = regionBlock.get(signal.behind).name;
-      // A train that has just come the other way, through the piece ahead of
-      // the signal, is not taken for one waiting.
-      const ahead = resourceOf.get(model.pieceOf.get(edgeKey(signal.at, signal.facing)));
-      const back = `${signal.facing}>${signal.at}`;
-      const guard = ahead && !model.barred.has(back) && moves.some((m) => m.route.edges.includes(back)) ? [ahead.name] : null;
+      if (!mqtt && !pin) error(TEXT.noAsking(signal.mast), { mast: signal.mast });
+      const button = pin ? S().freeName(TEXT.button(signal.mast), new Set(buttons.map((b) => b.name))) : "";
+      if (button) buttons.push({ name: button, pin });
+      const ahead = builtBlock(startOf.get(signal.mast));
+      // Who asks, and who cancels before the train has entered.
+      const inAuto = manualOnly ? null : { auto: "on" };
+      const inManual = manualOnly ? undefined : { auto: "off" };
+      const gate = (m, when) => (when ? { ...m, if: when } : m);
+      const asks = [];
+      const cancels = [];
+      if (inAuto && behind) {
+        asks.push(gate({ block: behind, is: "occupied", notFrom: ahead ? [ahead] : [] }, inAuto));
+        cancels.push(gate({ block: behind, is: "clear", for: AUTO_CANCEL }, inAuto));
+      }
+      if (mqtt) {
+        asks.push(gate({ mast: signal.mast, is: "unheld" }, inManual));
+        cancels.push(gate({ mast: signal.mast, is: "held" }, inManual));
+      }
+      if (button) {
+        asks.push(gate({ button, is: "pressed" }, inManual));
+        cancels.push(gate({ button, is: "pressed" }, inManual));
+      }
+      if (!asks.length) continue;
+      const one = (list) => (list.length === 1 ? list[0] : { any: list });
+      const hold = behind && regionBlock.get(signal.behind)?.approachLock;
       const rules = [];
-      for (const move of mine) {
+      for (const move of moves.filter((m) => m.signal === signal)) {
         const route = move.route;
         const aspect = signal.aspects[route.end?.kind === "plain" || route.next || route.end?.next
           ? (route.diverging ? "divergingClear" : "clear")
           : (route.diverging ? "divergingApproach" : "approach")];
-        const turnouts = route.turnouts.map(turnoutIs);
-        const taken = takes(move);
-        if (!taken.length) {
-          // A way that misses the track it can clash on: block signals only.
-          rules.push({ trigger: { while: clearOf(route.clear[0]) }, checks: [...turnouts, ...route.clear.slice(1).map(clearOf)], then: { mast: signal.mast, aspect } });
-          continue;
-        }
-        for (const res of taken) {
+        const reserve = [...new Set(route.pieces.map((piece) => resourceOf.get(piece)).filter(Boolean))];
+        if (!reserve.length) continue;
+        for (const res of reserve) {
           if (!protects.has(res.block.name)) protects.set(res.block.name, new Set());
           protects.get(res.block.name).add(signal.mast);
         }
-        const trigger = { while: { block: waiting, is: "occupied" }, for: "0.5s" };
-        if (guard) trigger.leavingGuard = guard;
-        rules.push({ trigger, checks: [...turnouts, ...route.clear.map(clearOf)], then: { mast: signal.mast, aspect, reserve: taken.map((res) => res.name) } });
+        // Sequential release: after each piece's block, the next block along
+        // the way with a sensor, or past the signal the route ends at.
+        const along = route.regions.filter((id) => builtBlock(id));
+        const past = route.next ? builtBlock(startOf.get(route.next)) : null;
+        const next = {};
+        for (const res of reserve) {
+          const i = along.indexOf(res.region);
+          const after = i >= 0 && i + 1 < along.length ? along[i + 1] : null;
+          const block = after !== null ? builtBlock(after) : past;
+          next[res.name] = block ? [block] : [];
+        }
+        // Route locking: each turnout with the piece it leads into, freed
+        // with it behind the train; with the whole route if that is not taken.
+        const lock = route.turnouts.map((t) => {
+          const node = [...points].find(([, point]) => point.turnout === t.turnout)?.[0];
+          const out = route.edges.find((edge) => edge.split(">")[0] === node);
+          const into = route.edges.find((edge) => edge.split(">")[1] === node);
+          const res = [out, into].map((edge) => edge && resourceOf.get(model.pieceOf.get(edgeKey(...edge.split(">"))))).find(Boolean);
+          return res ? { turnout: t.turnout, with: res.name } : t.turnout;
+        });
+        const rule = {
+          trigger: { when: one(asks) },
+          cancel: { when: one(cancels) },
+          checks: [...route.turnouts.map(turnoutIs), ...route.clear.map(clearOf)],
+          then: { mast: signal.mast, aspect, reserve: reserve.map((res) => res.name), next, ...(lock.length ? { lock } : {}) },
+        };
+        if (!manualOnly) rule.withdraw = { when: { any: [{ auto: "on" }, { auto: "off" }] } };
+        if (hold) rule.approachLock = { block: behind, for: hold };
+        rules.push(rule);
       }
+      if (!rules.length) continue;
       const name = freeGroup(TEXT.movesGroup(signal.mast));
-      layers.push({ name, starter: "plan-moves", rules });
+      layers.push({ name, routes: true, starter: "plan-moves", rules });
       origin("group", name, { mast: signal.mast });
     }
 
@@ -827,7 +894,18 @@
     const seen = new Set();
     const problems = model.found.filter((p) => !seen.has(p.text) && seen.add(p.text));
     const look = [...protects].filter(([, masts]) => masts.size > 1).map(([block, masts]) => ({ block, masts: [...masts] }));
-    return { items: { blocks: built, masts, layers, resources, pairs: model.pairs, origins }, problems, protects: look };
+    // Each built block's neighbours, for where its train came from.
+    for (const block of built) {
+      const region = blocks.find((b) => b.name === block.name).region;
+      const next = new Set();
+      for (const [node] of model.breaksAt) {
+        const sides = model.near.get(node).map((other) => model.region.get(edgeKey(node, other)));
+        if (!sides.includes(region)) continue;
+        for (const id of sides) if (id !== region && builtBlock(id)) next.add(builtBlock(id));
+      }
+      if (next.size) block.next = [...next];
+    }
+    return { items: { blocks: built, masts, layers, resources, buttons, pairs: model.pairs, origins }, problems, protects: look };
   }
 
   /** The built items, from the plan. `config` is not changed. */

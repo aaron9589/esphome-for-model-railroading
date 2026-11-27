@@ -1,9 +1,9 @@
 {
-  "name": "track plan: a scissors crossover, parallel moves running together",
+  "name": "track plan: a scissors crossover with parallel routes, in Auto",
   "covers": [
-    "Track plan: a scissors crossover with parallel moves running together"
+    "Track plan: a scissors crossover with parallel routes"
   ],
-  "about": "Each line has its own block through the scissors, and the diamond has one of its own. A train along the north line and a train along the south line take only their own lines' pieces, so both signals clear together. Later both crossovers are set (each throw moves its pair of turnouts): their moves clash only on the crossing. The train that asked first takes it; the other waits until the crossing has been clear for 3 seconds.",
+  "about": "A train along the north line and one along the south line take only their own lines' pieces of the scissors, so both signals clear together. Leaving at the far end, neither asks for the signal it came past: each came from the scissors. Later both crossovers are set: the two diagonal routes clash only on the crossing. The train that asked first takes it; the other waits, and goes once the crossing is freed behind the first train, while the first still holds the south line's piece it is in. Each turnout of the first route unlocks as its piece is freed behind the train.",
   "module": {
     "sensors": [
       "North west current",
@@ -345,44 +345,67 @@
   },
   "steps": [
     {
-      "at": 1,
+      "at": 5,
       "do": [
         {
           "sensor": "North west current",
           "is": "occupied"
         },
         {
-          "sensor": "South east current",
+          "sensor": "South west current",
           "is": "occupied"
         }
-      ]
-    },
-    {
-      "at": 5,
+      ],
       "expect": {
-        "masts": {
-          "NW signal": "R292",
-          "SE signal": "R292"
-        }
-      }
-    },
-    {
-      "at": 6,
-      "expect": {
+        "events": [
+          {
+            "grant": "North scissors 1",
+            "rule": "NW signal moves/1"
+          },
+          {
+            "grant": "North scissors 2",
+            "rule": "NW signal moves/1"
+          },
+          {
+            "grant": "South scissors 1",
+            "rule": "SW signal moves/1"
+          },
+          {
+            "grant": "South scissors 2",
+            "rule": "SW signal moves/1"
+          }
+        ],
+        "writes": [
+          {
+            "mast": "NW signal",
+            "aspect": "R281"
+          },
+          {
+            "mast": "SW signal",
+            "aspect": "R281"
+          },
+          {
+            "lock": "P1",
+            "on": true
+          },
+          {
+            "lock": "P2",
+            "on": true
+          },
+          {
+            "lock": "P3",
+            "on": true
+          },
+          {
+            "lock": "P4",
+            "on": true
+          }
+        ],
         "masts": {
           "NW signal": "R281",
-          "SE signal": "R281",
+          "SW signal": "R281",
           "NE signal": "R292",
-          "SW signal": "R292"
-        },
-        "holders": {
-          "North scissors 1": "NW signal moves/1",
-          "North scissors 2": "NW signal moves/1",
-          "North scissors 3": "NW signal moves/1",
-          "South scissors 2": "SE signal moves/1",
-          "South scissors 4": "SE signal moves/1",
-          "South scissors 5": "SE signal moves/1",
-          "Diamond 2": null
+          "SE signal": "R292"
         }
       }
     },
@@ -399,13 +422,27 @@
         }
       ],
       "expect": {
+        "events": [
+          {
+            "pass": "North scissors 1",
+            "rule": "NW signal moves/1"
+          },
+          {
+            "pass": "North scissors 2",
+            "rule": "NW signal moves/1"
+          },
+          {
+            "pass": "South scissors 2",
+            "rule": "SW signal moves/1"
+          },
+          {
+            "pass": "South scissors 1",
+            "rule": "SW signal moves/1"
+          }
+        ],
         "masts": {
           "NW signal": "R292",
-          "SE signal": "R292"
-        },
-        "resources": {
-          "North scissors 1": "PASSED",
-          "South scissors 4": "PASSED"
+          "SW signal": "R292"
         }
       }
     },
@@ -417,26 +454,37 @@
           "is": "clear"
         },
         {
-          "sensor": "South east current",
+          "sensor": "South west current",
           "is": "clear"
         }
       ]
     },
     {
-      "at": 20,
+      "at": 15,
       "do": [
         {
           "sensor": "North east current",
           "is": "occupied"
         },
         {
-          "sensor": "South west current",
+          "sensor": "South east current",
           "is": "occupied"
         }
-      ]
+      ],
+      "expect": {
+        "events": [],
+        "rules": {
+          "NE signal moves/1": "idle",
+          "SE signal moves/1": "idle"
+        },
+        "masts": {
+          "NE signal": "R292",
+          "SE signal": "R292"
+        }
+      }
     },
     {
-      "at": 22,
+      "at": 18,
       "do": [
         {
           "sensor": "North scissors current",
@@ -449,42 +497,61 @@
       ]
     },
     {
-      "at": 25,
+      "at": 20,
       "do": [
         {
           "sensor": "North east current",
           "is": "clear"
         },
         {
-          "sensor": "South west current",
+          "sensor": "South east current",
           "is": "clear"
         }
       ]
     },
     {
-      "at": 51,
+      "at": 48,
       "expect": {
-        "resources": {
-          "North scissors 1": "PASSED",
-          "South scissors 4": "PASSED"
+        "events": [
+          {
+            "release": "North scissors 1",
+            "by": "release"
+          },
+          {
+            "release": "North scissors 2",
+            "by": "release"
+          },
+          {
+            "release": "South scissors 2",
+            "by": "release"
+          },
+          {
+            "release": "South scissors 1",
+            "by": "release"
+          },
+          {
+            "resync": "P1"
+          },
+          {
+            "resync": "P2"
+          },
+          {
+            "resync": "P3"
+          },
+          {
+            "resync": "P4"
+          }
+        ],
+        "locks": {
+          "P1": false,
+          "P2": false,
+          "P3": false,
+          "P4": false
         }
       }
     },
     {
-      "at": 52,
-      "expect": {
-        "resources": {
-          "North scissors 1": "IDLE",
-          "North scissors 2": "IDLE",
-          "North scissors 3": "IDLE",
-          "South scissors 2": "IDLE",
-          "South scissors 4": "IDLE",
-          "South scissors 5": "IDLE"
-        }
-      }
-    },
-    {
-      "at": 55,
+      "at": 50,
       "do": [
         {
           "turnout": "P1",
@@ -495,66 +562,67 @@
           "is": "thrown"
         },
         {
-          "sensor": "North west current",
-          "is": "occupied"
-        }
-      ]
-    },
-    {
-      "at": 57,
-      "do": [
-        {
-          "turnout": "P3",
-          "is": "thrown"
-        },
-        {
           "turnout": "P2",
           "is": "thrown"
         },
         {
-          "sensor": "South west current",
-          "is": "occupied"
+          "turnout": "P3",
+          "is": "thrown"
         }
       ]
     },
     {
-      "at": 59,
+      "at": 52,
+      "do": [
+        {
+          "sensor": "North west current",
+          "is": "occupied"
+        }
+      ],
       "expect": {
+        "events": [
+          {
+            "grant": "North scissors 1",
+            "rule": "NW signal moves/2"
+          },
+          {
+            "grant": "Diamond",
+            "rule": "NW signal moves/2"
+          },
+          {
+            "grant": "South scissors 1",
+            "rule": "NW signal moves/2"
+          }
+        ],
         "masts": {
-          "NW signal": "R292"
+          "NW signal": "R283"
+        },
+        "locks": {
+          "P1": true,
+          "P4": true
+        }
+      }
+    },
+    {
+      "at": 54,
+      "do": [
+        {
+          "sensor": "North east current",
+          "is": "occupied"
+        }
+      ],
+      "expect": {
+        "events": [],
+        "rules": {
+          "NE signal moves/2": "waiting"
+        },
+        "masts": {
+          "NE signal": "R292"
         }
       }
     },
     {
       "at": 60,
-      "expect": {
-        "masts": {
-          "NW signal": "R283",
-          "SW signal": "R292"
-        },
-        "holders": {
-          "North scissors 1": "NW signal moves/2",
-          "North scissors 4": "NW signal moves/2",
-          "Diamond 1": "NW signal moves/2",
-          "Diamond 2": "NW signal moves/2",
-          "South scissors 1": "NW signal moves/2",
-          "South scissors 2": "NW signal moves/2"
-        }
-      }
-    },
-    {
-      "at": 62,
-      "expect": {
-        "masts": {
-          "SW signal": "R292"
-        },
-        "rules": {
-          "SW signal moves/2": "waiting"
-        }
-      }
-    },
-    {
-      "at": 65,
       "do": [
         {
           "sensor": "North scissors current",
@@ -562,23 +630,36 @@
         }
       ],
       "expect": {
-        "masts": {
-          "NW signal": "R292"
-        },
         "events": [
           {
             "pass": "North scissors 1",
             "rule": "NW signal moves/2"
-          },
+          }
+        ],
+        "masts": {
+          "NW signal": "R292"
+        }
+      }
+    },
+    {
+      "at": 65,
+      "do": [
+        {
+          "sensor": "Diamond current",
+          "is": "occupied"
+        }
+      ],
+      "expect": {
+        "events": [
           {
-            "pass": "North scissors 4",
+            "pass": "Diamond",
             "rule": "NW signal moves/2"
           }
         ]
       }
     },
     {
-      "at": 67,
+      "at": 66,
       "do": [
         {
           "sensor": "North west current",
@@ -590,34 +671,13 @@
       "at": 68,
       "do": [
         {
-          "sensor": "Diamond current",
-          "is": "occupied"
-        }
-      ],
-      "expect": {
-        "events": [
-          {
-            "pass": "Diamond 1",
-            "rule": "NW signal moves/2"
-          },
-          {
-            "pass": "Diamond 2",
-            "rule": "NW signal moves/2"
-          }
-        ]
-      }
-    },
-    {
-      "at": 70,
-      "do": [
-        {
           "sensor": "North scissors current",
           "is": "clear"
         }
       ]
     },
     {
-      "at": 72,
+      "at": 70,
       "do": [
         {
           "sensor": "South scissors current",
@@ -629,16 +689,12 @@
           {
             "pass": "South scissors 1",
             "rule": "NW signal moves/2"
-          },
-          {
-            "pass": "South scissors 2",
-            "rule": "NW signal moves/2"
           }
         ]
       }
     },
     {
-      "at": 73,
+      "at": 72,
       "do": [
         {
           "sensor": "Diamond current",
@@ -647,7 +703,7 @@
       ]
     },
     {
-      "at": 76,
+      "at": 75,
       "do": [
         {
           "sensor": "South east current",
@@ -665,16 +721,7 @@
       ]
     },
     {
-      "at": 80,
-      "do": [
-        {
-          "sensor": "South east current",
-          "is": "clear"
-        }
-      ]
-    },
-    {
-      "at": 100,
+      "at": 98,
       "expect": {
         "events": [
           {
@@ -682,65 +729,45 @@
             "by": "release"
           },
           {
-            "release": "North scissors 4",
-            "by": "release"
+            "resync": "P1"
           }
         ],
-        "masts": {
-          "SW signal": "R292"
+        "rules": {
+          "NE signal moves/2": "waiting"
+        },
+        "holders": {
+          "Diamond": "NW signal moves/2",
+          "South scissors 1": "NW signal moves/2"
+        },
+        "locks": {
+          "P1": false,
+          "P4": true
         }
       }
     },
     {
       "at": 102,
       "expect": {
-        "masts": {
-          "SW signal": "R292"
-        },
-        "holders": {
-          "Diamond 2": "NW signal moves/2"
-        }
-      }
-    },
-    {
-      "at": 103,
-      "expect": {
         "events": [
           {
-            "release": "Diamond 1",
+            "release": "Diamond",
             "by": "release"
           },
           {
-            "release": "Diamond 2",
-            "by": "release"
+            "grant": "North scissors 2",
+            "rule": "NE signal moves/2"
           },
           {
-            "grant": "North scissors 3",
-            "rule": "SW signal moves/2"
+            "grant": "Diamond",
+            "rule": "NE signal moves/2"
           },
           {
-            "grant": "North scissors 5",
-            "rule": "SW signal moves/2"
-          },
-          {
-            "grant": "Diamond 2",
-            "rule": "SW signal moves/2"
-          },
-          {
-            "grant": "Diamond 3",
-            "rule": "SW signal moves/2"
-          },
-          {
-            "grant": "South scissors 3",
-            "rule": "SW signal moves/2"
-          },
-          {
-            "grant": "South scissors 4",
-            "rule": "SW signal moves/2"
+            "grant": "South scissors 2",
+            "rule": "NE signal moves/2"
           }
         ],
         "masts": {
-          "SW signal": "R283"
+          "NE signal": "R283"
         },
         "holders": {
           "South scissors 1": "NW signal moves/2"
@@ -756,13 +783,15 @@
             "by": "release"
           },
           {
-            "release": "South scissors 2",
-            "by": "release"
+            "resync": "P4"
           }
         ],
-        "rules": {
-          "NW signal moves/2": "idle",
-          "SW signal moves/2": "active"
+        "holders": {
+          "South scissors 1": null,
+          "Diamond": "NE signal moves/2"
+        },
+        "locks": {
+          "P4": false
         }
       }
     }

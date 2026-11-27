@@ -1,9 +1,9 @@
 {
-  "name": "track plan: two tracks merging at a join with no turnout",
+  "name": "track plan: two tracks merging at a join with no turnout, in Auto",
   "covers": [
-    "Track plan: two tracks merging at a join with no turnout"
+    "Track plan: a merge in Auto"
   ],
-  "about": "Both moves run onto the same track past the join, so they clash on Merge and Out, and each takes both at once. The upper train goes first. When it has cleared Merge, Merge is freed, but Out is still held for it, so the lower train waits for both.",
+  "about": "Both routes run onto the same track past the join, so they clash on Merge and Out, and each takes both at once. In Auto the upper train asks first and goes. When it has gone on into Out and Merge has been clear for 3 seconds, Merge is freed, but Out is still taken for it, so the lower train waits for both.",
   "module": {
     "sensors": [
       "Upper current",
@@ -230,30 +230,14 @@
   },
   "steps": [
     {
-      "at": 1,
+      "at": 5,
       "do": [
         {
           "sensor": "Upper current",
           "is": "occupied"
         }
-      ]
-    },
-    {
-      "at": 2,
-      "do": [
-        {
-          "sensor": "Lower current",
-          "is": "occupied"
-        }
-      ]
-    },
-    {
-      "at": 6,
+      ],
       "expect": {
-        "masts": {
-          "Upper": "R281",
-          "Lower": "R292"
-        },
         "events": [
           {
             "grant": "Merge",
@@ -263,23 +247,33 @@
             "grant": "Out",
             "rule": "Upper moves/1"
           }
-        ]
+        ],
+        "masts": {
+          "Upper": "R281",
+          "Lower": "R292"
+        }
       }
     },
     {
-      "at": 7,
+      "at": 8,
+      "do": [
+        {
+          "sensor": "Lower current",
+          "is": "occupied"
+        }
+      ],
       "expect": {
-        "masts": {
-          "Lower": "R292"
-        },
+        "events": [],
         "rules": {
           "Lower moves/1": "waiting"
         },
-        "events": []
+        "masts": {
+          "Lower": "R292"
+        }
       }
     },
     {
-      "at": 10,
+      "at": 12,
       "do": [
         {
           "sensor": "Merge current",
@@ -287,15 +281,15 @@
         }
       ],
       "expect": {
-        "masts": {
-          "Upper": "R292"
-        },
         "events": [
           {
             "pass": "Merge",
             "rule": "Upper moves/1"
           }
         ],
+        "masts": {
+          "Upper": "R292"
+        },
         "resources": {
           "Merge": "PASSED",
           "Out": "ACTIVE"
@@ -303,7 +297,7 @@
       }
     },
     {
-      "at": 12,
+      "at": 15,
       "do": [
         {
           "sensor": "Upper current",
@@ -312,7 +306,7 @@
       ]
     },
     {
-      "at": 15,
+      "at": 20,
       "do": [
         {
           "sensor": "Out current",
@@ -325,11 +319,14 @@
             "pass": "Out",
             "rule": "Upper moves/1"
           }
-        ]
+        ],
+        "resources": {
+          "Out": "PASSED"
+        }
       }
     },
     {
-      "at": 18,
+      "at": 24,
       "do": [
         {
           "sensor": "Merge current",
@@ -338,7 +335,28 @@
       ]
     },
     {
-      "at": 25,
+      "at": 54,
+      "expect": {
+        "events": [
+          {
+            "release": "Merge",
+            "by": "release"
+          }
+        ],
+        "resources": {
+          "Merge": "IDLE",
+          "Out": "PASSED"
+        },
+        "holders": {
+          "Out": "Upper moves/1"
+        },
+        "masts": {
+          "Lower": "R292"
+        }
+      }
+    },
+    {
+      "at": 60,
       "do": [
         {
           "sensor": "Out current",
@@ -347,37 +365,16 @@
       ]
     },
     {
-      "at": 48,
+      "at": 89,
       "expect": {
-        "events": [
-          {
-            "release": "Merge",
-            "by": "release"
-          }
-        ],
-        "masts": {
-          "Lower": "R292"
-        },
-        "holders": {
-          "Merge": null,
-          "Out": "Upper moves/1"
-        },
-        "rules": {
-          "Lower moves/1": "waiting"
+        "events": [],
+        "resources": {
+          "Out": "PASSED"
         }
       }
     },
     {
-      "at": 54,
-      "expect": {
-        "masts": {
-          "Lower": "R292"
-        },
-        "events": []
-      }
-    },
-    {
-      "at": 55,
+      "at": 90,
       "expect": {
         "events": [
           {
@@ -395,6 +392,10 @@
         ],
         "masts": {
           "Lower": "R281"
+        },
+        "holders": {
+          "Merge": "Lower moves/1",
+          "Out": "Lower moves/1"
         }
       }
     }

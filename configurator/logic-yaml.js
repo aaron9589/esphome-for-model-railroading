@@ -885,6 +885,11 @@
         r.error(where, `${who} reads signal "${name}", which is not on the Signal Masts page or a signal with no lights. Add it, or pick another.`);
         return;
       }
+      // Held or Unheld: what JMRI or CATS last said of a signal the board sets.
+      if (is === "held" || is === "unheld") {
+        if (!fieldMastNames(config).has(name)) r.error(where, `${who} reads whether JMRI holds signal "${name}", but no rule sets that signal, so the board does not read its hold. Pick a signal the board sets.`);
+        return;
+      }
       const words = Array.isArray(is) ? is : [is];
       const bad = words.filter((word) => !(word === "diverging" || Object.hasOwn(MEANING_WORDS, word)));
       if (!words.length || bad.length) {
@@ -1155,7 +1160,7 @@
       for (const name of reservesOf(then)) {
         if (!sections.has(String(name))) r.error(GROUPS, `${who} takes section "${name}", which is not under Sections. Add the section, or pick another.`);
       }
-      for (const name of list(then.lock)) {
+      for (const name of list(then.lock).map(lockTurnout)) {
         if (!turnouts.has(name)) r.error(GROUPS, `${who} locks turnout "${name}", which is not on the Turnouts page. Pick another, or remove it.`);
       }
     }
@@ -1620,6 +1625,7 @@
           masts: joined(items.masts, list(own.masts).filter((entry) => !(entry?.virtual !== true && onPlan.has(entry?.mast)))),
           layers: joined(items.layers, own.layers),
           resources: joined(items.resources, own.resources),
+          buttons: joined(items.buttons, own.buttons),
           pairs: items.pairs,
           origins: items.origins,
         },
@@ -1749,10 +1755,16 @@
     if (!fieldMode(config)) return names;
     for (const layer of layersOf(config)) {
       for (const rule of list(layer.rules)) {
-        for (const name of list(rule?.then?.lock)) if (typeof name === "string" && name) names.add(name);
+        for (const name of list(rule?.then?.lock).map(lockTurnout)) if (typeof name === "string" && name) names.add(name);
       }
     }
     return names;
+  }
+
+  // A rule's lock: a turnout's name, or { turnout, with } for one held with
+  // a resource (a track plan's route locking).
+  function lockTurnout(item) {
+    return isObject(item) ? item.turnout : item;
   }
 
   // An aspect's tag on this board: as set under Masts, else stop. An untagged
@@ -1835,7 +1847,11 @@
   // the page and the YAML; they are not part of the logic.
   function tableLogic(config) {
     const logic = {};
-    const blocks = logicBlocks(config).map((block) => ({ name: String(block.name || ""), sensors: sorted(list(block.sensors)) }));
+    const blocks = logicBlocks(config).map((block) => {
+      const out = { name: String(block.name || ""), sensors: sorted(list(block.sensors)) };
+      if (list(block.next).length) out.next = list(block.next).map(String);
+      return out;
+    });
     if (blocks.length) logic.blocks = blocks;
     const resources = resourcesOf(config).map((res) => {
       const out = { name: String(res.name || ""), blocks: sorted(list(res.blocks)) };
@@ -1846,9 +1862,10 @@
     if (resources.length) logic.resources = resources;
     const layers = layersOf(config).map((layer) => ({
       name: String(layer.name || ""),
+      ...(layer.routes === true ? { routes: true } : {}),
       rules: list(layer.rules).filter(isObject).map((rule) => {
         const out = {};
-        for (const key of ["trigger", "checks", "then", "cancel"]) if (rule[key] !== undefined) out[key] = sorted(rule[key]);
+        for (const key of ["trigger", "checks", "then", "cancel", "withdraw", "approachLock"]) if (rule[key] !== undefined) out[key] = sorted(rule[key]);
         return out;
       }),
     }));
