@@ -227,62 +227,134 @@
     };
   }
 
-  // ===== Parts: what each mast and section depends on ======================
+  // ===== Parts: what each rule and mast depends on ==========================
 
-  // A board splits into parts that are checked one at a time (work item 4.5).
-  // Rules that set the same mast, or reserve the same section, belong
-  // together. A group's part is it and every group whose mast it reads, and
-  // so on: nothing outside it can change what its rules see, because rules
-  // reach each other only through the masts they set and the sections they
-  // reserve (a turnout lock is written, never read). Each part has only the
-  // inputs its own rules read, so two tracks through a module, or the two
-  // directions on one, are checked side by side, not multiplied together.
-  // A part inside another is not checked again. Returns [{ board, refOf }]:
-  // refOf maps the part's rule refs back to the board's.
+  // A board splits into parts that are checked one at a time (work items 4.5
+  // and TP 5). Rules reach each other in only two ways: through the sections
+  // they reserve (with a leaving guard's, and a routes group's one request),
+  // and through the aspects of the masts they read. Rules joined the first
+  // way are one *group* (a rule with neither is a group of its own); setting
+  // the same mast does not join them, since what a mast shows changes none
+  // of its setters. A rule's part is its group and the groups that set every
+  // mast it reads (all of a mast's setters decide what it shows), and so on:
+  // nothing outside it changes what its rules do, so the part finds exactly
+  // what the whole board does about them. A hold (Held or Unheld) is JMRI's
+  // message, not what the mast shows, so reading one reads no setter. A
+  // turnout lock is written, never read.
+  // Whether a mast can leave Stop is decided only in a part with all of its
+  // setters. A part inside another is not checked again, and a group nothing
+  // reads (such as a turnout lock) joins a part that already has everything
+  // it reads. Each part has only the inputs its own rules read, so two
+  // tracks through a module, or the two directions on one, are checked side
+  // by side, not multiplied together.
+  // Returns [{ board, refOf, masts }]: refOf maps the part's rule refs back
+  // to the board's; masts are those whose setters are all in the part.
   // The sections a rule takes: one, or several at once (a track plan's move).
   function reservesOf(rule) {
     const value = rule?.then?.reserve;
     return value === undefined ? [] : [].concat(value);
   }
 
+  // The masts a condition list reads the aspect of, on this board.
+  const aspectReads = (value) => conditionsIn(value)
+    .filter((c) => c.board === undefined && c.end === undefined && c.mast !== undefined && c.is !== "held" && c.is !== "unheld")
+    .map((c) => c.mast);
+
+  // The names of the plain inputs a condition list reads (blocks, sensors,
+  // turnouts, buttons): enough to tell whether a rule reads anything new.
+  const namesIn = (value) => conditionsIn(value).flatMap((c) => ["block", "sensor", "turnout", "button"].filter((k) => c[k] !== undefined && c.board === undefined).map((k) => `${k === "sensor" ? "block" : k}${SEP}${c[k]}`));
+
   function partsOf(board) {
     const logic = board.logic || {};
-    const rules = list(logic.layers).flatMap((layer) => list(layer.rules).map((rule, i) => ({ layer: layer.name, i, rule })));
-    const whole = [{ board, refOf: (ref) => ref }];
-    if (rules.length < 2) return whole;
+    const rules = list(logic.layers).flatMap((layer) => list(layer.rules).map((rule, i) => ({ layer: layer.name, routes: layer.routes === true, i, rule })));
+    const whole = (all) => [{ board, refOf: (ref) => ref, masts: all }];
+    const fieldMasts = new Set(rules.map(({ rule }) => rule?.then?.mast).filter((m) => m !== undefined));
+    if (rules.length < 2) return whole(fieldMasts);
+    const releaseOf = new Map(list(logic.resources).map((res) => [res?.name, res?.release]));
+
+    // Groups: rules joined by a section, a leaving guard or a shared request.
     const parent = rules.map((_, i) => i);
     const find = (i) => (parent[i] === i ? i : (parent[i] = find(parent[i])));
     const firstOf = new Map();
-    rules.forEach(({ rule }, i) => {
-      for (const [what, name] of [["mast", rule?.then?.mast], ...reservesOf(rule).map((res) => ["reserve", res])]) {
-        if (name === undefined) continue;
-        const key = `${what}${SEP}${name}`;
-        if (firstOf.has(key)) parent[find(i)] = find(firstOf.get(key));
-        else firstOf.set(key, i);
-      }
+    const join = (i, key) => {
+      if (firstOf.has(key)) parent[find(i)] = find(firstOf.get(key));
+      else firstOf.set(key, i);
+    };
+    rules.forEach(({ layer, routes, rule }, i) => {
+      const reserves = reservesOf(rule);
+      for (const res of reserves) join(i, `res${SEP}${res}`);
+      const guard = rule?.trigger?.leavingGuard;
+      for (const res of Array.isArray(guard) ? guard : []) join(i, `res${SEP}${res}`);
+      if (routes && reserves.length && rule?.trigger?.when) join(i, `ask${SEP}${layer}`);
     });
-    const setterOf = new Map();
-    rules.forEach(({ rule }, i) => { if (rule?.then?.mast !== undefined) setterOf.set(rule.then.mast, find(i)); });
-    const releaseOf = new Map(list(logic.resources).map((res) => [res?.name, res?.release]));
-    const reads = new Map(rules.map((_, i) => [find(i), new Set()]));
+    const groups = [...new Set(rules.map((_, i) => find(i)))];
+    const membersOf = new Map(groups.map((g) => [g, []]));
+    rules.forEach((_, i) => membersOf.get(find(i)).push(i));
+
+    // What each group reads, and who sets each mast.
+    const settersOf = new Map();
     rules.forEach(({ rule }, i) => {
-      for (const cond of conditionsIn([rule?.trigger, rule?.checks, rule?.cancel, ...reservesOf(rule).map((res) => releaseOf.get(res))])) {
-        if (cond.board === undefined && cond.end === undefined && cond.mast !== undefined && setterOf.has(cond.mast)) reads.get(find(i)).add(setterOf.get(cond.mast));
-      }
+      const mast = rule?.then?.mast;
+      if (mast === undefined) return;
+      if (!settersOf.has(mast)) settersOf.set(mast, new Set());
+      settersOf.get(mast).add(find(i));
     });
-    const cones = [...reads.keys()].map((group) => {
-      const cone = new Set([group]);
-      const queue = [group];
+    const reads = new Map(groups.map((g) => [g, new Set()]));
+    rules.forEach(({ rule }, i) => {
+      const read = aspectReads([rule?.trigger, rule?.checks, rule?.cancel, rule?.withdraw, ...reservesOf(rule).map((res) => releaseOf.get(res))]);
+      for (const mast of read) for (const g of settersOf.get(mast) || []) reads.get(find(i)).add(g);
+    });
+    const coneOf = (start) => {
+      const cone = new Set(start);
+      const queue = [...start];
       while (queue.length) for (const next of reads.get(queue.pop())) if (!cone.has(next)) { cone.add(next); queue.push(next); }
       return cone;
-    });
-    if (cones.some((cone) => cone.size === reads.size)) return whole;
+    };
+    const readBySomeone = new Set(groups.filter((g) => [...reads.values()].some((r) => r.has(g))));
+    const sinks = new Set(groups.filter((g) => !readBySomeone.has(g) && membersOf.get(g).every((i) => rules[i].rule?.then?.mast === undefined)));
+    const targets = [
+      ...groups.filter((g) => !sinks.has(g)).map((g) => coneOf([g])),
+      ...[...settersOf.values()].map((setters) => coneOf([...setters])),
+    ];
+    if (targets.some((cone) => cone.size === groups.length)) return whole(fieldMasts);
     const inside = (a, b) => a.size <= b.size && [...a].every((g) => b.has(g));
-    const kept = cones.filter((cone, i) => !cones.some((other, j) => j !== i && inside(cone, other) && (other.size > cone.size || j < i)));
+    const kept = targets.filter((cone, i) => !targets.some((other, j) => j !== i && inside(cone, other) && (other.size > cone.size || j < i)));
+    // A group nothing reads joins a part that has all it reads, when it
+    // reads no input that part does not; otherwise it is a part of its own.
+    const namesOf = (cone) => new Set([...cone].flatMap((g) => membersOf.get(g).flatMap((i) => {
+      const { rule } = rules[i];
+      return namesIn([rule?.trigger, rule?.checks, rule?.cancel, rule?.withdraw, ...reservesOf(rule).map((res) => [releaseOf.get(res), list(list(logic.resources).find((r) => r?.name === res)?.blocks).map((b) => (typeof b === "string" ? { block: b } : {}))])]);
+    })));
+    for (const sink of sinks) {
+      const own = coneOf([sink]);
+      const rest = new Set([...own].filter((g) => g !== sink));
+      const into = rest.size ? kept.find((cone) => inside(rest, cone) && [...namesOf([sink])].every((name) => namesOf(cone).has(name))) : null;
+      if (into) into.add(sink);
+      else if (!kept.some((cone) => inside(own, cone))) kept.push(own);
+    }
+    // A part that reads no input another does not is checked with it: its
+    // rules add few states to the other's, and none of the other's inputs.
+    for (let merged = true; merged; ) {
+      merged = false;
+      for (let a = 0; a < kept.length && !merged; a += 1) {
+        for (let b = 0; b < kept.length && !merged; b += 1) {
+          if (a === b) continue;
+          const mine = namesOf(kept[a]);
+          const theirs = namesOf(kept[b]);
+          if (![...mine].every((name) => theirs.has(name))) continue;
+          for (const g of kept[a]) kept[b].add(g);
+          kept.splice(a, 1);
+          merged = true;
+        }
+      }
+    }
+    if (kept.length === 1) return whole(fieldMasts);
+
     return kept.map((cone) => {
+      const inCone = (r) => cone.has(find(rules.indexOf(r)));
       const refs = new Map();
       const layers = list(logic.layers).map((layer) => {
-        const own = rules.filter((r) => r.layer === layer.name && cone.has(find(rules.indexOf(r))));
+        const own = rules.filter((r) => r.layer === layer.name && inCone(r));
         own.forEach((r, j) => refs.set(`${layer.name}/${j + 1}`, `${layer.name}/${r.i + 1}`));
         return { ...layer, rules: own.map((r) => r.rule) };
       }).filter((layer) => layer.rules.length);
@@ -295,7 +367,8 @@
         return [name, rest];
       }));
       const part = { ...board, masts, logic: { ...logic, layers, resources: list(logic.resources).filter((res) => reserved.has(res?.name)) } };
-      return { board: part, refOf: (ref) => refs.get(ref) ?? ref };
+      const whole = new Set([...settersOf].filter(([, setters]) => [...setters].every((g) => cone.has(g))).map(([mast]) => mast));
+      return { board: part, refOf: (ref) => refs.get(ref) ?? ref, masts: whole };
     });
   }
 
@@ -420,20 +493,24 @@
       return out;
     };
 
+    // Each state keeps a copy of the engine (logic.js snapshot) until its
+    // successors have been explored: one engine branches from it, where
+    // replaying the path from power-on cost a scan per step of the path.
     const nodes = [];
     const byKey = new Map();
     const record = (engine, values, path) => {
       const key = keyOf(engine, values);
       if (byKey.has(key)) return byKey.get(key);
       const { logic, ...state } = engine.state();
-      const node = { id: nodes.length, key, path, values, state, view: engine.checkerView(), edges: [] };
+      const node = { id: nodes.length, key, path, values, state, view: engine.checkerView(), edges: [], saved: engine.snapshot() };
       nodes.push(node);
       byKey.set(key, node);
       return node;
     };
 
     const startValues = inputs.map((input) => input.start);
-    record(replay([]), startValues, []);
+    const engine = replay([]);
+    record(engine, startValues, []);
     let complete = true;
     for (let at = 0; at < nodes.length; at += 1) {
       if (nodes.length > maxStates || Date.now() > deadline) {
@@ -442,18 +519,27 @@
       }
       const node = nodes[at];
       for (const move of moves(node.values)) {
-        let engine;
+        engine.restore(node.saved);
         let path;
         if (move.step) {
           path = [...node.path, move.step];
-          engine = replay(path);
+          engine.event(move.step.do);
+          engine.scan();
         } else {
           // Wait until something changes, or every timer has had its time.
-          engine = replay(node.path);
+          // After a scan that changes nothing, the scans until the next timer
+          // runs out are the same as it, so they are skipped; with no timer
+          // running, nothing more happens.
           let waited = 0;
           while (waited < waitLimit && keyOf(engine, node.values) === node.key) {
             engine.scan();
             waited += 1;
+            if (keyOf(engine, node.values) !== node.key) break;
+            const idle = engine.idleScans();
+            if (idle === Infinity) break;
+            const skip = Math.min(idle, waitLimit - waited);
+            engine.skip(skip);
+            waited += skip;
           }
           if (keyOf(engine, node.values) === node.key) continue;
           path = [...node.path, { wait: waited }];
@@ -461,7 +547,9 @@
         const to = record(engine, move.values, path);
         node.edges.push({ to: to.id, input: move.input });
       }
+      node.saved = null;
     }
+    for (const node of nodes) node.saved = null;
 
     // What was seen, from every state reached (and the random runs).
     const active = new Set();
@@ -577,7 +665,8 @@
     const deadline = started + maxMs;
     const runsUntil = deadline + runsMs;
 
-    const parts = split ? partsOf(board) : [{ board, refOf: (ref) => ref }];
+    const allMasts = new Set(list(board.logic?.layers).flatMap((l) => list(l.rules).map((r) => r?.then?.mast)).filter((m) => m !== undefined));
+    const parts = split ? partsOf(board) : [{ board, refOf: (ref) => ref, masts: allMasts }];
     let states = 0;
     let tried = 0;
     let complete = true;
@@ -592,12 +681,12 @@
       tried += seen.tried;
       if (!seen.complete) complete = false;
       seen.active.forEach((ref) => activeSeen.add(part.refOf(ref)));
-      seen.leftStop.forEach((mast) => leftStop.add(mast));
+      seen.leftStop.forEach((mast) => { if (part.masts.has(mast)) leftStop.add(mast); });
       if (seen.complete) {
         for (const layer of list(part.board.logic?.layers)) {
           list(layer.rules).forEach((rule, i) => {
             provenRules.add(part.refOf(`${layer.name}/${i + 1}`));
-            if (rule?.then?.mast !== undefined) provenMasts.add(rule.then.mast);
+            if (part.masts.has(rule?.then?.mast)) provenMasts.add(rule.then.mast);
           });
         }
       }

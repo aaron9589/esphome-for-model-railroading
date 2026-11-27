@@ -1204,7 +1204,127 @@
       };
     }
 
-    return { event, scan, state, checkerView, time: () => n * SCAN_MS };
+    // For the checker only, so it has no C++ counterpart: everything a scan
+    // or an event can change, copied, and put back. The checker explores a
+    // state's successors from one copy instead of replaying the path to it
+    // from power-on (work item TP 5). test/checker.test.js replays random
+    // paths both ways and compares every scan.
+    const copyMap = (map, copy = (v) => v) => new Map([...map].map(([k, v]) => [k, copy(v)]));
+    const ruleAt = (rule) => (rule ? rule.index : -1);
+    function snapshot() {
+      return {
+        rules: rules.map((r) => ({ phase: r.phase, cancelAt: r.cancelAt, trueNow: r.trueNow, checksNow: r.checksNow, cancelNow: r.cancelNow, trig: { ...r.trig, seq: { ...r.trig.seq } } })),
+        asks: asks.map((a) => ({ request: a.request, since: a.since })),
+        resources: resources.map((r) => ({ holder: ruleAt(r.holder), passed: r.passed, seen: r.seen, startupHeld: r.startupHeld, releaseNow: r.releaseNow, rel: { ...r.rel, seq: { ...r.rel.seq } } })),
+        ends: ends.map((e) => ({ link: e.link, theirLink: e.theirLink, online: e.online, block: [...e.block], mast: [...e.mast], announce: e.announce, prevState: e.prevState })),
+        pairGroup: pairGroup.map((x) => ({ ...x })),
+        closedGroups: closedGroups.map((g) => g.map((x) => ({ ...x }))),
+        latched: [...latched].map(([k, v]) => [k, { ...v }]),
+        turnouts: copyMap(turnouts),
+        remoteLocks: copyMap(remoteLocks),
+        remote: Object.fromEntries(Object.entries(remote).map(([b, r]) => [b, { online: r.online, items: copyMap(r.items) }])),
+        n, broker, connectAt, publishAll, endsPublishAll, logicOn, startupNext, pendingLogic, starting, autoOn, startupScan,
+        pendingReleases: pendingReleases.map((p) => ({ ...p })),
+        pendingGroupReleases: pendingGroupReleases.map((p) => ({ ...p })),
+        jmriShown: copyMap(jmriShown),
+        holds: copyMap(holds),
+        lastHeld: copyMap(lastHeld),
+        holdWent: copyMap(holdWent, (v) => ({ ...v })),
+        timedStart: copyMap(timedStart),
+        display: copyMap(display),
+        prevOut: copyMap(prevOut),
+        fieldLocks: copyMap(fieldLocks),
+        prevLocked: copyMap(prevLocked),
+        published: copyMap(published),
+        endPublished: copyMap(endPublished),
+        edges: copyMap(edges),
+        prevBlock: copyMap(prevBlock),
+      };
+    }
+    const refill = (map, from, copy = (v) => v) => {
+      map.clear();
+      for (const [k, v] of from) map.set(k, copy(v));
+    };
+    function restore(s) {
+      s.rules.forEach((r, i) => {
+        Object.assign(rules[i], { phase: r.phase, cancelAt: r.cancelAt, trueNow: r.trueNow, checksNow: r.checksNow, cancelNow: r.cancelNow });
+        rules[i].trig = { ...r.trig, seq: { ...r.trig.seq } };
+      });
+      s.asks.forEach((a, i) => Object.assign(asks[i], a));
+      s.resources.forEach((r, i) => {
+        Object.assign(resources[i], { holder: r.holder < 0 ? null : rules[r.holder], passed: r.passed, seen: r.seen, startupHeld: r.startupHeld, releaseNow: r.releaseNow });
+        resources[i].rel = { ...r.rel, seq: { ...r.rel.seq } };
+      });
+      s.ends.forEach((e, i) => Object.assign(ends[i], { ...e, block: [...e.block], mast: [...e.mast] }));
+      pairGroup = s.pairGroup.map((x) => ({ ...x }));
+      closedGroups.length = 0;
+      for (const g of s.closedGroups) closedGroups.push(g.map((x) => ({ ...x })));
+      latched.clear();
+      latchedBy.sensor.clear();
+      latchedBy.button.clear();
+      for (const [k, v] of s.latched) {
+        const at = k.indexOf("\u0000");
+        const copy = { ...v };
+        latched.set(k, copy);
+        latchedBy[k.slice(0, at)].set(k.slice(at + 1), copy);
+      }
+      refill(turnouts, s.turnouts);
+      refill(remoteLocks, s.remoteLocks);
+      for (const [b, r] of Object.entries(s.remote)) {
+        remote[b].online = r.online;
+        refill(remote[b].items, r.items);
+      }
+      ({ n, broker, connectAt, publishAll, endsPublishAll, logicOn, startupNext, pendingLogic, starting, autoOn, startupScan } = s);
+      pendingReleases.length = 0;
+      for (const p of s.pendingReleases) pendingReleases.push({ ...p });
+      pendingGroupReleases.length = 0;
+      for (const p of s.pendingGroupReleases) pendingGroupReleases.push({ ...p });
+      refill(jmriShown, s.jmriShown);
+      refill(holds, s.holds);
+      refill(lastHeld, s.lastHeld);
+      refill(holdWent, s.holdWent, (v) => ({ ...v }));
+      refill(timedStart, s.timedStart);
+      refill(display, s.display);
+      prevOut = copyMap(s.prevOut);
+      fieldLocks = copyMap(s.fieldLocks);
+      refill(prevLocked, s.prevLocked);
+      refill(published, s.published);
+      refill(endPublished, s.endPublished);
+      refill(edges, s.edges);
+      refill(prevBlock, s.prevBlock);
+    }
+
+    // For the checker only: how many scans from now until a timer can next
+    // run out (0: this coming scan; Infinity: no timer is running). Called
+    // after a scan that changed nothing but timers, every scan until then is
+    // the same as that one, so the checker skips them (`skip`). It may name
+    // a scan at which nothing happens (the checker then just looks again),
+    // never one after a timer runs out.
+    const scansFor = (msValue) => Math.ceil(msValue / SCAN_MS);
+    function idleScans() {
+      if (pairGroup.length || closedGroups.length || pendingLogic !== null || pendingReleases.length || pendingGroupReleases.length) return 0;
+      let next = Infinity;
+      const at = (scanNo) => { if (scanNo >= n) next = Math.min(next, scanNo); };
+      for (const rule of rules) {
+        const st = rule.trig;
+        if (rule.forMs > 0 && !st.eff && st.runTrue !== null) at(st.runTrue + scansFor(rule.forMs));
+        if (rule.forMs > 0 && st.eff && st.runFalse !== null) at(st.runFalse + scansFor(rule.forMs));
+        if (rule.phase === "cancelling") {
+          for (const res of rule.resources) if (res.holder === rule) at(rule.cancelAt + scansFor(rule.approach ? rule.approach.ms : res.lockMs));
+        }
+      }
+      for (const res of resources) if (res.releaseMs > 0 && res.rel.runTrue !== null) at(res.rel.runTrue + scansFor(res.releaseMs));
+      for (const m of timedMoments) {
+        const start = timedStart.get(momentKey(m));
+        if (start !== undefined) at(start + scansFor(ms(m.for)));
+      }
+      return next === Infinity ? Infinity : next - n;
+    }
+    function skip(scans) {
+      n += scans;
+    }
+
+    return { event, scan, state, checkerView, snapshot, restore, idleScans, skip, time: () => n * SCAN_MS };
   }
 
   // --- Explain (spec, Show, don't describe) -------------------------------
