@@ -1198,7 +1198,7 @@
         // what JMRI last said of each hold.
         more: [
           resources.filter((res) => res.seen).map((res) => res.name),
-          [...timedStart].map(([key, at]) => [key, n - at]),
+          [...timedStart.keys()],
           [...lastHeld],
         ],
       };
@@ -1253,6 +1253,8 @@
       return forText ? `a train has been in ${name}${lasting}` : `a train is in ${name}`;
     }
     if (c.turnout !== undefined) return `${where(c.turnout, c.board)} is ${c.is}`;
+    if (c.auto !== undefined) return c.auto === "on" ? "the board is in Auto" : "the board is in Manual";
+    if (c.mast !== undefined && (c.is === "held" || c.is === "unheld")) return `JMRI or CATS ${c.is === "held" ? "holds" : "does not hold"} ${c.mast}`;
     if (c.mast !== undefined) {
       if (c.is === "diverging") return `${where(c.mast, c.board)} shows a diverging aspect`;
       return `${where(c.mast, c.board)} shows ${orList([].concat(c.is).map((t) => TAG_WORDS[t]))}`;
@@ -1270,12 +1272,17 @@
   }
 
   function sayMoment(m) {
-    if (m.button !== undefined) return `${m.button} has been pressed`;
+    if (m.any) return m.any.map(sayMoment).join(", or ");
+    const when = m.if ? ` (${sayCondition(m.if)})` : "";
+    if (m.button !== undefined) return `${m.button} has been pressed${when}`;
+    if (m.mast !== undefined && (m.is === "held" || m.is === "unheld")) return `JMRI or CATS has ${m.is === "held" ? "held" : "cleared"} ${m.mast}${when}`;
     if (m.block !== undefined || m.sensor !== undefined) {
       const name = where(m.block ?? m.sensor, m.board);
-      return m.is === "clear" ? `${name} has cleared` : `a train has entered ${name}`;
+      if (m.is === "clear") return `${name} has ${m.for ? `been clear for ${duration(m.for)}` : "cleared"}${when}`;
+      const from = m.notFrom !== undefined ? ` other than from ${orList([].concat(m.notFrom))}` : "";
+      return `a train has entered ${name}${from}${when}`;
     }
-    return sayCondition(m);
+    return `${sayCondition(m)}${when}`;
   }
 
   /** The conditions of one rule, as a phrase: "a train has been in Left for half a second and ...". */
@@ -1290,7 +1297,8 @@
       if (t.leavingGuard) lead.push("that train did not arrive while the section was in use");
     }
     const checks = rule.checks || [];
-    const tail = rule.then?.reserve ? [`the ${rule.then.reserve} section is free`] : [];
+    const reserve = [].concat(rule.then?.reserve ?? []).filter((name) => name !== "");
+    const tail = reserve.length === 1 ? [`the ${reserve[0]} section is free`] : reserve.length ? [`${orList(reserve).replace(/ or ([^,]*)$/, " and $1")} are free`] : [];
     const parts = [...lead, ...checks.map((c) => sayCondition(c)), ...tail].filter(Boolean);
     return parts.join([...conds, ...checks].some((c) => c.any) ? ", and " : " and ");
   }
