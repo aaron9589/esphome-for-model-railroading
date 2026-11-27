@@ -1631,6 +1631,7 @@
           buttons: joined(items.buttons, own.buttons),
           pairs: items.pairs,
           origins: items.origins,
+          endBlocks: items.endBlocks,
         },
       };
     }

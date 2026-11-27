@@ -711,35 +711,50 @@ The engine is one JS module (for example `configurator/logic.js`). It runs the s
 
 #### Checker limits
 
-Measured in work item 4.5 with `configurator/test/bench/checker-limits.mjs`, which anyone can re-run. Three things keep the state count down. None of them changes what the checker can find:
-- **Parts.** Rules that set the same mast, or reserve the same section, belong together. A group's part is that group plus every group whose mast it reads, and so on. Nothing outside the part can change what its rules see: rules reach each other only through the masts they set and the sections they reserve, and a turnout lock is written, never read. Each part is explored with only its own inputs, so two tracks through a module, or the two directions on one track, are checked side by side instead of multiplied together. A part inside another is not checked again. Block signals read the next mast down the line, so one direction of a line stays one part.
+Measured in work items 4.5 and TP 5 with `configurator/test/bench/checker-limits.mjs`, which anyone can re-run. Three things keep the state count down. None of them changes what the checker can find:
+- **Parts.** Rules reach each other in only two ways: through the sections they reserve (with a leaving guard's sections, and a routes group's one request), and through the aspects of the masts they read. Rules joined the first way are one group. Setting the same mast does not join them, because what a mast shows changes none of its setters. A rule's part is its group plus the groups that set every mast it reads (all of a mast's setters decide what it shows), and so on. Nothing outside the part changes what its rules do. A hold (Held or Unheld) is JMRI's message, not what the mast shows, so reading one reads no setter. Whether a mast can leave Stop is decided only in a part with all of its setters. A part inside another is not checked again; a group nothing reads (such as a turnout lock) joins a part that already has everything it reads; and a part that reads no input another part does not is checked with it. Two tracks through a module, or the two directions on one track, are checked side by side instead of multiplied together.
 - **Inputs that cannot be told apart are explored once.** Some inputs are read only through blocks: a sensor, an end's block, another board's item. Two of those that sit in the same blocks the rules read count as one input. A check changes one input per scan, so the engine only sees whether either is occupied. A heard end signal's meanings that every rule compares the same way also count as one value, for example Stop and Restricting where the rules ask "Stop or Restricting". Try it still offers every input.
 - **Waiting order per section.** A state keeps each section's waiting order, which decides its grants. It does not keep how requests for different sections, or plain rules, interleave, because nothing reads that.
 
-Measured on an Apple-silicon Mac with Node 26. A + means the check stopped at its budget. Validation is the quick check; Full is Check every combination.
+A state costs about 0.2 ms (TP 5). The checker branches each state's successors from a copy of the engine (`snapshot`, `restore`) instead of replaying its path from power-on, and a wait skips the scans before the next timer runs out (`idleScans`), which are the same as the scan before them. Both are in `logic.js` for the checker only, with no C++ counterpart, and `test/checker-plans.test.js` compares them with plain scans. A wait now counts every time in the rules, a request's or a cancel's included: before, a wait could stop short of a 3 s cancel and call the request stuck.
 
-| Board | Inputs (Try it) | Rules | Parts (inputs each) | States, every one | Time | Validation | Full |
-|---|---|---|---|---|---|---|---|
-| One-train section, 2 entrances | 3 | 2 | 1 (3) | 120 | 0.04 s | done | done |
-| One-train section, 3 entrances | 4 | 3 | 1 (4) | 1,024 | 0.3 s | done | done |
-| One-train section, 4 entrances | 5 | 4 | 1 (5) | 10,388 | 4.6 s | 2,000+ | done |
-| 4 entrances, trains leave the way they came | 5 | 4 | 1 (5) | 4,490 | 2.2 s | 1,600+ | done |
-| 4 entrances, Hold after cancelling 10 s | 5 | 4 | 1 (5) | 14,543 | 7.5 s | 2,000+ | done |
-| 4 entrances, two blocks in the section | 6 | 4 | 1 (6) | 20,775 | 12 s | 2,000+ | done |
-| Block signals worked example | 4 | 12 | 1 (4) | 123 | 0.07 s | done | done |
-| MSS crossover (two tracks, two ends of two) | 15 | 18 | 4 (9, 6, 6, 9) | 624 | 0.45 s | 620+ | done |
-| MSS junction with a turnout, three ends | 15 | 29 | 3 (12, 9, 9) | 2,541 | 3.4 s | 920+ | done |
-| MSS single track, Advance Approach | 11 | 22 | 2 (8, 8) | 324 | 0.2 s | done | done |
-| MSS three modules, each module | 7 | 6 | 2 (4, 4) | 12 | under 0.01 s | done | done |
-| Three boards by their ends, each board | 8 | 4 | 2 (4, 4) | 8 | under 0.01 s | done | done |
+**Routes checked from their rules** (TP 5). A drawn plan's routes all share track with the next, so they are one part, and a station's part reads too many inputs to explore (28 for the station measured below). A part that is still unfinished after 5,000 states, or reads more than 20 inputs, is checked from its rules instead, when every rule in it that takes sections asks *when* something happens (as routes do), its sections release *while* something holds, and nothing in it has a leaving guard. A rule taking sections all at once holds nothing while it waits, and grants go longest waiting first, so it waits for good, with what it asks and cancels with unchanged, only if:
+1. its Only if and its sections clear can never all be true together; or
+2. a rule that holds one of its sections can never run its train through it and free it: the train must be seen in the section, then going into the next block along, then the section must be clear for its release; or
+3. a rule that may ask before it, for a section it needs, can then neither go and free its sections, as in 2, nor be kept from asking while it can go itself.
 
-Before these three, the MSS junction did not finish in 40,000 states (over two minutes), and each of the three modules took 1,025 states. A state costs 0.4 to 1.3 ms, because the engine has no snapshot and each state is reached by replaying its path. The four-entrance section is genuinely large: four trains can ask in any order, and the order decides who goes next.
+A rule that can never ask, or never have its sections clear, is left out of 2 and 3. No rule is passed over for good: a rule that asks *when* loses its place in the queue when it is granted. A rule that asks *while* keeps it, so with its train still there it can go first again and again (the `rules-several-resources` case), which is why such parts are not checked this way. Each check tries every value of the few inputs it reads; what a signal shows, and anything from another board, may be anything. A train standing on track another route holds came on against that route, and so did one standing at an end of the drawing in the block a route leads into: the layout beyond holds it ([track plan spec, Checker](field-logic-plan-spec.md#checker)), so neither is counted, in this check or in exploring. That each rule applies and each mast leaves Stop must still be seen in random runs, which stop once they have seen it all; the track plan's own rules need not apply. On every board small enough to explore, this finds exactly what exploring every state finds: the plan cases and their changed copies in `test/checker-plans.test.js`, and 600 random changed copies after the last change to it (changed Only ifs, next blocks and releases).
+
+Measured on an Apple-silicon Mac with Node 26. A + means the check stopped at its budget. Validation is the quick check; Full is Check every combination. "From rules" means the part was explored to 5,000 states, then checked from its routes' rules.
+
+| Board | Inputs (Try it) | Rules | Parts (inputs each) | No budget | Validation | Full |
+|---|---|---|---|---|---|---|
+| One-train section, 2 entrances | 3 | 2 | 1 (3) | 120, 0.01 s | done | done |
+| One-train section, 3 entrances | 4 | 3 | 1 (4) | 1,024, 0.09 s | done | done |
+| One-train section, 4 entrances | 5 | 4 | 1 (5) | 10,388, 1.0 s | 2,000+ | done |
+| 4 entrances, trains leave the way they came | 5 | 4 | 1 (5) | 3,889, 0.4 s | 2,000+ | done |
+| 4 entrances, Hold after cancelling 10 s | 5 | 4 | 1 (5) | 14,543, 1.5 s | 2,000+ | done |
+| 4 entrances, two blocks in the section | 6 | 4 | 1 (6) | 20,775, 2.5 s | 2,000+ | done |
+| Block signals worked example | 4 | 12 | 1 (4) | 123, 0.02 s | done | done |
+| MSS crossover (two tracks, two ends of two) | 15 | 18 | 2 (9, 9) | 576, 0.15 s | done | done |
+| MSS junction with a turnout, three ends | 15 | 29 | 2 (12, 9) | 2,313, 0.8 s | 1,600+ | done |
+| MSS single track, Advance Approach | 11 | 22 | 2 (8, 8) | 324, 0.06 s | done | done |
+| MSS three modules, each module | 7 | 6 | 2 (4, 4) | 12, under 0.01 s | done | done |
+| Three boards by their ends, each board | 8 | 4 | 2 (4, 4) | 8, under 0.01 s | done | done |
+| Plan: gauntlet, CATS hold, switch flipped | 3 | 4 | 1 (3) | 194, 0.03 s | done | done |
+| Plan: merge | 4 | 4 | 1 (4) | 1,677, 0.25 s | done | done |
+| Plan: diamond, detector dropout | 5 | 4 | 1 (5) | from rules, 0.9 s | done, from rules | done, from rules |
+| Plan: passing siding (7 signals, 2 turnouts) | 13 | 38 | 1 (13) | from rules, 1.6 s | done, from rules | done, from rules |
+| Plan: scissors crossover | 11 | 36 | 1 (11) | from rules, 1.8 s | done, from rules | done, from rules |
+| Plan: station (18 blocks, 10 signals, 8 turnouts; `test/plan-station.js`) | 28 | 140 | 1 (28) | from rules, 1.0 s | random runs, 1.3 s | done, from rules, 1.0 s |
+
+Before TP 5 the passing siding was not checked completely even by Check every combination (about 16,500 states in 20 s), and each turnout lock was a near copy of the whole board. The four-entrance section is genuinely large: four trains can ask in any order, and the order decides who goes next.
 
 The budgets (`BUDGETS` in `logic-checker.js`):
-- **Validation**, on every change to the rules (memoised on the rule table): 2,000 states or 400 ms, shared by the parts. A part that does not finish gets random runs for up to 200 ms more, at most 100 runs of 40 steps. So the page never waits more than about 0.6 s.
+- **Validation**, on every change to the rules (memoised on the rule table): 2,000 states or 400 ms, shared by the parts, then random runs for up to 200 ms more, at most 100 runs of 40 steps. A part checked from its rules adds its check (0.2 to 0.6 s on the station).
 - **Full check**: the Download page offers **Check every combination** when the quick check of the current rules gave up. It allows 30,000 states or 20 s. A part that still does not finish gets up to 1,000 random runs of 60 steps, for up to 5 s. Its result stands until the rules change. The page waits while it runs.
-- What fits, in practice: anything with up to about 1,000 states in a part finishes in validation. That covers sections with up to three entrances, block signals, plant-end boards and single MSS tracks. A four-entrance section, or a junction module with 12 inputs in one part, needs the full check: a few seconds. A part past 30,000 states, or 20 s, gets random runs only. The largest measured, a four-entrance section with two blocks, is 20,775 states. A slower computer reaches the time limit sooner.
-- **Random runs** start only for a part that hit its budget. Parts that finished keep their proofs. Random runs prove that a rule applies, or that a mast leaves Stop, when they see it happen. They never report a deadlock or starvation, which need every state. For a rule they never saw apply, they say "did not apply in N random runs" and that it may never apply, not that it can't. The partial warning says the check was not complete, and points to the full check when it was the quick one.
+- What fits, in practice: anything with up to about 1,000 states in a part finishes in validation. That covers sections with up to three entrances, block signals, plant-end boards, single MSS tracks and most drawn plans. A four-entrance section, a junction module with 12 inputs in one part, or a station, needs the full check: a few seconds. A part past 30,000 states, or 20 s, that cannot be checked from its rules gets random runs only. A slower computer reaches the time limit sooner.
+- **Random runs** start only for a part that hit its budget. Parts that finished keep their proofs. Random runs prove that a rule applies, or that a mast leaves Stop, when they see it happen. On their own they never report a deadlock or starvation, which need every state or a check from the rules. For a rule they never saw apply, they say "did not apply in N random runs" and that it may never apply, not that it can't. The partial warning says the check was not complete, and points to the full check when it was the quick one.
 
 ### Validation
 

@@ -11,8 +11,10 @@
 import fs from "node:fs";
 import path from "node:path";
 import { configuratorDir, loadModules } from "../harness.js";
+import { planBoard, planCaseNames, readPlanCase } from "../plan-cases.js";
+import { station } from "../plan-station.js";
 
-const ctx = loadModules("generator.js", "logic-yaml.js", "logic.js", "logic-checker.js", "logic-starters.js", "logic-starters-sections.js", "logic-starters-signals.js", "mss-builder.js");
+const ctx = loadModules("generator.js", "logic-yaml.js", "logic.js", "logic-checker.js", "logic-starters.js", "logic-starters-sections.js", "logic-starters-signals.js", "mss-builder.js", "plan-builder.js");
 const { EsphomeMr, EsphomeMrLogicChecker: C, EsphomeMrLogicYaml: L, EsphomeMrLogicStarters: Starters } = ctx;
 const { myFirstBoardPreset, topicFor } = EsphomeMr;
 
@@ -70,7 +72,7 @@ function fourEntrances({ leave = false, sectionBlocks = 1, approachLock = "", en
 // ===== The boards =============================================================
 
 const boards = [];
-const add = (name, board) => boards.push({ name, board });
+const add = (name, board, extra = {}) => boards.push({ name, board, extra });
 
 add("two entrances, one block", fourEntrances({ entrances: 2 }));
 add("three entrances, one block", fourEntrances({ entrances: 3 }));
@@ -86,6 +88,16 @@ for (const file of ["mss-crossover.json", "mss-junction-turnout.json", "mss-junc
 }
 for (const [name, module] of Object.entries(readCase(path.join("mss", "mss-three-modules.json")).modules)) add(`MSS three modules: ${name}`, mssTable(name, module));
 for (const [name, board] of Object.entries(readCase("ends-three-boards-turned.json").boards)) add(`ends three boards: ${name}`, board);
+// Drawn track plans (TP 5), with what the plan tells the checker: its own
+// layers (never warned about as never applying) and the blocks at its ends.
+for (const [name, module] of [...planCaseNames().map((n) => [n, readPlanCase(n).module]), ["station", station()]]) {
+  const config = planBoard(ctx, module);
+  const items = L.logicItems(config);
+  add(`plan ${name}`, plain(L.logicTable(config)), {
+    ignore: items.layers.filter((l) => String(l.starter || "").startsWith("plan-")).map((l) => l.name),
+    endBlocks: plain(items.endBlocks || []),
+  });
+}
 
 // ===== Measure ===============================================================
 
@@ -97,13 +109,13 @@ const budgets = [
 ];
 const rules = (board) => (board.logic?.layers || []).reduce((n, layer) => n + (layer.rules || []).length, 0);
 const rows = [];
-for (const { name, board } of boards) {
+for (const { name, board, extra } of boards) {
   if (only && !name.includes(only)) continue;
   const parts = C.partsOf(board);
   const row = { board: name, inputs: C.inputsOf(board).length, rules: rules(board), parts: parts.map((p) => C.inputsOf(p.board).length).join("+") };
   for (const [label, options] of budgets) {
     const started = process.hrtime.bigint();
-    const result = C.checkBoard(board, options);
+    const result = C.checkBoard(board, { ...options, ...extra });
     const ms = Number(process.hrtime.bigint() - started) / 1e6;
     row[label] = `${result.states}${result.complete ? "" : "+"} ${Math.round(ms)}ms${result.complete ? "" : ` (${result.runs} runs)`}`;
     if (label === "none") row.problems = result.problems.map((p) => `${p.level}:${p.kind}`).join(" ") || "-";

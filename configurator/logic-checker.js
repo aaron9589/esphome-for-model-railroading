@@ -23,11 +23,12 @@
   const E = () => global.EsphomeMrLogic;
 
   const TEXT = Object.freeze({
+    deadlockFound: (rule, section) => `${rule} can be left waiting for section "${section}" forever, with its train still there: a train that takes the section can never be seen through it, or a train that asks first can never go. Check what has to happen for the section to be free.`,
     deadlock: (rule, section) => `${rule} can be left waiting for section "${section}" forever, with its train still there. Use Show me to see how, then check what has to happen for the section to be free.`,
     starved: (rule, section) => `${rule} can be passed over forever: other trains keep getting section "${section}" while it waits. Use Show me to see how.`,
     neverActive: (rule) => `${rule} can never apply: no mix of trains, turnouts and signals makes its When and Only if true together. Look for a block that must be both occupied and clear.`,
     stuck: (mast) => `Signal "${mast}" can never show anything but Stop: no rule that sets it can apply. Check the rules that set it.`,
-    tooMany: (runs, quick) => `This board has too many combinations to check every one${quick ? " quickly" : ""}, so the checker tried ${runs} random runs. It may not have found every problem.${quick ? " Use Check every combination on the Download page to check them all: it can take a few seconds." : ""}`,
+    tooMany: (runs, quick) => `This board has too many combinations to check every one${quick ? " quickly" : ""}${runs ? `, so the checker tried ${runs} random runs` : ""}. It may not have found every problem.${quick ? " Use Check every combination on the Download page to check them all: it can take a few seconds." : ""}`,
     neverSeen: (rule, runs) => `${rule} did not apply in ${runs} random runs. It may never apply: look for a block that must be both occupied and clear.`,
     stuckSeen: (mast, runs) => `Signal "${mast}" showed only Stop in ${runs} random runs. Check the rules that set it.`,
   });
@@ -196,11 +197,23 @@
     return out;
   }
 
+  // Every time in the rules and sections, a moment's in a request or a
+  // cancel included (before TP 5 only a trigger's and a section's counted,
+  // so a wait could stop short of a 3 s cancel and call the request stuck).
   function longestTimerScans(board) {
     const ms = (value) => E().ms(value) || 0;
     let longest = 0;
-    for (const layer of list(board.logic?.layers)) for (const rule of list(layer.rules)) longest = Math.max(longest, ms(rule?.trigger?.for));
-    for (const res of list(board.logic?.resources)) longest = Math.max(longest, ms(res.release?.for), ms(res.approachLock));
+    const walk = (value) => {
+      if (Array.isArray(value)) value.forEach(walk);
+      else if (isObject(value)) {
+        for (const [key, inner] of Object.entries(value)) {
+          if ((key === "for" || key === "approachLock") && typeof inner === "string") longest = Math.max(longest, ms(inner));
+          else if (key === "approachLock" && isObject(inner)) longest = Math.max(longest, ms(inner.for));
+          else walk(inner);
+        }
+      }
+    };
+    walk([list(board.logic?.layers), list(board.logic?.resources)]);
     return Math.ceil(longest / E().SCAN_MS) + 2;
   }
 
@@ -227,62 +240,146 @@
     };
   }
 
-  // ===== Parts: what each mast and section depends on ======================
+  // ===== Parts: what each rule and mast depends on ==========================
 
-  // A board splits into parts that are checked one at a time (work item 4.5).
-  // Rules that set the same mast, or reserve the same section, belong
-  // together. A group's part is it and every group whose mast it reads, and
-  // so on: nothing outside it can change what its rules see, because rules
-  // reach each other only through the masts they set and the sections they
-  // reserve (a turnout lock is written, never read). Each part has only the
-  // inputs its own rules read, so two tracks through a module, or the two
-  // directions on one, are checked side by side, not multiplied together.
-  // A part inside another is not checked again. Returns [{ board, refOf }]:
-  // refOf maps the part's rule refs back to the board's.
+  // A board splits into parts that are checked one at a time (work items 4.5
+  // and TP 5). Rules reach each other in only two ways: through the sections
+  // they reserve (with a leaving guard's, and a routes group's one request),
+  // and through the aspects of the masts they read. Rules joined the first
+  // way are one *group* (a rule with neither is a group of its own); setting
+  // the same mast does not join them, since what a mast shows changes none
+  // of its setters. A rule's part is its group and the groups that set every
+  // mast it reads (all of a mast's setters decide what it shows), and so on:
+  // nothing outside it changes what its rules do, so the part finds exactly
+  // what the whole board does about them. A hold (Held or Unheld) is JMRI's
+  // message, not what the mast shows, so reading one reads no setter. A
+  // turnout lock is written, never read.
+  // Whether a mast can leave Stop is decided only in a part with all of its
+  // setters. A part inside another is not checked again, and a group nothing
+  // reads (such as a turnout lock) joins a part that already has everything
+  // it reads. Each part has only the inputs its own rules read, so two
+  // tracks through a module, or the two directions on one, are checked side
+  // by side, not multiplied together.
+  // Returns [{ board, refOf, masts }]: refOf maps the part's rule refs back
+  // to the board's; masts are those whose setters are all in the part.
   // The sections a rule takes: one, or several at once (a track plan's move).
   function reservesOf(rule) {
     const value = rule?.then?.reserve;
     return value === undefined ? [] : [].concat(value);
   }
 
+  // The masts a condition list reads the aspect of, on this board.
+  const aspectReads = (value) => conditionsIn(value)
+    .filter((c) => c.board === undefined && c.end === undefined && c.mast !== undefined && c.is !== "held" && c.is !== "unheld")
+    .map((c) => c.mast);
+
+  // The names of the plain inputs a condition list reads (blocks, sensors,
+  // turnouts, buttons): enough to tell whether a rule reads anything new.
+  const namesIn = (value) => conditionsIn(value).flatMap((c) => ["block", "sensor", "turnout", "button"].filter((k) => c[k] !== undefined && c.board === undefined).map((k) => `${k === "sensor" ? "block" : k}${SEP}${c[k]}`));
+
   function partsOf(board) {
     const logic = board.logic || {};
-    const rules = list(logic.layers).flatMap((layer) => list(layer.rules).map((rule, i) => ({ layer: layer.name, i, rule })));
-    const whole = [{ board, refOf: (ref) => ref }];
-    if (rules.length < 2) return whole;
+    const rules = list(logic.layers).flatMap((layer) => list(layer.rules).map((rule, i) => ({ layer: layer.name, routes: layer.routes === true, i, rule })));
+    const whole = (all) => [{ board, refOf: (ref) => ref, masts: all }];
+    const fieldMasts = new Set(rules.map(({ rule }) => rule?.then?.mast).filter((m) => m !== undefined));
+    if (rules.length < 2) return whole(fieldMasts);
+    const releaseOf = new Map(list(logic.resources).map((res) => [res?.name, res?.release]));
+
+    // Groups: rules joined by a section, a leaving guard or a shared request.
     const parent = rules.map((_, i) => i);
     const find = (i) => (parent[i] === i ? i : (parent[i] = find(parent[i])));
     const firstOf = new Map();
-    rules.forEach(({ rule }, i) => {
-      for (const [what, name] of [["mast", rule?.then?.mast], ...reservesOf(rule).map((res) => ["reserve", res])]) {
-        if (name === undefined) continue;
-        const key = `${what}${SEP}${name}`;
-        if (firstOf.has(key)) parent[find(i)] = find(firstOf.get(key));
-        else firstOf.set(key, i);
-      }
+    const join = (i, key) => {
+      if (firstOf.has(key)) parent[find(i)] = find(firstOf.get(key));
+      else firstOf.set(key, i);
+    };
+    rules.forEach(({ layer, routes, rule }, i) => {
+      const reserves = reservesOf(rule);
+      for (const res of reserves) join(i, `res${SEP}${res}`);
+      const guard = rule?.trigger?.leavingGuard;
+      for (const res of Array.isArray(guard) ? guard : []) join(i, `res${SEP}${res}`);
+      if (routes && reserves.length && rule?.trigger?.when) join(i, `ask${SEP}${layer}`);
     });
-    const setterOf = new Map();
-    rules.forEach(({ rule }, i) => { if (rule?.then?.mast !== undefined) setterOf.set(rule.then.mast, find(i)); });
-    const releaseOf = new Map(list(logic.resources).map((res) => [res?.name, res?.release]));
-    const reads = new Map(rules.map((_, i) => [find(i), new Set()]));
+    const groups = [...new Set(rules.map((_, i) => find(i)))];
+    const membersOf = new Map(groups.map((g) => [g, []]));
+    rules.forEach((_, i) => membersOf.get(find(i)).push(i));
+
+    // What each group reads, and who sets each mast.
+    const settersOf = new Map();
     rules.forEach(({ rule }, i) => {
-      for (const cond of conditionsIn([rule?.trigger, rule?.checks, rule?.cancel, ...reservesOf(rule).map((res) => releaseOf.get(res))])) {
-        if (cond.board === undefined && cond.end === undefined && cond.mast !== undefined && setterOf.has(cond.mast)) reads.get(find(i)).add(setterOf.get(cond.mast));
-      }
+      const mast = rule?.then?.mast;
+      if (mast === undefined) return;
+      if (!settersOf.has(mast)) settersOf.set(mast, new Set());
+      settersOf.get(mast).add(find(i));
     });
-    const cones = [...reads.keys()].map((group) => {
-      const cone = new Set([group]);
-      const queue = [group];
+    const reads = new Map(groups.map((g) => [g, new Set()]));
+    rules.forEach(({ rule }, i) => {
+      const read = aspectReads([rule?.trigger, rule?.checks, rule?.cancel, rule?.withdraw, ...reservesOf(rule).map((res) => releaseOf.get(res))]);
+      for (const mast of read) for (const g of settersOf.get(mast) || []) reads.get(find(i)).add(g);
+    });
+    const coneOf = (start) => {
+      const cone = new Set(start);
+      const queue = [...start];
       while (queue.length) for (const next of reads.get(queue.pop())) if (!cone.has(next)) { cone.add(next); queue.push(next); }
       return cone;
-    });
-    if (cones.some((cone) => cone.size === reads.size)) return whole;
+    };
+    const readBySomeone = new Set(groups.filter((g) => [...reads.values()].some((r) => r.has(g))));
+    const sinks = new Set(groups.filter((g) => !readBySomeone.has(g) && membersOf.get(g).every((i) => rules[i].rule?.then?.mast === undefined)));
+    const targets = [
+      ...groups.filter((g) => !sinks.has(g)).map((g) => coneOf([g])),
+      ...[...settersOf.values()].map((setters) => coneOf([...setters])),
+    ];
+    if (targets.some((cone) => cone.size === groups.length)) return whole(fieldMasts);
     const inside = (a, b) => a.size <= b.size && [...a].every((g) => b.has(g));
-    const kept = cones.filter((cone, i) => !cones.some((other, j) => j !== i && inside(cone, other) && (other.size > cone.size || j < i)));
+    const kept = targets.filter((cone, i) => !targets.some((other, j) => j !== i && inside(cone, other) && (other.size > cone.size || j < i)));
+    // A group nothing reads joins a part that has all it reads, when it
+    // reads no input that part does not; otherwise it is a part of its own.
+    // The inputs each group reads, worked out once; a part's are its groups'.
+    const resourceBlocks = new Map(list(logic.resources).map((r) => [r?.name, list(r?.blocks).map((b) => (typeof b === "string" ? { block: b } : {}))]));
+    const groupNames = new Map(groups.map((g) => [g, new Set(membersOf.get(g).flatMap((i) => {
+      const { rule } = rules[i];
+      return namesIn([rule?.trigger, rule?.checks, rule?.cancel, rule?.withdraw, ...reservesOf(rule).map((res) => [releaseOf.get(res), resourceBlocks.get(res)])]);
+    }))]));
+    const namesCache = new Map();
+    const namesOf = (cone) => {
+      if (!namesCache.has(cone)) {
+        const names = new Set();
+        for (const g of cone) for (const name of groupNames.get(g)) names.add(name);
+        namesCache.set(cone, names);
+      }
+      return namesCache.get(cone);
+    };
+    const within = (a, b) => [...a].every((name) => b.has(name));
+    for (const sink of sinks) {
+      const own = coneOf([sink]);
+      const rest = new Set([...own].filter((g) => g !== sink));
+      const into = rest.size ? kept.find((cone) => inside(rest, cone) && within(groupNames.get(sink), namesOf(cone))) : null;
+      if (into) {
+        into.add(sink);
+        namesCache.delete(into);
+      } else if (!kept.some((cone) => inside(own, cone))) kept.push(own);
+    }
+    // A part that reads no input another does not is checked with it: its
+    // rules add few states to the other's, and none of the other's inputs.
+    for (let merged = true; merged; ) {
+      merged = false;
+      for (let a = 0; a < kept.length && !merged; a += 1) {
+        for (let b = 0; b < kept.length && !merged; b += 1) {
+          if (a === b || !within(namesOf(kept[a]), namesOf(kept[b]))) continue;
+          for (const g of kept[a]) kept[b].add(g);
+          namesCache.delete(kept[b]);
+          kept.splice(a, 1);
+          merged = true;
+        }
+      }
+    }
+    if (kept.length === 1) return whole(fieldMasts);
+
     return kept.map((cone) => {
+      const inCone = (r) => cone.has(find(rules.indexOf(r)));
       const refs = new Map();
       const layers = list(logic.layers).map((layer) => {
-        const own = rules.filter((r) => r.layer === layer.name && cone.has(find(rules.indexOf(r))));
+        const own = rules.filter((r) => r.layer === layer.name && inCone(r));
         own.forEach((r, j) => refs.set(`${layer.name}/${j + 1}`, `${layer.name}/${r.i + 1}`));
         return { ...layer, rules: own.map((r) => r.rule) };
       }).filter((layer) => layer.rules.length);
@@ -295,7 +392,8 @@
         return [name, rest];
       }));
       const part = { ...board, masts, logic: { ...logic, layers, resources: list(logic.resources).filter((res) => reserved.has(res?.name)) } };
-      return { board: part, refOf: (ref) => refs.get(ref) ?? ref };
+      const whole = new Set([...settersOf].filter(([, setters]) => [...setters].every((g) => cone.has(g))).map(([mast]) => mast));
+      return { board: part, refOf: (ref) => refs.get(ref) ?? ref, masts: whole };
     });
   }
 
@@ -392,6 +490,11 @@
     const inputs = budget.allInputs ? all : checkerInputs(board, all);
     const start = startOf(board, all);
     const waitLimit = longestTimerScans(board);
+    const blockSensors = new Map(list(board.logic?.blocks).map((b) => [b.name, list(b.sensors).filter((m) => typeof m === "string")]));
+    const endSensors = new Set(list(budget.endBlocks).flatMap((b) => blockSensors.get(b) || [b]));
+    const nextOf = new Map(list(board.logic?.layers).flatMap((layer) => list(layer.rules).map((rule, i) => [`${layer.name}/${i + 1}`, rule?.then?.next || {}])));
+    const sensorsOfResource = (name) => new Set(list(list(board.logic?.resources).find((r) => r?.name === name)?.blocks)
+      .filter((b) => typeof b === "string").flatMap((b) => blockSensors.get(b) || [b]));
 
     const replay = (path) => {
       const engine = engineOf();
@@ -420,40 +523,55 @@
       return out;
     };
 
+    // Each state keeps a copy of the engine (logic.js snapshot) until its
+    // successors have been explored: one engine branches from it, where
+    // replaying the path from power-on cost a scan per step of the path.
     const nodes = [];
     const byKey = new Map();
     const record = (engine, values, path) => {
       const key = keyOf(engine, values);
       if (byKey.has(key)) return byKey.get(key);
       const { logic, ...state } = engine.state();
-      const node = { id: nodes.length, key, path, values, state, view: engine.checkerView(), edges: [] };
+      const node = { id: nodes.length, key, path, values, state, view: engine.checkerView(), edges: [], saved: engine.snapshot() };
       nodes.push(node);
       byKey.set(key, node);
       return node;
     };
 
     const startValues = inputs.map((input) => input.start);
-    record(replay([]), startValues, []);
+    const engine = replay([]);
+    record(engine, startValues, []);
     let complete = true;
+    // Past MAX_EXPLORE_INPUTS there are more states than any budget: straight to runs.
+    const wide = inputs.length > MAX_EXPLORE_INPUTS;
     for (let at = 0; at < nodes.length; at += 1) {
-      if (nodes.length > maxStates || Date.now() > deadline) {
+      if (wide || nodes.length > maxStates || Date.now() > deadline) {
         complete = false;
         break;
       }
       const node = nodes[at];
       for (const move of moves(node.values)) {
-        let engine;
+        engine.restore(node.saved);
         let path;
         if (move.step) {
           path = [...node.path, move.step];
-          engine = replay(path);
+          engine.event(move.step.do);
+          engine.scan();
         } else {
           // Wait until something changes, or every timer has had its time.
-          engine = replay(node.path);
+          // After a scan that changes nothing, the scans until the next timer
+          // runs out are the same as it, so they are skipped; with no timer
+          // running, nothing more happens.
           let waited = 0;
           while (waited < waitLimit && keyOf(engine, node.values) === node.key) {
             engine.scan();
             waited += 1;
+            if (keyOf(engine, node.values) !== node.key) break;
+            const idle = engine.idleScans();
+            if (idle === Infinity) break;
+            const skip = Math.min(idle, waitLimit - waited);
+            engine.skip(skip);
+            waited += skip;
           }
           if (keyOf(engine, node.values) === node.key) continue;
           path = [...node.path, { wait: waited }];
@@ -461,7 +579,9 @@
         const to = record(engine, move.values, path);
         node.edges.push({ to: to.id, input: move.input });
       }
+      node.saved = null;
     }
+    for (const node of nodes) node.saved = null;
 
     // What was seen, from every state reached (and the random runs).
     const active = new Set();
@@ -478,7 +598,10 @@
     let tried = 0;
     if (!complete) {
       const next = random(seed);
-      for (let run = 0; run < runs && Date.now() <= runsUntil; run += 1) {
+      // Runs stop once they have seen everything they are needed for.
+      const need = budget.need;
+      const allSeen = () => need && [...need.rules].every((ref) => active.has(ref)) && [...need.masts].every((m) => leftStop.has(m));
+      for (let run = 0; run < runs && Date.now() <= runsUntil && !allSeen(); run += 1) {
         const engine = replay([]);
         let values = startValues;
         for (let s = 0; s < steps; s += 1) {
@@ -538,7 +661,17 @@
             }
             return true;
           };
-          const stuck = nodes.find((node) => settled(node) && !canGrant.has(node.id));
+          // A train standing on track another route holds came on against
+          // that route: inside the drawing a signal stops it, and at an open
+          // end the layout beyond does (TP 5, decided 2026-11-27). Such a
+          // state is not counted.
+          const onHeld = (node) => [...frozen].some((i) => {
+            if (!inputs[i].values.includes("occupied") || node.values[i] !== "occupied") return false;
+            const sensor = inputs[i].key.split(SEP)[1];
+            return Object.entries(node.state.holders).some(([res, holder]) => holder && holder !== ref
+              && (sensorsOfResource(res).has(sensor) || (endSensors.has(sensor) && list(nextOf.get(holder)?.[res]).some((b) => (blockSensors.get(b) || [b]).includes(sensor)))));
+          });
+          const stuck = nodes.find((node) => settled(node) && !canGrant.has(node.id) && !onHeld(node));
           if (stuck) return void found.push({ kind: "deadlock", rule: ref, section, sequence: stuck.path });
           // Starvation: a loop of states, the rule waiting throughout and its
           // train still there, in which another rule is granted the section.
@@ -548,6 +681,196 @@
       }
     }
     return { complete, states: nodes.length, tried, active, leftStop, found };
+  }
+
+  // ===== Routes in a part too big to explore (work item TP 5) ==============
+
+  // A station's routes all share track with the next, so they are one part,
+  // and with a sensor for every block it has far too many states to explore
+  // (2 to the power of its inputs, before the rules). Such a part is checked
+  // from its rules instead, for what only every state can show: a rule that
+  // waits for good. The engine takes a rule's sections all at once, so a
+  // rule that waits holds nothing, and grants go longest waiting first, so
+  // a rule that waits is passed over only while rules that asked before it
+  // go. It waits for good, its train standing at the signal (what it asks
+  // and cancels with does not change), only if:
+  //  1. its Only if and its sections clear can never be true together; or
+  //  2. a rule that holds one of its sections can never run its train
+  //     through it and free it: the train must be seen in a block, then in
+  //     the next block along, then the section must be clear for its
+  //     release, and a block where the waiting train stands cannot change;
+  //  3. or a rule that may ask before it, for a section it needs, can then
+  //     neither go and free its sections, as in 2, nor be kept from asking
+  //     while it can go itself.
+  // No rule is ever passed over for good (starvation). That a rule applies
+  // and a signal leaves Stop is still seen in runs of the engine. Each check
+  // tries every value of the few inputs it reads; what a signal shows, and
+  // anything from another board, may be anything.
+  // A part whose sections release on a sequence, with a leaving guard, or
+  // taken by a rule that asks *while* something holds, is not one this
+  // covers: it gets random runs only.
+  const MAX_EXPLORE_INPUTS = 20;
+  const ANALYSED_STATES = 5000;
+
+  function analysable(board) {
+    const logic = board.logic || {};
+    if (list(logic.resources).some((res) => res?.release?.when !== undefined)) return false;
+    // A rule that asks *while* something holds keeps its place in the queue
+    // after it is granted, so with its train still there it can go first
+    // again and again (rules-several-resources): only rules that ask *when*
+    // something happens, as routes do, wait their turn after each grant.
+    return list(logic.layers).every((layer) => list(layer.rules).every((rule) => !rule?.trigger?.leavingGuard && (reservesOf(rule).length === 0 || rule?.trigger?.when !== undefined)));
+  }
+
+  function routeProblems(board, auto = "on", endBlocks = []) {
+    const logic = board.logic || {};
+    const blocks = new Map(list(logic.blocks).map((b) => [b.name, list(b.sensors)]));
+    const resources = new Map(list(logic.resources).map((res) => [res.name, res]));
+    const memberVar = (m) => (typeof m === "string" ? `s${SEP}${m}` : isObject(m) && m.board === undefined && m.end === undefined ? `s${SEP}${m.sensor ?? m.block}` : `x${SEP}${JSON.stringify(m)}`);
+    const blockVars = (name) => (blocks.has(name) ? blocks.get(name).map(memberVar) : [`s${SEP}${name}`]);
+    const atom = (c) => `a${SEP}${JSON.stringify(c)}`;
+    // The variables a condition reads: sensors (true: occupied), turnouts
+    // ("closed" or "thrown"), and anything else as a free yes-or-no.
+    const varsOf = (c, out = new Set()) => {
+      if (Array.isArray(c)) c.forEach((x) => varsOf(x, out));
+      else if (!isObject(c)) return out;
+      else if (c.all || c.any) varsOf(c.all || c.any, out);
+      else if (c.not) varsOf(c.not, out);
+      else if (c.board === undefined && c.end === undefined && (c.block !== undefined || c.sensor !== undefined)) blockVars(c.block ?? c.sensor).forEach((v) => out.add(v));
+      else if (c.board === undefined && c.end === undefined && c.turnout !== undefined) out.add(`t${SEP}${c.turnout}`);
+      else if (c.auto === undefined) out.add(atom(c));
+      return out;
+    };
+    const holds = (c, a) => {
+      if (Array.isArray(c)) return c.every((x) => holds(x, a));
+      if (!isObject(c)) return true;
+      if (c.all) return c.all.every((x) => holds(x, a));
+      if (c.any) return c.any.some((x) => holds(x, a));
+      if (c.not) return !holds(c.not, a);
+      const is = Array.isArray(c.is) ? c.is[0] : c.is;
+      if (c.board === undefined && c.end === undefined && (c.block !== undefined || c.sensor !== undefined)) {
+        const occ = blockVars(c.block ?? c.sensor).some((v) => a.get(v) === true);
+        return is === "clear" ? !occ : occ;
+      }
+      if (c.board === undefined && c.end === undefined && c.turnout !== undefined) return a.get(`t${SEP}${c.turnout}`) === is;
+      if (c.auto !== undefined) return c.auto === auto;
+      return a.get(atom(c)) === true;
+    };
+    const valuesOf = (v) => (v.startsWith(`t${SEP}`) ? ["closed", "thrown"] : [false, true]);
+    // A condition with some variables not yet given: true, false, or
+    // undefined while it could still go either way.
+    const maybe = (c, a) => {
+      if (Array.isArray(c)) return all3(c.map((x) => maybe(x, a)));
+      if (!isObject(c)) return true;
+      if (c.all) return all3(c.all.map((x) => maybe(x, a)));
+      if (c.any) return any3(c.any.map((x) => maybe(x, a)));
+      if (c.not) { const v = maybe(c.not, a); return v === undefined ? undefined : !v; }
+      const vars = [...varsOf(c)];
+      if (vars.some((v) => !a.has(v))) {
+        // A block is occupied once any of its sensors is.
+        if (c.block !== undefined || c.sensor !== undefined) {
+          if (vars.some((v) => a.get(v) === true)) return (Array.isArray(c.is) ? c.is[0] : c.is) !== "clear";
+        }
+        return undefined;
+      }
+      return holds(c, a);
+    };
+    const all3 = (vs) => (vs.includes(false) ? false : vs.includes(undefined) ? undefined : true);
+    const any3 = (vs) => (vs.includes(true) ? true : vs.includes(undefined) ? undefined : false);
+    // Some values of the free variables make every condition true, with
+    // `fixed` as given: tried one variable at a time, giving up on a branch
+    // as soon as a condition is false.
+    const sat = (conds, fixed) => {
+      const free = [...varsOf(conds)].filter((v) => !fixed.has(v));
+      const a = new Map(fixed);
+      const go = (i) => {
+        const now = maybe(conds, a);
+        if (now !== undefined) return now;
+        if (i === free.length) return false;
+        const ok = valuesOf(free[i]).some((value) => { a.set(free[i], value); return go(i + 1); });
+        a.delete(free[i]);
+        return ok;
+      };
+      return go(0);
+    };
+    const clearOf = (names) => names.flatMap((name) => (resources.get(name) ? list(resources.get(name).blocks) : []))
+      .filter((b) => typeof b === "string").map((block) => ({ block, is: "clear" }));
+    const rules = list(logic.layers).flatMap((layer) => list(layer.rules).map((rule, i) => ({ ref: `${layer.name}/${i + 1}`, rule, takes: reservesOf(rule).filter((name) => resources.has(name)) })))
+      .filter((r) => r.takes.length);
+    // A train can be seen going into a block, then leave it, with `fixed`.
+    const canEnter = (name, fixed) => {
+      const vars = blockVars(name);
+      return vars.every((v) => !fixed.has(v) || fixed.get(v) === false) && vars.some((v) => !fixed.has(v));
+    };
+    // Rule q, holding section `name`, can run its train through and free it.
+    const through = (q, name, fixed) => {
+      const res = resources.get(name);
+      const own = list(res.blocks).filter((b) => typeof b === "string");
+      const vars = own.flatMap(blockVars);
+      const occupy = vars.some((v) => !fixed.has(v) || fixed.get(v) === true);
+      const clear = vars.every((v) => !fixed.has(v) || fixed.get(v) === false);
+      const release = res.release?.while !== undefined && sat([res.release.while], fixed);
+      const next = q.rule?.then?.next && typeof q.rule.then.next === "object" ? list(q.rule.then.next[name]) : [];
+      return occupy && clear && release && (!next.length || next.some((b) => canEnter(b, fixed)));
+    };
+    // What a rule asks with, each way it can ask, as states its inputs are in.
+    const asksOf = (rule) => {
+      const t = rule?.trigger || {};
+      if (!t.when) return [[t.while]];
+      const ways = isObject(t.when) && t.when.any ? t.when.any : [t.when];
+      return ways.map((m) => {
+        const is = Array.isArray(m.is) ? m.is[0] : m.is;
+        const { if: when, for: _f, notFrom: _n, ...core } = m;
+        const own = core.button !== undefined || (core.mast !== undefined && (is === "held" || is === "unheld")) ? [] : [core];
+        return when === undefined ? own : [...own, when];
+      }).filter((conds) => conds.every((c) => !isObject(c) || c.auto === undefined || c.auto === auto));
+    };
+    // A rule whose Only if can never be true never asks, and one that can
+    // never have its sections clear with it never takes them.
+    const canAsk = (q) => sat(q.rule.checks || [], new Map());
+    const canTake = (q) => sat([...q.rule.checks || [], ...clearOf(q.takes)], new Map());
+    const found = [];
+    for (const r of rules) {
+      const frozen = [...varsOf(conditionsIn([r.rule.trigger, r.rule.cancel]).map(({ if: _i, for: _f, notFrom: _n, ...c }) => c))];
+      if (frozen.length > 12) continue;
+      const mine = [...r.rule.checks || [], ...clearOf(r.takes)];
+      let why = null;
+      for (const asked of asksOf(r.rule)) {
+        // Every value of what it asks with that asks, with its train waiting.
+        const tries = [new Map()];
+        for (const v of frozen) {
+          const next = [];
+          for (const a of tries) for (const value of valuesOf(v)) next.push(new Map(a).set(v, value));
+          tries.splice(0, tries.length, ...next);
+        }
+        for (const fixed of tries) {
+          if (!holds(asked, fixed)) continue;
+          if (!sat([...asked, ...(r.rule.checks || [])], fixed)) continue;
+          if (!sat(mine, fixed)) { why = { section: r.takes[0], reason: "own" }; break; }
+          for (const q of rules) {
+            if (q === r || !canAsk(q)) continue;
+            const shared = q.takes.filter((name) => r.takes.includes(name));
+            if (!shared.length) continue;
+            // Its train cannot be standing on track q holds: it would have
+            // come on against q's route (see onHeld in explore).
+            // Nor, at an end of the drawing, in a block q's route leads into:
+            // the layout beyond holds a train coming the other way (decided
+            // 2026-11-27: a head-on meeting there is released by hand).
+            const heldVars = new Set(q.takes.flatMap((name) => list(resources.get(name).blocks).filter((b) => typeof b === "string").flatMap(blockVars)));
+            const nextVars = new Set(q.takes.flatMap((name) => list(q.rule?.then?.next?.[name])).filter((b) => endBlocks.includes(b)).flatMap(blockVars));
+            if ([...fixed].some(([v, value]) => value === true && (heldVars.has(v) || nextVars.has(v)))) continue;
+            const stuck = canTake(q) && shared.find((name) => !through(q, name, fixed));
+            if (stuck) { why = { section: stuck, reason: `held by ${q.ref}` }; break; }
+            const goes = sat([...q.rule.checks || [], ...clearOf(q.takes)], fixed) && q.takes.every((name) => through(q, name, fixed));
+            if (!goes && !sat([...mine, { not: { all: q.rule.checks || [] } }], fixed)) { why = { section: shared[0], reason: `asked first by ${q.ref}` }; break; }
+          }
+          if (why) break;
+        }
+        if (why) break;
+      }
+      if (why) found.push({ kind: "deadlock", rule: r.ref, section: why.section, reason: why.reason, fromRules: true });
+    }
+    return found;
   }
 
   // The budgets (spec, Checking in the browser; measured in work item 4.5
@@ -573,11 +896,14 @@
   function checkBoard(board, options = {}) {
     const { maxStates, maxMs, runs, steps, runsMs } = { ...BUDGETS.full, ...options };
     const { seed = 1, split = true, allInputs = false, quick = false } = options;
+    const ignore = new Set(list(options.ignore));
+    const endBlocks = list(options.endBlocks);
     const started = Date.now();
     const deadline = started + maxMs;
     const runsUntil = deadline + runsMs;
 
-    const parts = split ? partsOf(board) : [{ board, refOf: (ref) => ref }];
+    const allMasts = new Set(list(board.logic?.layers).flatMap((l) => list(l.rules).map((r) => r?.then?.mast)).filter((m) => m !== undefined));
+    const parts = split ? partsOf(board) : [{ board, refOf: (ref) => ref, masts: allMasts }];
     let states = 0;
     let tried = 0;
     let complete = true;
@@ -586,18 +912,29 @@
     const provenRules = new Set(); // rules in a part that finished
     const provenMasts = new Set();
     const found = new Map();
+    const analysed = []; // parts checked from their rules: what runs must still see
     for (const part of parts) {
-      const seen = explore(part.board, { maxStates: Math.max(maxStates - states, 0), deadline, runs, steps, seed, runsUntil, allInputs });
+      const need = {
+        rules: new Set(list(part.board.logic?.layers).filter((layer) => !ignore.has(layer.name)).flatMap((layer) => list(layer.rules).map((_, i) => `${layer.name}/${i + 1}`))),
+        masts: part.masts,
+      };
+      // A part the routes' rules can check need not be explored to the end
+      // of the budget: past ANALYSED_STATES its rules decide.
+      const share = Math.max(maxStates - states, 0);
+      const seen = explore(part.board, { maxStates: analysable(part.board) ? Math.min(share, ANALYSED_STATES) : share, deadline, runs, steps, seed, runsUntil, allInputs, endBlocks, need });
       states += seen.states;
       tried += seen.tried;
-      if (!seen.complete) complete = false;
+      if (!seen.complete && analysable(part.board)) {
+        for (const f of routeProblems(part.board, "on", endBlocks)) seen.found.push(f);
+        analysed.push(part);
+      } else if (!seen.complete) complete = false;
       seen.active.forEach((ref) => activeSeen.add(part.refOf(ref)));
-      seen.leftStop.forEach((mast) => leftStop.add(mast));
+      seen.leftStop.forEach((mast) => { if (part.masts.has(mast)) leftStop.add(mast); });
       if (seen.complete) {
         for (const layer of list(part.board.logic?.layers)) {
           list(layer.rules).forEach((rule, i) => {
             provenRules.add(part.refOf(`${layer.name}/${i + 1}`));
-            if (rule?.then?.mast !== undefined) provenMasts.add(rule.then.mast);
+            if (part.masts.has(rule?.then?.mast)) provenMasts.add(rule.then.mast);
           });
         }
       }
@@ -614,7 +951,10 @@
     for (const { ref } of rules) {
       const f = found.get(ref);
       if (!f) continue;
-      if (f.kind === "deadlock") {
+      if (f.kind === "deadlock" && f.fromRules) {
+        deadlocked.add(ref);
+        problems.push({ level: "error", kind: "deadlock", rule: ref, text: TEXT.deadlockFound(ruleWords(ref), f.section) });
+      } else if (f.kind === "deadlock") {
         deadlocked.add(ref);
         problems.push({ level: "error", kind: "deadlock", rule: ref, text: TEXT.deadlock(ruleWords(ref), f.section), sequence: f.sequence });
       } else problems.push({ level: "warning", kind: "starvation", rule: ref, text: TEXT.starved(ruleWords(ref), f.section), sequence: f.sequence });
@@ -637,6 +977,17 @@
     for (const mast of fieldMasts) {
       if (leftStop.has(mast)) continue;
       problems.push({ level: "warning", kind: "stuck", mast, text: provenMasts.has(mast) ? TEXT.stuck(mast) : TEXT.stuckSeen(mast, tried) });
+    }
+    // A part checked from its rules is complete once runs have seen each of
+    // its rules apply (but those `ignore` names, and rule 1 above) and each
+    // of its masts leave Stop.
+    for (const part of analysed) {
+      const layers = list(part.board.logic?.layers);
+      const unseen = layers.some((layer) => !ignore.has(layer.name) && list(layer.rules).some((rule, i) => {
+        const ref = part.refOf(`${layer.name}/${i + 1}`);
+        return !activeSeen.has(ref) && !deadlocked.has(ref) && !fallback(rule);
+      }));
+      if (unseen || [...part.masts].some((mast) => !leftStop.has(mast))) complete = false;
     }
     if (!complete) problems.push({ level: "warning", kind: "partial", text: TEXT.tooMany(tried, quick) });
     return { complete, states, runs: tried, parts: parts.length, problems };
@@ -719,7 +1070,7 @@
     if (!table) return null;
     const json = JSON.stringify(table);
     if (last.json === json) return mine(config, last.result);
-    const result = checkBoard(table, options);
+    const result = checkBoard(table, { ...options, ...planOptions(config) });
     last = { json, result };
     return mine(config, result);
   }
@@ -727,10 +1078,14 @@
   // A rule the track plan made that never applies is the drawing's own
   // spare row, not something to change: no warning for it. Deadlocks and
   // waiting forever are still reported.
+  const madeLayers = (config) => list(global.EsphomeMrLogicYaml?.logicItems(config)?.layers)
+    .filter((layer) => String(layer?.starter || "").startsWith("plan-")).map((layer) => String(layer.name));
+  // What a track plan tells the checker beyond its rules: its own layers,
+  // and the blocks at the ends of the drawing.
+  const planOptions = (config) => ({ ignore: madeLayers(config), endBlocks: list(global.EsphomeMrLogicYaml?.logicItems(config)?.endBlocks) });
   function mine(config, result) {
     if (!result) return result;
-    const made = new Set(list(global.EsphomeMrLogicYaml?.logicItems(config)?.layers)
-      .filter((layer) => String(layer?.starter || "").startsWith("plan-")).map((layer) => String(layer.name)));
+    const made = new Set(madeLayers(config));
     if (!made.size) return result;
     const ofPlan = (p) => p.kind === "never-active" && made.has(String(p.rule).slice(0, String(p.rule).lastIndexOf("/")));
     return { ...result, problems: result.problems.filter((p) => !ofPlan(p)) };
@@ -742,7 +1097,7 @@
     if (!table) return null;
     const json = JSON.stringify(table);
     if (last.json === json && last.result?.complete) return mine(config, last.result);
-    const result = checkBoard(table, BUDGETS.full);
+    const result = checkBoard(table, { ...BUDGETS.full, ...planOptions(config) });
     last = { json, result };
     return mine(config, result);
   }
@@ -753,5 +1108,5 @@
     return !!table && last.json === JSON.stringify(table) && last.result?.complete === false;
   }
 
-  global.EsphomeMrLogicChecker = { TEXT, SELF, BUDGETS, checkBoard, checkConfig, checkFully, needsFullCheck, partsOf, checkerInputs, inputsOf, endSetup, endKey, isEndKey, ruleWords };
+  global.EsphomeMrLogicChecker = { TEXT, SELF, BUDGETS, checkBoard, routeProblems, analysable, checkConfig, checkFully, needsFullCheck, partsOf, checkerInputs, inputsOf, endSetup, endKey, isEndKey, ruleWords };
 })(typeof globalThis !== "undefined" ? globalThis : window);

@@ -91,13 +91,16 @@ test("block signals: the worked example's board passes; rule 1 with no diverging
 });
 
 test("too many states: random runs, said so, and the same every time", () => {
-  const board = readCase("blocksig-worked-example.json").board;
+  // Sections asked for *while* a train stands are not checked from the rules
+  // (TP 5), so with too small a budget this stays a partial check.
+  const board = gauntlet();
   const a = C.checkBoard(board, { maxStates: 5, runs: 20, steps: 10, seed: 7 });
   const b = C.checkBoard(board, { maxStates: 5, runs: 20, steps: 10, seed: 7 });
   assert.equal(a.complete, false);
-  assert.equal(a.runs, 20);
+  // Runs stop once they have seen every rule apply and every mast leave Stop.
+  assert.ok(a.runs >= 1 && a.runs <= 20, `${a.runs} runs`);
   assert.deepEqual(kinds(a), kinds(b));
-  assert.ok(a.problems.some((p) => p.kind === "partial" && /20 random runs/.test(p.text)));
+  assert.ok(a.problems.some((p) => p.kind === "partial" && p.text.includes(`${a.runs} random runs`)));
   // Without every state, deadlock and starvation are not claimed.
   assert.ok(!a.problems.some((p) => p.kind === "deadlock" || p.kind === "starvation"));
 });
@@ -140,14 +143,15 @@ function gauntletAndYard() {
 test("parts: masts that do not read each other are checked apart, and find what the whole board finds", () => {
   const board = gauntletAndYard();
   const parts = C.partsOf(board);
-  assert.equal(parts.length, 3);
+  // The two Yard rules read only Yard, so they are checked together (TP 5).
+  assert.equal(parts.length, 2);
   // Each part has only its own inputs.
-  assert.deepEqual(plain(parts.map((p) => C.inputsOf(p.board).map((i) => i.key.split("\u0000")[1]))), [["Left", "Right", "Bridge"], ["Yard"], ["Yard"]]);
+  assert.deepEqual(plain(parts.map((p) => C.inputsOf(p.board).map((i) => i.key.split("\u0000")[1]))), [["Left", "Right", "Bridge"], ["Yard"]]);
   const split = C.checkBoard(board);
   const whole = C.checkBoard(board, { split: false });
   assert.equal(split.complete, true);
   assert.equal(whole.complete, true);
-  assert.equal(split.parts, 3);
+  assert.equal(split.parts, 2);
   assert.deepEqual(kinds(split), ["warning:never-active:Yard/2", "warning:stuck:Yard Home"]);
   assert.deepEqual(kinds(split), kinds(whole));
   assert.ok(split.states < whole.states, `${split.states} < ${whole.states}`);
@@ -183,7 +187,7 @@ test("parts: a section's rules, and the masts its release reads, stay together",
   board.logic.resources[0].release = { while: { all: [{ block: "Bridge", is: "clear" }, { mast: "Yard Exit", is: "stop" }] }, for: "3s" };
   const parts = C.partsOf(board);
   const withBridge = parts.find((p) => p.board.logic.resources.length);
-  assert.deepEqual(plain(withBridge.board.logic.layers.map((l) => [l.name, l.rules.length])), [["Gauntlet", 2], ["Yard", 1]]);
+  assert.deepEqual(plain(withBridge.board.logic.layers.map((l) => [l.name, l.rules.length])), [["Gauntlet", 2], ["Yard", 2]]);
   assert.equal(withBridge.refOf("Yard/1"), "Yard/1");
 });
 

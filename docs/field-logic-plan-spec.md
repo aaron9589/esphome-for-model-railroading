@@ -321,7 +321,9 @@ Signals right round a loop read each other in a circle, which validation otherwi
 
 ## Checker
 
-The checker must check a station completely. Measured on the TP 2 plans: the gauntlet (120 states), junction (116) and diamond (536) are checked completely within the quick budget; the passing siding (7 signals, 2 turnouts) is not checked completely even by **Check every combination** (about 16,500 states in 20 s), because signals that read each other make one large part. Protection in pieces adds resources. Before the guide, the checker checks a drawing in smaller parts (TP 5).
+The checker checks a station completely (TP 5). A drawing's routes all share track with the next, so they are one large part: a station of 18 blocks, 10 signals and 8 turnouts reads 28 inputs, far too many states to explore. Such a part is explored as far as a budget allows, then checked from its routes' rules: a route waits for good only if its own conditions can never all hold with its track clear, a route that holds its track can never run a train through and free it, or a route that asked first can never go nor be kept from asking. Routes go longest waiting first and lose their place when granted, so none is passed over for good. That each signal leaves Stop is still seen in runs of the engine. The details and measurements are in the Field Logic spec's [Checker limits](field-logic-spec.md#checker-limits).
+
+**Head-on meetings at an end of the drawing are not counted** (decided 2026-11-27). A train that comes in from beyond an end, onto track a route holds or into the block a route leads into, meets the route's train head-on, and the route's track is never freed: its train is never seen going into the next block, which was already occupied. On the prototype the layout beyond holds such a train, as APB does at the next crossing loop. On the model, someone releases the route by hand, throws the turnout and lets the other train in. Inside the drawing a signal stops such a train, so the same meeting there would be a problem with the drawing, and the checker reports it.
 
 ## Work, in order
 
@@ -334,7 +336,7 @@ The milestone *Track plan* on GitHub has an issue for each.
 | 2 | Stored format and builder | done; fail-safe sign-off open |
 | 3 | First grid editor | done, replaced by 6 |
 | 4 | Routes: controlled signals and block signals; asked for in Auto by the board, in Manual by CATS or JMRI or a signal button, with the Auto/Manual switch and Manual only; set all at once, released behind the train; route locking; paired turnouts; sections removed | done (#144); fail-safe signed off. Hand-worked cases pass in both engines (`test/cases/plan/`): the gauntlet asked for by CATS, a crossing loop meet by signal buttons, a scissors crossover with parallel routes, a diamond and a merge in Auto, the switch flipped with a route set, a detector dropout that frees nothing, CATS holding a signal as its train passes, and a route cancelled and released by hand |
-| 5 | Checker on drawn plans | the passing siding and a station of the size above are checked completely |
+| 5 | Checker on drawn plans | done: the passing siding, the scissors and an 18-block, 10-signal, 8-turnout station are checked completely by Check every combination (about 1 to 2 s); head-on meetings at an end are not counted |
 | 6 | The new page: steps, drawing, making hardware, protection shown | a newcomer on an empty page has one thing to do, and the four TP 2 drawings can be drawn |
 | 7 | Pieces, rules and examples | the gauntlet with a button before Left Bridge, and the industry siding with a local panel, built from an empty page |
 | 8 | Try it and Run a train on the drawing | a meet on a crossing loop runs on the drawing |
