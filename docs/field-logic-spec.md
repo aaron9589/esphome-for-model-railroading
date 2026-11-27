@@ -1014,6 +1014,7 @@ In `configurator/test/`, run through `configurator/package.json`:
   - a lamp lights while a rule that lights it is active, flashes while one that flashes it is, and goes out when logic is switched off
   - a turnout lock that lets only its own buttons through is not the field lock, and goes when logic is switched off
   - a condition held for a time: has shown Stop for counts from the scan the mast is read as Stop, and a break starts it again
+  - a moment within a time: a button pressed in the last few seconds holds from its press, counts while it is held down, and a second press starts it again
 - **Fail safe:**
   - the start-up scan with a train in the section (held, PASSED, releases after the delay), and with all clear
   - a toggle switch's boot move waits for the start-up scan, so a turnout under a train stays put

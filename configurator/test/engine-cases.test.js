@@ -149,6 +149,7 @@ function checkBoard(file, data) {
       return;
     }
     if (c.for !== undefined && !DURATION.test(c.for)) fail(where, `for ${c.for}`);
+    if (c.within !== undefined && !DURATION.test(c.within)) fail(where, `within ${c.within}`);
     if (c.switch !== undefined) {
       for (const is of [].concat(c.is)) if (!["on", "off"].includes(is)) fail(where, `switch ${c.switch} is ${is}`);
       return;

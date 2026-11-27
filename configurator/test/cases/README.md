@@ -51,7 +51,7 @@ A [plant end](../../../docs/field-logic-spec.md#plant-ends) is `{ "name": "A", "
 
 As in the spec's Stored format, with these shapes:
 
-- **Condition** (a state, read by *while*): `{ "block": "Left", "is": "occupied" | "clear" }`, `{ "sensor": … }`, `{ "turnout": "P1", "is": "closed" | "thrown" }`, `{ "mast": "Home", "is": "<tag>" | ["<tag>", …] | "diverging" }`, `{ "button": "Depart", "is": "pressed" }`, `{ "switch": "Local", "is": "on" | "off" }` (rule 35). Add `"board": "<name>"` for another board's item. A condition with `"for": "30s"` holds only once its state has held that long (rule 34): `{ "mast": "Home", "is": "stop", "for": "30s" }` is *has shown Stop for 30 seconds*. Combine with `{ "all": [ … ] }`, `{ "any": [ … ] }`, `{ "not": … }`.
+- **Condition** (a state, read by *while*): `{ "block": "Left", "is": "occupied" | "clear" }`, `{ "sensor": … }`, `{ "turnout": "P1", "is": "closed" | "thrown" }`, `{ "mast": "Home", "is": "<tag>" | ["<tag>", …] | "diverging" }`, `{ "button": "Depart", "is": "pressed" }`, `{ "switch": "Local", "is": "on" | "off" }` (rule 35). A condition with `"within": "30s"` is true while its moment happened, or its state held, in the last 30 seconds (rule 38): `{ "button": "Go", "is": "pressed", "within": "30s" }`. Add `"board": "<name>"` for another board's item. A condition with `"for": "30s"` holds only once its state has held that long (rule 34): `{ "mast": "Home", "is": "stop", "for": "30s" }` is *has shown Stop for 30 seconds*. Combine with `{ "all": [ … ] }`, `{ "any": [ … ] }`, `{ "not": … }`.
 - **What a plant end hears:** `{ "end": "A", "track": 1, "hears": "block", "is": "occupied" | "clear" }` and `{ "end": "A", "track": 1, "hears": "mast", "is": "<tag>" | ["<tag>", …] }`. A heard Mast is a tag only, so `"is": "diverging"` is never true there. In a block's `sensors`, `{ "end": "A", "track": 1 }` is the Block that track hears **(decided:** the spec gives `{ "end": "A", "track": 1 }` and no way to say which of the two values; `hears` says it, because `clear` is both a block state and a tag**)**.
 - **The Auto/Manual switch** (a condition): `{ "auto": "on" | "off" }`. **A hold** (a condition): `{ "mast": "Home", "is": "held" | "unheld" }`, what JMRI's last message said of a field mast's hold (rule 30); no message yet is neither.
 - **Moment** (a change, read by *when* and *then*): the same shapes. `"is": "occupied"` means *went* occupied, and `"is": "pressed"` means was pressed. Also:
@@ -205,6 +205,8 @@ These rule numbers follow on from the plant ends' (23-29) below.
 36. **Lamps.** A rule's `lamp` lights it while the rule is active. After the masts and the locks (step 6.4), each lamp shows `flash` if an active rule flashes it, else `on` if an active rule lights it, else `off`. Lamps are in the order rules first name them (layers in order, rules in order), and are written on change after the panel locks. Switching logic off writes `off` for each lamp not already off; while logic is off, nothing is written. They start off.
 37. **Its own buttons only.** A lock with `"own": true` is a panel lock, not the field lock: while an active rule holds it, JMRI, CATS, MQTT and rules cannot move the turnout, but its own buttons on the fascia can. It is not in `locks` or `locked` and never logs `resync`. The field lock, when also held, still stops the buttons too. Written on change as `{ "panelLock": … }`, after the field locks. Switching logic off writes `false` for each that is held.
 
+38. **Within a time.** A condition with `within` keeps, at the same point of each scan as rule 34, the last scan *s* at which its moment happened or its state held (a press inside one scan counts, by its latch). It is true while (*n* − *s*) × 100 ms < `within`, and false before it ever happened.
+
 ## Plant ends
 
 23. **Ends work with logic on or off (decided:** an end is detection and a link, like a [block](../../../docs/field-logic-spec.md#blocks), which does not depend on the switch**).** Every scan, after everything above and after the edges for the next scan's moments are taken: the pairing decisions (rule 28), each end's state (rule 26), then its offers (rule 27), published on change (rule 29). So a link set in scan *n* is read from scan *n* + 1.
@@ -291,6 +293,7 @@ Built items have the builder's names: a block is `<track> block <n>`, where a tr
 | Rules: the two lock flags | `rules-two-lock-flags` |
 | Rules: lock turnouts under a train | `starter-lock-turnouts` |
 | Pieces: switches, lamps, the own-buttons lock, has shown Stop for (rules 34-37) | `rules-local-panel` |
+| Pieces: a button pressed in the last few seconds (rule 38) | `rules-button-within` |
 | Rules: several resources, all at once, first come first; passed and freed one by one | `rules-several-resources` |
 | Rules: several resources, approach locking and manual release | `rules-several-resources-cancel` |
 | Rules: a leaving guard that names its resources | `rules-leaving-guard-named` |

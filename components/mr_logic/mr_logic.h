@@ -35,6 +35,10 @@ class MrLogicComponent : public Component {
   // on the web page only. press() is the web page's button: a press and release.
   void add_button(const std::string &name, binary_sensor::BinarySensor *sensor);
   void press(const std::string &button);
+  // A switch on the fascia (on is on) and a lamp, a GPIO switch (TP 7). A
+  // flashing lamp blinks twice a second.
+  void add_switch(const std::string &name, binary_sensor::BinarySensor *sensor);
+  void add_lamp(const std::string &name, switch_::Switch *output);
 
   // expander: the sensor's MCP23017 hub, or nullptr. A hub that has failed or
   // warns makes the sensor read occupied (spec, More sensor pins).
@@ -45,8 +49,10 @@ class MrLogicComponent : public Component {
   // position(): "closed", "thrown" or "moving". lock(on): the field lock.
   // remote_locked(): the Lock topic's flag (or empty). resync(): runs the
   // latch script so a toggle-switch turnout matches its switch (or empty).
+  // panel(on): the lock that lets only its own buttons through (or empty).
   void add_turnout(const std::string &name, std::function<const char *()> position, std::function<void(bool)> lock,
-                   std::function<bool()> remote_locked, std::function<void()> resync);
+                   std::function<bool()> remote_locked, std::function<void()> resync,
+                   std::function<void(bool)> panel = std::function<void(bool)>());
   void add_remote_board(const std::string &board, text_sensor::TextSensor *online);
   void add_remote_sensor(const std::string &board, const std::string &name, bool block, text_sensor::TextSensor *state);
   void add_remote_turnout(const std::string &board, const std::string &name, text_sensor::TextSensor *thrown,
@@ -97,6 +103,16 @@ class MrLogicComponent : public Component {
     std::function<void()> resync;
     std::string last;
     int8_t last_remote{-1};
+    std::function<void(bool)> panel;
+  };
+  struct SwitchBinding {
+    std::string name;
+    binary_sensor::BinarySensor *sensor;
+  };
+  struct LampBinding {
+    std::string name;
+    switch_::Switch *output;
+    std::string light;  // "off", "on" or "flash"
   };
   struct RemoteTurnout {
     std::string board, name;
@@ -193,6 +209,10 @@ class MrLogicComponent : public Component {
   std::vector<SensorBinding> sensors_;
   std::vector<MastBinding> masts_;
   std::vector<TurnoutBinding> turnouts_;
+  std::vector<SwitchBinding> switches_;
+  std::vector<LampBinding> lamps_;
+  uint32_t flash_ms_{0};
+  bool flash_on_{false};
   std::vector<RemoteTurnout> remote_turnouts_;
   bool broker_{false};
   bool switch_published_{false};

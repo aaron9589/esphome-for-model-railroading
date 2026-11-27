@@ -76,10 +76,15 @@ Engine::Engine(const Table &table, const Start &start) : t_(table) {
   panel_locks_.assign(t_.turnouts.size(), false);
   lamps_shown_.assign(t_.lamps.size(), 0);
   held_since_.assign(t_.nodes.size(), -1);
+  last_at_.assign(t_.nodes.size(), -1);
   // Rule 34: every leaf condition with a for.
   for (size_t i = 0; i < t_.nodes.size(); i++) {
     const Node &c = t_.nodes[i];
-    if (c.timed && c.kind != Node::ALL && c.kind != Node::ANY && c.kind != Node::NOT) held_.push_back(static_cast<uint16_t>(i));
+    const bool leaf = c.kind != Node::ALL && c.kind != Node::ANY && c.kind != Node::NOT;
+    if (leaf && c.within)
+      within_.push_back(static_cast<uint16_t>(i));
+    else if (leaf && c.timed)
+      held_.push_back(static_cast<uint16_t>(i));
   }
   turnouts_.assign(t_.turnouts.size(), T_NONE);
   for (size_t i = 0; i < t_.declared_turnouts; i++) turnouts_[i] = T_CLOSED;
@@ -380,6 +385,11 @@ bool Engine::went(uint16_t item, bool logic_block, bool on) {
 // Rule 34: a condition with a for holds once its state has held that long.
 bool Engine::condition(uint16_t index) {
   const Node &c = t_.nodes[index];
+  // Rule 38: a moment or state within a time.
+  if (c.within) {
+    const int64_t at = last_at_[index];
+    return at >= 0 && (n_ - at) * static_cast<int64_t>(SCAN_MS) < static_cast<int64_t>(c.within_ms);
+  }
   if (c.timed) {
     const int64_t since = held_since_[index];
     return since >= 0 && (n_ - since) * static_cast<int64_t>(SCAN_MS) >= static_cast<int64_t>(c.for_ms) && condition_core(index);
@@ -535,6 +545,9 @@ void Engine::update_timed() {
     else if (held_since_[node] < 0)
       held_since_[node] = n_;
   }
+  // Rule 38: each within condition's last time.
+  for (uint16_t node : within_)
+    if (moment_now(node) || condition_core(node)) last_at_[node] = n_;
 }
 
 // { sensor: X } and { block: X } are one input.

@@ -57,6 +57,8 @@ struct Node {
   uint16_t if_node = NONE;
   uint8_t timed = 0, not_from = 0;
   uint32_t for_ms = 0;
+  uint8_t within = 0;  // rule 38: true for within_ms after it last happened or held
+  uint32_t within_ms = 0;
   uint16_t from_first = 0, from_count = 0;  // not_from: a range in Table::block_refs
 };
 
@@ -421,6 +423,8 @@ class Engine {
   std::vector<uint8_t> lamps_shown_;  // rule 36: 0 off, 1 on, 2 flash
   std::vector<uint16_t> held_;  // rule 34: leaf conditions with a for
   std::vector<int64_t> held_since_;  // per node: the scan its run began, -1 none
+  std::vector<uint16_t> within_;  // rule 38: leaf conditions with a within
+  std::vector<int64_t> last_at_;  // per node: the last scan it happened or held, -1 never
   std::vector<uint8_t> turnouts_;
   std::vector<bool> remote_locks_, field_locks_, prev_locked_;
   std::vector<int8_t> online_;  // per remote board

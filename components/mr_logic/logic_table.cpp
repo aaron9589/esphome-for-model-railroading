@@ -772,8 +772,8 @@ class Compiler {
     std::vector<std::string> is;
     std::vector<uint16_t> from;
     uint16_t if_node = NONE;
-    bool timed = false, not_from = false;
-    uint32_t for_ms = 0;
+    bool timed = false, not_from = false, within = false;
+    uint32_t for_ms = 0, within_ms = 0;
     bool first = true;
     std::string key;
     while (r_.member(&first, &key)) {
@@ -813,6 +813,9 @@ class Compiler {
       } else if (key == "for") {
         timed = true;
         for_ms = read_ms("a moment's for");
+      } else if (key == "within") {
+        within = true;
+        within_ms = read_ms("a condition's within");
       } else if (key == "notFrom") {
         not_from = true;
         from = read_name_or_names();
@@ -903,6 +906,8 @@ class Compiler {
     n.if_node = if_node;
     n.timed = timed ? 1 : 0;
     n.for_ms = for_ms;
+    n.within = within ? 1 : 0;
+    n.within_ms = within_ms;
     n.not_from = not_from && n.kind == Node::BLOCK && !n.remote ? 1 : 0;
     t_.nodes.push_back(n);
     node_names_.emplace_back(item_name, board_name);

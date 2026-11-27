@@ -80,9 +80,9 @@ void MrLogicComponent::add_mast(const std::string &name, std::function<void(int)
 
 void MrLogicComponent::add_turnout(const std::string &name, std::function<const char *()> position,
                                    std::function<void(bool)> lock, std::function<bool()> remote_locked,
-                                   std::function<void()> resync) {
+                                   std::function<void()> resync, std::function<void(bool)> panel) {
   this->turnouts_.push_back(
-      {name, std::move(position), std::move(lock), std::move(remote_locked), std::move(resync), "", -1});
+      {name, std::move(position), std::move(lock), std::move(remote_locked), std::move(resync), "", -1, std::move(panel)});
 }
 
 void MrLogicComponent::add_remote_board(const std::string &board, text_sensor::TextSensor *online) {
@@ -347,6 +347,25 @@ void MrLogicComponent::add_button(const std::string &name, binary_sensor::Binary
   sensor->add_on_state_callback([this, name](bool pressed) { this->button_(name, pressed); });
 }
 
+void MrLogicComponent::add_switch(const std::string &name, binary_sensor::BinarySensor *sensor) {
+  if (sensor == nullptr) return;
+  this->switches_.push_back({name, sensor});
+  // Recorded as it arrives; its value at the start-up scan is in the start.
+  sensor->add_on_state_callback([this, name](bool on) {
+    if (!this->engine_) return;
+    Event e;
+    e.kind = Event::SWITCH;
+    e.name = name;
+    e.value = on ? "on" : "off";
+    this->event_(e);
+  });
+}
+
+void MrLogicComponent::add_lamp(const std::string &name, switch_::Switch *output) {
+  if (output == nullptr) return;
+  this->lamps_.push_back({name, output, "off"});
+}
+
 void MrLogicComponent::press(const std::string &button) {
   this->button_(button, true);
   this->button_(button, false);
@@ -454,6 +473,7 @@ void MrLogicComponent::start_() {
     start.sensors_occupied[s.name] = occupied;
     s.fed = occupied ? 1 : 0;
   }
+  for (const auto &w : this->switches_) start.switches[w.name] = w.sensor->has_state() && w.sensor->state;
   // Every reading, moving included: a servo can still be on its boot move.
   for (auto &t : this->turnouts_) {
     t.last = t.position();
@@ -501,6 +521,18 @@ void MrLogicComponent::start_() {
 void MrLogicComponent::loop() {
   if (!this->table_ok_) return;
   const uint32_t now = millis();
+  // Flashing lamps: on and off every half second, together.
+  if (!this->lamps_.empty() && now - this->flash_ms_ >= 500) {
+    this->flash_ms_ = now;
+    this->flash_on_ = !this->flash_on_;
+    for (auto &l : this->lamps_) {
+      if (l.light != "flash") continue;
+      if (this->flash_on_)
+        l.output->turn_on();
+      else
+        l.output->turn_off();
+    }
+  }
   if (!this->ends_.empty()) {
     // A link heard on its Link topic is applied here, not in the MQTT callback,
     // which may not change subscriptions.
@@ -628,6 +660,22 @@ void MrLogicComponent::apply_(const ::logic_core::ScanOut &out) {
     if (w.lock) {
       for (auto &t : this->turnouts_)
         if (t.name == w.name) t.lock(w.on);
+      continue;
+    }
+    if (w.panel) {
+      for (auto &t : this->turnouts_)
+        if (t.name == w.name && t.panel) t.panel(w.on);
+      continue;
+    }
+    if (w.lamp) {
+      for (auto &l : this->lamps_) {
+        if (l.name != w.name) continue;
+        l.light = w.aspect;
+        if (l.light == "on" || (l.light == "flash" && this->flash_on_))
+          l.output->turn_on();
+        else
+          l.output->turn_off();
+      }
       continue;
     }
     for (auto &m : this->masts_)

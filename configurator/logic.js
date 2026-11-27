@@ -254,6 +254,7 @@
     let panelLocks = new Map(turnoutOrder.map((t) => [t, false])); // rule 37
     let lampsShown = new Map(lampOrder.map((l) => [l, "off"])); // rule 36
     const heldSince = new Map(); // rule 34: a held condition's run, the scan it began
+    const lastAt = new Map(); // rule 38: the last scan a within condition happened or held
     let prevLocked = new Map();
     const published = new Map();
     const endPublished = new Map();
@@ -339,6 +340,11 @@
 
     function condition(c) {
       if (!c) return false;
+      // Rule 38: a moment or state within a time.
+      if (c.within !== undefined) {
+        const at = lastAt.get(momentKey(c));
+        return at !== undefined && (n - at) * SCAN_MS < ms(c.within);
+      }
       // Rule 34: a state held for a time.
       if (c.for !== undefined) {
         const since = heldSince.get(momentKey(c));
@@ -421,7 +427,7 @@
     const cores = new WeakMap();
     const coreOf = (m) => {
       if (!cores.has(m)) {
-        const { for: _f, if: _i, ...core } = m;
+        const { for: _f, if: _i, within: _w, ...core } = m;
         cores.set(m, core);
       }
       return cores.get(m);
@@ -434,13 +440,15 @@
     const timedMoments = [];
     // Rule 34: every condition with a `for`, wherever it is in the rules.
     const heldConditions = [];
+    const withinConditions = []; // rule 38
     const heldKeys = new Set();
     const findHeld = (value) => {
       if (Array.isArray(value)) return value.forEach(findHeld);
       if (!value || typeof value !== "object") return;
-      if (value.for !== undefined && ["block", "sensor", "turnout", "mast", "button", "switch", "end", "auto"].some((k) => value[k] !== undefined) && !heldKeys.has(momentKey(value))) {
+      const leaf = ["block", "sensor", "turnout", "mast", "button", "switch", "end", "auto"].some((k) => value[k] !== undefined);
+      if (leaf && (value.for !== undefined || value.within !== undefined) && !heldKeys.has(momentKey(value))) {
         heldKeys.add(momentKey(value));
-        heldConditions.push(value);
+        (value.within !== undefined ? withinConditions : heldConditions).push(value);
       }
       for (const inner of Object.values(value)) findHeld(inner);
     };
@@ -465,6 +473,10 @@
         const key = momentKey(c);
         if (!condition(coreOf(c))) heldSince.delete(key);
         else if (!heldSince.has(key)) heldSince.set(key, n);
+      }
+      // Rule 38: each within condition's last time.
+      for (const c of withinConditions) {
+        if (momentNow(coreOf(c)) || condition(coreOf(c))) lastAt.set(momentKey(c), n);
       }
     }
 
@@ -669,6 +681,9 @@
     }
     for (const rule of rules) findHeld([rule.def.trigger, rule.def.checks, rule.def.cancel, rule.def.withdraw]);
     for (const res of resources) findHeld(res.def.release);
+    for (const c of withinConditions) {
+      if (Number.isNaN(ms(c.within))) throw new Error(`${momentKey(c)}: a time the engine cannot read. Use a time such as 0.5s or 500ms.`);
+    }
     for (const m of [...timedMoments, ...heldConditions]) {
       if (Number.isNaN(ms(m.for))) throw new Error(`${momentKey(m)}: a time the engine cannot read. Use a time such as 0.5s or 500ms.`);
     }
@@ -1293,6 +1308,7 @@
         panelLocks: copyMap(panelLocks),
         lampsShown: copyMap(lampsShown),
         heldSince: copyMap(heldSince),
+        lastAt: copyMap(lastAt),
         prevLocked: copyMap(prevLocked),
         published: copyMap(published),
         endPublished: copyMap(endPublished),
@@ -1349,6 +1365,7 @@
       panelLocks = copyMap(s.panelLocks);
       lampsShown = copyMap(s.lampsShown);
       refill(heldSince, s.heldSince);
+      refill(lastAt, s.lastAt);
       refill(prevLocked, s.prevLocked);
       refill(published, s.published);
       refill(endPublished, s.endPublished);
@@ -1383,6 +1400,10 @@
       for (const c of heldConditions) {
         const since = heldSince.get(momentKey(c));
         if (since !== undefined) at(since + scansFor(ms(c.for)));
+      }
+      for (const c of withinConditions) {
+        const last = lastAt.get(momentKey(c));
+        if (last !== undefined) at(last + scansFor(ms(c.within)));
       }
       return next === Infinity ? Infinity : next - n;
     }
