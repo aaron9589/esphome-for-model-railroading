@@ -952,7 +952,11 @@
     // checked beside them.
     const toggle = autoUsed(config) ? String(autoSettings(config).pin || "").trim().toUpperCase() : "";
     const auto = toggle ? [{ name: "Auto switch", pin: toggle, where: BUTTONS }] : [];
-    return [...buttons, ...auto, ...endPins(config)];
+    // The track plan's switches and lamps.
+    const pieces = [["switches", "Switch", "switch"], ["lamps", "Lamp", "lamp"]].flatMap(([kind, label, word]) => list(logicItems(config)[kind])
+      .filter((p) => isObject(p) && String(p.pin || "").trim())
+      .map((p) => ({ name: String(p.name || ""), label: `${label} "${p.name}"`, owner: `${word} ${p.name}`, word, pin: String(p.pin).trim().toUpperCase(), where: BUTTONS })));
+    return [...buttons, ...pieces, ...auto, ...endPins(config)];
   }
 
   // A block's key across boards: (board, name). A sensor and a block on one
@@ -1632,6 +1636,8 @@
           pairs: items.pairs,
           origins: items.origins,
           endBlocks: items.endBlocks,
+          switches: items.switches,
+          lamps: items.lamps,
         },
       };
     }
@@ -1797,14 +1803,33 @@
   }
 
   function lockedTurnoutNames(config) {
+    return lockNames(config, false);
+  }
+
+  // Turnouts a rule locks so that only their own buttons move them (TP 7).
+  function panelTurnoutNames(config) {
+    return lockNames(config, true);
+  }
+
+  function lockNames(config, own) {
     const names = new Set();
     if (!fieldMode(config)) return names;
     for (const layer of layersOf(config)) {
       for (const rule of list(layer.rules)) {
-        for (const name of list(rule?.then?.lock).map(lockTurnout)) if (typeof name === "string" && name) names.add(name);
+        for (const item of list(rule?.then?.lock)) {
+          const name = lockTurnout(item);
+          if (typeof name === "string" && name && (isObject(item) && item.own === true) === own) names.add(name);
+        }
       }
     }
     return names;
+  }
+
+  // The track plan's switches and lamps (TP 7), with their ESPHome ids.
+  function pieceIds(config, kind) {
+    if (!fieldMode(config)) return [];
+    return M().uniqueIds(list(logicItems(config)[kind]).filter((p) => isObject(p) && String(p.name || "").trim()))
+      .map((piece) => ({ ...piece, id: `${piece.id}_${kind === "switches" ? "switch" : "lamp"}` }));
   }
 
   // A rule's lock: a turnout's name, or { turnout, with } for one held with
@@ -2115,12 +2140,15 @@
   // mast's aspect. Neither is saved: the start-up scan works them out again.
   function emitLogicGlobals(lines, config) {
     const locked = lockedTurnoutNames(config);
+    const panel = panelTurnoutNames(config);
     for (const point of M().uniqueIds(config.points || [])) {
-      if (!locked.has(point.name)) continue;
-      lines.push(`  - id: ${point.id}_field_locked`);
-      lines.push("    type: bool");
-      lines.push("    restore_value: false");
-      lines.push('    initial_value: "false"');
+      for (const [has, suffix] of [[locked, "field_locked"], [panel, "panel_locked"]]) {
+        if (!has.has(point.name)) continue;
+        lines.push(`  - id: ${point.id}_${suffix}`);
+        lines.push("    type: bool");
+        lines.push("    restore_value: false");
+        lines.push('    initial_value: "false"');
+      }
     }
     for (const mast of virtualMastIds(config)) {
       lines.push(`  - id: ${mast.id}_aspect`);
@@ -2199,6 +2227,19 @@
       lines.push(`    restore_mode: ${autoSettings(config).startsOn === false ? "RESTORE_DEFAULT_OFF" : "RESTORE_DEFAULT_ON"}`);
     }
     emitEndLeds(lines, config);
+    // The track plan's lamps: an LED each, which the component drives.
+    for (const lamp of pieceIds(config, "lamps")) {
+      const pin = buttonPin(lamp);
+      if (!pin) continue;
+      lines.push("  - platform: gpio");
+      lines.push("    pin:");
+      const hub = expanderHub(config, pin);
+      if (hub) lines.push(`      mcp23xxx: ${hub}`);
+      lines.push(`      number: ${hub ? Number(pin.pin) : pin.pin}`);
+      lines.push(`    id: ${lamp.id}`);
+      lines.push(`    name: ${M().yamlQuote(M().entityName(lamp.name))}`);
+      lines.push("    restore_mode: ALWAYS_OFF");
+    }
   }
 
   // --- text_sensor: the version code, on the board's web page.
@@ -2300,6 +2341,11 @@
       const pin = buttonPin(button);
       if (pin) emitPinInput(lines, config, pin, button.id, `${button.name} pin`);
     }
+    // The track plan's switches: a toggle on the fascia, on when closed to GND.
+    for (const item of pieceIds(config, "switches")) {
+      const pin = buttonPin(item);
+      if (pin) emitPinInput(lines, config, pin, item.id, `${item.name} switch`);
+    }
     const toggle = String(autoSettings(config).pin || "").trim().toUpperCase();
     if (!autoUsed(config) || !toggle) return;
     emitPinInput(lines, config, { pin: toggle }, `${AUTO_ID}_pin`, "Auto switch pin");
@@ -2375,6 +2421,15 @@
         if (buttonPin(button)) lines.push(`      sensor: ${button.id}`);
       }
     }
+    for (const [kind, key, field] of [["switches", "switches", "sensor"], ["lamps", "lamps", "output"]]) {
+      const items = pieceIds(config, kind).filter((p) => buttonPin(p));
+      if (!items.length) continue;
+      lines.push(`  ${key}:`);
+      for (const item of items) {
+        lines.push(`    - name: ${yamlQuote(item.name)}`);
+        lines.push(`      ${field}: ${item.id}`);
+      }
+    }
     const sensors = M().uniqueIds(config.blocks || []);
     if (sensors.length) {
       lines.push("  sensors:");
@@ -2418,6 +2473,7 @@
         lines.push(`      throw_closed: ${point.id}_throw_closed`);
         lines.push(`      throw_thrown: ${point.id}_throw_thrown`);
         if (locked.has(point.name)) lines.push(`      field_locked: ${point.id}_field_locked`);
+        if (panelTurnoutNames(config).has(point.name)) lines.push(`      panel_locked: ${point.id}_panel_locked`);
         // The component watches the remote lock too, and runs the re-sync
         // when the two together go from locked to unlocked.
         const remote = mqtt && point.lockEnabled === true;
@@ -2504,6 +2560,7 @@
     versionCode,
     fieldMastNames,
     lockedTurnoutNames,
+    panelTurnoutNames,
     pairedTurnout,
     virtualMasts,
     isBootMast,

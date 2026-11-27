@@ -71,6 +71,10 @@
     undetected: "signals",
     noApproach: "signals",
     clashUnseen: "behaviour",
+    ruleOn: "behaviour",
+    ruleKind: "behaviour",
+    ruleWhen: "behaviour",
+    pieceTwice: "behaviour",
     clashWaiting: "behaviour",
     unseenEntry: "behaviour",
     noAsking: "behaviour",
@@ -134,6 +138,11 @@
     unseenEntry: (mast) => `Nothing sees a train go past signal "${mast}", so the board cannot tell when the route it set has been used. Give the block just past it a sensor of its own.`,
     noAsking: (mast) => `Nothing can ask for a route from signal "${mast}" in Manual: MQTT is off, so CATS and JMRI cannot, and it has no button. Give it a button, or turn MQTT on.`,
     button: (mast) => `${mast} button`,
+    ruleGroup: (thing, n) => `${thing} rule ${n}`,
+    ruleOn: (n) => `Rule ${n} is on a signal, turnout or lamp that is not on the drawing. Remove it, or put it on another.`,
+    ruleKind: (n, thing) => `Rule ${n} says something ${thing} cannot do. Pick another rule for it.`,
+    ruleWhen: (n) => `Rule ${n} has nothing to read. Say when it applies.`,
+    pieceTwice: (name) => `Two pieces are called "${name}". Give each its own name.`,
     noApproach: (mast) => `Nothing sees a train waiting at signal "${mast}", so its turnouts are not locked as a train comes up to it. Give the block behind it a sensor.`,
     badTime: (name, what) => `Block "${name}" has a ${what} the board cannot read. Pick one from the list.`,
     pairTwice: (name) => `Turnout "${name}" moves with two others. A turnout can move with one other only: unpair one.`,
@@ -970,7 +979,59 @@
     // beyond keeps a train off track routed towards that end (TP 5).
     const endBlocks = [...new Set([...model.near].filter(([, others]) => others.length === 1)
       .map(([node, [other]]) => builtBlock(model.region.get(edgeKey(node, other)))).filter(Boolean))];
-    return { items: { blocks: built, masts, layers, resources, buttons, pairs: model.pairs, origins, endBlocks }, problems, protects: look };
+    // Your own pieces and rules (TP 7): buttons, switches and lamps, and a
+    // group of its own for each rule, after the drawing's, so a rule can only
+    // hold a signal back (most restrictive wins across groups).
+    const pieces = list(plan.pieces).filter((p) => isObject(p) && text(p.name));
+    const pieceNames = new Set();
+    for (const p of pieces) {
+      if (pieceNames.has(p.name)) model.found.push({ level: "error", text: TEXT.pieceTwice(p.name), step: "behaviour", where: { view: "logic", part: PART } });
+      pieceNames.add(p.name);
+    }
+    const kindOf = (kind) => pieces.filter((p) => p.kind === kind).map((p) => ({ name: p.name, ...(text(p.pin) ? { pin: text(p.pin) } : {}) }));
+    for (const b of kindOf("button")) if (!buttons.some((x) => x.name === b.name)) buttons.push(b);
+    const switches = kindOf("switch");
+    const lamps = kindOf("lamp");
+    const RULES = Object.freeze({ mast: ["stopWhile", "stopUnless", "approachWhile"], turnout: ["lockWhile", "ownButtonsWhile"], lamp: ["lightWhile", "flashWhile"] });
+    const TAG_ORDER = ["stop", "restricting", "approach", "advance", "clear"];
+    const counts = new Map();
+    list(plan.rules).forEach((rule, i) => {
+      const n = i + 1;
+      const on = isObject(rule?.on) ? rule.on : {};
+      const what = ["mast", "turnout", "lamp"].find((k) => text(on[k]));
+      const thing = what ? on[what] : "";
+      const exists = what === "mast" ? masts.some((m) => m.mast === thing)
+        : what === "turnout" ? list(config?.points).some((pt) => pt?.name === thing)
+          : what === "lamp" ? lamps.some((l) => l.name === thing) : false;
+      const report = (key, words) => model.found.push({ level: "error", text: words, step: "behaviour", where: { view: "logic", part: PART, ...(what === "mast" && exists ? { mast: thing } : {}) } });
+      if (!exists) return report("ruleOn", TEXT.ruleOn(n));
+      if (!RULES[what].includes(rule.kind)) return report("ruleKind", TEXT.ruleKind(n, thing));
+      if (!isObject(rule.when)) return report("ruleWhen", TEXT.ruleWhen(n));
+      const k = (counts.get(thing) || 0) + 1;
+      counts.set(thing, k);
+      const when = rule.when;
+      const not = { not: when };
+      const plain = (trigger, then) => ({ trigger: { while: trigger }, checks: [], then });
+      let rules;
+      if (what === "mast") {
+        // A mast's best aspect stands for "no restriction": the others decide.
+        const tags = masts.find((m) => m.mast === thing).tags || {};
+        const best = Object.keys(tags).sort((a, b) => TAG_ORDER.indexOf(tags[b]) - TAG_ORDER.indexOf(tags[a]))[0];
+        const approach = Object.keys(tags).find((a) => tags[a] === "approach");
+        if (!best) return report("ruleKind", TEXT.ruleKind(n, thing));
+        if (rule.kind === "stopWhile") rules = [plain(not, { mast: thing, aspect: best })];
+        else if (rule.kind === "stopUnless") rules = [plain(when, { mast: thing, aspect: best })];
+        else rules = [plain(not, { mast: thing, aspect: best }), ...(approach ? [plain(when, { mast: thing, aspect: approach })] : [])];
+      } else if (what === "turnout") {
+        rules = [plain(when, { lock: [rule.kind === "ownButtonsWhile" ? { turnout: thing, own: true } : thing] })];
+      } else {
+        rules = [plain(when, { lamp: thing, light: rule.kind === "flashWhile" ? "flash" : "on" })];
+      }
+      layers.push({ name: TEXT.ruleGroup(thing, k), rules });
+    });
+    const problemsNow = model.found.filter((p) => !seen.has(p.text) && seen.add(p.text));
+    problems.push(...problemsNow);
+    return { items: { blocks: built, masts, layers, resources, buttons, switches, lamps, pairs: model.pairs, origins, endBlocks }, problems, protects: look };
   }
 
   /** The built items, from the plan. `config` is not changed. */
