@@ -245,7 +245,7 @@
       arrow.to = pointOf(left[1]);
       return true;
     });
-    if (KEYS.every((name) => !plan[name].length)) delete config.logic.plan;
+    if (KEYS.every((name) => !plan[name].length) && !list(plan.pieces).length && !list(plan.rules).length) delete config.logic.plan;
   }
 
   /** Draw track from `a` to `b`. */
@@ -393,6 +393,17 @@
         if (values.manualOnly === true) signal.manualOnly = true;
         else delete signal.manualOnly;
       }
+      // TP 7: the aspect for each meaning, and approach lighting (a block).
+      if ("aspects" in values) {
+        const kept = Object.fromEntries(Object.entries(isObject(values.aspects) ? values.aspects : {}).filter(([, v]) => typeof v === "string" && v));
+        if (Object.keys(kept).length) signal.aspects = kept;
+        else delete signal.aspects;
+      }
+      if ("approachLight" in values) {
+        const block = String(values.approachLight ?? "").trim();
+        if (block) signal.approachLight = block;
+        else delete signal.approachLight;
+      }
     });
   }
 
@@ -449,7 +460,60 @@
     return make(n);
   }
 
+  // ===== Your own pieces and rules (TP 7) ===================================
+
+  /** Put a piece (button, switch or lamp) on the drawing. */
+  function addPiece(config, piece) {
+    const plan = planFor(config);
+    plan.pieces = [...list(plan.pieces), piece];
+  }
+
+  // Each condition and rule that names a piece, renamed.
+  function renameIn(value, kinds, from, to) {
+    if (Array.isArray(value)) return value.forEach((v) => renameIn(v, kinds, from, to));
+    if (!isObject(value)) return;
+    for (const kind of kinds) if (value[kind] === from) value[kind] = to;
+    Object.values(value).forEach((v) => renameIn(v, kinds, from, to));
+  }
+
+  /** Change a piece; renaming it renames it in every rule. */
+  function setPiece(config, name, values) {
+    const plan = planFor(config);
+    const piece = list(plan.pieces).find((p) => isObject(p) && p.name === name);
+    if (!piece) return;
+    Object.assign(piece, values);
+    for (const key of Object.keys(values)) if (values[key] === undefined || values[key] === "") delete piece[key];
+    if (values.name && values.name !== name) renameIn(plan.rules, ["switch", "button", "lamp"], name, values.name);
+  }
+
+  /** Take a piece off the drawing, with the rules on it (a lamp's). */
+  function removePiece(config, name) {
+    const plan = planFor(config);
+    plan.pieces = list(plan.pieces).filter((p) => !(isObject(p) && p.name === name));
+    plan.rules = list(plan.rules).filter((r) => !(isObject(r?.on) && r.on.lamp === name));
+    if (!plan.rules.length) delete plan.rules;
+    if (!plan.pieces.length) delete plan.pieces;
+  }
+
+  /** Add a rule; change rule `i`; remove rule `i`. */
+  function addRule(config, rule) {
+    const plan = planFor(config);
+    plan.rules = [...list(plan.rules), rule];
+  }
+  function setRule(config, i, rule) {
+    const plan = planFor(config);
+    if (!Array.isArray(plan.rules) || !plan.rules[i]) return;
+    plan.rules[i] = rule;
+  }
+  function removeRule(config, i) {
+    const plan = planFor(config);
+    if (!Array.isArray(plan.rules)) return;
+    plan.rules.splice(i, 1);
+    if (!plan.rules.length) delete plan.rules;
+  }
+
   global.EsphomeMrPlanEdit = {
+    addPiece, setPiece, removePiece, addRule, setRule, removeRule,
     graph, kindAt, neighbours, stretchOfBlock, blockAt, directionAt, path, breakAt,
     draw, erase, setDirection, setPoint, addBreak, removeBreak, setSignal, setSignalOptions, setBreakSensors,
     setBlock, removeBlock, setEnd, freeBlockName,

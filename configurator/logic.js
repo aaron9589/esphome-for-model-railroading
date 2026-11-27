@@ -168,10 +168,11 @@
         const next = rule.then.next && typeof rule.then.next === "object" ? rule.then.next : {};
         rule.next = new Map(rule.resources.map((res) => [res, Array.isArray(next[res.name]) ? next[res.name] : []]));
         // Turnout locks: the whole rule's, or one held with a resource.
+        // `own`: a panel lock, which lets the turnout's own buttons through (rule 37).
         rule.locks = (rule.then.lock || []).map((item) => {
-          if (typeof item === "string") return { turnout: item, res: null };
+          if (typeof item === "string") return { turnout: item, res: null, own: false };
           const res = resourceByName.get(item?.with);
-          return { turnout: item?.turnout, res: res && rule.resources.includes(res) ? res : null };
+          return { turnout: item?.turnout, res: res && rule.resources.includes(res) ? res : null, own: item?.own === true };
         });
         const al = rule.def.approachLock;
         rule.approach = al && typeof al === "object" && al.block !== undefined ? { block: al.block, ms: ms(al.for) } : null;
@@ -181,6 +182,9 @@
       if (Number.isNaN(value)) throw new Error(`${what}: a time the engine cannot read. Use a time such as 0.5s or 500ms.`);
     }
     const fieldMasts = mastOrder.filter((m) => rules.some((r) => r.then.mast === m));
+    // Rule 36: lamps, in the order rules first name them.
+    const lampOrder = [...new Set(rules.map((r) => r.then.lamp).filter((l) => typeof l === "string" && l !== ""))];
+    const lightOf = (rule) => (rule.then.light === "flash" ? "flash" : "on");
     const isField = (m) => fieldMasts.includes(m);
 
     // Plant ends (rules 23-29): each end's link and what it has heard through
@@ -207,7 +211,7 @@
     // A map per kind, so a lookup builds no key (the checker runs many scans).
     // Speed only: the same inputs and latches, so no C++ change.
     const latched = new Map();
-    const latchedBy = { sensor: new Map(), button: new Map() };
+    const latchedBy = { sensor: new Map(), button: new Map(), switch: new Map() };
     const input = (kind, name) => {
       const byName = latchedBy[kind];
       let v = byName.get(name);
@@ -247,6 +251,10 @@
     const display = new Map(); // what each mast shows now
     let prevOut = new Map(); // rule 13: field masts as the previous scan wrote them
     let fieldLocks = new Map(turnoutOrder.map((t) => [t, false]));
+    let panelLocks = new Map(turnoutOrder.map((t) => [t, false])); // rule 37
+    let lampsShown = new Map(lampOrder.map((l) => [l, "off"])); // rule 36
+    const heldSince = new Map(); // rule 34: a held condition's run, the scan it began
+    const lastAt = new Map(); // rule 38: the last scan a within condition happened or held
     let prevLocked = new Map();
     const published = new Map();
     const endPublished = new Map();
@@ -332,6 +340,16 @@
 
     function condition(c) {
       if (!c) return false;
+      // Rule 38: a moment or state within a time.
+      if (c.within !== undefined) {
+        const at = lastAt.get(momentKey(c));
+        return at !== undefined && (n - at) * SCAN_MS < ms(c.within);
+      }
+      // Rule 34: a state held for a time.
+      if (c.for !== undefined) {
+        const since = heldSince.get(momentKey(c));
+        return since !== undefined && (n - since) * SCAN_MS >= ms(c.for) && condition(coreOf(c));
+      }
       if (c.all) return c.all.every(condition);
       if (c.any) return c.any.some(condition);
       if (c.not) return !condition(c.not);
@@ -356,6 +374,10 @@
         return [].concat(c.is).includes(r.tag);
       }
       if (c.button !== undefined) return input("button", c.button).value;
+      if (c.switch !== undefined) {
+        const on = input("switch", c.switch).value;
+        return first(c) === "off" ? !on : on;
+      }
       return false;
     }
 
@@ -380,6 +402,7 @@
     function momentNow(m) {
       if (m.any) return m.any.some(moment);
       if (m.mast !== undefined && m.board === undefined && (m.is === "held" || m.is === "unheld")) return holdWent.get(m.mast)?.[m.is] === true;
+      if (m.board === undefined && m.switch !== undefined) return first(m) === "off" ? input("switch", m.switch).off : input("switch", m.switch).on;
       const local = m.board === undefined && (m.block !== undefined || m.sensor !== undefined || m.button !== undefined);
       if (local && m.button !== undefined) return first(m) === "pressed" && input("button", m.button).on;
       if (local && m.notFrom !== undefined) {
@@ -404,7 +427,7 @@
     const cores = new WeakMap();
     const coreOf = (m) => {
       if (!cores.has(m)) {
-        const { for: _f, if: _i, ...core } = m;
+        const { for: _f, if: _i, within: _w, ...core } = m;
         cores.set(m, core);
       }
       return cores.get(m);
@@ -415,6 +438,20 @@
     }
     const trackedMoments = [];
     const timedMoments = [];
+    // Rule 34: every condition with a `for`, wherever it is in the rules.
+    const heldConditions = [];
+    const withinConditions = []; // rule 38
+    const heldKeys = new Set();
+    const findHeld = (value) => {
+      if (Array.isArray(value)) return value.forEach(findHeld);
+      if (!value || typeof value !== "object") return;
+      const leaf = ["block", "sensor", "turnout", "mast", "button", "switch", "end", "auto"].some((k) => value[k] !== undefined);
+      if (leaf && (value.for !== undefined || value.within !== undefined) && !heldKeys.has(momentKey(value))) {
+        heldKeys.add(momentKey(value));
+        (value.within !== undefined ? withinConditions : heldConditions).push(value);
+      }
+      for (const inner of Object.values(value)) findHeld(inner);
+    };
     const track = (m) => {
       if (!m) return;
       trackedMoments.push(m);
@@ -430,6 +467,16 @@
         const key = momentKey(m);
         if (momentNow(core)) timedStart.set(key, n);
         else if (!condition(core)) timedStart.delete(key);
+      }
+      // Rule 34: each held condition's run, once a scan.
+      for (const c of heldConditions) {
+        const key = momentKey(c);
+        if (!condition(coreOf(c))) heldSince.delete(key);
+        else if (!heldSince.has(key)) heldSince.set(key, n);
+      }
+      // Rule 38: each within condition's last time.
+      for (const c of withinConditions) {
+        if (momentNow(coreOf(c)) || condition(coreOf(c))) lastAt.set(momentKey(c), n);
       }
     }
 
@@ -632,7 +679,12 @@
       track(rule.def.cancel?.when);
       track(rule.def.withdraw?.when);
     }
-    for (const m of timedMoments) {
+    for (const rule of rules) findHeld([rule.def.trigger, rule.def.checks, rule.def.cancel, rule.def.withdraw]);
+    for (const res of resources) findHeld(res.def.release);
+    for (const c of withinConditions) {
+      if (Number.isNaN(ms(c.within))) throw new Error(`${momentKey(c)}: a time the engine cannot read. Use a time such as 0.5s or 500ms.`);
+    }
+    for (const m of [...timedMoments, ...heldConditions]) {
       if (Number.isNaN(ms(m.for))) throw new Error(`${momentKey(m)}: a time the engine cannot read. Use a time such as 0.5s or 500ms.`);
     }
     for (const res of resources) {
@@ -769,7 +821,8 @@
 
     // --- writes and publishes (rule 22) ---
 
-    function finish(out, newOut, newLocks) {
+    const allOff = () => ({ panel: new Map(turnoutOrder.map((t) => [t, false])), lamps: new Map(lampOrder.map((l) => [l, "off"])) });
+    function finish(out, newOut, newLocks, more = allOff()) {
       for (const m of fieldMasts) {
         if (!newOut.has(m)) continue;
         const aspect = newOut.get(m);
@@ -780,6 +833,14 @@
         if (fieldLocks.get(t) !== newLocks.get(t)) out.writes.push({ lock: t, on: newLocks.get(t) });
       }
       fieldLocks = newLocks;
+      for (const t of turnoutOrder) {
+        if (panelLocks.get(t) !== more.panel.get(t)) out.writes.push({ panelLock: t, on: more.panel.get(t) });
+      }
+      panelLocks = more.panel;
+      for (const l of lampOrder) {
+        if (lampsShown.get(l) !== more.lamps.get(l)) out.writes.push({ lamp: l, light: more.lamps.get(l) });
+      }
+      lampsShown = more.lamps;
       // Rule 21: the re-sync, when a turnout goes from locked to unlocked.
       for (const t of turnoutOrder) {
         const locked = fieldLocks.get(t) || remoteLocks.get(t);
@@ -1051,11 +1112,17 @@
       // Rule 21: a rule's turnout locks, while it holds them; one held with a
       // resource only while the rule holds that resource.
       const newLocks = new Map(turnoutOrder.map((t) => [t, false]));
+      const more = allOff();
       for (const rule of rules) {
         if (!locksHeld(rule)) continue;
-        for (const lock of rule.locks) if (!lock.res || lock.res.holder === rule) newLocks.set(lock.turnout, true);
+        for (const lock of rule.locks) if (!lock.res || lock.res.holder === rule) (lock.own ? more.panel : newLocks).set(lock.turnout, true);
       }
-      finish(out, newOut, newLocks);
+      // Rule 36: each lamp, flash before on.
+      for (const rule of rules) {
+        if (rule.then.lamp === undefined || !isActive(rule) || !more.lamps.has(rule.then.lamp)) continue;
+        if (lightOf(rule) === "flash" || more.lamps.get(rule.then.lamp) === "off") more.lamps.set(rule.then.lamp, lightOf(rule));
+      }
+      finish(out, newOut, newLocks, more);
       recordEdges();
       prevOut = newOut;
       publishResources(out, echoes);
@@ -1092,6 +1159,7 @@
       if (e.pairing !== undefined) return heardPairing(e.pairing, t);
       if (e.sensor !== undefined) return setLatched("sensor", e.sensor, e.is === "occupied");
       if (e.button !== undefined) return setLatched("button", e.button, e.is === "pressed");
+      if (e.switch !== undefined) return setLatched("switch", e.switch, e.is === "on");
       if (e.turnout !== undefined) return void turnouts.set(e.turnout, e.is);
       if (e.remoteLock !== undefined) return void remoteLocks.set(e.remoteLock, e.is === "locked");
       if (e.jmri !== undefined) return jmriMessage(e.jmri, e.message);
@@ -1135,6 +1203,7 @@
     for (const [s, v] of Object.entries(start.sensors || {})) input("sensor", s).value = v === "occupied";
     for (const [t, v] of Object.entries(start.turnouts || {})) turnouts.set(t, v);
     for (const [t, v] of Object.entries(start.remoteLocks || {})) remoteLocks.set(t, v === "locked");
+    for (const [w, v] of Object.entries(start.switches || {})) input("switch", w).value = v === "on";
     for (const [b, s] of Object.entries(start.remote || {})) {
       const r = remote[b];
       if (!r) continue;
@@ -1168,6 +1237,8 @@
         resources: Object.fromEntries(resources.map((r) => [r.name, resourceState(r)])),
         holders: Object.fromEntries(resources.map((r) => [r.name, r.holder ? r.holder.ref : null])),
         locks: Object.fromEntries(turnoutOrder.map((t) => [t, fieldLocks.get(t)])),
+        panel: Object.fromEntries(turnoutOrder.map((t) => [t, panelLocks.get(t)])),
+        lamps: Object.fromEntries(lampOrder.map((l) => [l, lampsShown.get(l)])),
         locked: Object.fromEntries(turnoutOrder.map((t) => [t, fieldLocks.get(t) || remoteLocks.get(t)])),
         ends: Object.fromEntries(ends.map((end) => [end.name, endState(end)])),
         links: Object.fromEntries(ends.map((end) => [end.name, end.link])),
@@ -1234,6 +1305,10 @@
         display: copyMap(display),
         prevOut: copyMap(prevOut),
         fieldLocks: copyMap(fieldLocks),
+        panelLocks: copyMap(panelLocks),
+        lampsShown: copyMap(lampsShown),
+        heldSince: copyMap(heldSince),
+        lastAt: copyMap(lastAt),
         prevLocked: copyMap(prevLocked),
         published: copyMap(published),
         endPublished: copyMap(endPublished),
@@ -1287,6 +1362,10 @@
       refill(display, s.display);
       prevOut = copyMap(s.prevOut);
       fieldLocks = copyMap(s.fieldLocks);
+      panelLocks = copyMap(s.panelLocks);
+      lampsShown = copyMap(s.lampsShown);
+      refill(heldSince, s.heldSince);
+      refill(lastAt, s.lastAt);
       refill(prevLocked, s.prevLocked);
       refill(published, s.published);
       refill(endPublished, s.endPublished);
@@ -1317,6 +1396,14 @@
       for (const m of timedMoments) {
         const start = timedStart.get(momentKey(m));
         if (start !== undefined) at(start + scansFor(ms(m.for)));
+      }
+      for (const c of heldConditions) {
+        const since = heldSince.get(momentKey(c));
+        if (since !== undefined) at(since + scansFor(ms(c.for)));
+      }
+      for (const c of withinConditions) {
+        const last = lastAt.get(momentKey(c));
+        if (last !== undefined) at(last + scansFor(ms(c.within)));
       }
       return next === Infinity ? Infinity : next - n;
     }

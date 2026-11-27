@@ -3181,3 +3181,44 @@ button.clear-page {
   cursor: pointer;
   color: var(--accent);
 }
+
+/* Your own pieces and rules on the drawing (TP 7). */
+.plan-fascia {
+  fill: var(--surface);
+  stroke: var(--ink);
+  stroke-width: 2;
+}
+
+.plan-fascia.is-lamp {
+  fill: #fef3c7;
+}
+
+.plan-fascia-letter {
+  font-size: 11px;
+  font-weight: 700;
+  fill: var(--ink);
+  pointer-events: none;
+}
+
+.plan-reads {
+  stroke: var(--accent);
+  stroke-width: 2;
+  stroke-dasharray: 2 6;
+  stroke-linecap: round;
+  pointer-events: none;
+}
+
+.plan-rule {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.25rem 0.75rem;
+  padding: 0.4rem 0.6rem;
+  background: var(--accent-soft);
+  border-radius: 6px;
+}
+
+.plan-panel h5 {
+  margin: 0.75rem 0 0.25rem;
+  font-size: 0.95rem;
+}

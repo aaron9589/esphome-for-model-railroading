@@ -51,7 +51,7 @@ A [plant end](../../../docs/field-logic-spec.md#plant-ends) is `{ "name": "A", "
 
 As in the spec's Stored format, with these shapes:
 
-- **Condition** (a state, read by *while*): `{ "block": "Left", "is": "occupied" | "clear" }`, `{ "sensor": … }`, `{ "turnout": "P1", "is": "closed" | "thrown" }`, `{ "mast": "Home", "is": "<tag>" | ["<tag>", …] | "diverging" }`, `{ "button": "Depart", "is": "pressed" }`. Add `"board": "<name>"` for another board's item. Combine with `{ "all": [ … ] }`, `{ "any": [ … ] }`, `{ "not": … }`.
+- **Condition** (a state, read by *while*): `{ "block": "Left", "is": "occupied" | "clear" }`, `{ "sensor": … }`, `{ "turnout": "P1", "is": "closed" | "thrown" }`, `{ "mast": "Home", "is": "<tag>" | ["<tag>", …] | "diverging" }`, `{ "button": "Depart", "is": "pressed" }`, `{ "switch": "Local", "is": "on" | "off" }` (rule 35). A condition with `"within": "30s"` is true while its moment happened, or its state held, in the last 30 seconds (rule 38): `{ "button": "Go", "is": "pressed", "within": "30s" }`. Add `"board": "<name>"` for another board's item. A condition with `"for": "30s"` holds only once its state has held that long (rule 34): `{ "mast": "Home", "is": "stop", "for": "30s" }` is *has shown Stop for 30 seconds*. Combine with `{ "all": [ … ] }`, `{ "any": [ … ] }`, `{ "not": … }`.
 - **What a plant end hears:** `{ "end": "A", "track": 1, "hears": "block", "is": "occupied" | "clear" }` and `{ "end": "A", "track": 1, "hears": "mast", "is": "<tag>" | ["<tag>", …] }`. A heard Mast is a tag only, so `"is": "diverging"` is never true there. In a block's `sensors`, `{ "end": "A", "track": 1 }` is the Block that track hears **(decided:** the spec gives `{ "end": "A", "track": 1 }` and no way to say which of the two values; `hears` says it, because `clear` is both a block state and a tag**)**.
 - **The Auto/Manual switch** (a condition): `{ "auto": "on" | "off" }`. **A hold** (a condition): `{ "mast": "Home", "is": "held" | "unheld" }`, what JMRI's last message said of a field mast's hold (rule 30); no message yet is neither.
 - **Moment** (a change, read by *when* and *then*): the same shapes. `"is": "occupied"` means *went* occupied, and `"is": "pressed"` means was pressed. Also:
@@ -61,7 +61,7 @@ As in the spec's Stored format, with these shapes:
   - on any moment, `"if": <condition>` counts it only while that condition holds, and `"for": "1s"` only once its state has then held that long (rule 32).
 - **Trigger:** `{ "while": <condition>, "for": "0.5s", "leavingGuard": true }`, or `{ "when": <moment>, "then": [<moment>, …] }`. `for` and `leavingGuard` are optional. `leavingGuard` is `true` (it watches the rule's own resources) or a list of the resources it watches.
 - **Checks:** a list of conditions, all of which must hold.
-- **Then:** `{ "mast": "Left Bridge", "aspect": "R281", "reserve": "Bridge", "lock": ["P1"] }`. Each part is optional. `reserve` is a resource or a list of them, taken all at once (a track plan's move and its pieces). A name with no resource is left out, and each is taken once. A lock is a turnout, held while the rule holds anything, or `{ "turnout": "P1", "with": "Bridge" }`, held only while the rule holds that resource (one it does not take makes it the rule's). `next` gives, for each resource, the blocks its train must be seen going into before it is freed: `{ "Bridge": ["Right"] }` (sequential release, rule 9).
+- **Then:** `{ "mast": "Left Bridge", "aspect": "R281", "reserve": "Bridge", "lock": ["P1"] }`. Each part is optional. `reserve` is a resource or a list of them, taken all at once (a track plan's move and its pieces). A name with no resource is left out, and each is taken once. A lock is a turnout, held while the rule holds anything, or `{ "turnout": "P1", "with": "Bridge" }`, held only while the rule holds that resource (one it does not take makes it the rule's). `next` gives, for each resource, the blocks its train must be seen going into before it is freed: `{ "Bridge": ["Right"] }` (sequential release, rule 9). A lock `{ "turnout": "P1", "own": true }` lets only the turnout's own buttons move it (rule 37). `"lamp": "Panel", "light": "on" | "flash"` lights a lamp (rule 36).
 - **Cancel** (a *when* trigger only): `{ "when": <moment> }`. **Withdraw** (likewise): `{ "when": <moment> }`, which takes back a request still waiting but leaves a granted rule alone.
 - **Approach locking of its own** (a rule): `"approachLock": { "block": "Left", "for": "10s" }`, in place of its resources' `approachLock` (rule 10).
 - **Resource:** `{ "name": "Bridge", "blocks": ["Bridge"], "release": <trigger>, "approachLock": "10s" }`. `approachLock` is optional (off).
@@ -82,6 +82,7 @@ The field at power-on, before the first scan. Everything is optional.
 | `jmri` | `{ "<mast>": "<message>" }`: the retained JMRI message each mast has; others none |
 | `remote` | `{ "<board>": { "online": true, "sensors": {}, "turnouts": {}, "masts": {} } }`; anything not listed is not known |
 | `remoteLocks` | `{ "<turnout>": "locked" }`; others unlocked |
+| `switches` | `{ "<switch>": "on" }`; others off |
 | `board` | this board's name, as in its topics; default `""` |
 | `links` | `{ "<end>": "<board>/<end>" \| "end" \| "" }`, each end's saved link; others empty |
 
@@ -95,6 +96,7 @@ Each step is `{ "at": n, "do": [ … ], "expect": { … } }`, with `at` going up
 |---|---|
 | `{ "sensor": "Left", "is": "occupied" \| "clear" }` | a detector on this board changes |
 | `{ "button": "Depart", "is": "pressed" \| "released" }` | a rule button |
+| `{ "switch": "Local", "is": "on" \| "off" }` | a switch on the fascia |
 | `{ "turnout": "P1", "is": "closed" \| "thrown" \| "moving" }` | this board's turnout; `moving` while a throw script runs |
 | `{ "remoteLock": "P1", "is": "locked" \| "unlocked" }` | `LOCKED` / `UNLOCKED` on the turnout's Lock topic |
 | `{ "jmri": "<mast>", "message": "R281; Lit; Unheld" }` | a message on a mast's topic |
@@ -127,6 +129,8 @@ Each step is `{ "at": n, "do": [ … ], "expect": { … } }`, with `at` going up
 | `holders` | `{ "<resource>": "<layer>/<n>" \| null }` |
 | `locks` | `{ "<turnout>": true \| false }`: the field lock (`<id>_field_locked`) |
 | `locked` | `{ "<turnout>": true \| false }`: field lock or remote lock |
+| `panel` | `{ "<turnout>": true \| false }`: the lock that lets only its own buttons through (rule 37) |
+| `lamps` | `{ "<lamp>": "off" \| "on" \| "flash" }` (rule 36) |
 | `events` | the exact list of what this scan logged, in order |
 | `writes` | the exact list of outputs this scan wrote |
 | `publishes` | the exact list of what this scan published |
@@ -145,7 +149,7 @@ Each step is `{ "at": n, "do": [ … ], "expect": { … } }`, with `at` going up
 - `{ "pairing": "<end>", "result": "paired", "with": "<board>/<end>" }`, or `"result": "crowded" | "tracks" | "alone"` (rule 28). `paired` is logged at `INFO`, the others at `WARN`
 - `{ "disagrees": "<end>", "link": "<board>/<end>", "theirs": "<their link>" }`: the end's state became `disagrees` (`WARN`).
 
-`writes`: `{ "mast": "<mast>", "aspect": "<aspect>" | "dark" }` and `{ "lock": "<turnout>", "on": true | false }`.
+`writes`: `{ "mast": "<mast>", "aspect": "<aspect>" | "dark" }`, `{ "lock": "<turnout>", "on": true | false }`, `{ "panelLock": "<turnout>", "on": true | false }` and `{ "lamp": "<lamp>", "light": "off" | "on" | "flash" }`, in that order: masts, locks and panel locks in turnout order, lamps in their order (rule 36).
 
 `publishes`: `{ "resource": "<name>", "held": "ACTIVE" | "INACTIVE" }`, `{ "resource": "<name>", "state": "<State>" }`, `{ "release": "<resource>", "value": "CLOSED" }`, `{ "releaseGroup": "<group>", "value": "CLOSED" }`, and for plant ends `{ "pairing": "<board>/<end>/<tracks>" }`, `{ "end": "<end>", "link": "<link>" }`, `{ "end": "<end>", "track": n, "block": "ACTIVE" | "INACTIVE" }`, `{ "end": "<end>", "track": n, "mast": "<tag>" }`.
 
@@ -194,7 +198,16 @@ These rule numbers follow on from the plant ends' (23-29) below.
 33. **Release for a group.** In the next scan, after the resources' manual releases: `releaseGroup` is logged, then each resource held by a rule of that group is released by hand (rule 16), in resource order. An MQTT press in the first 5 seconds after connecting is ignored instead. Either way `CLOSED` is published for the group. A name that is no group does nothing.
 34. **The Auto/Manual switch** changes at the event, and is read at the scan.
 
-### Plant ends
+#### Pieces (track plan, TP 7)
+
+34. **Held for.** A condition with `for` is true in a scan where its state is true and has been true at every scan since scan *s*, and (*n* − *s*) × 100 ms ≥ `for`. Each such condition's *s* is taken once a scan, with the timed moments (step 6.2, before the releases), so it reads this scan's inputs and the masts as the previous scan wrote them (rule 13): a mast that goes to Stop in scan *n* is read as Stop from scan *n* + 1. A false scan ends the run. (A moment with `for`, in a *when*, *then* or *cancel*, still happens once, rule 32.)
+35. **Switches.** A switch is an input with a value, on or off, and the two latches, like a sensor (rule 2). As a condition `"is": "on"` reads the value; as a moment it means went on. It is off until it is first heard.
+36. **Lamps.** A rule's `lamp` lights it while the rule is active. After the masts and the locks (step 6.4), each lamp shows `flash` if an active rule flashes it, else `on` if an active rule lights it, else `off`. Lamps are in the order rules first name them (layers in order, rules in order), and are written on change after the panel locks. Switching logic off writes `off` for each lamp not already off; while logic is off, nothing is written. They start off.
+37. **Its own buttons only.** A lock with `"own": true` is a panel lock, not the field lock: while an active rule holds it, JMRI, CATS, MQTT and rules cannot move the turnout, but its own buttons on the fascia can. It is not in `locks` or `locked` and never logs `resync`. The field lock, when also held, still stops the buttons too. Written on change as `{ "panelLock": … }`, after the field locks. Switching logic off writes `false` for each that is held.
+
+38. **Within a time.** A condition with `within` keeps, at the same point of each scan as rule 34, the last scan *s* at which its moment happened or its state held (a press inside one scan counts, by its latch). It is true while (*n* − *s*) × 100 ms < `within`, and false before it ever happened.
+
+## Plant ends
 
 23. **Ends work with logic on or off (decided:** an end is detection and a link, like a [block](../../../docs/field-logic-spec.md#blocks), which does not depend on the switch**).** Every scan, after everything above and after the edges for the next scan's moments are taken: the pairing decisions (rule 28), each end's state (rule 26), then its offers (rule 27), published on change (rule 29). So a link set in scan *n* is read from scan *n* + 1.
 24. **A link** is `""` (empty), `end`, or `<board>/<end>`, split at the last `/`. Anything else, and a link to this same end, counts as empty **(decided:** a link to itself would hear its own offers**)**. Setting a new link forgets everything heard through the end, which then waits for the new neighbour's messages **(decided:** they belong to another board**)**. Setting the same link again changes nothing. The link is not in `board`, so it is not in the rule table and cannot change the version code.
@@ -279,6 +292,8 @@ Built items have the builder's names: a block is `<track> block <n>`, where a tr
 | Rules: block signals | `blocksig-worked-example`, `blocksig-tumbledown-advance`, `blocksig-tumbledown-no-advance`, `blocksig-approach-diverging`, `blocksig-remote-offline`, `blocksig-turnout-in-block` |
 | Rules: the two lock flags | `rules-two-lock-flags` |
 | Rules: lock turnouts under a train | `starter-lock-turnouts` |
+| Pieces: switches, lamps, the own-buttons lock, has shown Stop for (rules 34-37) | `rules-local-panel` |
+| Pieces: a button pressed in the last few seconds (rule 38) | `rules-button-within` |
 | Rules: several resources, all at once, first come first; passed and freed one by one | `rules-several-resources` |
 | Rules: several resources, approach locking and manual release | `rules-several-resources-cancel` |
 | Rules: a leaving guard that names its resources | `rules-leaving-guard-named` |

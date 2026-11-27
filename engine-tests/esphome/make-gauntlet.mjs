@@ -12,7 +12,7 @@ const repo = path.join(here, "..", "..");
 const ctx = { crypto: globalThis.crypto };
 ctx.globalThis = ctx;
 vm.createContext(ctx);
-for (const f of ["generator.js", "logic-yaml.js"]) vm.runInContext(fs.readFileSync(path.join(repo, "configurator", f), "utf8"), ctx);
+for (const f of ["generator.js", "logic-yaml.js", "logic.js", "logic-checker.js", "logic-starters.js", "logic-starters-sections.js", "logic-starters-signals.js", "mss-builder.js", "plan-builder.js"]) vm.runInContext(fs.readFileSync(path.join(repo, "configurator", f), "utf8"), ctx);
 const M = ctx.EsphomeMr;
 const L = ctx.EsphomeMrLogicYaml;
 
@@ -92,6 +92,16 @@ config.logic = {
 };
 const errors = [...M.validateConfig(config).errors];
 if (errors.length) throw new Error(errors.join("\n"));
+// Pieces (TP 7): a switch and a lamp on the fascia, with P2 locked so only
+// its own buttons move it while the switch is on, and the lamp lit then. A
+// track plan with no track brings in only its pieces and rules.
+config.logic.plan = {
+  pieces: [{ kind: "switch", name: "Local", at: [0, 0], pin: "GPIO13" }, { kind: "lamp", name: "Local lamp", at: [1, 0], pin: "GPIO15" }],
+  rules: [
+    { on: { turnout: "P2" }, kind: "ownButtonsWhile", when: { switch: "Local", is: "on" } },
+    { on: { lamp: "Local lamp" }, kind: "flashWhile", when: { switch: "Local", is: "on" } },
+  ],
+};
 let yaml = M.generateYaml(config);
 
 const source = `  - source: ${L.LOGIC_COMPONENT_SOURCE}\n`;

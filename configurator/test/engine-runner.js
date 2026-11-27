@@ -8,7 +8,7 @@ import { loadModules } from "./harness.js";
 const { EsphomeMrLogic: L } = loadModules("logic.js");
 const plain = (value) => JSON.parse(JSON.stringify(value));
 
-const STATE_KEYS = ["masts", "rules", "resources", "holders", "locks", "locked", "ends", "links"];
+const STATE_KEYS = ["masts", "rules", "resources", "holders", "locks", "locked", "panel", "lamps", "ends", "links"];
 
 // Compares one step's expect with a scan's outputs and the state after it.
 function check(problems, where, expect = {}, out, state) {

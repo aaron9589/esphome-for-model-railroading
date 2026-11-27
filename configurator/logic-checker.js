@@ -41,7 +41,7 @@
 
   // ===== The model: which inputs the rules read, and their values ==========
 
-  const KINDS = ["block", "sensor", "turnout", "mast", "button", "end"];
+  const KINDS = ["block", "sensor", "turnout", "mast", "button", "switch", "end"];
   const SEP = "\u0000";
 
   // A plant end's track, as the rules read it (work item 3.4). The key names
@@ -140,6 +140,7 @@
       else if (cond.sensor !== undefined) sensor(cond.sensor);
       else if (cond.turnout !== undefined) add(`turnout\u0000${cond.turnout}`, ["closed", "thrown"], "closed", (is) => ({ turnout: cond.turnout, is }));
       else if (cond.button !== undefined) add(`button\u0000${cond.button}`, ["released", "pressed"], "released", (is) => ({ button: cond.button, is }));
+      else if (cond.switch !== undefined) add(`switch${SEP}${cond.switch}`, ["off", "on"], "off", (is) => ({ switch: cond.switch, is }));
       else if (cond.mast !== undefined && !fieldMasts.has(cond.mast) && board.masts?.[cond.mast]) {
         const mast = board.masts[cond.mast];
         const aspects = Object.keys(mast.aspects || {});
@@ -212,6 +213,7 @@
       } else if (cond.block !== undefined || cond.sensor !== undefined) keys.add(`sensor\u0000${cond.block ?? cond.sensor}`);
       else if (cond.turnout !== undefined) keys.add(`turnout\u0000${cond.turnout}`);
       else if (cond.button !== undefined) keys.add(`button\u0000${cond.button}`);
+      else if (cond.switch !== undefined) keys.add(`switch${SEP}${cond.switch}`);
       else if (isHold(cond)) keys.add(`hold${SEP}${cond.mast}`);
       else if (cond.mast !== undefined) keys.add(`jmri\u0000${cond.mast}`);
     };

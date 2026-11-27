@@ -26,6 +26,10 @@ CONF_TOPIC_PREFIX = "topic_prefix"
 CONF_LOGIC_SWITCH = "logic_switch"
 CONF_AUTO_SWITCH = "auto_switch"
 CONF_BUTTONS = "buttons"
+CONF_SWITCHES = "switches"
+CONF_LAMPS = "lamps"
+CONF_OUTPUT = "output"
+CONF_PANEL_LOCKED = "panel_locked"
 CONF_SENSORS = "sensors"
 CONF_EXPANDER = "expander"
 CONF_MASTS = "masts"
@@ -95,6 +99,8 @@ TURNOUT_SCHEMA = cv.Schema(
         # Globals ids (bool): the engine's lock, and the Lock topic's.
         cv.Optional(CONF_FIELD_LOCKED): cv.use_id(cg.Component),
         cv.Optional(CONF_REMOTE_LOCKED): cv.use_id(cg.Component),
+        # A globals id (bool): the lock that lets only its own buttons through.
+        cv.Optional(CONF_PANEL_LOCKED): cv.use_id(cg.Component),
         # The toggle switch's latch script (bool force): run when the turnout unlocks.
         cv.Optional(CONF_RESYNC): cv.use_id(script.Script),
     }
@@ -134,6 +140,21 @@ BUTTON_SCHEMA = cv.Schema(
     }
 )
 
+# A switch on the fascia, wired to GND (on is on), and a lamp: a GPIO switch (TP 7).
+SWITCH_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_NAME): cv.string_strict,
+        cv.Required(CONF_SENSOR): cv.use_id(binary_sensor.BinarySensor),
+    }
+)
+
+LAMP_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_NAME): cv.string_strict,
+        cv.Required(CONF_OUTPUT): cv.use_id(switch.Switch),
+    }
+)
+
 END_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_NAME): cv.string_strict,
@@ -159,6 +180,8 @@ CONFIG_SCHEMA = cv.Schema(
         # The Auto/Manual switch (on is Auto), for a track plan's routes. Without one, Auto.
         cv.Optional(CONF_AUTO_SWITCH): cv.use_id(switch.Switch),
         cv.Optional(CONF_BUTTONS, default=[]): cv.ensure_list(BUTTON_SCHEMA),
+        cv.Optional(CONF_SWITCHES, default=[]): cv.ensure_list(SWITCH_SCHEMA),
+        cv.Optional(CONF_LAMPS, default=[]): cv.ensure_list(LAMP_SCHEMA),
         cv.Optional(CONF_SENSORS, default=[]): cv.ensure_list(SENSOR_SCHEMA),
         cv.Optional(CONF_MASTS, default=[]): cv.ensure_list(MAST_SCHEMA),
         cv.Optional(CONF_TURNOUTS, default=[]): cv.ensure_list(TURNOUT_SCHEMA),
@@ -208,6 +231,10 @@ async def to_code(config):
     for item in config[CONF_BUTTONS]:
         sens = await cg.get_variable(item[CONF_SENSOR]) if CONF_SENSOR in item else cg.nullptr
         cg.add(var.add_button(item[CONF_NAME], sens))
+    for item in config[CONF_SWITCHES]:
+        cg.add(var.add_switch(item[CONF_NAME], await cg.get_variable(item[CONF_SENSOR])))
+    for item in config[CONF_LAMPS]:
+        cg.add(var.add_lamp(item[CONF_NAME], await cg.get_variable(item[CONF_OUTPUT])))
     for item in config[CONF_SENSORS]:
         sens = await cg.get_variable(item[CONF_SENSOR])
         hub = await cg.get_variable(item[CONF_EXPANDER]) if CONF_EXPANDER in item else cg.nullptr
@@ -243,6 +270,10 @@ async def to_code(config):
         if CONF_RESYNC in item:
             latch = await cg.get_variable(item[CONF_RESYNC])
             resync = f"[]() {{ {latch}->execute(false); }}"
+        panel = "std::function<void(bool)>()"
+        if CONF_PANEL_LOCKED in item:
+            panel_locked = await cg.get_variable(item[CONF_PANEL_LOCKED])
+            panel = f"[](bool on) {{ {panel_locked}->value() = on; }}"
         cg.add(
             var.add_turnout(
                 item[CONF_NAME],
@@ -250,6 +281,7 @@ async def to_code(config):
                 cg.RawExpression(lock),
                 cg.RawExpression(remote),
                 cg.RawExpression(resync),
+                cg.RawExpression(panel),
             )
         )
     for board in config[CONF_REMOTE]:

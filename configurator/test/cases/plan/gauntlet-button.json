@@ -1,0 +1,401 @@
+{
+ "name": "the gauntlet with a button: Left Bridge clears only once Go has been pressed",
+ "covers": [
+  "Your own pieces and rules: Hold a signal until a button is pressed"
+ ],
+ "about": "The gauntlet, in Auto, with a button Go on the fascia and one rule on Left Bridge: Keep at Stop unless Go was pressed in the last 30 seconds. A train arrives at Left and its route over the bridge is set, but Left Bridge stays at Stop until Go is pressed. Once the train is on the bridge, the route is passed and the signal goes back to Stop as usual.",
+ "module": {
+  "sensors": [
+   "Left current",
+   "Bridge current",
+   "Right current"
+  ],
+  "masts": [
+   "Left Bridge",
+   "Right Bridge"
+  ],
+  "plan": {
+   "track": [
+    [
+     [
+      0,
+      0
+     ],
+     [
+      3,
+      0
+     ]
+    ],
+    [
+     [
+      3,
+      0
+     ],
+     [
+      4,
+      1
+     ]
+    ],
+    [
+     [
+      4,
+      1
+     ],
+     [
+      8,
+      1
+     ]
+    ],
+    [
+     [
+      8,
+      1
+     ],
+     [
+      9,
+      0
+     ]
+    ],
+    [
+     [
+      9,
+      0
+     ],
+     [
+      12,
+      0
+     ]
+    ],
+    [
+     [
+      0,
+      2
+     ],
+     [
+      3,
+      2
+     ]
+    ],
+    [
+     [
+      3,
+      2
+     ],
+     [
+      4,
+      1
+     ]
+    ],
+    [
+     [
+      8,
+      1
+     ],
+     [
+      9,
+      2
+     ]
+    ],
+    [
+     [
+      9,
+      2
+     ],
+     [
+      12,
+      2
+     ]
+    ]
+   ],
+   "points": [
+    {
+     "at": [
+      4,
+      1
+     ],
+     "turnout": null
+    },
+    {
+     "at": [
+      8,
+      1
+     ],
+     "turnout": null
+    }
+   ],
+   "arrows": [
+    {
+     "from": [
+      0,
+      0
+     ],
+     "to": [
+      2,
+      0
+     ]
+    },
+    {
+     "from": [
+      2,
+      2
+     ],
+     "to": [
+      0,
+      2
+     ]
+    },
+    {
+     "from": [
+      10,
+      0
+     ],
+     "to": [
+      12,
+      0
+     ]
+    },
+    {
+     "from": [
+      12,
+      2
+     ],
+     "to": [
+      10,
+      2
+     ]
+    }
+   ],
+   "breaks": [
+    {
+     "at": [
+      2,
+      0
+     ],
+     "sensors": [],
+     "signals": [
+      {
+       "mast": "Left Bridge",
+       "facing": [
+        3,
+        0
+       ]
+      }
+     ]
+    },
+    {
+     "at": [
+      2,
+      2
+     ],
+     "sensors": [],
+     "signals": []
+    },
+    {
+     "at": [
+      10,
+      0
+     ],
+     "sensors": [],
+     "signals": []
+    },
+    {
+     "at": [
+      10,
+      2
+     ],
+     "sensors": [],
+     "signals": [
+      {
+       "mast": "Right Bridge",
+       "facing": [
+        9,
+        2
+       ]
+      }
+     ]
+    }
+   ],
+   "blocks": [
+    {
+     "name": "Left",
+     "at": [
+      [
+       0,
+       0
+      ],
+      [
+       2,
+       0
+      ]
+     ],
+     "sensors": [
+      "Left current"
+     ]
+    },
+    {
+     "name": "Bridge",
+     "at": [
+      [
+       4,
+       1
+      ],
+      [
+       8,
+       1
+      ]
+     ],
+     "sensors": [
+      "Bridge current"
+     ]
+    },
+    {
+     "name": "Right",
+     "at": [
+      [
+       10,
+       2
+      ],
+      [
+       12,
+       2
+      ]
+     ],
+     "sensors": [
+      "Right current"
+     ]
+    }
+   ],
+   "ends": [
+    {
+     "at": [
+      12,
+      0
+     ],
+     "beyond": "plain"
+    },
+    {
+     "at": [
+      0,
+      2
+     ],
+     "beyond": "plain"
+    }
+   ],
+   "pieces": [
+    {
+     "kind": "button",
+     "name": "Go",
+     "at": [
+      1,
+      1
+     ],
+     "pin": "GPIO4"
+    }
+   ],
+   "rules": [
+    {
+     "on": {
+      "mast": "Left Bridge"
+     },
+     "kind": "stopUnless",
+     "when": {
+      "button": "Go",
+      "is": "pressed",
+      "within": "30s"
+     }
+    }
+   ]
+  }
+ },
+ "steps": [
+  {
+   "at": 0,
+   "expect": {
+    "events": [
+     {
+      "startup": true
+     }
+    ],
+    "masts": {
+     "Left Bridge": "R292",
+     "Right Bridge": "R292"
+    }
+   }
+  },
+  {
+   "at": 10,
+   "do": [
+    {
+     "sensor": "Left current",
+     "is": "occupied"
+    }
+   ],
+   "expect": {
+    "events": [
+     {
+      "grant": "Bridge",
+      "rule": "Left Bridge moves/1"
+     }
+    ],
+    "writes": [],
+    "masts": {
+     "Left Bridge": "R292"
+    },
+    "holders": {
+     "Bridge": "Left Bridge moves/1"
+    }
+   }
+  },
+  {
+   "at": 20,
+   "do": [
+    {
+     "button": "Go",
+     "is": "pressed"
+    },
+    {
+     "button": "Go",
+     "is": "released"
+    }
+   ],
+   "expect": {
+    "events": [],
+    "writes": [
+     {
+      "mast": "Left Bridge",
+      "aspect": "R281"
+     }
+    ],
+    "masts": {
+     "Left Bridge": "R281"
+    }
+   }
+  },
+  {
+   "at": 30,
+   "do": [
+    {
+     "sensor": "Bridge current",
+     "is": "occupied"
+    }
+   ],
+   "expect": {
+    "events": [
+     {
+      "pass": "Bridge",
+      "rule": "Left Bridge moves/1"
+     }
+    ],
+    "writes": [
+     {
+      "mast": "Left Bridge",
+      "aspect": "R292"
+     }
+    ],
+    "masts": {
+     "Left Bridge": "R292"
+    }
+   }
+  }
+ ]
+}

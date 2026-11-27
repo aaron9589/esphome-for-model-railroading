@@ -1,0 +1,244 @@
+{
+ "name": "a button pressed in the last few seconds: Keep at Stop unless",
+ "covers": [
+  "a moment within a time: a button pressed in the last few seconds holds from its press, counts while it is held down, and a second press starts it again"
+ ],
+ "about": "Left Bridge is kept at Stop unless Go was pressed in the last 3 seconds, as the track plan's Hold a signal until a button is pressed example writes it, with 3 seconds for the usual 30. A press inside one scan (scan 10) counts at scan 10, so it holds until 3 seconds after it: true to scan 39, false at 40. Held down from scan 50 and let go before scan 70, it was last down at scan 69: false at 99. A second press at 120 starts the 3 seconds again: false at 150, not 140.",
+ "board": {
+  "sensors": [
+   "Left",
+   "Bridge"
+  ],
+  "masts": {
+   "Left Bridge": {
+    "aspects": {
+     "R292": "stop",
+     "R281": "clear"
+    }
+   }
+  },
+  "logic": {
+   "buttons": [
+    {
+     "name": "Go"
+    }
+   ],
+   "layers": [
+    {
+     "name": "Left Bridge",
+     "rules": [
+      {
+       "trigger": {
+        "while": {
+         "block": "Bridge",
+         "is": "clear"
+        }
+       },
+       "checks": [],
+       "then": {
+        "mast": "Left Bridge",
+        "aspect": "R281"
+       }
+      }
+     ]
+    },
+    {
+     "name": "Left Bridge rule 1",
+     "rules": [
+      {
+       "trigger": {
+        "while": {
+         "button": "Go",
+         "is": "pressed",
+         "within": "3s"
+        }
+       },
+       "checks": [],
+       "then": {
+        "mast": "Left Bridge",
+        "aspect": "R281"
+       }
+      }
+     ]
+    }
+   ]
+  }
+ },
+ "steps": [
+  {
+   "at": 0,
+   "expect": {
+    "masts": {
+     "Left Bridge": "R292"
+    },
+    "writes": []
+   }
+  },
+  {
+   "at": 10,
+   "do": [
+    {
+     "button": "Go",
+     "is": "pressed"
+    },
+    {
+     "button": "Go",
+     "is": "released"
+    }
+   ],
+   "expect": {
+    "masts": {
+     "Left Bridge": "R281"
+    },
+    "writes": [
+     {
+      "mast": "Left Bridge",
+      "aspect": "R281"
+     }
+    ]
+   }
+  },
+  {
+   "at": 39,
+   "expect": {
+    "masts": {
+     "Left Bridge": "R281"
+    },
+    "writes": []
+   }
+  },
+  {
+   "at": 40,
+   "expect": {
+    "masts": {
+     "Left Bridge": "R292"
+    },
+    "writes": [
+     {
+      "mast": "Left Bridge",
+      "aspect": "R292"
+     }
+    ]
+   }
+  },
+  {
+   "at": 50,
+   "do": [
+    {
+     "button": "Go",
+     "is": "pressed"
+    }
+   ],
+   "expect": {
+    "masts": {
+     "Left Bridge": "R281"
+    },
+    "writes": [
+     {
+      "mast": "Left Bridge",
+      "aspect": "R281"
+     }
+    ]
+   }
+  },
+  {
+   "at": 70,
+   "do": [
+    {
+     "button": "Go",
+     "is": "released"
+    }
+   ],
+   "expect": {
+    "masts": {
+     "Left Bridge": "R281"
+    },
+    "writes": []
+   }
+  },
+  {
+   "at": 98,
+   "expect": {
+    "masts": {
+     "Left Bridge": "R281"
+    }
+   }
+  },
+  {
+   "at": 99,
+   "expect": {
+    "masts": {
+     "Left Bridge": "R292"
+    },
+    "writes": [
+     {
+      "mast": "Left Bridge",
+      "aspect": "R292"
+     }
+    ]
+   }
+  },
+  {
+   "at": 110,
+   "do": [
+    {
+     "button": "Go",
+     "is": "pressed"
+    },
+    {
+     "button": "Go",
+     "is": "released"
+    }
+   ],
+   "expect": {
+    "masts": {
+     "Left Bridge": "R281"
+    },
+    "writes": [
+     {
+      "mast": "Left Bridge",
+      "aspect": "R281"
+     }
+    ]
+   }
+  },
+  {
+   "at": 120,
+   "do": [
+    {
+     "button": "Go",
+     "is": "pressed"
+    },
+    {
+     "button": "Go",
+     "is": "released"
+    }
+   ],
+   "expect": {
+    "writes": []
+   }
+  },
+  {
+   "at": 149,
+   "expect": {
+    "masts": {
+     "Left Bridge": "R281"
+    }
+   }
+  },
+  {
+   "at": 150,
+   "expect": {
+    "masts": {
+     "Left Bridge": "R292"
+    },
+    "writes": [
+     {
+      "mast": "Left Bridge",
+      "aspect": "R292"
+     }
+    ]
+   }
+  }
+ ]
+}

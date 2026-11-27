@@ -1,6 +1,6 @@
 # Made by engine-tests/esphome/make-gauntlet.mjs for CI's esphome compile. Do not edit by hand.
 # esphome-mr-config:1
-# {"board":{"name":"gauntlet-k7m4x2","nameSuffix":"k7m4x2","module":"nodemcu-32s","wifiSsid":"layout-wifi","wifiPassword":"not-a-real-password","mqttBroker":"layout-mqtt.local","mqttEnabled":true,"apPassword":"GoldenFixtureHotspot","apiKey":"Z29sZGVuLWZpeHR1cmUta2V5LW5vdC1hLXNlY3JldCE="},"blocks":[{"name":"Left","topic":"trains/track/sensor/Left","topicCustom":false,"gpio":"GPIO14","inverted":true,"debounce":"500ms"},{"name":"Bridge","topic":"trains/track/sensor/Bridge","topicCustom":false,"gpio":"GPIO27","inverted":true,"debounce":"500ms"},{"name":"Right","topic":"trains/track/sensor/Right","topicCustom":false,"gpio":"GPIO26","inverted":true,"debounce":"500ms"}],"points":[{"name":"P1","topic":"trains/track/turnout/P1","topicCustom":false,"pcaBoard":0,"channel":0,"servoPin":"GPIO18","travelTime":"10s","lockEnabled":true,"lockDefault":"unlocked","controls":[{"action":"latch-thrown","buttonPin":"GPIO33","closedLight":"","openLight":""}]},{"name":"P2","topic":"trains/track/turnout/P2","topicCustom":false,"pcaBoard":0,"channel":0,"servoPin":"GPIO25","travelTime":"10s","lockEnabled":false,"lockDefault":"unlocked","controls":[{"action":"toggle","buttonPin":"GPIO4","closedLight":"","openLight":""}]}],"pcaBoards":[{"sda":"GPIO21","scl":"GPIO22"}],"pca9685":false,"signals":{"masts":[{"name":"Left Bridge","topic":"trains/track/signalmast/Left Bridge","topicCustom":false,"lamps":[{"name":"Red","count":1,"pin":"GPIO32"},{"name":"Green","count":1,"pin":"GPIO19"}],"aspects":[{"label":"Stop","states":["R292; Lit; Unheld"],"lamps":[{"color":"red","mode":"steady"},{"color":"off","mode":"steady"}],"startup":true},{"label":"Clear","states":["R281; Lit; Unheld"],"lamps":[{"color":"off","mode":"steady"},{"color":"green","mode":"steady"}],"startup":false}],"mode":"gpio","pin":"GPIO16","numLeds":2},{"name":"Right Bridge","topic":"trains/track/signalmast/Right Bridge","topicCustom":false,"lamps":[{"name":"Red","count":1,"pin":"GPIO21"},{"name":"Green","count":1,"pin":"GPIO22"}],"aspects":[{"label":"Stop","states":["R292; Lit; Unheld"],"lamps":[{"color":"red","mode":"steady"},{"color":"off","mode":"steady"}],"startup":true},{"label":"Clear","states":["R281; Lit; Unheld"],"lamps":[{"color":"off","mode":"steady"},{"color":"green","mode":"steady"}],"startup":false}],"mode":"gpio","pin":"GPIO16","numLeds":2}]},"logic":{"mode":"field","remoteBoards":[{"name":"kiama-north-k7m4x2","typed":true,"share":true,"blocks":[{"name":"Approach","topic":"trains/track/sensor/Approach"}],"points":[],"signals":{"masts":[{"name":"Home","topic":"trains/track/signalmast/Home","aspects":["R292","R281"],"tags":{"R292":"stop","R281":"clear"},"diverging":[]}]},"logic":{"blocks":[],"masts":[]}}],"blocks":[{"name":"Far","topic":"trains/track/sensor/Far","topicCustom":false,"sensors":[{"board":"kiama-north-k7m4x2","sensor":"Approach"}]}],"masts":[{"mast":"Left Bridge","tags":{"Stop":"stop","Clear":"clear"},"approachLight":"Left"},{"mast":"Right Bridge","tags":{"Stop":"stop","Clear":"clear"}},{"virtual":true,"name":"Bridge Exit","topic":"trains/track/signalmast/Bridge Exit","aspects":["Stop","Clear"],"tags":{"Stop":"stop","Clear":"clear"}}],"ends":[{"name":"A","tracks":[{"sensors":["Left"],"mast":"Left Bridge"},{"sensors":["Right"],"through":{"end":"A","track":1}}],"pairPin":"GPIO17","ledPin":"GPIO23"}],"buttons":[{"name":"Depart","pin":"GPIO16"}],"resources":[{"name":"Bridge","blocks":["Bridge"],"release":{"while":{"block":"Bridge","is":"clear"},"for":"3s"}},{"name":"Approach","blocks":["Right"],"release":{"while":{"block":"Right","is":"clear"},"for":"3s"}}],"layers":[{"name":"Gauntlet","starter":"one-train-section","rules":[{"trigger":{"while":{"block":"Left","is":"occupied"},"for":"0.5s"},"checks":[],"then":{"mast":"Left Bridge","aspect":"Clear","reserve":"Bridge","lock":["P1"]}},{"trigger":{"while":{"block":"Right","is":"occupied"},"for":"0.5s"},"checks":[{"mast":"Home","board":"kiama-north-k7m4x2","is":["approach","advance","clear"]}],"then":{"mast":"Right Bridge","aspect":"Clear","reserve":"Bridge","lock":["P2"]}}]},{"name":"Exit","rules":[{"trigger":{"while":{"block":"Far","is":"clear"}},"checks":[],"then":{"mast":"Bridge Exit","aspect":"Clear"}}]},{"name":"Bridge Exit routes","routes":true,"rules":[{"trigger":{"when":{"any":[{"button":"Depart","is":"pressed","if":{"auto":"off"}},{"block":"Far","is":"occupied","notFrom":["Left"],"if":{"auto":"on"}}]}},"cancel":{"when":{"any":[{"button":"Depart","is":"pressed","if":{"auto":"off"}},{"block":"Far","is":"clear","for":"1s","if":{"auto":"on"}}]}},"withdraw":{"when":{"any":[{"auto":"on"},{"auto":"off"}]}},"checks":[{"block":"Right","is":"clear"}],"then":{"mast":"Bridge Exit","aspect":"Clear","reserve":["Approach"],"next":{"Approach":["Bridge"]},"lock":[{"turnout":"P2","with":"Approach"}]}}]}]}}
+# {"board":{"name":"gauntlet-k7m4x2","nameSuffix":"k7m4x2","module":"nodemcu-32s","wifiSsid":"layout-wifi","wifiPassword":"not-a-real-password","mqttBroker":"layout-mqtt.local","mqttEnabled":true,"apPassword":"GoldenFixtureHotspot","apiKey":"Z29sZGVuLWZpeHR1cmUta2V5LW5vdC1hLXNlY3JldCE="},"blocks":[{"name":"Left","topic":"trains/track/sensor/Left","topicCustom":false,"gpio":"GPIO14","inverted":true,"debounce":"500ms"},{"name":"Bridge","topic":"trains/track/sensor/Bridge","topicCustom":false,"gpio":"GPIO27","inverted":true,"debounce":"500ms"},{"name":"Right","topic":"trains/track/sensor/Right","topicCustom":false,"gpio":"GPIO26","inverted":true,"debounce":"500ms"}],"points":[{"name":"P1","topic":"trains/track/turnout/P1","topicCustom":false,"pcaBoard":0,"channel":0,"servoPin":"GPIO18","travelTime":"10s","lockEnabled":true,"lockDefault":"unlocked","controls":[{"action":"latch-thrown","buttonPin":"GPIO33","closedLight":"","openLight":""}]},{"name":"P2","topic":"trains/track/turnout/P2","topicCustom":false,"pcaBoard":0,"channel":0,"servoPin":"GPIO25","travelTime":"10s","lockEnabled":false,"lockDefault":"unlocked","controls":[{"action":"toggle","buttonPin":"GPIO4","closedLight":"","openLight":""}]}],"pcaBoards":[{"sda":"GPIO21","scl":"GPIO22"}],"pca9685":false,"signals":{"masts":[{"name":"Left Bridge","topic":"trains/track/signalmast/Left Bridge","topicCustom":false,"lamps":[{"name":"Red","count":1,"pin":"GPIO32"},{"name":"Green","count":1,"pin":"GPIO19"}],"aspects":[{"label":"Stop","states":["R292; Lit; Unheld"],"lamps":[{"color":"red","mode":"steady"},{"color":"off","mode":"steady"}],"startup":true},{"label":"Clear","states":["R281; Lit; Unheld"],"lamps":[{"color":"off","mode":"steady"},{"color":"green","mode":"steady"}],"startup":false}],"mode":"gpio","pin":"GPIO16","numLeds":2},{"name":"Right Bridge","topic":"trains/track/signalmast/Right Bridge","topicCustom":false,"lamps":[{"name":"Red","count":1,"pin":"GPIO21"},{"name":"Green","count":1,"pin":"GPIO22"}],"aspects":[{"label":"Stop","states":["R292; Lit; Unheld"],"lamps":[{"color":"red","mode":"steady"},{"color":"off","mode":"steady"}],"startup":true},{"label":"Clear","states":["R281; Lit; Unheld"],"lamps":[{"color":"off","mode":"steady"},{"color":"green","mode":"steady"}],"startup":false}],"mode":"gpio","pin":"GPIO16","numLeds":2}]},"logic":{"mode":"field","remoteBoards":[{"name":"kiama-north-k7m4x2","typed":true,"share":true,"blocks":[{"name":"Approach","topic":"trains/track/sensor/Approach"}],"points":[],"signals":{"masts":[{"name":"Home","topic":"trains/track/signalmast/Home","aspects":["R292","R281"],"tags":{"R292":"stop","R281":"clear"},"diverging":[]}]},"logic":{"blocks":[],"masts":[]}}],"blocks":[{"name":"Far","topic":"trains/track/sensor/Far","topicCustom":false,"sensors":[{"board":"kiama-north-k7m4x2","sensor":"Approach"}]}],"masts":[{"mast":"Left Bridge","tags":{"Stop":"stop","Clear":"clear"},"approachLight":"Left"},{"mast":"Right Bridge","tags":{"Stop":"stop","Clear":"clear"}},{"virtual":true,"name":"Bridge Exit","topic":"trains/track/signalmast/Bridge Exit","aspects":["Stop","Clear"],"tags":{"Stop":"stop","Clear":"clear"}}],"ends":[{"name":"A","tracks":[{"sensors":["Left"],"mast":"Left Bridge"},{"sensors":["Right"],"through":{"end":"A","track":1}}],"pairPin":"GPIO17","ledPin":"GPIO23"}],"buttons":[{"name":"Depart","pin":"GPIO16"}],"resources":[{"name":"Bridge","blocks":["Bridge"],"release":{"while":{"block":"Bridge","is":"clear"},"for":"3s"}},{"name":"Approach","blocks":["Right"],"release":{"while":{"block":"Right","is":"clear"},"for":"3s"}}],"layers":[{"name":"Gauntlet","starter":"one-train-section","rules":[{"trigger":{"while":{"block":"Left","is":"occupied"},"for":"0.5s"},"checks":[],"then":{"mast":"Left Bridge","aspect":"Clear","reserve":"Bridge","lock":["P1"]}},{"trigger":{"while":{"block":"Right","is":"occupied"},"for":"0.5s"},"checks":[{"mast":"Home","board":"kiama-north-k7m4x2","is":["approach","advance","clear"]}],"then":{"mast":"Right Bridge","aspect":"Clear","reserve":"Bridge","lock":["P2"]}}]},{"name":"Exit","rules":[{"trigger":{"while":{"block":"Far","is":"clear"}},"checks":[],"then":{"mast":"Bridge Exit","aspect":"Clear"}}]},{"name":"Bridge Exit routes","routes":true,"rules":[{"trigger":{"when":{"any":[{"button":"Depart","is":"pressed","if":{"auto":"off"}},{"block":"Far","is":"occupied","notFrom":["Left"],"if":{"auto":"on"}}]}},"cancel":{"when":{"any":[{"button":"Depart","is":"pressed","if":{"auto":"off"}},{"block":"Far","is":"clear","for":"1s","if":{"auto":"on"}}]}},"withdraw":{"when":{"any":[{"auto":"on"},{"auto":"off"}]}},"checks":[{"block":"Right","is":"clear"}],"then":{"mast":"Bridge Exit","aspect":"Clear","reserve":["Approach"],"next":{"Approach":["Bridge"]},"lock":[{"turnout":"P2","with":"Approach"}]}}]}],"plan":{"pieces":[{"kind":"switch","name":"Local","at":[0,0],"pin":"GPIO13"},{"kind":"lamp","name":"Local lamp","at":[1,0],"pin":"GPIO15"}],"rules":[{"on":{"turnout":"P2"},"kind":"ownButtonsWhile","when":{"switch":"Local","is":"on"}},{"on":{"lamp":"Local lamp"},"kind":"flashWhile","when":{"switch":"Local","is":"on"}}]}}}
 #
 # Generated by ESPHome for Model Railroading Configurator
 # Requires ESPHome >= 2026.9.0
@@ -312,6 +312,10 @@ globals:
     type: bool
     restore_value: false
     initial_value: "false"
+  - id: p2_panel_locked
+    type: bool
+    restore_value: false
+    initial_value: "false"
   - id: bridge_exit_aspect
     type: int
     restore_value: false
@@ -575,6 +579,19 @@ binary_sensor:
         pullup: true
     id: depart_button
     name: "Depart pin"
+    internal: true
+    filters:
+      - delayed_on: 50ms
+      - delayed_off: 50ms
+  - platform: gpio
+    pin:
+      number: GPIO13
+      inverted: true
+      mode:
+        input: true
+        pullup: true
+    id: local_switch
+    name: "Local switch"
     internal: true
     filters:
       - delayed_on: 50ms
@@ -846,6 +863,12 @@ switch:
     id: end_a_led
     name: "End A LED"
     internal: true
+  - platform: gpio
+    pin:
+      number: GPIO15
+    id: local_lamp_lamp
+    name: "Local lamp"
+    restore_mode: ALWAYS_OFF
 
 script:
   - id: p1_throw_closed
@@ -1505,7 +1528,7 @@ text_sensor:
               - text_sensor.state:
                   id: p2
                   state: 'THROWN'
-              - lambda: 'return !id(p2_field_locked);'
+              - lambda: 'return !(id(p2_field_locked) || id(p2_panel_locked));'
           then:
             - script.execute:
                 id: p2_throw_thrown
@@ -1516,7 +1539,7 @@ text_sensor:
               - text_sensor.state:
                   id: p2
                   state: 'CLOSED'
-              - lambda: 'return !id(p2_field_locked);'
+              - lambda: 'return !(id(p2_field_locked) || id(p2_panel_locked));'
           then:
             - script.execute:
                 id: p2_throw_closed
@@ -1572,7 +1595,7 @@ text_sensor:
     id: logic_version
     name: "Logic version"
     entity_category: diagnostic
-    lambda: 'return {"e5afcee1"};'
+    lambda: 'return {"c91d1415"};'
   - platform: template
     id: end_a_state
     name: "End A state"
@@ -1595,13 +1618,19 @@ external_components:
 mr_logic:
   id: logic
   board: gauntlet-k7m4x2
-  version: "e5afcee1"
-  table: '{"sensors":["Left","Bridge","Right"],"turnouts":["P1","P2"],"masts":{"Left Bridge":{"aspects":{"Stop":"stop","Clear":"clear"},"states":{"Stop":["R292; Lit; Unheld"],"Clear":["R281; Lit; Unheld"]},"stop":"Stop","startup":"Stop","approachLight":"Left"},"Right Bridge":{"aspects":{"Stop":"stop","Clear":"clear"},"states":{"Stop":["R292; Lit; Unheld"],"Clear":["R281; Lit; Unheld"]},"stop":"Stop","startup":"Stop"},"Bridge Exit":{"aspects":{"Stop":"stop","Clear":"clear"},"stop":"Stop"}},"remote":{"kiama-north-k7m4x2":{"sensors":["Approach"],"masts":{"Home":{"aspects":{"R292":"stop","R281":"clear"}}}}},"logic":{"blocks":[{"name":"Far","sensors":[{"board":"kiama-north-k7m4x2","sensor":"Approach"}]}],"resources":[{"name":"Bridge","blocks":["Bridge"],"release":{"for":"3s","while":{"block":"Bridge","is":"clear"}}},{"name":"Approach","blocks":["Right"],"release":{"for":"3s","while":{"block":"Right","is":"clear"}}}],"layers":[{"name":"Gauntlet","rules":[{"trigger":{"for":"0.5s","while":{"block":"Left","is":"occupied"}},"checks":[],"then":{"aspect":"Clear","lock":["P1"],"mast":"Left Bridge","reserve":"Bridge"}},{"trigger":{"for":"0.5s","while":{"block":"Right","is":"occupied"}},"checks":[{"board":"kiama-north-k7m4x2","is":["approach","advance","clear"],"mast":"Home"}],"then":{"aspect":"Clear","lock":["P2"],"mast":"Right Bridge","reserve":"Bridge"}}]},{"name":"Exit","rules":[{"trigger":{"while":{"block":"Far","is":"clear"}},"checks":[],"then":{"aspect":"Clear","mast":"Bridge Exit"}}]},{"name":"Bridge Exit routes","routes":true,"rules":[{"trigger":{"when":{"any":[{"button":"Depart","if":{"auto":"off"},"is":"pressed"},{"block":"Far","if":{"auto":"on"},"is":"occupied","notFrom":["Left"]}]}},"checks":[{"block":"Right","is":"clear"}],"then":{"aspect":"Clear","lock":[{"turnout":"P2","with":"Approach"}],"mast":"Bridge Exit","next":{"Approach":["Bridge"]},"reserve":["Approach"]},"cancel":{"when":{"any":[{"button":"Depart","if":{"auto":"off"},"is":"pressed"},{"block":"Far","for":"1s","if":{"auto":"on"},"is":"clear"}]}},"withdraw":{"when":{"any":[{"auto":"on"},{"auto":"off"}]}}}]}],"ends":[{"name":"A","tracks":[{"mast":"Left Bridge","sensors":["Left"]},{"sensors":["Right"],"through":{"end":"A","track":1}}]}]}}'
+  version: "c91d1415"
+  table: '{"sensors":["Left","Bridge","Right"],"turnouts":["P1","P2"],"masts":{"Left Bridge":{"aspects":{"Stop":"stop","Clear":"clear"},"states":{"Stop":["R292; Lit; Unheld"],"Clear":["R281; Lit; Unheld"]},"stop":"Stop","startup":"Stop","approachLight":"Left"},"Right Bridge":{"aspects":{"Stop":"stop","Clear":"clear"},"states":{"Stop":["R292; Lit; Unheld"],"Clear":["R281; Lit; Unheld"]},"stop":"Stop","startup":"Stop"},"Bridge Exit":{"aspects":{"Stop":"stop","Clear":"clear"},"stop":"Stop"}},"remote":{"kiama-north-k7m4x2":{"sensors":["Approach"],"masts":{"Home":{"aspects":{"R292":"stop","R281":"clear"}}}}},"logic":{"blocks":[{"name":"Far","sensors":[{"board":"kiama-north-k7m4x2","sensor":"Approach"}]}],"resources":[{"name":"Bridge","blocks":["Bridge"],"release":{"for":"3s","while":{"block":"Bridge","is":"clear"}}},{"name":"Approach","blocks":["Right"],"release":{"for":"3s","while":{"block":"Right","is":"clear"}}}],"layers":[{"name":"P2 rule 1","rules":[{"trigger":{"while":{"is":"on","switch":"Local"}},"checks":[],"then":{"lock":[{"own":true,"turnout":"P2"}]}}]},{"name":"Local lamp rule 1","rules":[{"trigger":{"while":{"is":"on","switch":"Local"}},"checks":[],"then":{"lamp":"Local lamp","light":"flash"}}]},{"name":"Gauntlet","rules":[{"trigger":{"for":"0.5s","while":{"block":"Left","is":"occupied"}},"checks":[],"then":{"aspect":"Clear","lock":["P1"],"mast":"Left Bridge","reserve":"Bridge"}},{"trigger":{"for":"0.5s","while":{"block":"Right","is":"occupied"}},"checks":[{"board":"kiama-north-k7m4x2","is":["approach","advance","clear"],"mast":"Home"}],"then":{"aspect":"Clear","lock":["P2"],"mast":"Right Bridge","reserve":"Bridge"}}]},{"name":"Exit","rules":[{"trigger":{"while":{"block":"Far","is":"clear"}},"checks":[],"then":{"aspect":"Clear","mast":"Bridge Exit"}}]},{"name":"Bridge Exit routes","routes":true,"rules":[{"trigger":{"when":{"any":[{"button":"Depart","if":{"auto":"off"},"is":"pressed"},{"block":"Far","if":{"auto":"on"},"is":"occupied","notFrom":["Left"]}]}},"checks":[{"block":"Right","is":"clear"}],"then":{"aspect":"Clear","lock":[{"turnout":"P2","with":"Approach"}],"mast":"Bridge Exit","next":{"Approach":["Bridge"]},"reserve":["Approach"]},"cancel":{"when":{"any":[{"button":"Depart","if":{"auto":"off"},"is":"pressed"},{"block":"Far","for":"1s","if":{"auto":"on"},"is":"clear"}]}},"withdraw":{"when":{"any":[{"auto":"on"},{"auto":"off"}]}}}]}],"ends":[{"name":"A","tracks":[{"mast":"Left Bridge","sensors":["Left"]},{"sensors":["Right"],"through":{"end":"A","track":1}}]}]}}'
   logic_switch: field_logic
   auto_switch: logic_auto
   buttons:
     - name: Depart
       sensor: depart_button
+  switches:
+    - name: Local
+      sensor: local_switch
+  lamps:
+    - name: "Local lamp"
+      output: local_lamp_lamp
   sensors:
     - name: Left
       sensor: left_sensor
@@ -1634,6 +1663,7 @@ mr_logic:
       throw_closed: p2_throw_closed
       throw_thrown: p2_throw_thrown
       field_locked: p2_field_locked
+      panel_locked: p2_panel_locked
   ends:
     - name: A
       link: end_a_link

@@ -41,6 +41,8 @@ Start to_start(const Value *v) {
     for (const auto &p : x->obj) s.jmri.emplace_back(p.first, p.second.str);
   if (const Value *x = v->get("remoteLocks"))
     for (const auto &p : x->obj) s.remote_locks[p.first] = p.second.str == "locked";
+  if (const Value *x = v->get("switches"))
+    for (const auto &p : x->obj) s.switches[p.first] = p.second.str == "on";
   if (const Value *x = v->get("remote")) {
     for (const auto &p : x->obj) {
       RemoteStart r;
@@ -124,6 +126,7 @@ Event to_event(const Value &v) {
   };
   const Map maps[] = {
       {"sensor", Event::SENSOR, "is"},       {"button", Event::BUTTON, "is"},
+      {"switch", Event::SWITCH, "is"},
       {"turnout", Event::TURNOUT, "is"},     {"remoteLock", Event::REMOTE_LOCK, "is"},
       {"jmri", Event::JMRI, "message"},      {"release", Event::RELEASE, "via"},
       {"releaseGroup", Event::RELEASE_GROUP, "via"},
@@ -175,6 +178,8 @@ Value to_json(const LogEvent &e) {
 
 Value to_json(const Write &w) {
   if (w.lock) return json::object({{"lock", json::str(w.name)}, {"on", json::boolean(w.on)}});
+  if (w.panel) return json::object({{"panelLock", json::str(w.name)}, {"on", json::boolean(w.on)}});
+  if (w.lamp) return json::object({{"lamp", json::str(w.name)}, {"light", json::str(w.aspect)}});
   return json::object({{"mast", json::str(w.name)}, {"aspect", json::str(w.aspect)}});
 }
 
@@ -241,6 +246,8 @@ void check_step(std::vector<std::string> *problems, const std::string &label, co
   check_strings("holders", s.holders, false);
   check_bools("locks", s.locks);
   check_bools("locked", s.locked);
+  check_bools("panel", s.panel);
+  check_strings("lamps", s.lamps, false);
   check_strings("ends", s.ends, false);
   check_strings("links", s.links, true);
   const std::pair<const char *, Value> outputs[] = {
@@ -524,6 +531,8 @@ int run_trace(const std::string &path) {
         {"holders", pairs(s.holders, from_string)},
         {"locks", pairs(s.locks, from_bool)},
         {"locked", pairs(s.locked, from_bool)},
+        {"panel", pairs(s.panel, from_bool)},
+        {"lamps", pairs(s.lamps, from_string)},
         {"ends", pairs(s.ends, from_text)},
         {"links", pairs(s.links, from_text)},
     });

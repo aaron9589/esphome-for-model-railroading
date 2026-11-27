@@ -1028,7 +1028,7 @@ function validateConfig(config) {
     let text = "";
     const who = button.label || `Button "${button.name}"`;
     const owner = button.owner || `button ${button.name}`;
-    const asWord = button.kind === "led" ? "LED" : button.label ? "Pair button" : "button";
+    const asWord = button.word || (button.kind === "led" ? "LED" : button.label ? "Pair button" : "button");
     if (button.expander !== undefined) {
       // On an expander: checked like a sensor on one, sharing its pins.
       const expander = expanders.find((e) => e.name === button.expander);
@@ -2076,8 +2076,11 @@ function emitPointTextSensors(lines, points, config) {
     lines.push(`    topic: ${yamlQuote(point.topic)}`);
     lines.push("    on_value:");
     const flags = lockFlags(config, point, true);
-    emitThrowCommand(lines, point, true, flags);
-    emitThrowCommand(lines, point, false, flags);
+    // A command from JMRI or CATS is stopped by the panel lock too; the
+    // turnout's own buttons are not (TP 7, only its own buttons move it).
+    const panel = logicHooks(config).panelTurnoutNames?.(config)?.has(point.name) ? [`id(${point.id}_panel_locked)`] : [];
+    emitThrowCommand(lines, point, true, [...flags, ...panel]);
+    emitThrowCommand(lines, point, false, [...flags, ...panel]);
     if (point.lockEnabled === true) emitLockSensor(lines, point, config, flags);
   }
 }
