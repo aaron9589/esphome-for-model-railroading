@@ -6,7 +6,7 @@ import path from "node:path";
 import { configuratorDir, loadModules, test } from "./harness.js";
 
 // Every Logic page file, in index.html's order (as in logic-page.test.js).
-const LOGIC_UI_FILES = ["generator.js", "logic-yaml.js", "logic.js", "logic-ui.js", "logic-ui-masts.js", "logic-ui-rules.js", "logic-ui-views.js", "logic-ui-start.js"];
+const LOGIC_UI_FILES = ["generator.js", "logic-yaml.js", "logic.js", "logic-ui.js", "logic-ui-masts.js", "logic-ui-views.js", "logic-ui-start.js"];
 const context = loadModules(...LOGIC_UI_FILES);
 const { normalizeConfig, topicFor } = context.EsphomeMr;
 const { TEXT, whoUses, controlTable } = context.EsphomeMrLogicUiViews;

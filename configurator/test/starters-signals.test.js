@@ -9,7 +9,7 @@ import { configuratorDir, loadModules, test } from "./harness.js";
 import { runCase } from "./engine-runner.js";
 
 // Every Logic page file, in index.html's order (as in logic-page.test.js).
-const LOGIC_UI_FILES = ["generator.js", "logic-yaml.js", "logic.js", "logic-ui.js", "logic-ui-masts.js", "logic-ui-rules.js", "logic-ui-views.js", "logic-ui-start.js", "logic-starters.js", "logic-starters-sections.js", "logic-starters-signals.js"];
+const LOGIC_UI_FILES = ["generator.js", "logic-yaml.js", "logic.js", "logic-ui.js", "logic-ui-masts.js", "logic-ui-views.js", "logic-ui-start.js", "logic-starters.js", "logic-starters-sections.js", "logic-starters-signals.js"];
 const context = loadModules(...LOGIC_UI_FILES);
 const { EsphomeMr, EsphomeMrLogicYaml: L, EsphomeMrLogic: Engine, EsphomeMrLogicStarters: S, EsphomeMrLogicStartersSignals: Sig } = context;
 const { myFirstBoardPreset, topicFor, validateConfig } = EsphomeMr;

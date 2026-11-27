@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { loadModules, test } from "./harness.js";
 
 // Every Logic page file, in index.html's order (as in logic-page.test.js).
-const LOGIC_UI_FILES = ["generator.js", "logic-yaml.js", "logic.js", "logic-checker.js", "logic-try.js", "logic-ui.js", "logic-ui-masts.js", "logic-ui-ends.js", "logic-ui-rules.js", "logic-ui-views.js", "logic-ui-start.js", "logic-ui-try.js", "logic-starters.js", "logic-starters-sections.js", "logic-starters-signals.js", "mss-builder.js", "logic-ui-mss-steps.js", "logic-ui-mss-tracks.js", "logic-ui-mss-junctions.js", "logic-summary.js"];
+const LOGIC_UI_FILES = ["generator.js", "logic-yaml.js", "logic.js", "logic-checker.js", "logic-try.js", "logic-ui.js", "logic-ui-masts.js", "logic-ui-ends.js", "logic-ui-views.js", "logic-ui-start.js", "logic-ui-try.js", "logic-starters.js", "logic-starters-sections.js", "logic-starters-signals.js", "mss-builder.js", "logic-ui-mss-steps.js", "logic-ui-mss-tracks.js", "logic-ui-mss-junctions.js", "logic-summary.js"];
 const context = loadModules(...LOGIC_UI_FILES);
 const { EsphomeMr, EsphomeMrMssBuilder: B, EsphomeMrLogicUiMssTracks: T } = context;
 const { myFirstBoardPreset, topicFor } = EsphomeMr;
