@@ -14,8 +14,9 @@ const { generateJmriXml, generateYaml, normalizeConfig, validateConfig, topicFor
 const plain = (value) => JSON.parse(JSON.stringify(value));
 const lamp = (color) => ({ color, mode: "steady" });
 
+// Its rules are hand-written, so the board runs its own logic keys (see useOwnItems).
 function fixture(name) {
-  return JSON.parse(fs.readFileSync(path.join(configuratorDir, "test", "fixtures", `${name}.json`), "utf8"));
+  return ctx.EsphomeMrLogicYaml.useOwnItems(JSON.parse(fs.readFileSync(path.join(configuratorDir, "test", "fixtures", `${name}.json`), "utf8")));
 }
 
 function point(name, servoPin, controls, lockEnabled) {
@@ -127,7 +128,7 @@ test("a rule-locked turnout without Remote lock still gets the lock report", () 
 test("a sensor on a rule-locked turnout's lock report topic is an error", () => {
   const config = board();
   config.blocks.push({ name: "P1 Locked", topic: "trains/track/sensor/P1/Locked", topicCustom: true, gpio: "GPIO33", inverted: true, debounce: "500ms" });
-  const errors = [...validateConfig(normalizeConfig(plain(config))).errors];
+  const errors = [...validateConfig(ctx.EsphomeMrLogicYaml.useOwnItems(normalizeConfig(plain(config)))).errors];
   assert.ok(errors.some((e) => e.includes("trains/track/sensor/P1/Locked") && e.includes("its lock")), errors.join("\n"));
 });
 
@@ -202,7 +203,7 @@ test("Disable MQTT: the field lock still guards the buttons and latch, with no r
 test("without Field Logic the Lock topic's UNLOCKED handler still re-syncs, as before", () => {
   const config = board({ mode: "none" });
   config.logic = { mode: "none", share: true };
-  const yaml = generateYaml(normalizeConfig(plain(config)));
+  const yaml = generateYaml(ctx.EsphomeMrLogicYaml.useOwnItems(normalizeConfig(plain(config))));
   assert.doesNotMatch(yaml, /field_locked|lock_report|mr_logic/);
   const lock = itemAt(yaml, "    id: p2_lock");
   assert.match(lock, /bool was_locked = id\(p2_locked\);\n {16}id\(p2_locked\) = false;\n {16}if \(was_locked\) id\(p2_latch_1\)\.execute\(false\);/);
@@ -212,7 +213,7 @@ test("without Field Logic the Lock topic's UNLOCKED handler still re-syncs, as b
 test("MSS Logic runs the component as Field Logic does: it re-syncs the remote lock, and no rule locks a turnout", () => {
   const config = board({ mode: "mss" });
   config.logic = { mode: "mss" };
-  const yaml = generateYaml(normalizeConfig(plain(config)));
+  const yaml = generateYaml(ctx.EsphomeMrLogicYaml.useOwnItems(normalizeConfig(plain(config))));
   assert.match(yaml, /mr_logic:/);
   assert.doesNotMatch(yaml, /field_locked|lock_report/);
   assert.doesNotMatch(itemAt(yaml, "    id: p2_lock"), /was_locked/);

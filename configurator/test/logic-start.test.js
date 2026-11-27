@@ -15,8 +15,9 @@ const S = context.EsphomeMrLogicUiStart;
 
 const plain = (value) => JSON.parse(JSON.stringify(value));
 
+// Its rules are hand-written, so the board runs its own logic keys (see useOwnItems).
 function fixture(name) {
-  return JSON.parse(fs.readFileSync(path.join(configuratorDir, "test", "fixtures", `${name}.json`), "utf8"));
+  return context.EsphomeMrLogicYaml.useOwnItems(JSON.parse(fs.readFileSync(path.join(configuratorDir, "test", "fixtures", `${name}.json`), "utf8")));
 }
 
 function fieldBoard(logic = {}) {

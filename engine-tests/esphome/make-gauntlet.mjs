@@ -90,18 +90,27 @@ config.logic = {
     ] },
   ],
 };
+// Pieces (TP 7): a switch and a lamp on the fascia, with P2 locked so only
+// its own buttons move it while the switch is on, and the lamp lit then.
+// They are built from a track plan with no track, and run beside the
+// hand-written rules above: the board runs its own logic keys (useOwnItems).
+const pieces = {
+  ...config,
+  logic: { mode: "field", plan: {
+    pieces: [{ kind: "switch", name: "Local", at: [0, 0], pin: "GPIO13" }, { kind: "lamp", name: "Local lamp", at: [1, 0], pin: "GPIO15" }],
+    rules: [
+      { on: { turnout: "P2" }, kind: "ownButtonsWhile", when: { switch: "Local", is: "on" } },
+      { on: { lamp: "Local lamp" }, kind: "flashWhile", when: { switch: "Local", is: "on" } },
+    ],
+  } },
+};
+const built = L.logicItems(pieces);
+config.logic.layers.push(...built.layers);
+config.logic.switches = built.switches;
+config.logic.lamps = built.lamps;
+L.useOwnItems(config);
 const errors = [...M.validateConfig(config).errors];
 if (errors.length) throw new Error(errors.join("\n"));
-// Pieces (TP 7): a switch and a lamp on the fascia, with P2 locked so only
-// its own buttons move it while the switch is on, and the lamp lit then. A
-// track plan with no track brings in only its pieces and rules.
-config.logic.plan = {
-  pieces: [{ kind: "switch", name: "Local", at: [0, 0], pin: "GPIO13" }, { kind: "lamp", name: "Local lamp", at: [1, 0], pin: "GPIO15" }],
-  rules: [
-    { on: { turnout: "P2" }, kind: "ownButtonsWhile", when: { switch: "Local", is: "on" } },
-    { on: { lamp: "Local lamp" }, kind: "flashWhile", when: { switch: "Local", is: "on" } },
-  ],
-};
 let yaml = M.generateYaml(config);
 
 const source = `  - source: ${L.LOGIC_COMPONENT_SOURCE}\n`;

@@ -21,8 +21,9 @@ function readCase(name) {
   return JSON.parse(fs.readFileSync(path.join(configuratorDir, "test", "cases", `${name}.json`), "utf8"));
 }
 
+// Its rules are hand-written, so the board runs its own logic keys (see useOwnItems).
 function fixture(name) {
-  return JSON.parse(fs.readFileSync(path.join(configuratorDir, "test", "fixtures", `${name}.json`), "utf8"));
+  return context.EsphomeMrLogicYaml.useOwnItems(JSON.parse(fs.readFileSync(path.join(configuratorDir, "test", "fixtures", `${name}.json`), "utf8")));
 }
 
 // ===== A configurator board for a case's board ==============================
@@ -39,9 +40,10 @@ function mast(name, aspects, pin = "GPIO16") {
 }
 
 // The case's sensors, turnouts and masts as a Field Logic board, with no
-// rules. Another board's masts become a linked board's snapshot.
+// rules. Another board's masts become a linked board's snapshot. The
+// starters write its logic keys, so the board runs them (see useOwnItems).
 function boardFor(data) {
-  const config = myFirstBoardPreset();
+  const config = context.EsphomeMrLogicYaml.useOwnItems(myFirstBoardPreset());
   config.blocks = (data.board.sensors || []).map((name) => ({ name, topic: topicFor("block", name) }));
   config.points = (data.board.turnouts || []).map((name) => ({ name, topic: topicFor("point", name) }));
   config.signals = { mode: "addressable", masts: Object.entries(data.board.masts || {}).map(([name, m]) => mast(name, Object.keys(m.aspects))) };

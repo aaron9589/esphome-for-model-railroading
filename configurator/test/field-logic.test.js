@@ -14,8 +14,9 @@ const yamlOut = process.env.ESPHOME_YAML_OUT;
 if (yamlOut) fs.mkdirSync(yamlOut, { recursive: true });
 const plain = (value) => JSON.parse(JSON.stringify(value));
 
+// Its rules are hand-written, so the board runs its own logic keys (see useOwnItems).
 function fixture(name) {
-  return JSON.parse(fs.readFileSync(path.join(configuratorDir, "test", "fixtures", `${name}.json`), "utf8"));
+  return ctx.EsphomeMrLogicYaml.useOwnItems(JSON.parse(fs.readFileSync(path.join(configuratorDir, "test", "fixtures", `${name}.json`), "utf8")));
 }
 
 const lamp = (color) => ({ color, mode: "steady" });
@@ -62,7 +63,7 @@ function section(entrances = 2, { mqtt = true, logic = {} } = {}) {
 }
 
 function errorsOf(config) {
-  return [...validateConfig(normalizeConfig(plain(config))).errors];
+  return [...validateConfig(L.useOwnItems(normalizeConfig(plain(config)))).errors];
 }
 
 // One top-level section of the YAML, up to the next blank line.
@@ -415,7 +416,7 @@ test("another board's mast: tags by its JMRI aspect, subscription and binding", 
   other.board.name = "kiama-north-k7m4x2";
   const home = other.signals.masts[0];
   other.logic = { mode: "field", masts: [{ mast: home.name, tags: { Stop: "stop", Caution: "approach", Clear: "clear" }, diverging: ["Caution"] }] };
-  const snapshot = L.linkedBoardFromConfig(parseConfigFromYaml(generateYaml(normalizeConfig(other))));
+  const snapshot = L.linkedBoardFromConfig(L.useOwnItems(parseConfigFromYaml(generateYaml(normalizeConfig(other)))));
   const snap = snapshot.signals.masts[0];
   // /State carries the JMRI aspect name (R292, not Stop), so the tags are keyed by it.
   assert.deepEqual(plain(snap.aspects).slice(0, 3), ["R292", "R285", "R281"]);
@@ -449,7 +450,7 @@ test("a board that logic does not tag shares its masts as stop", () => {
   const other = fixture("masts-gpio");
   other.board.name = "kiama-north-k7m4x2";
   other.logic = { share: true };
-  const snapshot = L.linkedBoardFromConfig(parseConfigFromYaml(generateYaml(normalizeConfig(other))));
+  const snapshot = L.linkedBoardFromConfig(L.useOwnItems(parseConfigFromYaml(generateYaml(normalizeConfig(other)))));
   assert.ok(Object.values(snapshot.signals.masts[0].tags).every((tag) => tag === "stop"));
 });
 

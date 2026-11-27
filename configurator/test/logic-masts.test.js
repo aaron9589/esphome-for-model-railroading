@@ -28,8 +28,9 @@ function mast(name, aspects, pins = ["GPIO32", "GPIO33"]) {
 
 // A Field Logic board: Up Home (CATS aspects) set by a rule that reads Down
 // Home (custom aspects) and a mast on another board.
+// Its rules are hand-written, so the board runs its own logic keys (see useOwnItems).
 function board() {
-  const config = myFirstBoardPreset();
+  const config = context.EsphomeMrLogicYaml.useOwnItems(myFirstBoardPreset());
   config.board.name = "kiama-k7m4x2";
   config.board.nameSuffix = "k7m4x2";
   config.board.wifiSsid = "layout-wifi";
@@ -341,7 +342,7 @@ function withExpander() {
 }
 
 function problems(config) {
-  const result = validateConfig(normalizeConfig(plain(config)));
+  const result = validateConfig(context.EsphomeMrLogicYaml.useOwnItems(normalizeConfig(plain(config))));
   return { errors: [...result.errors], links: result.links };
 }
 

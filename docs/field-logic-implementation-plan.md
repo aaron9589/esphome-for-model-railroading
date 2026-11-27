@@ -147,7 +147,7 @@ Setting up Field Logic with two kinds of building block, the drawing and your ow
 | TP 6 (#136) | **The new page**: steps, drawing, making hardware, protection shown, problems on the drawing | Sonnet | not started | A newcomer on an empty page has one thing to do; the TP 2 drawings can be drawn |
 | TP 7 (#126) | **Pieces, rules and examples**, with the switch, lamp and turnout-lock changes on the board | Opus, Sonnet | built; fail-safe review of the panel lock open | The gauntlet with a button, and an industry siding with a local panel, built from an empty page |
 | TP 8 (#127) | **Try it and Run a train** on the drawing | Sonnet | built | A meet on a crossing loop runs on the drawing |
-| TP 9 (#138) | **Remove the old Field Logic page** and its keys | Sonnet | not started | No Field Logic screen but the new one is left |
+| TP 9 (#138) | **Remove the old Field Logic page** and its keys | Sonnet | done (#152, #154, and the plan-only keys) | No Field Logic screen but the new one is left |
 | TP 10 (#128) | **New Field Logic guide** and its pictures | Sonnet, Human reads | written; read-through open | A newcomer builds the gauntlet from it |
 
 ## Release 5 — Wrap-up (5–8 days)

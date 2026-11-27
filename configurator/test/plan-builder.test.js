@@ -48,11 +48,15 @@ test("building does not change the board, and the file keeps the drawing, not th
   assert.equal(L.versionCode(back), L.versionCode(config));
 });
 
-test("your own rules run beside the plan, after its groups", () => {
+test("your own rules run beside the plan, after its groups; the old page's keys are not read", () => {
   const config = of("gauntlet");
+  config.logic.plan.rules = [{ on: { mast: "Left Bridge" }, kind: "stopWhile", when: { block: "Right", is: "occupied" } }];
+  // Left over from the old page: ignored.
   config.logic.layers = [{ name: "Mine", rules: [{ trigger: { while: { block: "Bridge", is: "clear" } }, checks: [], then: { mast: "Left Bridge", aspect: "R281" } }] }];
-  const names = plain(L.logicTable(config).logic.layers).map((g) => g.name);
-  assert.deepEqual(names, ["Left Bridge", "Right Bridge", "Left Bridge moves", "Right Bridge moves", "Mine"]);
+  config.logic.blocks = [{ name: "Old", sensors: ["Left current"] }];
+  const table = plain(L.logicTable(config));
+  assert.deepEqual(table.logic.layers.map((g) => g.name), ["Left Bridge", "Right Bridge", "Left Bridge moves", "Right Bridge moves", "Left Bridge rule 1"]);
+  assert.deepEqual(table.logic.blocks.map((b) => b.name), ["Left", "Bridge", "Right"]);
 });
 
 test("a renamed signal aspect, sensor and mast follow into the drawing", () => {
@@ -289,8 +293,7 @@ test("a row waiting for an aspect the next signal never shows is left out, and t
   assert.ok(!home.rules.some((r) => r.checks.some((c) => c.mast === "Branch exit" && c.is === "approach")));
   assert.deepEqual(plain(validateConfig(config).warnings).filter((w) => /never apply|did not apply/.test(w)), []);
   // Your own rule can hold Branch exit at Approach: that row comes back.
-  config.logic.masts = [{ mast: "Branch exit", tags: { R285: "approach" } }];
-  config.logic.layers = [{ name: "Mine", rules: [{ trigger: { while: { block: "Branch", is: "occupied" } }, checks: [], then: { mast: "Branch exit", aspect: "R285" } }] }];
+  config.logic.plan.rules = [{ on: { mast: "Branch exit" }, kind: "approachWhile", when: { block: "Branch", is: "occupied" } }];
   assert.ok(plain(B.build(config)).layers.find((g) => g.name === "Home").rules.some((r) => r.checks.some((c) => c.mast === "Branch exit" && c.is === "approach")));
 });
 
@@ -342,7 +345,8 @@ test("signals round a loop drawn on the plan are allowed", () => {
 
 test("a loop with one of your own rules in it is still an error", () => {
   const config = loopBoard();
-  config.logic.layers = [{ name: "Mine", rules: [{ trigger: { while: { mast: "S2", is: "clear" } }, checks: [], then: { mast: "S1", aspect: "R281" } }] }];
+  // S1 waits for S3 (the next signal on its own); a rule on S3 reading S1 closes a loop that is not the plan's.
+  config.logic.plan.rules = [{ on: { mast: "S3" }, kind: "stopWhile", when: { mast: "S1", is: "stop" } }];
   assert.ok(validateConfig(config).errors.some((e) => e.includes("read each other in a loop")));
 });
 

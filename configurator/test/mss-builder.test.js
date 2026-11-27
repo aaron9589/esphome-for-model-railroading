@@ -11,7 +11,7 @@ import path from "node:path";
 import { configuratorDir, loadModules, test } from "./harness.js";
 import { runCase } from "./engine-runner.js";
 // Every Logic page file, in index.html's order (as in logic-page.test.js).
-const LOGIC_UI_FILES = ["generator.js", "logic-yaml.js", "logic.js", "logic-checker.js", "logic-try.js", "logic-ui.js", "logic-ui-masts.js", "logic-ui-views.js", "logic-ui-start.js", "logic-ui-try.js", "logic-starters.js", "logic-starters-sections.js", "logic-starters-signals.js", "mss-builder.js", "logic-summary.js"];
+const LOGIC_UI_FILES = ["generator.js", "logic-yaml.js", "logic.js", "logic-checker.js", "logic-try.js", "logic-ui.js", "logic-ui-masts.js", "logic-ui-views.js", "logic-ui-start.js", "logic-ui-try.js", "logic-starters.js", "logic-starters-sections.js", "logic-starters-signals.js", "mss-builder.js", "plan-builder.js", "plan-edit.js", "logic-summary.js"];
 
 const context = loadModules(...LOGIC_UI_FILES);
 const { EsphomeMr, EsphomeMrLogicYaml: L, EsphomeMrMssBuilder: B } = context;
@@ -223,10 +223,13 @@ test("an MSS board generates the component with the built rule table; Field Logi
   same(validateConfig(config).errors, []);
 });
 
-test("Field Logic and None are unchanged: logicItems is their own logic key", () => {
+test("Field Logic reads only its drawing, not the MSS description or the old page's keys; None reads nothing", () => {
   const config = junctionModule();
   config.logic = { mode: "field", blocks: [{ name: "Only", sensors: ["K1"] }], mss: config.logic.mss };
-  same(L.logicBlocks(config).map((b) => b.name), ["Only"]);
+  same(L.logicBlocks(config), []);
+  config.logic.plan = { track: [[[0, 0], [4, 0]]], breaks: [], blocks: [{ name: "Drawn", at: [[0, 0], [1, 0]], sensors: ["K1"] }] };
+  same(L.logicBlocks(config).map((b) => b.name), ["Drawn"]);
+  delete config.logic.plan;
   same(L.endsOf(config), []);
   config.logic.mode = undefined;
   same(L.logicBlocks(normalizeConfig(config)), []);

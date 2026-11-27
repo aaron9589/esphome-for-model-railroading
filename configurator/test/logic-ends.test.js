@@ -23,8 +23,9 @@ function mast(name, aspects, pin) {
 
 // A Field Logic board with sensors Home in, Siding, Main, two signals and an
 // expander, and no ends.
+// Its rules are hand-written, so the board runs its own logic keys (see useOwnItems).
 function board() {
-  const config = myFirstBoardPreset();
+  const config = L.useOwnItems(myFirstBoardPreset());
   config.board.name = "kiama-mid-k7m4x2";
   config.board.nameSuffix = "k7m4x2";
   config.blocks = ["Home in", "Siding", "Main"].map((name, i) => ({

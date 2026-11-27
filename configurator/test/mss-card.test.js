@@ -6,7 +6,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { configuratorDir, loadModules, test } from "./harness.js";
 
-const LOGIC_UI_FILES = ["generator.js", "logic-yaml.js", "logic.js", "logic-checker.js", "logic-try.js", "logic-ui.js", "logic-ui-masts.js", "logic-ui-ends.js", "logic-ui-views.js", "logic-ui-start.js", "logic-ui-try.js", "logic-starters.js", "logic-starters-sections.js", "logic-starters-signals.js", "mss-builder.js", "logic-summary.js", "mss-card.js"];
+const LOGIC_UI_FILES = ["generator.js", "logic-yaml.js", "logic.js", "logic-checker.js", "logic-try.js", "logic-ui.js", "logic-ui-masts.js", "logic-ui-ends.js", "logic-ui-views.js", "logic-ui-start.js", "logic-ui-try.js", "logic-starters.js", "logic-starters-sections.js", "logic-starters-signals.js", "mss-builder.js", "plan-builder.js", "plan-edit.js", "logic-summary.js", "mss-card.js"];
 const ctx = loadModules(...LOGIC_UI_FILES);
 const { EsphomeMr, EsphomeMrLogicYaml: Y, EsphomeMrMssCard: Card } = ctx;
 const { myFirstBoardPreset, topicFor } = EsphomeMr;

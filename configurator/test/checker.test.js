@@ -281,7 +281,8 @@ function configGauntlet() {
     resources: [{ name: "Bridge", blocks: ["Bridge"], release: { while: { block: "Bridge", is: "clear" }, for: "3s" } }],
     layers: [{ name: "Gauntlet", rules: [entrance("Left"), entrance("Right")] }],
   };
-  return normalizeConfig(config);
+  // Its rules are hand-written, so the board runs its own logic keys (see useOwnItems).
+  return ctx.EsphomeMrLogicYaml.useOwnItems(normalizeConfig(config));
 }
 
 test("validation: a one-train section has no checker errors or warnings", () => {
