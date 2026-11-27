@@ -792,14 +792,19 @@
   const UI = Object.freeze({ TEXT, card, rerender, logicOf, newRule, newGroup, itemChoices, selectEl, rowCard, paragraph });
 
   // MSS Logic leads with its own guided steps (logic-ui-mss-steps.js).
-  registerPart({ id: "logic-steps", order: 0, modes: ["none", "field"], render: (root, config, ctx) => renderChecklist(root, config, ctx, {
+  // Field Logic leads with its own frame (logic-ui-field.js): the mode,
+  // Share and Linked boards fold behind its line, and the old page's cards
+  // (Blocks and the parts after it) are no longer shown there (TP 6; their
+  // code goes in TP 9).
+  const folded = (config) => global.EsphomeMr.logicMode(config) !== "field" || !!global.EsphomeMrLogicUiField?.settingsOpen(config);
+  registerPart({ id: "logic-steps", order: 0, modes: ["none"], render: (root, config, ctx) => renderChecklist(root, config, ctx, {
     blocks: global.EsphomeMr.logicMode(config) === "field",
     tryIt: parts.some((part) => part.id === "logic-try" && part.modes.includes(global.EsphomeMr.logicMode(config))),
   }) });
-  registerPart({ id: "logic-mode", order: 10, modes: ["none", "field", "mss"], render: renderMode });
-  registerPart({ id: "logic-settings", order: 20, modes: ["none", "field", "mss"], render: renderSettings });
-  registerPart({ id: "logic-linked", order: 30, render: renderLinkedBoards });
-  registerPart({ id: "logic-blocks", order: 40, render: renderBlocks });
+  registerPart({ id: "logic-mode", order: 10, modes: ["none", "field", "mss"], show: folded, render: renderMode });
+  registerPart({ id: "logic-settings", order: 20, modes: ["none", "field", "mss"], show: folded, render: renderSettings });
+  registerPart({ id: "logic-linked", order: 30, show: folded, render: renderLinkedBoards });
+  registerPart({ id: "logic-blocks", order: 40, modes: [], render: renderBlocks });
 
   /**
    * Draw the Logic page into `root`. `ctx` carries the configurator's state and
@@ -811,7 +816,7 @@
     const mode = global.EsphomeMr.logicMode(config);
     root.replaceChildren();
     for (const part of parts) {
-      if (part.modes.includes(mode)) part.render(root, config, ctx, UI);
+      if (part.modes.includes(mode) && (!part.show || part.show(config))) part.render(root, config, ctx, UI);
     }
     if (mode === "mss") global.EsphomeMrLogicUiMssMarks?.apply(root, config);
   }

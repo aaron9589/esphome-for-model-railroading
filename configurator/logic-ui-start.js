@@ -310,7 +310,7 @@
   }
 
   const api = global.EsphomeMrLogicUi;
-  if (api) api.registerPart({ id: "logic-starters", order: 85, modes: ["field"], text: TEXT, render: renderStarters });
+  if (api) api.registerPart({ id: "logic-starters", order: 85, modes: [], text: TEXT, render: renderStarters });
 
   global.EsphomeMrLogicUiStart = {
     TEXT, STARTERS, CARD_KEYS, registerStarter, startStarter, starterCards, writeRuleFromScratch, starterPicture, downloadLogic,

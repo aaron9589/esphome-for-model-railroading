@@ -1242,6 +1242,6 @@
     sayTime, timeChoices, ruleSentence, releaseSentence,
   };
 
-  global.EsphomeMrLogicUi.registerPart({ id: "logic-sections", order: 70, modes: ["field"], text: TEXT, render: renderSections });
-  global.EsphomeMrLogicUi.registerPart({ id: "logic-groups", order: 80, modes: ["field"], text: TEXT, render: renderGroups });
+  global.EsphomeMrLogicUi.registerPart({ id: "logic-sections", order: 70, modes: [], text: TEXT, render: renderSections });
+  global.EsphomeMrLogicUi.registerPart({ id: "logic-groups", order: 80, modes: [], text: TEXT, render: renderGroups });
 })(typeof globalThis !== "undefined" ? globalThis : window);

@@ -1,9 +1,13 @@
-// The Logic page's track plan (docs/field-logic-plan-spec.md; work item TP 3):
-// a grid you draw the track on, then pick things on it to name blocks, give
-// them sensors, stand signals at block breaks and say what is beyond each end.
-// Changes are made by plan-edit.js; plan-builder.js turns the drawing into the
-// rules. The layout and picking are pure (layout, pick), checked by
-// test/plan-editor.test.js; the render functions only draw them.
+// The Field Logic page's drawing (docs/field-logic-plan-spec.md; work items
+// TP 3 and TP 6): a grid you draw the track on, and a panel for what is
+// picked on it, which follows the page's step (logic-ui-field.js): settle the
+// joins, cut the track into blocks and give them sensors, stand signals at
+// block breaks and say what is beyond each end, then read what protects each
+// block. Sensors, turnouts and signals can be made where they go. Problems are
+// marked on the drawing. Changes are made by plan-edit.js; plan-builder.js
+// turns the drawing into the rules. The layout, picking and marks are pure
+// (layout, pick, marks), checked by test/plan-editor.test.js and
+// test/plan-page.test.js; the render functions only draw them.
 (function (global) {
   const isObject = (value) => value && typeof value === "object" && !Array.isArray(value);
   const list = (value) => (Array.isArray(value) ? value : []);
@@ -51,7 +55,7 @@
     missing: (name) => `${name} (not found)`,
     protectedBy: (masts) => {
       const names = [].concat(masts).map((m) => `"${m}"`);
-      return `Signals ${names.slice(0, -1).join(", ")} and ${names[names.length - 1]} can each send a train onto this block. The board clears only one of them at a time, for a train waiting at it, and keeps the track taken until that train has gone through.`;
+      return `Signals ${names.slice(0, -1).join(", ")} and ${names[names.length - 1]} each have a route onto this block. Only one of those routes can be set at a time: a route takes all its track at once, and gives it back behind its train.`;
     },
     moreOptions: "Timing",
     freeAfter: "Free its track when clear for",
@@ -94,11 +98,54 @@
     beyondMast: "Its next signal",
     beyondBlocks: "Its blocks that must be clear",
     beyondNoBlocks: "That board has no blocks on its Logic page.",
+    // The page's steps (TP 6).
+    trackCard: "Your track",
+    selectedLabel: "What is selected",
+    nothingHere: "Click something on the drawing.",
+    plainNote: "Plain track. In the Sensors step, cut it into blocks here.",
+    endNote: "An end of the drawing. In the Signals step, say what is beyond it.",
+    breakNote: "A block break. Its signals are set in the Signals step.",
+    signalsPieceNote: "Click a block break (a short line across the track) to stand a signal there, or an end of the track to say what is beyond it.",
+    sensorsPointNote: "Only plain track can have a block break: not a turnout, a crossing or an end.",
+    newTurnout: "New turnout here",
+    newSensor: "New sensor in this block",
+    newSignal: (way) => `New signal for trains heading ${way}`,
+    newName: "Name",
+    makeTurnout: "Make the turnout",
+    makeSensor: "Add the sensor",
+    makeSignal: "Make the signal",
+    madeTurnout: (name, where) => `Made turnout "${name}" on ${where}. Its full settings are on the Turnouts page.`,
+    madeSensor: (name, where) => `Made sensor "${name}" on ${where}. Its full settings are on the Sensors page.`,
+    madeSignal: (name) => `Made signal "${name}". Its lamps and wiring are on the Signal Masts page.`,
+    needName: "Give it a name first.",
+    nameTaken: (name) => `"${name}" is already taken on this board. Pick another name.`,
+    turnoutName: (n) => `Turnout ${n}`,
+    sensorName: (block) => `${block} current`,
+    signalName: (n) => `Signal ${n}`,
+    mastKind: "Kind of mast",
+    mastKinds: Object.freeze({
+      oneHead: "One head: a red, a yellow and a green LED",
+      oneHeadStrip: "One head: one WS2812B LED",
+      twoHeads: "Two heads: six LEDs",
+      twoHeadsStrip: "Two heads: two WS2812B LEDs",
+    }),
+    buttonLabel: (mast) => `Button for ${mast}`,
+    buttonNone: "No button",
+    buttonHint: "A push button on the fascia, wired to GND. In Manual it asks for a route, and cancels it when pressed again.",
+    manualOnly: (mast) => `${mast} is Manual only`,
+    manualOnlyHint: "Always asked for by a person, through CATS, JMRI or its button, whatever the Auto/Manual switch says.",
+    controlled: (mast) => `"${mast}" is a controlled signal: a route from it can clash with another signal's, so it clears only for a route that has been asked for and set. In Auto the board asks when a train arrives at it; in Manual, CATS or JMRI clearing it, or its button.`,
+    blockSignal: (mast) => `"${mast}" is a block signal: none of its routes can clash with another signal's, so it shows the best the track ahead allows. Nothing has to ask for it.`,
+    oneSignal: "No two signals can send trains onto this block, so there is nothing to keep apart here. Each signal still checks it is clear.",
+    noSignalHere: "No signal stands here.",
+    problemsHere: "Problems in this step",
+    showProblem: "Show",
   });
 
   // ===== Pure: the layout ===================================================
 
   const CELL = 48;
+  const MIN_CELL = 28;
   const key = (p) => `${p[0]},${p[1]}`;
   const wayWords = (from, to) => TEXT.directions[`${Math.sign(to[0] - from[0])},${Math.sign(to[1] - from[1])}`];
   const mid = (a, b) => [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
@@ -238,6 +285,36 @@
     return best ? { kind: "piece", a: best.a, b: best.b } : null;
   }
 
+  /**
+   * Where the drawing's problems are, for marking them: [{ level, step, text,
+   * at? (a grid point), pieces? ([{ a, b }]), head? }]. A problem at a point is
+   * ringed there, a block's along its track, a signal's round its head.
+   */
+  function marks(config, shape) {
+    const B = global.EsphomeMrPlanBuilder;
+    if (!B || !list(config?.logic?.plan?.track).length) return [];
+    return list(B.look(config).problems).map((p) => {
+      const where = p.where || {};
+      const mark = { level: p.level, step: p.step, text: p.text };
+      if (where.mast !== undefined) {
+        const signal = shape.signals.find((s) => s.mast === where.mast);
+        if (signal) return { ...mark, head: signal.head, at: signal.at };
+      }
+      if (Array.isArray(where.at)) return { ...mark, at: where.at };
+      if (where.block !== undefined) {
+        const def = list(config.logic.plan.blocks).find((b) => isObject(b) && b.name === where.block);
+        const first = def?.at;
+        if (Array.isArray(first) && Array.isArray(first[0]) && Array.isArray(first[1])) {
+          const [from, to] = first;
+          const next = [from[0] + Math.sign(to[0] - from[0]), from[1] + Math.sign(to[1] - from[1])];
+          const pieces = E().stretchOfBlock(config, from, next).map(([a, b]) => ({ a, b }));
+          if (pieces.length) return { ...mark, pieces };
+        }
+      }
+      return mark;
+    });
+  }
+
   // ===== The page ===========================================================
 
   const SVG = "http://www.w3.org/2000/svg";
@@ -267,11 +344,14 @@
 
   const px = (v) => Math.round(v * CELL * 10) / 10;
 
-  function drawPicture(config, shape, tool) {
+  function drawPicture(config, shape, tool, found = []) {
     const { view } = shape;
     const drawing = svg("svg", {
       id: "logic-plan-grid", class: `plan-grid is-${tool}`, tabindex: 0, role: "application", "aria-label": TEXT.gridLabel,
       viewBox: `${px(view.x - 0.5)} ${px(view.y - 0.5)} ${px(view.w)} ${px(view.h)}`, width: px(view.w), height: px(view.h),
+      // Shrunk to fit beside the panel, down to MIN_CELL a grid square; past
+      // that, it scrolls.
+      style: `width: 100%; height: auto; max-width: ${px(view.w)}px; min-width: ${Math.round(view.w * MIN_CELL)}px`,
     });
     for (let x = view.x; x < view.x + view.w; x += 1) {
       for (let y = view.y; y < view.y + view.h; y += 1) drawing.append(svg("circle", { class: "plan-dot", cx: px(x), cy: px(y), r: 1.5 }));
@@ -319,6 +399,13 @@
         ? [x - Math.sign(signal.way[0] || 1) * 14, y + 4, signal.way[0] >= 0 ? "end" : "start"]
         : [x + Math.sign(signal.side[0]) * 14, y + 4, signal.side[0] > 0 ? "start" : "end"];
       drawing.append(svg("text", { class: "plan-signal-name", x: tx, y: ty, "text-anchor": anchor }, signal.mast));
+    }
+    // Problems: red for errors, amber for warnings, under the selection ring.
+    for (const mark of found) {
+      const cls = `plan-problem is-${mark.level === "error" ? "error" : "warning"}`;
+      for (const { a, b } of mark.pieces || []) drawing.append(line(a, b, `${cls} is-track`));
+      const ring = mark.head || mark.at;
+      if (ring && !mark.pieces) drawing.append(svg("circle", { class: cls, cx: px(ring[0]), cy: px(ring[1]), r: 15 }));
     }
     if (selected?.kind === "point") drawing.append(svg("circle", { class: "plan-picked", cx: px(selected.at[0]), cy: px(selected.at[1]), r: 13 }));
     if (state.start) drawing.append(svg("circle", { class: "plan-start", cx: px(state.start[0]), cy: px(state.start[1]), r: 9 }));
@@ -673,25 +760,223 @@
     } else fields.append(ctx.hintEl(TEXT.beyondNoBlocks));
   }
 
-  function pointPanel(panel, config, ctx, ui, at) {
+  // ===== Making hardware where it goes ======================================
+
+  const F = () => global.EsphomeMrLogicUiField;
+  const taken = (config) => new Set([
+    ...list(config.blocks).map((b) => b?.name),
+    ...list(config.points).map((p) => p?.name),
+    ...list(config.signals?.masts).map((m) => m?.name),
+    ...list(config.logic?.plan?.blocks).map((b) => b?.name),
+  ].filter(Boolean));
+  const freeName = (config, make) => {
+    const used = taken(config);
+    let n = 1;
+    while (used.has(make(n))) n += 1;
+    return make(n);
+  };
+
+  // A name box and a button that makes the thing; `make(name, extra)` does it.
+  function maker(panel, ctx, id, title, suggested, buttonText, make, extra) {
+    const box = el("div", "plan-maker");
+    box.append(el("strong", "", title));
+    const nameField = ctx.field(TEXT.newName, suggested, () => {}, { full: true });
+    const input = nameField.querySelector("input");
+    input.id = `${id}-name`;
+    box.append(nameField);
+    const more = extra ? extra(box) : null;
+    const go = button(buttonText, () => {
+      const name = input.value.trim();
+      if (!name) return ctx.flash("err", TEXT.needName);
+      if (taken(ctx.config).has(name)) return ctx.flash("err", TEXT.nameTaken(name));
+      make(name, more);
+    });
+    go.id = `${id}-make`;
+    box.append(go);
+    panel.append(box);
+  }
+
+  const pinOf = (items, name) => {
+    const item = list(items).find((i) => i?.name === name);
+    return item?.gpio || item?.servoPin || item?.pin || (Number.isInteger(item?.channel) ? `PCA9685 channel ${item.channel}` : "");
+  };
+
+  // ===== One panel for each step ============================================
+
+  function drawPanel(panel, config, ctx, ui) {
+    const s = state.selected;
+    if (!s) return;
+    if (s.kind === "piece") {
+      panel.append(el("h4", "", TEXT.trackTitle(E().blockAt(config, s.a, s.b)?.name)));
+      const fields = el("div", "fields");
+      const towards = E().directionAt(config, s.a, s.b);
+      const value = !towards ? "" : key(towards) === key(s.b) ? "b" : "a";
+      fields.append(choice(ctx, "logic-plan-direction", TEXT.direction, value, [
+        { value: "", label: TEXT.bothWays },
+        { value: "b", label: TEXT.only(wayWords(s.a, s.b)) },
+        { value: "a", label: TEXT.only(wayWords(s.b, s.a)) },
+      ], (v) => E().setDirection(config, s.a, s.b, v === "a" ? s.a : v === "b" ? s.b : null), TEXT.directionHint));
+      panel.append(fields);
+      return;
+    }
+    const at = s.at;
     const kind = E().kindAt(config, at);
     panel.append(el("h4", "", TEXT.pointTitle[kind] || TEXT.pointTitle.crossing));
-    const fields = el("div", "fields");
-    if (kind === "plain") plainFields(panel, fields, config, ctx, ui, at);
-    else {
-      if (kind === "turnout") turnoutFields(fields, config, ctx, at);
-      else if (kind === "end") endFields(fields, config, ctx, at);
-      else fields.append(ui.paragraph(TEXT.crossingNote, "card-copy full"));
+    if (kind === "turnout") {
+      const fields = el("div", "fields");
+      turnoutFields(fields, config, ctx, at);
       panel.append(fields);
+      if (!list(config.logic.plan.points).some((p) => isObject(p) && key(p.at ?? [NaN, NaN]) === key(at) && p.turnout)) {
+        maker(panel, ctx, "logic-plan-new-turnout", TEXT.newTurnout, freeName(config, TEXT.turnoutName), TEXT.makeTurnout, (name) => {
+          ctx.addItems({ turnouts: [name] });
+          E().setPoint(config, at, { turnout: name });
+          ctx.flash("ok", TEXT.madeTurnout(name, pinOf(config.points, name)));
+          changed(ctx, "#logic-plan-straight");
+        });
+      }
+    } else if (kind === "crossing") panel.append(ui.paragraph(TEXT.crossingNote, "card-copy"));
+    else if (kind === "end") panel.append(ui.paragraph(TEXT.endNote, "hint"));
+    else panel.append(ui.paragraph(E().breakAt(config.logic.plan, at) ? TEXT.breakNote : TEXT.plainNote, "hint"));
+  }
+
+  function sensorsPanel(panel, config, ctx, ui) {
+    const s = state.selected;
+    if (!s) return;
+    if (s.kind === "piece") {
+      trackPanel(panel, config, ctx, ui, s, () => redraw(ctx, "#logic-plan-block-name"));
+      const block = E().blockAt(config, s.a, s.b);
+      maker(panel, ctx, "logic-plan-new-sensor", TEXT.newSensor, block?.name ? TEXT.sensorName(block.name) : freeName(config, (n) => TEXT.sensorName(TEXT.newBlock(n))), TEXT.makeSensor, (name) => {
+        ctx.addItems({ sensors: [name] });
+        const now = E().blockAt(config, s.a, s.b);
+        E().setBlock(config, s.a, s.b, now ? { sensors: [...list(now.sensors), name] } : { name: E().freeBlockName(config, TEXT.newBlock), sensors: [name] });
+        ctx.flash("ok", TEXT.madeSensor(name, pinOf(config.blocks, name)));
+        changed(ctx, "#logic-plan-block-name");
+      });
+      return;
     }
-    // A break left where it cannot be (a line joined it later) can be removed too.
-    if (E().breakAt(config.logic.plan, at)) {
+    const at = s.at;
+    const kind = E().kindAt(config, at);
+    panel.append(el("h4", "", TEXT.pointTitle[kind] || TEXT.pointTitle.crossing));
+    const brk = E().breakAt(config.logic.plan, at);
+    if (kind === "plain") {
+      if (brk) {
+        const groups = sensorGroups(config, ui);
+        const members = list(brk.sensors);
+        if (groups.length || members.length) {
+          const fields = el("div", "fields");
+          fields.append(ticks(ctx, "logic-plan-break-sensor", TEXT.breakSensors, groups, members,
+            (sensors) => E().setBreakSensors(config, at, sensors), TEXT.breakSensorsHint));
+          panel.append(fields);
+        }
+      } else {
+        const add = button(TEXT.addBreak, () => { E().addBreak(config, at); changed(ctx, "#logic-plan-remove-break"); });
+        add.id = "logic-plan-add-break";
+        panel.append(add);
+      }
+    } else panel.append(ui.paragraph(TEXT.sensorsPointNote, "hint"));
+    if (brk) {
       const remove = button(TEXT.removeBreak, () => { E().removeBreak(config, at); changed(ctx, "#logic-plan-grid"); }, "remove");
       remove.id = "logic-plan-remove-break";
       panel.append(remove, ctx.hintEl(TEXT.removeBreakNote));
     }
     trackButtons(panel, config, ctx, at);
   }
+
+  // A signal's button and Manual only, once it stands on the drawing.
+  function signalOptions(fields, config, ctx, at, signal, i) {
+    const current = String(signal.button ?? "");
+    const pins = [{ value: "", label: TEXT.buttonNone }, ...ctx.pinChoices()];
+    if (current && !pins.some((p) => p.value === current)) pins.push({ value: current, label: current });
+    fields.append(choice(ctx, `logic-plan-button-${i}`, TEXT.buttonLabel(signal.mast), current, pins,
+      (v) => E().setSignalOptions(config, at, signal.facing, { button: v }), TEXT.buttonHint));
+    const manual = ctx.field(TEXT.manualOnly(signal.mast), signal.manualOnly === true, (checked) => {
+      E().setSignalOptions(config, at, signal.facing, { manualOnly: checked });
+      changed(ctx, `#logic-plan-manual-${i}`);
+    }, { checkbox: true, hint: TEXT.manualOnlyHint });
+    manual.querySelector("input").id = `logic-plan-manual-${i}`;
+    fields.append(manual);
+  }
+
+  const KINDS = Object.freeze({
+    oneHead: ["oneHead", "leds"], oneHeadStrip: ["oneHead", "strip"],
+    twoHeads: ["twoHeads", "leds"], twoHeadsStrip: ["twoHeads", "strip"],
+  });
+
+  function signalsPanel(panel, config, ctx, ui) {
+    const s = state.selected;
+    if (!s) return;
+    if (s.kind === "piece") return void panel.append(ui.paragraph(TEXT.signalsPieceNote, "hint"));
+    const at = s.at;
+    const kind = E().kindAt(config, at);
+    panel.append(el("h4", "", TEXT.pointTitle[kind] || TEXT.pointTitle.crossing));
+    const fields = el("div", "fields");
+    if (kind === "end") {
+      endFields(fields, config, ctx, at);
+      return void panel.append(fields);
+    }
+    if (kind !== "plain") return void panel.append(ui.paragraph(TEXT.signalsPieceNote, "hint"));
+    const brk = E().breakAt(config.logic.plan, at);
+    const MT = global.EsphomeMrMssTemplates;
+    E().neighbours(config, at).forEach((other, i) => {
+      const way = wayWords(at, other);
+      const facing = (sig) => isObject(sig) && Array.isArray(sig.facing) && wayWords(at, sig.facing) === way;
+      const signal = list(brk?.signals).find(facing);
+      const current = String(signal?.mast ?? "");
+      fields.append(choice(ctx, `logic-plan-signal-${i}`, TEXT.signal(way), current, mastOptions(config, current),
+        (v) => E().setSignal(config, at, signal ? signal.facing : other, v), i ? TEXT.signalHint : undefined));
+      if (signal?.mast) signalOptions(fields, config, ctx, at, signal, i);
+    });
+    panel.append(fields);
+    // A signal can be made here for a way that has none.
+    E().neighbours(config, at).forEach((other, i) => {
+      const way = wayWords(at, other);
+      if (list(brk?.signals).some((sig) => isObject(sig) && Array.isArray(sig.facing) && wayWords(at, sig.facing) === way)) return;
+      maker(panel, ctx, `logic-plan-new-signal-${i}`, TEXT.newSignal(way), freeName(config, TEXT.signalName), TEXT.makeSignal, (name, kindSelect) => {
+        const [rows, style] = KINDS[kindSelect.value] || KINDS.oneHead;
+        ctx.addItems({ masts: [MT.mast(name, MT.ROWS[rows], MT.HEADS[rows], style)] });
+        E().setSignal(config, at, other, name);
+        ctx.flash("ok", TEXT.madeSignal(name));
+        changed(ctx, `#logic-plan-signal-${i}`);
+      }, (box) => {
+        const kindField = ctx.field(TEXT.mastKind, "oneHead", () => {}, {
+          select: Object.keys(KINDS).map((value) => ({ value, label: TEXT.mastKinds[value] })), full: true,
+        });
+        const select = kindField.querySelector("select");
+        select.id = `logic-plan-new-signal-${i}-kind`;
+        box.append(kindField);
+        return select;
+      });
+    });
+    if (brk) {
+      const remove = button(TEXT.removeBreak, () => { E().removeBreak(config, at); changed(ctx, "#logic-plan-grid"); }, "remove");
+      remove.id = "logic-plan-remove-break";
+      panel.append(remove, ctx.hintEl(TEXT.removeBreakNote));
+    }
+  }
+
+  function behaviourPanel(panel, config, ctx, ui) {
+    const s = state.selected;
+    if (!s) return;
+    const B = global.EsphomeMrPlanBuilder;
+    if (s.kind === "piece") {
+      const block = E().blockAt(config, s.a, s.b);
+      panel.append(el("h4", "", TEXT.trackTitle(block?.name)));
+      const found = block && B.look(config).protects.find((p) => p.block === block.name);
+      panel.append(ui.paragraph(found ? TEXT.protectedBy(found.masts) : TEXT.oneSignal, "card-copy"));
+      return;
+    }
+    const at = s.at;
+    const brk = E().breakAt(config.logic.plan, at);
+    const signals = list(brk?.signals).filter((sig) => isObject(sig) && sig.mast);
+    panel.append(el("h4", "", TEXT.pointTitle[E().kindAt(config, at)] || TEXT.pointTitle.crossing));
+    if (!signals.length) return void panel.append(ui.paragraph(TEXT.noSignalHere, "hint"));
+    const groups = new Set(list(B.build(config).layers).map((layer) => layer.name));
+    for (const signal of signals) {
+      panel.append(ui.paragraph(groups.has(B.TEXT.movesGroup(signal.mast)) ? TEXT.controlled(signal.mast) : TEXT.blockSignal(signal.mast), "card-copy"));
+    }
+  }
+
+  const PANELS = Object.freeze({ draw: drawPanel, sensors: sensorsPanel, signals: signalsPanel, behaviour: behaviourPanel });
 
   // Drop a selection whose track has gone.
   function stillThere(config) {
@@ -701,65 +986,110 @@
     return E().stretchOfBlock(config, s.a, s.b).length ? s : null;
   }
 
+  // The problems of this step, under the drawing: each picks its place.
+  function problemList(card, found, step, ctx) {
+    const mine = found.filter((m) => m.step === step);
+    if (!mine.length) return;
+    const box = el("div", "plan-problems");
+    box.append(el("strong", "", TEXT.problemsHere));
+    const items = el("ul");
+    for (const mark of mine) {
+      const item = el("li", `msg-line is-${mark.level === "error" ? "error" : "warning"}`);
+      item.append(el("span", "", mark.text));
+      const place = mark.pieces?.[0] ? { kind: "piece", a: mark.pieces[0].a, b: mark.pieces[0].b } : mark.at ? { kind: "point", at: mark.at } : null;
+      if (place) {
+        const show = button(TEXT.showProblem, () => {
+          state.selected = place;
+          state.tool = "select";
+          redraw(ctx, "#logic-plan-grid");
+        }, "link-button");
+        item.append(" ", show);
+      }
+      items.append(item);
+    }
+    box.append(items);
+    card.append(box);
+  }
+
   function renderPlan(root, config, ctx, ui) {
     // A different board: nothing is picked on it yet.
-    if (state.board !== config) Object.assign(state, { board: config, tool: null, start: null, cursor: [0, 0], selected: null, scroll: [0, 0], more: false });
-    const card = ui.card(PART, TEXT.card);
-    card.append(ui.paragraph(TEXT.intro));
+    if (state.board !== config) Object.assign(state, { board: config, tool: null, start: null, cursor: [0, 0], selected: null, scroll: [0, 0], more: false, step: null });
+    const step = F() ? F().currentStep(config) : "draw";
+    // A different step: what was picked belongs to the last one.
+    if (state.step !== step) Object.assign(state, { step, tool: null, start: null, selected: null });
+    const card = ui.card(PART, step === "try" || step === "download" ? F().TEXT.steps[step] : TEXT.trackCard);
+    const guide = F()?.guidance(config, step);
+    // Try it is its own part (logic-ui-try.js), with the way on after it.
+    if (step === "try") return;
+    if (step === "download") {
+      card.append(ui.paragraph(guide.doing), F().nextButton(config, ctx, step));
+      root.append(card);
+      return;
+    }
     const shape = layout(config);
     state.selected = stillThere(config);
-    // With nothing drawn there is only drawing to do.
-    const tool = shape.pieces.length ? state.tool || "select" : "draw";
-    // Kept from the first draw, so the tool does not change under the person.
+    // With nothing drawn there is only drawing to do; the other steps pick.
+    const tool = step !== "draw" ? "select" : shape.pieces.length ? state.tool || "select" : "draw";
     state.tool = tool;
 
-    const tools = el("div", "plan-tools");
-    tools.setAttribute("role", "group");
-    tools.setAttribute("aria-label", TEXT.toolsLabel);
-    for (const name of Object.keys(TEXT.tools)) {
-      const b = button(TEXT.tools[name], () => {
-        state.tool = name;
-        state.start = null;
-        if (name !== "select") state.selected = null;
-        redraw(ctx, `#logic-plan-tool-${name}`);
-      });
-      b.id = `logic-plan-tool-${name}`;
-      b.setAttribute("aria-pressed", String(name === tool));
-      tools.append(b);
+    if (step === "draw") {
+      const tools = el("div", "plan-tools");
+      tools.setAttribute("role", "group");
+      tools.setAttribute("aria-label", TEXT.toolsLabel);
+      for (const name of Object.keys(TEXT.tools)) {
+        const b = button(TEXT.tools[name], () => {
+          state.tool = name;
+          state.start = null;
+          if (name !== "select") state.selected = null;
+          redraw(ctx, `#logic-plan-tool-${name}`);
+        });
+        b.id = `logic-plan-tool-${name}`;
+        b.setAttribute("aria-pressed", String(name === tool));
+        b.disabled = !shape.pieces.length && name !== "draw";
+        tools.append(b);
+      }
+      card.append(tools);
     }
-    const hint = !shape.pieces.length ? TEXT.start : TEXT.hints[tool];
-    card.append(tools, ui.paragraph(`${hint} ${TEXT.keys}`, "hint"));
+    const hint = step === "draw" ? (!shape.pieces.length ? TEXT.start : TEXT.hints[tool]) : guide.doing;
+    card.append(ui.paragraph(`${hint} ${TEXT.keys}`, "hint"));
 
+    const body = el("div", "plan-body");
+    const left = el("div", "plan-left");
     const wrap = el("div", "plan-wrap");
+    // Only this step's problems and those of the steps before it are marked:
+    // a later step's are still to come.
+    const order = F() ? F().ORDER : [];
+    const upTo = (m) => order.indexOf(m.step) <= order.indexOf(step);
+    const found = marks(config, shape).filter(upTo);
     const picture = (drawn) => {
-      const drawing = drawPicture(config, drawn, tool);
+      const drawing = drawPicture(config, drawn, tool, marks(config, drawn).filter(upTo));
       listen(drawing, config, ctx, drawn, tool);
       return drawing;
     };
     wrap.append(picture(shape));
-    // The picture, and what names it: drawn again without the rest of the page.
-    const repaint = () => {
-      wrap.querySelector("svg").replaceWith(picture(layout(config)));
-    };
     wrap.addEventListener("scroll", () => { state.scroll = [wrap.scrollLeft, wrap.scrollTop]; });
-    card.append(wrap);
+    left.append(wrap);
+    problemList(left, found, step, ctx);
+    body.append(left);
 
-    if (tool === "select") {
-      const panel = el("div", "plan-panel");
-      if (!state.selected) panel.append(el("p", "hint", TEXT.nothing));
-      else if (state.selected.kind === "piece") trackPanel(panel, config, ctx, ui, state.selected, repaint);
-      else pointPanel(panel, config, ctx, ui, state.selected.at);
-      card.append(panel);
-    }
+    const panel = el("aside", "plan-panel");
+    panel.setAttribute("aria-label", TEXT.selectedLabel);
+    if (tool === "select" && shape.pieces.length) {
+      if (!state.selected) panel.append(ui.paragraph(guide?.doing || TEXT.nothingHere, "hint"));
+      else PANELS[step]?.(panel, config, ctx, ui);
+    } else panel.append(ui.paragraph(guide?.doing || TEXT.start, "hint"));
+    if (F() && shape.pieces.length) panel.append(F().nextButton(config, ctx, step));
+    body.append(panel);
+    card.append(body);
     root.append(card);
     // Once the whole page is drawn: laying it out part way would move the page.
-    const [left, top] = state.scroll;
-    if ((left || top) && typeof requestAnimationFrame === "function") {
-      requestAnimationFrame(() => { wrap.scrollLeft = left; wrap.scrollTop = top; });
+    const [left0, top] = state.scroll;
+    if ((left0 || top) && typeof requestAnimationFrame === "function") {
+      requestAnimationFrame(() => { wrap.scrollLeft = left0; wrap.scrollTop = top; });
     }
   }
 
-  global.EsphomeMrLogicUiPlan = { TEXT, PART, CELL, layout, pick };
+  global.EsphomeMrLogicUiPlan = { TEXT, PART, CELL, layout, pick, marks };
 
   if (global.EsphomeMrLogicUi) {
     global.EsphomeMrLogicUi.registerPart({ id: PART, order: 33, modes: ["field"], text: TEXT, render: renderPlan });

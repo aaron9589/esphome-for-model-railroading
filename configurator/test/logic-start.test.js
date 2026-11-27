@@ -105,9 +105,9 @@ test("a starter 2.8 registers is ready, opens, and its words are linted", () => 
   assert.throws(() => start.registerStarter("route-signal", {}), /open function/);
 });
 
-test("the starters part is registered for Field Logic, after Groups", () => {
+test("the starters part is no longer shown in Field Logic (the track plan page replaces it, TP 6)", () => {
   const html = fs.readFileSync(path.join(configuratorDir, "logic-ui-start.js"), "utf8");
-  assert.match(html, /registerPart\(\{ id: "logic-starters", order: 85, modes: \["field"\], text: TEXT/);
+  assert.match(html, /registerPart\(\{ id: "logic-starters", order: 85, modes: \[\], text: TEXT/);
 });
 
 // ===== Remote masts in Linked boards =======================================
