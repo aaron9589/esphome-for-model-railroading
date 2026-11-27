@@ -1,0 +1,630 @@
+{
+  "name": "track plan: a route cancelled, and released by hand",
+  "covers": [
+    "Track plan: a route cancelled before its train enters, and released by hand"
+  ],
+  "about": "At power-on, in Auto, a train standing behind Left Bridge counts as arriving: its route is set. It backs away without entering; once Left has been clear for its 5 second hold time, the route is released by time. In Manual, Left Bridge's button asks and, pressed again, cancels: with a train behind the signal the bridge is held for Left's hold time, or freed at once if that train leaves. Last, a train stands on the bridge, and Release for Left Bridge frees what is left of its route.",
+  "module": {
+    "sensors": [
+      "Left current",
+      "Bridge current",
+      "Right current"
+    ],
+    "masts": [
+      "Left Bridge",
+      "Right Bridge"
+    ],
+    "plan": {
+      "track": [
+        [
+          [
+            0,
+            0
+          ],
+          [
+            3,
+            0
+          ]
+        ],
+        [
+          [
+            3,
+            0
+          ],
+          [
+            4,
+            1
+          ]
+        ],
+        [
+          [
+            4,
+            1
+          ],
+          [
+            8,
+            1
+          ]
+        ],
+        [
+          [
+            8,
+            1
+          ],
+          [
+            9,
+            0
+          ]
+        ],
+        [
+          [
+            9,
+            0
+          ],
+          [
+            12,
+            0
+          ]
+        ],
+        [
+          [
+            0,
+            2
+          ],
+          [
+            3,
+            2
+          ]
+        ],
+        [
+          [
+            3,
+            2
+          ],
+          [
+            4,
+            1
+          ]
+        ],
+        [
+          [
+            8,
+            1
+          ],
+          [
+            9,
+            2
+          ]
+        ],
+        [
+          [
+            9,
+            2
+          ],
+          [
+            12,
+            2
+          ]
+        ]
+      ],
+      "points": [
+        {
+          "at": [
+            4,
+            1
+          ],
+          "turnout": null
+        },
+        {
+          "at": [
+            8,
+            1
+          ],
+          "turnout": null
+        }
+      ],
+      "arrows": [
+        {
+          "from": [
+            0,
+            0
+          ],
+          "to": [
+            2,
+            0
+          ]
+        },
+        {
+          "from": [
+            2,
+            2
+          ],
+          "to": [
+            0,
+            2
+          ]
+        },
+        {
+          "from": [
+            10,
+            0
+          ],
+          "to": [
+            12,
+            0
+          ]
+        },
+        {
+          "from": [
+            12,
+            2
+          ],
+          "to": [
+            10,
+            2
+          ]
+        }
+      ],
+      "breaks": [
+        {
+          "at": [
+            2,
+            0
+          ],
+          "sensors": [],
+          "signals": [
+            {
+              "mast": "Left Bridge",
+              "facing": [
+                3,
+                0
+              ],
+              "button": "GPIO5"
+            }
+          ]
+        },
+        {
+          "at": [
+            2,
+            2
+          ],
+          "sensors": [],
+          "signals": []
+        },
+        {
+          "at": [
+            10,
+            0
+          ],
+          "sensors": [],
+          "signals": []
+        },
+        {
+          "at": [
+            10,
+            2
+          ],
+          "sensors": [],
+          "signals": [
+            {
+              "mast": "Right Bridge",
+              "facing": [
+                9,
+                2
+              ]
+            }
+          ]
+        }
+      ],
+      "blocks": [
+        {
+          "name": "Left",
+          "at": [
+            [
+              0,
+              0
+            ],
+            [
+              2,
+              0
+            ]
+          ],
+          "sensors": [
+            "Left current"
+          ],
+          "approachLock": "5s"
+        },
+        {
+          "name": "Bridge",
+          "at": [
+            [
+              4,
+              1
+            ],
+            [
+              8,
+              1
+            ]
+          ],
+          "sensors": [
+            "Bridge current"
+          ]
+        },
+        {
+          "name": "Right",
+          "at": [
+            [
+              10,
+              2
+            ],
+            [
+              12,
+              2
+            ]
+          ],
+          "sensors": [
+            "Right current"
+          ]
+        }
+      ],
+      "ends": [
+        {
+          "at": [
+            12,
+            0
+          ],
+          "beyond": "plain"
+        },
+        {
+          "at": [
+            0,
+            2
+          ],
+          "beyond": "plain"
+        }
+      ]
+    }
+  },
+  "start": {
+    "sensors": {
+      "Left current": "occupied"
+    }
+  },
+  "steps": [
+    {
+      "at": 0,
+      "expect": {
+        "events": [
+          {
+            "startup": true
+          },
+          {
+            "grant": "Bridge",
+            "rule": "Left Bridge moves/1"
+          }
+        ],
+        "masts": {
+          "Left Bridge": "R281"
+        },
+        "resources": {
+          "Bridge": "ACTIVE"
+        }
+      }
+    },
+    {
+      "at": 5,
+      "do": [
+        {
+          "sensor": "Left current",
+          "is": "clear"
+        }
+      ]
+    },
+    {
+      "at": 54,
+      "expect": {
+        "events": [],
+        "masts": {
+          "Left Bridge": "R281"
+        },
+        "resources": {
+          "Bridge": "ACTIVE"
+        }
+      }
+    },
+    {
+      "at": 55,
+      "expect": {
+        "events": [
+          {
+            "cancel": "Bridge",
+            "rule": "Left Bridge moves/1"
+          },
+          {
+            "release": "Bridge",
+            "by": "cancel"
+          }
+        ],
+        "masts": {
+          "Left Bridge": "R292"
+        },
+        "resources": {
+          "Bridge": "IDLE"
+        }
+      }
+    },
+    {
+      "at": 70,
+      "do": [
+        {
+          "auto": "off"
+        }
+      ]
+    },
+    {
+      "at": 72,
+      "do": [
+        {
+          "sensor": "Left current",
+          "is": "occupied"
+        }
+      ],
+      "expect": {
+        "events": []
+      }
+    },
+    {
+      "at": 75,
+      "do": [
+        {
+          "button": "Left Bridge button",
+          "is": "pressed"
+        },
+        {
+          "button": "Left Bridge button",
+          "is": "released"
+        }
+      ],
+      "expect": {
+        "events": [
+          {
+            "grant": "Bridge",
+            "rule": "Left Bridge moves/1"
+          }
+        ],
+        "masts": {
+          "Left Bridge": "R281"
+        }
+      }
+    },
+    {
+      "at": 80,
+      "do": [
+        {
+          "button": "Left Bridge button",
+          "is": "pressed"
+        },
+        {
+          "button": "Left Bridge button",
+          "is": "released"
+        }
+      ],
+      "expect": {
+        "events": [
+          {
+            "cancel": "Bridge",
+            "rule": "Left Bridge moves/1"
+          }
+        ],
+        "masts": {
+          "Left Bridge": "R292"
+        },
+        "resources": {
+          "Bridge": "CANCELLING"
+        },
+        "rules": {
+          "Left Bridge moves/1": "cancelling"
+        }
+      }
+    },
+    {
+      "at": 89,
+      "expect": {
+        "events": [],
+        "resources": {
+          "Bridge": "CANCELLING"
+        }
+      }
+    },
+    {
+      "at": 90,
+      "do": [
+        {
+          "sensor": "Left current",
+          "is": "clear"
+        }
+      ],
+      "expect": {
+        "events": [
+          {
+            "release": "Bridge",
+            "by": "left"
+          }
+        ],
+        "resources": {
+          "Bridge": "IDLE"
+        },
+        "rules": {
+          "Left Bridge moves/1": "idle"
+        }
+      }
+    },
+    {
+      "at": 95,
+      "do": [
+        {
+          "sensor": "Left current",
+          "is": "occupied"
+        }
+      ]
+    },
+    {
+      "at": 97,
+      "do": [
+        {
+          "button": "Left Bridge button",
+          "is": "pressed"
+        },
+        {
+          "button": "Left Bridge button",
+          "is": "released"
+        }
+      ],
+      "expect": {
+        "events": [
+          {
+            "grant": "Bridge",
+            "rule": "Left Bridge moves/1"
+          }
+        ]
+      }
+    },
+    {
+      "at": 100,
+      "do": [
+        {
+          "button": "Left Bridge button",
+          "is": "pressed"
+        },
+        {
+          "button": "Left Bridge button",
+          "is": "released"
+        }
+      ],
+      "expect": {
+        "events": [
+          {
+            "cancel": "Bridge",
+            "rule": "Left Bridge moves/1"
+          }
+        ],
+        "resources": {
+          "Bridge": "CANCELLING"
+        }
+      }
+    },
+    {
+      "at": 149,
+      "expect": {
+        "events": [],
+        "resources": {
+          "Bridge": "CANCELLING"
+        }
+      }
+    },
+    {
+      "at": 150,
+      "expect": {
+        "events": [
+          {
+            "release": "Bridge",
+            "by": "time"
+          }
+        ],
+        "resources": {
+          "Bridge": "IDLE"
+        }
+      }
+    },
+    {
+      "at": 155,
+      "do": [
+        {
+          "button": "Left Bridge button",
+          "is": "pressed"
+        },
+        {
+          "button": "Left Bridge button",
+          "is": "released"
+        }
+      ],
+      "expect": {
+        "events": [
+          {
+            "grant": "Bridge",
+            "rule": "Left Bridge moves/1"
+          }
+        ],
+        "masts": {
+          "Left Bridge": "R281"
+        }
+      }
+    },
+    {
+      "at": 160,
+      "do": [
+        {
+          "sensor": "Bridge current",
+          "is": "occupied"
+        }
+      ],
+      "expect": {
+        "events": [
+          {
+            "pass": "Bridge",
+            "rule": "Left Bridge moves/1"
+          }
+        ],
+        "masts": {
+          "Left Bridge": "R292"
+        }
+      }
+    },
+    {
+      "at": 170,
+      "do": [
+        {
+          "releaseGroup": "Left Bridge moves",
+          "via": "button"
+        }
+      ],
+      "expect": {
+        "events": [
+          {
+            "releaseGroup": "Left Bridge moves"
+          },
+          {
+            "release": "Bridge",
+            "by": "manual"
+          }
+        ],
+        "publishes": [
+          {
+            "resource": "Bridge",
+            "held": "INACTIVE"
+          },
+          {
+            "resource": "Bridge",
+            "state": "IDLE"
+          },
+          {
+            "releaseGroup": "Left Bridge moves",
+            "value": "CLOSED"
+          }
+        ],
+        "resources": {
+          "Bridge": "IDLE"
+        },
+        "holders": {
+          "Bridge": null
+        },
+        "rules": {
+          "Left Bridge moves/1": "idle"
+        },
+        "masts": {
+          "Left Bridge": "R292"
+        }
+      }
+    }
+  ]
+}

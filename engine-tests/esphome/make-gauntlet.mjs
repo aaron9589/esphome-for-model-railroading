@@ -60,7 +60,13 @@ config.logic = {
   // One plant end with two tracks: track 1 meets Left Bridge, and track 2 passes
   // through to track 1. A Pair button on GPIO17 and an LED on GPIO23.
   ends: [{ name: "A", tracks: [{ sensors: ["Left"], mast: "Left Bridge" }, { sensors: ["Right"], through: { end: "A", track: 1 } }], pairPin: "GPIO17", ledPin: "GPIO23" }],
-  resources: [{ name: "Bridge", blocks: ["Bridge"], release: { while: { block: "Bridge", is: "clear" }, for: "3s" } }],
+  // A rule button on GPIO16 (and on the web page), and the Auto/Manual switch,
+  // for a routes group as a track plan builds them.
+  buttons: [{ name: "Depart", pin: "GPIO16" }],
+  resources: [
+    { name: "Bridge", blocks: ["Bridge"], release: { while: { block: "Bridge", is: "clear" }, for: "3s" } },
+    { name: "Approach", blocks: ["Right"], release: { while: { block: "Right", is: "clear" }, for: "3s" } },
+  ],
   layers: [
     { name: "Gauntlet", starter: "one-train-section", rules: [
       { trigger: { while: { block: "Left", is: "occupied" }, for: "0.5s" }, checks: [],
@@ -71,6 +77,16 @@ config.logic = {
     ] },
     { name: "Exit", rules: [
       { trigger: { while: { block: "Far", is: "clear" } }, checks: [], then: { mast: "Bridge Exit", aspect: "Clear" } },
+    ] },
+    { name: "Bridge Exit routes", routes: true, rules: [
+      { trigger: { when: { any: [
+          { button: "Depart", is: "pressed", if: { auto: "off" } },
+          { block: "Far", is: "occupied", notFrom: ["Left"], if: { auto: "on" } },
+        ] } },
+        cancel: { when: { any: [{ button: "Depart", is: "pressed", if: { auto: "off" } }, { block: "Far", is: "clear", for: "1s", if: { auto: "on" } }] } },
+        withdraw: { when: { any: [{ auto: "on" }, { auto: "off" }] } },
+        checks: [{ block: "Right", is: "clear" }],
+        then: { mast: "Bridge Exit", aspect: "Clear", reserve: ["Approach"], next: { Approach: ["Bridge"] }, lock: [{ turnout: "P2", with: "Approach" }] } },
     ] },
   ],
 };

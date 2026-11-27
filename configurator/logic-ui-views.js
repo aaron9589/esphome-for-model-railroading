@@ -62,6 +62,8 @@
 
   const isObject = (value) => value && typeof value === "object" && !Array.isArray(value);
   const list = (value) => (Array.isArray(value) ? value : []);
+  // A rule's lock: a turnout's name, or { turnout, with } (a track plan's route locking).
+  const lockTurnout = (item) => (isObject(item) ? item.turnout : item);
   const capital = (text) => (text ? text.charAt(0).toUpperCase() + text.slice(1) : text);
   const unique = (items) => [...new Set(items)];
 
@@ -148,16 +150,19 @@
       const group = groupName(layer, li);
       for (const rule of list(layer.rules).filter(isObject)) {
         const then = isObject(rule.then) ? rule.then : {};
-        const section = then.reserve !== undefined ? byName.get(String(then.reserve)) : undefined;
-        for (const cond of conditionsIn([rule.trigger, rule.checks, rule.cancel, section?.release])) {
+        // One section, or several at once (a track plan's move).
+        const taken = [].concat(then.reserve ?? []).map((name) => byName.get(String(name))).filter(Boolean);
+        for (const cond of conditionsIn([rule.trigger, rule.checks, rule.cancel, ...taken.map((section) => section.release)])) {
           add(row(kindOf(cond), cond).readBy, group);
         }
         if (typeof then.mast === "string" && then.mast) add(row("mast", then.mast).setBy, group);
-        for (const name of list(then.lock)) if (typeof name === "string" && name) add(row("turnout", name).setBy, group);
-        for (const ref of list(section?.blocks)) {
-          const block = row("block", ref);
-          add(block.setBy, group);
-          add(block.sections, String(section.name));
+        for (const name of list(then.lock).map(lockTurnout)) if (typeof name === "string" && name) add(row("turnout", name).setBy, group);
+        for (const section of taken) {
+          for (const ref of list(section.blocks)) {
+            const block = row("block", ref);
+            add(block.setBy, group);
+            add(block.sections, String(section.name));
+          }
         }
       }
     });
@@ -250,14 +255,15 @@
         if (!isObject(rule)) return;
         const then = isObject(rule.then) ? rule.then : {};
         const mast = typeof then.mast === "string" ? then.mast : "";
-        const locks = list(then.lock).filter((name) => typeof name === "string" && name);
-        const reserve = then.reserve !== undefined && then.reserve !== "" ? String(then.reserve) : "";
+        const locks = list(then.lock).map(lockTurnout).filter((name) => typeof name === "string" && name);
+        const reserves = [].concat(then.reserve ?? []).filter((name) => name !== "").map(String);
+        const reserve = reserves.join(", ");
         if (!mast && !locks.length && !reserve) return;
         const aspect = mast ? String(then.aspect ?? "") : "";
         const tag = masts[mast]?.aspects?.[aspect];
-        const section = byName.get(reserve);
+        const section = byName.get(reserves[0]);
         const checks = sortChecks(rule.checks);
-        const sectionBlocks = list(section?.blocks).map((ref) => refName(ref, "block"));
+        const sectionBlocks = reserves.flatMap((name) => list(byName.get(name)?.blocks)).map((ref) => refName(ref, "block"));
         const when = [capital(L.explainRule({ trigger: rule.trigger || {} }))];
         if (isObject(rule.cancel) && rule.cancel.when !== undefined) {
           when.push(TEXT.cancelWhen(L.explainRule({ trigger: { when: rule.cancel.when } })));

@@ -169,13 +169,15 @@
 
   // ===== Changing ===========================================================
 
+  const KEYS = ["track", "points", "arrows", "breaks", "blocks", "ends"];
+
   function planFor(config) {
     const logic = config.logic || (config.logic = {});
     if (!isObject(logic.plan)) logic.plan = {};
     const plan = logic.plan;
-    for (const name of ["track", "points", "arrows", "breaks", "blocks", "ends", "sections"]) {
-      if (!Array.isArray(plan[name])) plan[name] = [];
-    }
+    for (const name of KEYS) if (!Array.isArray(plan[name])) plan[name] = [];
+    // One train at a time (TP 2) is gone: the drawing protects the track itself.
+    delete plan.sections;
     return plan;
   }
 
@@ -226,13 +228,11 @@
     plan.points = plan.points.filter((p) => isObject(p) && n(p.at) === 3);
     plan.breaks = plan.breaks.filter((b) => isObject(b) && n(b.at) >= 2);
     plan.ends = plan.ends.filter((e) => isObject(e) && n(e.at) === 1);
-    const gone = [];
     plan.blocks = plan.blocks.filter((block) => {
       if (!isObject(block)) return false;
       if (anchorOf(g, block.at)) return true;
       const left = (blockPieces.get(block) || []).find((piece) => g.pieces.has(piece));
       if (left) block.at = unit(left);
-      else gone.push(block.name);
       return !!left;
     });
     plan.arrows = plan.arrows.filter((arrow) => {
@@ -245,16 +245,7 @@
       arrow.to = pointOf(left[1]);
       return true;
     });
-    for (const name of gone) dropFromSections(plan, name);
-    const empty = ["track", "points", "arrows", "breaks", "blocks", "ends", "sections"].every((name) => !plan[name].length);
-    if (empty) delete config.logic.plan;
-  }
-
-  function dropFromSections(plan, name) {
-    for (const section of plan.sections.filter(isObject)) {
-      if (Array.isArray(section.blocks)) section.blocks = section.blocks.filter((b) => b !== name);
-    }
-    plan.sections = plan.sections.filter((s) => !isObject(s) || list(s.blocks).length);
+    if (KEYS.every((name) => !plan[name].length)) delete config.logic.plan;
   }
 
   /** Draw track from `a` to `b`. */
@@ -320,6 +311,7 @@
       if (next.turnout === null) {
         delete next.straight;
         delete next.straightIs;
+        delete next.pairedWith;
       }
       if (next.straight === undefined) delete next.straight;
       if (i < 0) plan.points.push(next);
@@ -342,8 +334,8 @@
 
   /**
    * Take a block break away, with its signals and sensors. Blocks it kept
-   * apart become one: the first keeps its name and takes the other's sensors
-   * and places in sections.
+   * apart become one: the first keeps its name and Timing, and takes the
+   * other's sensors.
    */
   function removeBreak(config, at) {
     change(config, (plan) => {
@@ -363,9 +355,6 @@
             if (!kept.sensors.some((m) => JSON.stringify(m) === JSON.stringify(member))) kept.sensors.push(member);
           }
           plan.blocks.splice(plan.blocks.indexOf(other), 1);
-          for (const section of plan.sections.filter(isObject)) {
-            section.blocks = [...new Set(list(section.blocks).map((b) => (b === other.name ? kept.name : b)))];
-          }
         }
       }
     });
@@ -387,6 +376,26 @@
     });
   }
 
+  /**
+   * A controlled signal's options: `button`, the pin of its button on the
+   * fascia ("" for none), and `manualOnly`. Each is left out when not set.
+   */
+  function setSignalOptions(config, at, facing, values) {
+    change(config, (plan) => {
+      const signal = list(breakAt(plan, at)?.signals).find((s) => isObject(s) && same(s.facing, facing));
+      if (!signal) return;
+      if ("button" in values) {
+        const pin = String(values.button ?? "").trim();
+        if (pin) signal.button = pin;
+        else delete signal.button;
+      }
+      if ("manualOnly" in values) {
+        if (values.manualOnly === true) signal.manualOnly = true;
+        else delete signal.manualOnly;
+      }
+    });
+  }
+
   /** The sensors that stand at a block break. */
   function setBreakSensors(config, at, sensors) {
     change(config, (plan) => {
@@ -396,26 +405,21 @@
   }
 
   /**
-   * Name or change the block on the piece a-b. A new block needs a name. The
-   * sections that include it follow a rename.
+   * Name or change the block on the piece a-b: `name`, `sensors`, and its
+   * Timing, `release` and `approachLock` (empty for the usual). A new block
+   * needs a name, and a block cannot lose its name.
    */
   function setBlock(config, a, b, values) {
     change(config, (plan) => {
-      const found = blockAt(config, a, b);
+      let found = blockAt(config, a, b);
       if (!found) {
-        if (values.name) plan.blocks.push({ name: values.name, at: [a, b], sensors: [], ...values });
-        return;
-      }
-      if (values.name !== undefined && values.name !== found.name) {
         if (!values.name) return;
-        // Not when another block has the old name: sections may mean that one.
-        if (plan.blocks.filter((o) => o?.name === found.name).length === 1) {
-          for (const section of plan.sections.filter(isObject)) {
-            section.blocks = list(section.blocks).map((name) => (name === found.name ? values.name : name));
-          }
-        }
+        found = { name: values.name, at: [a, b], sensors: [] };
+        plan.blocks.push(found);
       }
+      if (values.name !== undefined && !values.name) return;
       Object.assign(found, values);
+      for (const key of ["release", "approachLock"]) if (!found[key]) delete found[key];
     });
   }
 
@@ -424,7 +428,6 @@
     if (!found) return;
     change(config, (plan) => {
       plan.blocks.splice(plan.blocks.indexOf(found), 1);
-      if (!plan.blocks.some((o) => o?.name === found.name)) dropFromSections(plan, found.name);
     });
   }
 
@@ -433,82 +436,6 @@
     change(config, (plan) => {
       plan.ends = plan.ends.filter((e) => !same(e?.at, at));
       if (beyond && beyond !== "signalled") plan.ends.push({ at, beyond });
-    });
-  }
-
-  // ===== One train at a time ================================================
-
-  /** The section that includes a block, or null. */
-  function sectionOf(config, block) {
-    return list(config?.logic?.plan?.sections).find((s) => isObject(s) && list(s.blocks).includes(block)) || null;
-  }
-
-  const sectionNames = (config) => new Set([
-    ...list(config?.logic?.plan?.sections), ...list(config?.logic?.resources),
-  ].map((item) => item?.name));
-
-  /**
-   * Take these blocks one train at a time. Sections that already hold any of
-   * them become one, which keeps the first's settings. `make(block, n)` names
-   * a new one. Returns its name.
-   */
-  function addSection(config, blocks, make) {
-    const wanted = [...new Set(blocks)].filter(Boolean);
-    if (!wanted.length) return null;
-    let name = null;
-    change(config, (plan) => {
-      const [kept, ...rest] = plan.sections.filter((s) => isObject(s) && list(s.blocks).some((b) => wanted.includes(b)));
-      if (kept) {
-        kept.blocks = [...new Set([...list(kept.blocks), ...rest.flatMap((s) => list(s.blocks)), ...wanted])];
-        for (const other of rest) {
-          plan.sections.splice(plan.sections.indexOf(other), 1);
-          followSection(config, other.name, kept.name);
-        }
-        name = kept.name;
-        return;
-      }
-      const taken = sectionNames(config);
-      let n = 1;
-      while (taken.has(make(wanted[0], n))) n += 1;
-      name = make(wanted[0], n);
-      plan.sections.push({ name, blocks: wanted });
-    });
-    return name;
-  }
-
-  // The Logic page's own rules that take or read a section, by its name.
-  function followSection(config, from, to) {
-    const visit = (value) => {
-      if (Array.isArray(value)) return value.forEach(visit);
-      if (!isObject(value)) return;
-      for (const key of ["reserve", "section"]) if (value[key] === from) value[key] = to;
-      Object.values(value).forEach(visit);
-    };
-    visit([config.logic?.layers, config.logic?.resources]);
-  }
-
-  /**
-   * Change a section: `name`, `blocks` (none removes it), `release` and
-   * `approachLock` (empty for the usual). A name another section has is refused.
-   */
-  function setSection(config, name, values) {
-    change(config, (plan) => {
-      const section = plan.sections.find((s) => isObject(s) && s.name === name);
-      if (!section) return;
-      const next = { ...values };
-      if (next.name !== undefined && next.name !== name) {
-        if (!next.name || sectionNames(config).has(next.name)) delete next.name;
-        else followSection(config, name, next.name);
-      }
-      Object.assign(section, next);
-      for (const key of ["release", "approachLock"]) if (!section[key]) delete section[key];
-      if (!list(section.blocks).length) plan.sections.splice(plan.sections.indexOf(section), 1);
-    });
-  }
-
-  function removeSection(config, name) {
-    change(config, (plan) => {
-      plan.sections = plan.sections.filter((s) => s?.name !== name);
     });
   }
 
@@ -524,8 +451,7 @@
 
   global.EsphomeMrPlanEdit = {
     graph, kindAt, neighbours, stretchOfBlock, blockAt, directionAt, path, breakAt,
-    draw, erase, setDirection, setPoint, addBreak, removeBreak, setSignal, setBreakSensors,
+    draw, erase, setDirection, setPoint, addBreak, removeBreak, setSignal, setSignalOptions, setBreakSensors,
     setBlock, removeBlock, setEnd, freeBlockName,
-    sectionOf, addSection, setSection, removeSection,
   };
 })(typeof globalThis !== "undefined" ? globalThis : window);

@@ -1,9 +1,9 @@
 {
-  "name": "track plan: a diamond crossing",
+  "name": "track plan: a diamond crossing, in Auto",
   "covers": [
-    "Track plan: a diamond crossing, one train at a time"
+    "Track plan: a diamond in Auto"
   ],
-  "about": "Two trains arrive together. One is given the diamond; the other waits until it has been clear for 3 seconds.",
+  "about": "In Auto, each train asks as it arrives behind its signal. The two lines' routes clash on the crossing, and each takes everything from its signal to the end: the diamond and the block beyond. Two trains arrive together: the signal listed first goes; the other waits until the first train has been seen going on into East and the diamond has been clear for 3 seconds. East is freed in turn once it has been clear for 3 seconds.",
   "module": {
     "sensors": [
       "West current",
@@ -228,20 +228,24 @@
           ],
           "beyond": "plain"
         }
-      ],
-      "sections": [
-        {
-          "name": "Crossing",
-          "blocks": [
-            "Diamond"
-          ]
-        }
       ]
     }
   },
   "steps": [
     {
       "at": 2,
+      "expect": {
+        "masts": {
+          "West signal": "R292",
+          "North signal": "R292"
+        },
+        "resources": {
+          "Diamond": "IDLE"
+        }
+      }
+    },
+    {
+      "at": 5,
       "do": [
         {
           "sensor": "West current",
@@ -251,22 +255,29 @@
           "sensor": "North current",
           "is": "occupied"
         }
-      ]
-    },
-    {
-      "at": 7,
+      ],
       "expect": {
+        "events": [
+          {
+            "grant": "Diamond",
+            "rule": "West signal moves/1"
+          },
+          {
+            "grant": "East",
+            "rule": "West signal moves/1"
+          }
+        ],
         "masts": {
           "West signal": "R281",
           "North signal": "R292"
         },
-        "resources": {
-          "Crossing": "ACTIVE"
+        "rules": {
+          "North signal moves/1": "waiting"
         }
       }
     },
     {
-      "at": 15,
+      "at": 10,
       "do": [
         {
           "sensor": "Diamond current",
@@ -274,9 +285,48 @@
         }
       ],
       "expect": {
+        "events": [
+          {
+            "pass": "Diamond",
+            "rule": "West signal moves/1"
+          }
+        ],
         "masts": {
           "West signal": "R292",
           "North signal": "R292"
+        },
+        "resources": {
+          "Diamond": "PASSED",
+          "East": "ACTIVE"
+        }
+      }
+    },
+    {
+      "at": 12,
+      "do": [
+        {
+          "sensor": "West current",
+          "is": "clear"
+        }
+      ]
+    },
+    {
+      "at": 15,
+      "do": [
+        {
+          "sensor": "East current",
+          "is": "occupied"
+        }
+      ],
+      "expect": {
+        "events": [
+          {
+            "pass": "East",
+            "rule": "West signal moves/1"
+          }
+        ],
+        "resources": {
+          "East": "PASSED"
         }
       }
     },
@@ -284,7 +334,7 @@
       "at": 18,
       "do": [
         {
-          "sensor": "West current",
+          "sensor": "Diamond current",
           "is": "clear"
         }
       ]
@@ -294,36 +344,63 @@
       "do": [
         {
           "sensor": "East current",
-          "is": "occupied"
-        }
-      ]
-    },
-    {
-      "at": 25,
-      "do": [
-        {
-          "sensor": "Diamond current",
           "is": "clear"
         }
       ]
     },
     {
-      "at": 54,
+      "at": 47,
       "expect": {
-        "masts": {
-          "North signal": "R292"
+        "events": [],
+        "resources": {
+          "Diamond": "PASSED"
+        },
+        "holders": {
+          "Diamond": "West signal moves/1"
         }
       }
     },
     {
-      "at": 55,
+      "at": 48,
       "expect": {
+        "events": [
+          {
+            "release": "Diamond",
+            "by": "release"
+          },
+          {
+            "grant": "Diamond",
+            "rule": "North signal moves/1"
+          },
+          {
+            "grant": "South",
+            "rule": "North signal moves/1"
+          }
+        ],
         "masts": {
-          "West signal": "R292",
           "North signal": "R281"
         },
         "holders": {
-          "Crossing": "Crossing entrances/2"
+          "Diamond": "North signal moves/1",
+          "South": "North signal moves/1",
+          "East": "West signal moves/1"
+        }
+      }
+    },
+    {
+      "at": 50,
+      "expect": {
+        "events": [
+          {
+            "release": "East",
+            "by": "release"
+          }
+        ],
+        "holders": {
+          "East": null
+        },
+        "rules": {
+          "West signal moves/1": "idle"
         }
       }
     }

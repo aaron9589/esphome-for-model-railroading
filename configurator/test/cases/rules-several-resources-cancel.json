@@ -1,0 +1,409 @@
+{
+  "name": "several resources: approach locking for each, and a manual release of one",
+  "covers": [
+    "several resources: approach locking for each, and a manual release of one"
+  ],
+  "about": "West takes A (approach locking 2s) and B (none). Cancelled, B is freed at once and A after 2 seconds. Later its train has entered A when B is released by hand: A stays held. Then, granted again, A is released by hand before the train comes: the mast drops to Stop and B stays held until it too is released.",
+  "board": {
+    "sensors": [
+      "W",
+      "A",
+      "B"
+    ],
+    "masts": {
+      "West": {
+        "aspects": {
+          "R292": "stop",
+          "R281": "clear"
+        }
+      }
+    },
+    "logic": {
+      "resources": [
+        {
+          "name": "A",
+          "blocks": [
+            "A"
+          ],
+          "release": {
+            "while": {
+              "block": "A",
+              "is": "clear"
+            },
+            "for": "1s"
+          },
+          "approachLock": "2s"
+        },
+        {
+          "name": "B",
+          "blocks": [
+            "B"
+          ],
+          "release": {
+            "while": {
+              "block": "B",
+              "is": "clear"
+            },
+            "for": "1s"
+          }
+        }
+      ],
+      "layers": [
+        {
+          "name": "Moves",
+          "rules": [
+            {
+              "trigger": {
+                "while": {
+                  "block": "W",
+                  "is": "occupied"
+                },
+                "for": "0.5s"
+              },
+              "checks": [],
+              "then": {
+                "mast": "West",
+                "aspect": "R281",
+                "reserve": [
+                  "A",
+                  "B"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "steps": [
+    {
+      "at": 1,
+      "do": [
+        {
+          "sensor": "W",
+          "is": "occupied"
+        }
+      ]
+    },
+    {
+      "at": 6,
+      "expect": {
+        "events": [
+          {
+            "grant": "A",
+            "rule": "Moves/1"
+          },
+          {
+            "grant": "B",
+            "rule": "Moves/1"
+          }
+        ],
+        "masts": {
+          "West": "R281"
+        }
+      }
+    },
+    {
+      "at": 10,
+      "do": [
+        {
+          "sensor": "W",
+          "is": "clear"
+        }
+      ]
+    },
+    {
+      "at": 14,
+      "expect": {
+        "masts": {
+          "West": "R281"
+        },
+        "events": []
+      }
+    },
+    {
+      "at": 15,
+      "expect": {
+        "events": [
+          {
+            "cancel": "A",
+            "rule": "Moves/1"
+          },
+          {
+            "cancel": "B",
+            "rule": "Moves/1"
+          },
+          {
+            "release": "B",
+            "by": "cancel"
+          }
+        ],
+        "masts": {
+          "West": "R292"
+        },
+        "resources": {
+          "A": "CANCELLING",
+          "B": "IDLE"
+        },
+        "holders": {
+          "A": "Moves/1",
+          "B": null
+        },
+        "rules": {
+          "Moves/1": "cancelling"
+        }
+      }
+    },
+    {
+      "at": 34,
+      "expect": {
+        "resources": {
+          "A": "CANCELLING"
+        },
+        "events": []
+      }
+    },
+    {
+      "at": 35,
+      "expect": {
+        "events": [
+          {
+            "release": "A",
+            "by": "time"
+          }
+        ],
+        "resources": {
+          "A": "IDLE"
+        },
+        "rules": {
+          "Moves/1": "idle"
+        }
+      }
+    },
+    {
+      "at": 40,
+      "do": [
+        {
+          "sensor": "W",
+          "is": "occupied"
+        }
+      ]
+    },
+    {
+      "at": 45,
+      "expect": {
+        "events": [
+          {
+            "grant": "A",
+            "rule": "Moves/1"
+          },
+          {
+            "grant": "B",
+            "rule": "Moves/1"
+          }
+        ],
+        "masts": {
+          "West": "R281"
+        }
+      }
+    },
+    {
+      "at": 50,
+      "do": [
+        {
+          "sensor": "A",
+          "is": "occupied"
+        }
+      ],
+      "expect": {
+        "events": [
+          {
+            "pass": "A",
+            "rule": "Moves/1"
+          }
+        ],
+        "masts": {
+          "West": "R292"
+        },
+        "resources": {
+          "A": "PASSED",
+          "B": "ACTIVE"
+        }
+      }
+    },
+    {
+      "at": 51,
+      "do": [
+        {
+          "sensor": "W",
+          "is": "clear"
+        }
+      ]
+    },
+    {
+      "at": 52,
+      "do": [
+        {
+          "release": "B",
+          "via": "button"
+        }
+      ],
+      "expect": {
+        "events": [
+          {
+            "release": "B",
+            "by": "manual"
+          }
+        ],
+        "resources": {
+          "A": "PASSED",
+          "B": "IDLE"
+        },
+        "holders": {
+          "A": "Moves/1",
+          "B": null
+        },
+        "rules": {
+          "Moves/1": "passed"
+        }
+      }
+    },
+    {
+      "at": 55,
+      "do": [
+        {
+          "sensor": "A",
+          "is": "clear"
+        }
+      ]
+    },
+    {
+      "at": 65,
+      "expect": {
+        "events": [
+          {
+            "release": "A",
+            "by": "release"
+          }
+        ],
+        "resources": {
+          "A": "IDLE"
+        },
+        "rules": {
+          "Moves/1": "idle"
+        }
+      }
+    },
+    {
+      "at": 70,
+      "do": [
+        {
+          "sensor": "W",
+          "is": "occupied"
+        }
+      ]
+    },
+    {
+      "at": 75,
+      "expect": {
+        "events": [
+          {
+            "grant": "A",
+            "rule": "Moves/1"
+          },
+          {
+            "grant": "B",
+            "rule": "Moves/1"
+          }
+        ],
+        "masts": {
+          "West": "R281"
+        }
+      }
+    },
+    {
+      "at": 78,
+      "do": [
+        {
+          "release": "A",
+          "via": "button"
+        }
+      ],
+      "expect": {
+        "events": [
+          {
+            "release": "A",
+            "by": "manual"
+          }
+        ],
+        "masts": {
+          "West": "R292"
+        },
+        "resources": {
+          "A": "IDLE",
+          "B": "ACTIVE"
+        },
+        "holders": {
+          "A": null,
+          "B": "Moves/1"
+        },
+        "rules": {
+          "Moves/1": "passed"
+        }
+      }
+    },
+    {
+      "at": 79,
+      "expect": {
+        "events": [],
+        "masts": {
+          "West": "R292"
+        }
+      }
+    },
+    {
+      "at": 80,
+      "do": [
+        {
+          "release": "B",
+          "via": "button"
+        }
+      ],
+      "expect": {
+        "events": [
+          {
+            "release": "B",
+            "by": "manual"
+          }
+        ],
+        "masts": {
+          "West": "R292"
+        },
+        "resources": {
+          "B": "IDLE"
+        },
+        "rules": {
+          "Moves/1": "waiting"
+        }
+      }
+    },
+    {
+      "at": 81,
+      "expect": {
+        "events": [
+          {
+            "grant": "A",
+            "rule": "Moves/1"
+          },
+          {
+            "grant": "B",
+            "rule": "Moves/1"
+          }
+        ],
+        "masts": {
+          "West": "R281"
+        }
+      }
+    }
+  ]
+}

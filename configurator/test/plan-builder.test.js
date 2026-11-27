@@ -1,42 +1,24 @@
-// The track plan's builder (docs/field-logic-plan-spec.md; work item TP 2). The
-// cases in test/cases/plan are hand-worked from the spec: each gives a drawing
-// (`logic.plan`) and a timeline. Each becomes a configurator board, its rule
-// table is built the way the YAML does it (logicTable), and the JS engine
-// replays the timeline. Then the builder's own checks.
+// The track plan's builder (docs/field-logic-plan-spec.md; work items TP 2 and
+// TP 4). The cases in test/cases/plan are hand-worked from the spec: each gives
+// a drawing (`logic.plan`) and a timeline. Each becomes a configurator board
+// (plan-cases.js), its rule table is built the way the YAML does it
+// (logicTable), and the JS engine replays the timeline; engine-diff.test.js
+// replays them in the C++ core too. Then the builder's own checks.
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { configuratorDir, loadModules, test } from "./harness.js";
 import { runCase } from "./engine-runner.js";
+import { planBoard, planCasesDir, readPlanCase } from "./plan-cases.js";
 
 const context = loadModules("generator.js", "logic-yaml.js", "logic.js", "logic-checker.js", "logic-try.js", "logic-ui.js", "logic-ui-masts.js", "logic-ui-rules.js", "logic-ui-views.js", "logic-ui-start.js", "logic-ui-try.js", "logic-starters.js", "logic-starters-sections.js", "logic-starters-signals.js", "mss-builder.js", "plan-builder.js", "logic-summary.js");
 const { EsphomeMr, EsphomeMrLogicYaml: L, EsphomeMrPlanBuilder: B } = context;
-const { generateYaml, myFirstBoardPreset, parseConfigFromYaml, topicFor, validateConfig } = EsphomeMr;
+const { generateJmriXml, generateYaml, myFirstBoardPreset, parseConfigFromYaml, topicFor, validateConfig } = EsphomeMr;
 
 const plain = (value) => JSON.parse(JSON.stringify(value));
-const casesDir = path.join(configuratorDir, "test", "cases", "plan");
-const readCase = (name) => JSON.parse(fs.readFileSync(path.join(casesDir, `${name}.json`), "utf8"));
-
-const CATS = ["R292", "R285", "ADV_NORM", "R281", "R282", "R283", "R286"];
-const SENSOR_PINS = ["GPIO14", "GPIO27", "GPIO26", "GPIO25", "GPIO33", "GPIO32", "GPIO35", "GPIO34", "GPIO39"];
-const MAST_PINS = ["GPIO16", "GPIO17", "GPIO19", "GPIO23", "GPIO18", "GPIO13", "GPIO4"];
-
-const mast = (name, pin) => ({
-  name, topic: topicFor("signal", name), topicCustom: false, mode: "addressable", pin,
-  lamps: [{ name: "Head", count: 1 }],
-  aspects: CATS.map((label, i) => ({ label, states: [`${label}; Lit; Unheld`], ...(i === 0 ? { startup: true } : {}), lamps: [{ color: i === 0 ? "red" : "green", mode: "steady" }] })),
-});
-
-function board(module) {
-  const config = myFirstBoardPreset();
-  config.board.name = "plan-k7m4x2";
-  config.board.nameSuffix = "k7m4x2";
-  config.blocks = module.sensors.map((s, i) => ({ name: s, topic: topicFor("block", s), topicCustom: false, gpio: SENSOR_PINS[i], inverted: true, debounce: "500ms" }));
-  config.points = (module.turnouts || []).map((t, i) => ({ name: t, topic: topicFor("point", t), channel: i }));
-  config.signals = { mode: "addressable", masts: module.masts.map((m, i) => mast(m, MAST_PINS[i])) };
-  config.logic = { mode: "field", plan: plain(module.plan) };
-  return config;
-}
+const casesDir = planCasesDir;
+const readCase = readPlanCase;
+const board = (module) => planBoard(context, module);
 const of = (name) => board(readCase(name).module);
 const texts = (config, level) => plain(B.problems(config)).filter((p) => p.level === level).map((p) => p.text);
 
@@ -70,7 +52,7 @@ test("your own rules run beside the plan, after its groups", () => {
   const config = of("gauntlet");
   config.logic.layers = [{ name: "Mine", rules: [{ trigger: { while: { block: "Bridge", is: "clear" } }, checks: [], then: { mast: "Left Bridge", aspect: "R281" } }] }];
   const names = plain(L.logicTable(config).logic.layers).map((g) => g.name);
-  assert.deepEqual(names, ["Left Bridge", "Right Bridge", "Bridge section entrances", "Mine"]);
+  assert.deepEqual(names, ["Left Bridge", "Right Bridge", "Left Bridge moves", "Right Bridge moves", "Mine"]);
 });
 
 test("a renamed signal aspect, sensor and mast follow into the drawing", () => {
@@ -119,8 +101,10 @@ test("drawing mistakes are errors that stop the download", () => {
   has(broken("junction", (p) => { p.breaks[0].at = [5, 1]; }), "error", T.badBreak("the point at 5, 1"));
   has(broken("junction", (p) => { p.points[0].turnout = "P9"; }), "error", T.noTurnout("P9"));
   has(broken("gauntlet", (p) => { p.arrows = []; }), "error", T.ambiguous("Left Bridge"));
-  has(broken("gauntlet", (p) => { p.blocks.splice(1, 1); p.sections = []; }), "error", T.unproved("Left Bridge"));
-  has(broken("gauntlet", (p) => { p.blocks.splice(0, 1); }), "error", T.sectionWaiting("Bridge section", "Left Bridge"));
+  has(broken("gauntlet", (p) => { p.blocks.splice(1, 1); }), "error", T.unproved("Left Bridge"));
+  has(broken("gauntlet", (p) => { p.blocks.splice(0, 1); }), "error", T.clashWaiting("Left Bridge", "Right Bridge"));
+  has(broken("gauntlet", (p) => { p.blocks[1].release = "soon"; }), "error", T.badTime("Bridge", "free-after time"));
+  has(broken("gauntlet", (p) => { p.blocks[1].approachLock = "10 s"; }), "error", T.badTime("Bridge", "hold time"));
   const bad = broken("gauntlet", (p) => { p.arrows = []; });
   assert.ok(validateConfig(bad).errors.includes(T.ambiguous("Left Bridge")));
 });
@@ -135,48 +119,152 @@ test("a file of the wrong shape is reported, not thrown", () => {
   }
 });
 
-test("a crossing or a single line with no section is an error; with one, it is not", () => {
-  const words = B.TEXT.headOn("West signal", "North signal");
-  has(broken("diamond", (p) => { p.sections = []; }), "error", words);
-  assert.ok(!texts(of("diamond"), "error").includes(words));
-  // A passing loop needs each road, its points and the single line: the
-  // error offers one at a time, and the loop's roads are separate.
-  const loop = broken("passing-siding", (p) => { p.sections = p.sections.slice(0, 1); });
-  has(loop, "error", B.TEXT.headOn("West Home", "East Home"));
-  const offered = plain(B.problems(loop)).filter((p) => p.where.blocks).map((p) => p.where.blocks);
-  assert.deepEqual(offered, [["West points"], ["West points"], ["Main loop"]]);
+// What a signal's routes take, by rule.
+const movesOf = (config, mast) => plain(B.build(config)).layers.find((g) => g.name === `${mast} moves`)?.rules.map((r) => r.then.reserve) ?? null;
+const movesGroup = (config, mast) => plain(B.build(config)).layers.find((g) => g.name === `${mast} moves`);
+
+test("a route takes everything from its signal to its end; routes clash on a crossing, and track no sensor sees is an error", () => {
+  // The diamond's lines share only the crossing, and each route takes the
+  // diamond and the block beyond it.
+  assert.deepEqual(plain(B.build(of("diamond")).resources).map((r) => [r.name, r.blocks]), [["Diamond", ["Diamond"]], ["East", ["East"]], ["South", ["South"]]]);
+  assert.deepEqual(movesOf(of("diamond"), "West signal"), [["Diamond", "East"]]);
+  // Track no sensor sees on a route is not taken: it is freed with the next block that has one.
+  assert.deepEqual(movesOf(of("gauntlet"), "Left Bridge"), [["Bridge"]]);
+  has(broken("diamond", (p) => { p.blocks = p.blocks.filter((b) => b.name !== "Diamond"); }), "error", B.TEXT.clashUnseen("West signal", "North signal"));
+  // A junction's signals never share track: they are block signals, and nothing is taken.
+  assert.deepEqual(plain(B.build(of("junction")).resources), []);
+  assert.equal(movesOf(of("junction"), "Home"), null);
 });
 
-// Two one-way tracks joining with no turnout, a signal on each: nothing but a
-// section stops both clearing at once.
-const merge = (change = () => {}) => {
-  const config = of("gauntlet");
-  config.logic.plan = {
-    track: [[[0, 0], [3, 0]], [[3, 0], [4, 1]], [[0, 2], [3, 2]], [[3, 2], [4, 1]], [[4, 1], [8, 1]]],
-    points: [{ at: [4, 1], turnout: null }],
-    arrows: [{ from: [0, 0], to: [1, 0] }, { from: [0, 2], to: [1, 2] }, { from: [5, 1], to: [6, 1] }],
-    breaks: [{ at: [2, 0], signals: [{ mast: "Left Bridge", facing: [3, 0] }] }, { at: [2, 2], signals: [{ mast: "Right Bridge", facing: [3, 2] }] }],
-    blocks: [{ name: "Left", at: [[0, 0], [1, 0]], sensors: ["Left current"] }, { name: "Right", at: [[0, 2], [1, 2]], sensors: ["Right current"] },
-      { name: "Bridge", at: [[5, 1], [6, 1]], sensors: ["Bridge current"] }],
-    ends: [{ at: [8, 1], beyond: "plain" }],
-  };
-  change(config.logic.plan, config);
-  return config;
-};
+test("a crossing loop: every block of a route is taken, and each is freed behind the train after its block's Timing", () => {
+  const config = of("passing-siding");
+  assert.deepEqual(plain(B.build(config).resources).map((r) => r.name), ["West points", "Main loop", "Siding", "West line", "East points", "Single"]);
+  assert.deepEqual(movesOf(config, "Main West"), [["West points", "West line"]]);
+  assert.deepEqual(movesOf(config, "West Home"), [["West points", "Main loop"], ["West points", "Siding"]]);
+  assert.deepEqual(movesOf(config, "Main East"), [["East points", "Single"]]);
+  assert.deepEqual(movesOf(config, "East Home"), [["Single", "East points", "Main loop"], ["Single", "East points", "Siding"]]);
+  // East Advance runs off the drawing on track no other signal uses: a block signal.
+  assert.equal(movesOf(config, "East Advance"), null);
+  // Sequential release: the next block along the way, or past the signal the route ends at.
+  assert.deepEqual(movesGroup(config, "West Home").rules[0].then.next, { "West points": ["Main loop"], "Main loop": ["East points"] });
+  // A piece is freed after its block's Timing; the hold after cancelling is the block behind the signal's.
+  config.logic.plan.blocks.find((b) => b.name === "East points").release = "5s";
+  config.logic.plan.blocks.find((b) => b.name === "Far").approachLock = "10s";
+  assert.equal(plain(B.build(config).resources).find((r) => r.name === "East points").release.for, "5s");
+  assert.ok(plain(B.build(config).resources).every((r) => r.approachLock === undefined));
+  assert.deepEqual(movesGroup(config, "East Home").rules.map((r) => r.approachLock), [{ block: "Far", for: "10s" }, { block: "Far", for: "10s" }]);
+  assert.equal(movesGroup(config, "West Home").rules[0].approachLock, undefined);
+  assert.deepEqual(plain(validateConfig(config).errors), []);
+});
 
-test("fail safe: two tracks that join with no turnout cannot both clear onto it", () => {
-  const words = B.TEXT.headOn("Left Bridge", "Right Bridge");
-  has(merge(), "error", words);
-  assert.deepEqual(plain(B.problems(merge()).find((p) => p.text === words).where.blocks), ["Bridge"]);
-  assert.ok(!texts(merge((p) => { p.sections = [{ name: "Bridge section", blocks: ["Bridge"] }]; }), "error").includes(words));
-  // Through a turnout they cannot both be set.
-  const turnout = merge((p, config) => { config.points = [{ name: "P1" }]; p.points = [{ at: [4, 1], turnout: "P1", straight: [3, 0] }]; });
+test("a scissors crossover: each line's routes take only their own line, and the crossovers clash only on the crossing", () => {
+  const config = of("scissors");
+  assert.deepEqual(movesOf(config, "NW signal"), [["North scissors 1", "North scissors 2", "North east"], ["North scissors 1", "Diamond", "South scissors 1", "South east"]]);
+  assert.deepEqual(movesOf(config, "SW signal"), [["South scissors 2", "South scissors 1", "South east"], ["South scissors 2", "Diamond", "North scissors 2", "North east"]]);
+  assert.deepEqual(movesOf(config, "SE signal")[0], ["South scissors 1", "South scissors 2", "South west"]);
+});
+
+test("a controlled signal is asked for in Auto by a train arriving from the far side, in Manual by CATS or its button", () => {
+  const group = movesGroup(of("gauntlet"), "Left Bridge");
+  assert.equal(group.routes, true);
+  const rule = group.rules[0];
+  assert.deepEqual(rule.trigger, { when: { any: [
+    { block: "Left", is: "occupied", notFrom: ["Bridge"], if: { auto: "on" } },
+    { mast: "Left Bridge", is: "unheld", if: { auto: "off" } },
+  ] } });
+  assert.deepEqual(rule.cancel, { when: { any: [
+    { block: "Left", is: "clear", for: "3s", if: { auto: "on" } },
+    { mast: "Left Bridge", is: "held", if: { auto: "off" } },
+  ] } });
+  assert.deepEqual(rule.withdraw, { when: { any: [{ auto: "on" }, { auto: "off" }] } });
+  // In Auto, a train that asked and never entered: time release after the
+  // block behind's hold time, or its Timing when it has none.
+  const held = movesGroup(broken("gauntlet", (p) => { p.blocks[0].approachLock = "20s"; }), "Left Bridge").rules[0];
+  assert.deepEqual(held.cancel.when.any[0], { block: "Left", is: "clear", for: "20s", if: { auto: "on" } });
+  // Each block knows its neighbours, for where its train came from.
+  assert.deepEqual(plain(B.build(of("gauntlet")).blocks).map((b) => [b.name, b.next]), [["Left", ["Bridge"]], ["Bridge", ["Left", "Right"]], ["Right", ["Bridge"]]]);
+  // A button asks and cancels in Manual, and is built as a button on its pin.
+  const button = broken("gauntlet", (p) => { p.breaks[0].signals[0].button = "GPIO5"; });
+  assert.deepEqual(plain(B.build(button).buttons), [{ name: "Left Bridge button", pin: "GPIO5" }]);
+  const any = movesGroup(button, "Left Bridge").rules[0].trigger.when.any;
+  assert.deepEqual(any[2], { button: "Left Bridge button", is: "pressed", if: { auto: "off" } });
+  assert.deepEqual(plain(validateConfig(button).errors), []);
+  // Manual only: always Manual, whatever the switch says; nothing to withdraw.
+  const manual = movesGroup(broken("gauntlet", (p) => { p.breaks[0].signals[0].manualOnly = true; }), "Left Bridge").rules[0];
+  assert.deepEqual(manual.trigger, { when: { mast: "Left Bridge", is: "unheld" } });
+  assert.deepEqual(manual.cancel, { when: { mast: "Left Bridge", is: "held" } });
+  assert.equal(manual.withdraw, undefined);
+  // With MQTT off and no button, nothing can ask in Manual.
+  has(broken("gauntlet", (p, config) => { config.board.mqttEnabled = false; }), "error", B.TEXT.noAsking("Left Bridge"));
+  // Nothing sees a train go past: the board cannot tell when a route was used.
+  has(broken("diamond", (p) => { p.blocks.find((b) => b.name === "Diamond").sensors = []; p.blocks.push({ name: "Cross", at: [[4, 2], [4, 3]], sensors: [] }); }), "error", B.TEXT.unseenEntry("West signal"));
+});
+
+test("crossovers move together; a passing loop's turnouts do not; a point's pairedWith changes it", () => {
+  const pairs = (config) => plain(B.build(config).pairs);
+  assert.deepEqual(pairs(of("scissors")), [{ turnout: "P1", with: "P4", same: true }, { turnout: "P3", with: "P2", same: true }]);
+  assert.deepEqual(pairs(of("passing-siding")), []);
+  assert.deepEqual(pairs(of("junction")), []);
+  // Unpaired by hand, then paired with another; a reversed turnout moves the other way.
+  assert.deepEqual(pairs(broken("scissors", (p) => { p.points[0].pairedWith = ""; })), [{ turnout: "P3", with: "P2", same: true }]);
+  assert.deepEqual(pairs(broken("passing-siding", (p) => { p.points[0].pairedWith = "PE"; p.points[1].straightIs = "thrown"; })), [{ turnout: "PW", with: "PE", same: false }]);
+  has(broken("scissors", (p) => { p.points[0].pairedWith = "P9"; }), "error", B.TEXT.pairMissing("P1", "P9"));
+  has(broken("scissors", (p) => { p.points[0].pairedWith = "P2"; }), "error", B.TEXT.pairTwice("P2"));
+});
+
+test("a crossover's turnouts move together on the board: a command for one throws both, unless the other is locked or moving", () => {
+  const yaml = generateYaml(of("scissors"));
+  const script = (id) => yaml.slice(yaml.indexOf(`  - id: ${id}\n`), yaml.indexOf("  - id: ", yaml.indexOf(`  - id: ${id}\n`) + 5));
+  for (const [mine, other] of [["p1", "p4"], ["p4", "p1"], ["p2", "p3"], ["p3", "p2"]]) {
+    for (const way of ["thrown", "closed"]) {
+      const body = script(`${mine}_throw_${way}`);
+      assert.ok(body.includes(`lambda: 'return announce && id(${other}_thrown) != ${way === "thrown"} && !id(${other}_throw_closed).is_running() && !id(${other}_throw_thrown).is_running() && !id(${other}_field_locked);'`), `${mine} ${way}`);
+      assert.ok(body.includes(`id: ${other}_throw_${way}\n                announce: true`), `${mine} ${way}`);
+    }
+  }
+  // A reversed turnout goes the other way; a board with no pairs writes none.
+  const reversed = generateYaml(broken("scissors", (p) => { p.points[3].straightIs = "thrown"; }));
+  assert.ok(reversed.slice(reversed.indexOf("  - id: p1_throw_thrown\n")).split("  - id: ")[1].includes("id: p4_throw_closed"));
+  assert.ok(!generateYaml(of("passing-siding")).includes("A crossover"));
+});
+
+test("a track plan's board: the Auto/Manual switch, each signal's button, and Release for each route, not each piece", () => {
+  const config = of("passing-siding");
+  config.logic.plan.auto = { startsOn: false, pin: "GPIO12" };
+  assert.deepEqual(plain(validateConfig(config).errors), []);
+  const yaml = generateYaml(config);
+  // The switch: on the web page, kept across a restart, starting as the drawing says; its toggle; the component's binding.
+  assert.match(yaml, /  - platform: template\n    id: logic_auto\n    name: "Auto"\n    optimistic: true\n    restore_mode: RESTORE_DEFAULT_OFF\n/);
+  assert.match(yaml, /    id: logic_auto_pin\n[\s\S]*?    on_press:\n      - switch.turn_on: logic_auto\n    on_release:\n      - switch.turn_off: logic_auto\n/);
+  assert.match(yaml, /  auto_switch: logic_auto\n/);
+  // A signal's button: its pin, the web page's button, and the binding.
+  assert.match(yaml, /      number: GPIO5\n[\s\S]*?    id: west_home_button_button\n/);
+  assert.match(yaml, /    name: "West Home button"\n    on_press:\n      - lambda: \|-\n          id\(logic\)\.press\("West Home button"\);/);
+  assert.match(yaml, /  buttons:\n    - name: "West Home button"\n      sensor: west_home_button_button\n/);
+  // Release for a route, by its signal; none for the pieces it takes.
+  assert.match(yaml, /    name: "Release West Home"\n    on_press:\n      - lambda: \|-\n          id\(logic\)\.release_group\("West Home moves"\);/);
+  assert.ok(!yaml.includes('release("Main loop")'));
+  // In JMRI: the switch's light, and each route's Release turnout.
+  const xml = generateJmriXml(config).xml;
+  assert.match(xml, /<systemName>MLauto\/plan-k7m4x2<\/systemName>/);
+  assert.match(xml, /<systemName>MTlogic\/plan-k7m4x2\/West Home moves\/Release<\/systemName>/);
+  assert.ok(!xml.includes("Main loop/Release"));
+  // A board whose plan has only block signals has no switch.
+  assert.ok(!generateYaml(of("junction")).includes("logic_auto"));
+});
+
+test("fail safe: two tracks that join with no turnout cannot both clear onto it, unless a turnout keeps them apart", () => {
+  assert.deepEqual(movesOf(of("merge"), "Upper"), [["Merge", "Out"]]);
+  assert.deepEqual(movesOf(of("merge"), "Lower"), [["Merge", "Out"]]);
+  // Through a turnout they cannot both be set: nothing is taken.
+  const turnout = broken("merge", (p, config) => { config.points = [{ name: "P1", topic: topicFor("point", "P1"), channel: 0 }]; p.points = [{ at: [4, 1], turnout: "P1", straight: [3, 0] }]; });
   assert.deepEqual(texts(turnout, "error"), []);
+  assert.deepEqual(plain(B.build(turnout).resources), []);
   // With no sensor where they meet, the page says to add one.
-  has(merge((p) => { p.blocks.pop(); }), "error", B.TEXT.headOnNoSensor("Left Bridge", "Right Bridge"));
+  has(broken("merge", (p) => { p.blocks = p.blocks.filter((b) => b.name !== "Merge"); }), "error", B.TEXT.clashUnseen("Upper", "Lower"));
 });
 
-test("fail safe: turnouts lock as a train comes up to a cleared signal, past it, and over them; sections do not hold them", () => {
+test("fail safe: turnouts lock as a train comes up to a cleared signal, past it, and over them, and with each route's pieces", () => {
   const built = plain(B.build(of("passing-siding")));
   const locks = built.layers.find((g) => g.name === "Turnout locks").rules;
   const has1 = (block, checks, turnout) => locks.some((r) => r.trigger.while.block === block && r.then.lock.includes(turnout)
@@ -184,11 +272,12 @@ test("fail safe: turnouts lock as a train comes up to a cleared signal, past it,
   assert.ok(has1("East points", [], "PE"), "under the train");
   assert.ok(has1("Single", [], "PE"), "past East Home, short of the points");
   assert.ok(has1("Far", [{ turnout: "PE", is: "closed" }, { not: { mast: "East Home", is: "stop" } }], "PE"), "coming up to East Home");
-  for (const group of built.layers.filter((g) => g.starter === "plan-section")) {
-    assert.ok(group.rules.every((r) => r.then.lock === undefined), group.name);
-  }
+  // Route locking: each turnout is held with the piece it leads into, so it
+  // is freed behind the train.
+  assert.deepEqual(built.layers.find((g) => g.name === "West Home moves").rules.map((r) => r.then.lock), [[{ turnout: "PW", with: "West points" }], [{ turnout: "PW", with: "West points" }]]);
+  assert.deepEqual(built.layers.find((g) => g.name === "East Home moves").rules[0].then.lock, [{ turnout: "PE", with: "East points" }]);
   // With nothing to see a train coming, the page says so.
-  const blind = broken("passing-siding", (p) => { p.blocks = p.blocks.filter((b) => b.name !== "Far"); p.sections = p.sections.filter((s) => s.name !== "Single line"); });
+  const blind = broken("passing-siding", (p) => { p.blocks = p.blocks.filter((b) => b.name !== "Far"); });
   has(blind, "warning", B.TEXT.noApproach("East Home"));
 });
 
@@ -214,7 +303,7 @@ test("a block with only a boundary sensor is still checked, but warned about, an
   has(config, "warning", B.TEXT.undetected("Main exit"));
   const group = plain(B.build(config).layers).find((g) => g.name === "Main exit");
   assert.equal(group.rules[0].trigger.while.block, "Main");
-  has(broken("gauntlet", (p) => { p.breaks[0].sensors = ["Left current"]; p.blocks[0].sensors = []; }), "error", B.TEXT.sectionWaiting("Bridge section", "Left Bridge"));
+  has(broken("gauntlet", (p) => { p.breaks[0].sensors = ["Left current"]; p.blocks[0].sensors = []; }), "error", B.TEXT.clashWaiting("Left Bridge", "Right Bridge"));
 });
 
 // ===== 4. The continuous run ===============================================
@@ -235,12 +324,12 @@ const loopBoard = () => board({
 
 test("a block with a sensor that no signal checks is warned about", () => {
   // The worked drawings have none: a block behind a signal counts as watched.
-  for (const name of ["gauntlet", "junction", "passing-siding", "diamond"]) {
+  for (const name of ["gauntlet", "junction", "passing-siding", "diamond", "scissors", "merge"]) {
     const config = of(name);
     for (const block of config.logic.plan.blocks) assert.ok(!texts(config, "warning").includes(B.TEXT.unwatched(block.name)), `${name}: ${block.name}`);
   }
   // With no signals left on it, the drawing checks none of its blocks.
-  const bare = broken("gauntlet", (p) => { for (const brk of p.breaks) brk.signals = []; p.sections = []; });
+  const bare = broken("gauntlet", (p) => { for (const brk of p.breaks) brk.signals = []; });
   for (const name of ["Left", "Bridge", "Right"]) has(bare, "warning", B.TEXT.unwatched(name));
 });
 

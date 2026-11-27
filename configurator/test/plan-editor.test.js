@@ -1,7 +1,7 @@
 // The track plan's grid editor (docs/field-logic-plan-spec.md; work item TP 3).
 // Each drawing in test/cases/plan is made again from an empty page with the
 // editor's own changes, and must build the same as the hand-written one. Then
-// the editing rules, one train at a time, the picture's layout and picking.
+// the editing rules, a block's Timing, the picture's layout and picking.
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
@@ -13,7 +13,7 @@ const { EsphomeMrPlanEdit: E, EsphomeMrPlanBuilder: B, EsphomeMrLogicUiPlan: P }
 
 const plain = (value) => JSON.parse(JSON.stringify(value));
 const readCase = (name) => JSON.parse(fs.readFileSync(path.join(configuratorDir, "test", "cases", "plan", `${name}.json`), "utf8"));
-const NAMES = ["gauntlet", "junction", "passing-siding", "diamond"];
+const NAMES = ["gauntlet", "junction", "passing-siding", "diamond", "scissors", "merge"];
 
 const CATS = ["R292", "R285", "ADV_NORM", "R281", "R282", "R283", "R286"];
 
@@ -28,7 +28,7 @@ function boardFor(data) {
 }
 
 // Draw a case's plan the way a person would: track, turnouts, breaks and
-// signals, blocks, arrows, ends, then one train at a time.
+// signals, blocks with their Timing, arrows and ends.
 function redraw(data) {
   const wanted = data.module.plan;
   const config = boardFor(data);
@@ -39,23 +39,24 @@ function redraw(data) {
   }
   for (const brk of wanted.breaks || []) {
     assert.ok(E.addBreak(config, brk.at), `break at ${brk.at}`);
-    for (const signal of brk.signals || []) E.setSignal(config, brk.at, signal.facing, signal.mast);
+    for (const signal of brk.signals || []) {
+      E.setSignal(config, brk.at, signal.facing, signal.mast);
+      const { mast, facing, ...options } = signal;
+      if (Object.keys(options).length) E.setSignalOptions(config, brk.at, facing, options);
+    }
     if (brk.sensors?.length) E.setBreakSensors(config, brk.at, brk.sensors);
   }
   const unit = ([a, b]) => [a, [a[0] + Math.sign(b[0] - a[0]), a[1] + Math.sign(b[1] - a[1])]];
   for (const block of wanted.blocks || []) {
     const [a, b] = unit(block.at);
-    E.setBlock(config, a, b, { name: block.name, sensors: block.sensors });
+    const { at, ...values } = block;
+    E.setBlock(config, a, b, values);
   }
   for (const arrow of wanted.arrows || []) {
     const [a, b] = unit([arrow.from, arrow.to]);
     E.setDirection(config, a, b, b);
   }
   for (const end of wanted.ends || []) E.setEnd(config, end.at, end.beyond);
-  for (const section of wanted.sections || []) {
-    const name = E.addSection(config, section.blocks, (block) => `${block} section`);
-    E.setSection(config, name, { ...section });
-  }
   return config;
 }
 
@@ -68,6 +69,8 @@ function builtOf(config) {
     masts: sorted(items.masts),
     resources: sorted(items.resources),
     layers: sorted(items.layers.map((layer) => ({ ...layer, rules: sorted(layer.rules) }))),
+    pairs: sorted(items.pairs),
+    buttons: sorted(items.buttons),
     problems: B.problems(config).map((p) => `${p.level}: ${p.text}`).sort(),
   };
 }
@@ -116,24 +119,20 @@ test("a block stays with the track that is left, and goes with the last of it", 
   E.setBlock(config, [0, 0], [1, 0], { name: "Main", sensors: ["S1"] });
   E.erase(config, [0, 0], [1, 0]);
   assert.equal(E.blockAt(config, [3, 0], [4, 0]).name, "Main");
-  config.logic.plan.sections = [{ name: "Sec", blocks: ["Main"] }];
   E.draw(config, [0, 3], [2, 3]);
   E.erase(config, [1, 0], [6, 0]);
   assert.deepEqual(plan(config).blocks, []);
-  assert.deepEqual(plan(config).sections, []);
 });
 
-test("a block break splits a block; taking it away joins the two and their sensors", () => {
+test("a block break splits a block; taking it away joins the two and their sensors, keeping the first one's Timing", () => {
   const config = line();
   E.setSignal(config, [3, 0], [4, 0], "Home");
   assert.equal(plan(config).breaks.length, 1);
-  E.setBlock(config, [0, 0], [1, 0], { name: "West", sensors: ["S1"] });
-  E.setBlock(config, [5, 0], [6, 0], { name: "East", sensors: ["S2", "S1"] });
-  config.logic.plan.sections = [{ name: "Sec", blocks: ["East"] }];
+  E.setBlock(config, [0, 0], [1, 0], { name: "West", sensors: ["S1"], release: "5s" });
+  E.setBlock(config, [5, 0], [6, 0], { name: "East", sensors: ["S2", "S1"], approachLock: "10s" });
   E.removeBreak(config, [3, 0]);
   assert.deepEqual(plan(config).breaks, []);
-  assert.deepEqual(plan(config).blocks.map((b) => [b.name, b.sensors]), [["West", ["S1", "S2"]]]);
-  assert.deepEqual(plan(config).sections[0].blocks, ["West"]);
+  assert.deepEqual(plan(config).blocks.map((b) => [b.name, b.sensors, b.release, b.approachLock]), [["West", ["S1", "S2"], "5s", undefined]]);
 });
 
 test("a break goes only on plain track, and is dropped when its track ends there", () => {
@@ -155,6 +154,20 @@ test("changing a signal drops the old one's aspects; choosing none removes it", 
   assert.deepEqual(plan(config).breaks[0].signals, [{ mast: "Away", facing: [4, 0] }]);
   E.setSignal(config, [3, 0], [4, 0], "");
   assert.deepEqual(plan(config).breaks[0].signals, []);
+});
+
+test("a signal's button and Manual only are kept on it, and left out when not set", () => {
+  const config = line();
+  E.setSignal(config, [3, 0], [4, 0], "Home");
+  E.setSignalOptions(config, [3, 0], [4, 0], { button: " GPIO25 ", manualOnly: true });
+  assert.deepEqual(plan(config).breaks[0].signals, [{ mast: "Home", facing: [4, 0], button: "GPIO25", manualOnly: true }]);
+  E.setSignalOptions(config, [3, 0], [4, 0], { manualOnly: false });
+  assert.deepEqual(plan(config).breaks[0].signals, [{ mast: "Home", facing: [4, 0], button: "GPIO25" }]);
+  E.setSignalOptions(config, [3, 0], [4, 0], { button: "" });
+  assert.deepEqual(plan(config).breaks[0].signals, [{ mast: "Home", facing: [4, 0] }]);
+  // No signal facing that way: nothing changes.
+  E.setSignalOptions(config, [3, 0], [2, 0], { button: "GPIO26" });
+  assert.deepEqual(plan(config).breaks[0].signals, [{ mast: "Home", facing: [4, 0] }]);
 });
 
 test("one way applies to the whole stretch, replaces what was there, and survives erasing part of it", () => {
@@ -180,14 +193,23 @@ test("point and end settings go when the point stops being one", () => {
   assert.deepEqual(plan(config).ends, []);
 });
 
-test("renaming a block takes its sections along", () => {
+test("a block keeps its name, and its Timing is stored only when it is not the usual", () => {
   const config = line();
   E.setBlock(config, [0, 0], [1, 0], { name: "Main", sensors: ["S1"] });
-  config.logic.plan.sections = [{ name: "Sec", blocks: ["Main"] }];
   E.setBlock(config, [0, 0], [1, 0], { name: "Up" });
-  assert.deepEqual(plan(config).sections[0].blocks, ["Up"]);
   E.setBlock(config, [0, 0], [1, 0], { name: "" });
   assert.equal(plan(config).blocks[0].name, "Up");
+  E.setBlock(config, [0, 0], [1, 0], { release: "5s", approachLock: "10s" });
+  assert.deepEqual(plan(config).blocks[0], { name: "Up", at: [[0, 0], [1, 0]], sensors: ["S1"], release: "5s", approachLock: "10s" });
+  E.setBlock(config, [0, 0], [1, 0], { release: "", approachLock: "" });
+  assert.deepEqual(plan(config).blocks[0], { name: "Up", at: [[0, 0], [1, 0]], sensors: ["S1"] });
+});
+
+test("a plan saved with one-train sections loses them on the next change", () => {
+  const config = line();
+  config.logic.plan.sections = [{ name: "Sec", blocks: ["Main"] }];
+  E.setBlock(config, [0, 0], [1, 0], { name: "Main", sensors: ["S1"] });
+  assert.equal(plan(config).sections, undefined);
 });
 
 test("a new block's name is one nothing else uses", () => {
@@ -196,55 +218,21 @@ test("a new block's name is one nothing else uses", () => {
   assert.equal(E.freeBlockName(config, (n) => `Track ${n}`), "Track 2");
 });
 
-const headOns = (config) => B.problems(config).filter((p) => Array.isArray(p.where.blocks));
-
-test("two signals that can meet say which blocks to take one train at a time, and that settles it", () => {
-  const expected = { gauntlet: ["Bridge"], diamond: ["Diamond"] };
-  for (const name of ["gauntlet", "passing-siding", "diamond"]) {
-    const config = redraw(readCase(name));
-    delete config.logic.plan.sections;
-    assert.ok(headOns(config).length, name);
-    if (expected[name]) assert.deepEqual(plain(headOns(config)[0].where.blocks), expected[name]);
-    // As the page's buttons would: take the first offered until none is left.
-    for (let n = 0; n < 5 && headOns(config).length; n += 1) {
-      E.addSection(config, headOns(config)[0].where.blocks, (block) => `${block} section`);
-    }
-    assert.deepEqual(plain(headOns(config)), [], name);
-    assert.deepEqual(plain(B.problems(config).filter((p) => p.level === "error")), [], name);
-  }
+test("a block shared by signals that clash says what protects it", () => {
+  assert.deepEqual(plain(B.look(redraw(readCase("gauntlet"))).protects), [{ block: "Bridge", masts: ["Left Bridge", "Right Bridge"] }]);
+  assert.deepEqual(plain(B.look(redraw(readCase("junction"))).protects), []);
+  const loop = plain(B.look(redraw(readCase("passing-siding"))).protects);
+  assert.deepEqual(loop.find((p) => p.block === "Main loop").masts, ["West Home", "East Home"]);
 });
 
-test("the gauntlet's ways in are found on the drawing", () => {
-  const found = plain(B.look(redraw(readCase("gauntlet"))).sections);
-  assert.deepEqual(found, [{ name: "Bridge section", blocks: ["Bridge"], entrances: [
-    { mast: "Left Bridge", waiting: "Left" }, { mast: "Right Bridge", waiting: "Right" }] }]);
-});
-
-test("sections that come to share a block become one, and your rules follow", () => {
-  const config = line();
-  config.logic.layers = [{ name: "Mine", rules: [{ then: { reserve: "B section" } }] }];
-  const make = (block, n) => (n > 1 ? `${block} section ${n}` : `${block} section`);
-  assert.equal(E.addSection(config, ["A"], make), "A section");
-  assert.equal(E.addSection(config, ["B"], make), "B section");
-  assert.equal(E.addSection(config, ["A", "B"], make), "A section");
-  assert.deepEqual(plan(config).sections, [{ name: "A section", blocks: ["A", "B"] }]);
-  assert.equal(config.logic.layers[0].rules[0].then.reserve, "A section");
-  assert.equal(E.addSection(config, [], make), null);
-});
-
-test("a section's settings: the usual ones are not stored, a taken name is refused, no blocks removes it", () => {
-  const config = line();
-  config.logic.resources = [{ name: "Mine" }];
-  config.logic.layers = [{ name: "G", rules: [{ then: { reserve: "A section" } }] }];
-  E.addSection(config, ["A"], (block) => `${block} section`);
-  E.setSection(config, "A section", { release: "5s", approachLock: "10s" });
-  assert.deepEqual(plan(config).sections[0], { name: "A section", blocks: ["A"], release: "5s", approachLock: "10s" });
-  E.setSection(config, "A section", { release: "", approachLock: "", name: "Mine" });
-  assert.deepEqual(plan(config).sections[0], { name: "A section", blocks: ["A"] });
-  E.setSection(config, "A section", { name: "Bridge" });
-  assert.equal(config.logic.layers[0].rules[0].then.reserve, "Bridge");
-  E.setSection(config, "Bridge", { blocks: [] });
-  assert.deepEqual(plan(config).sections, []);
+test("a crossover drawn on the page moves together, and the turnout's panel can change it", () => {
+  const config = redraw(readCase("scissors"));
+  assert.deepEqual(plain(B.build(config).pairs), [{ turnout: "P1", with: "P4", same: true }, { turnout: "P3", with: "P2", same: true }]);
+  E.setPoint(config, [5, 0], { pairedWith: "" });
+  assert.deepEqual(plain(B.build(config).pairs), [{ turnout: "P3", with: "P2", same: true }]);
+  // Choosing no turnout there takes the choice away with it.
+  E.setPoint(config, [5, 0], { turnout: null });
+  assert.equal(plan(config).points.find((p) => p.at[0] === 5 && p.at[1] === 0).pairedWith, undefined);
 });
 
 test("the picture: detected track, a signal on the train's left, and what picking finds", () => {
@@ -260,7 +248,6 @@ test("the picture: detected track, a signal on the train's left, and what pickin
   assert.ok(right.head[1] > right.at[1]);
   // Right Bridge sits under the Right block, so that name goes above the track.
   assert.deepEqual(shape.blocks.map((b) => [b.name, b.above]), [["Left", false], ["Bridge", false], ["Right", true]]);
-  assert.deepEqual(shape.sections.map((s) => [s.name, s.label]), [["Bridge section", [6, -0.55]]]);
   assert.deepEqual(plain(P.pick(shape, ...left.head)), { kind: "point", at: [2, 0] });
   assert.deepEqual(plain(P.pick(shape, 4.1, 1.05)), { kind: "point", at: [4, 1] });
   assert.equal(P.pick(shape, 5.5, 1.2).kind, "piece");

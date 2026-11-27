@@ -49,26 +49,17 @@
     noSensors: "Add sensors on the Sensors page, or link a board, then tick them here.",
     otherBoard: (board) => `From ${board}`,
     missing: (name) => `${name} (not found)`,
-    oneTrain: "One train at a time",
-    oneTrainAdd: "Make this block one train at a time",
-    oneTrainHint: "Only one train may be in it. Each signal leading in clears for a train waiting at it, and holds the track until that train has gone through.",
-    oneTrainNeedsSensor: "Give this block a sensor to make it one train at a time.",
-    sectionName: (n, block) => (n > 1 ? `${block} section ${n}` : `${block} section`),
-    sectionNameLabel: "Section name",
-    sectionNameHint: "Shown in the logs and on the board's web page. Two sections cannot share a name.",
-    sectionBlocks: "Blocks in this section",
-    entrances: "Ways in found on your drawing",
-    entrance: (mast, waiting) => (waiting ? `${mast}, for a train waiting in ${waiting}` : `${mast}, with no sensor to see a train waiting`),
-    moreOptions: "More options",
-    freeAfter: "Free it when clear for",
+    protectedBy: (masts) => {
+      const names = [].concat(masts).map((m) => `"${m}"`);
+      return `Signals ${names.slice(0, -1).join(", ")} and ${names[names.length - 1]} can each send a train onto this block. The board clears only one of them at a time, for a train waiting at it, and keeps the track taken until that train has gone through.`;
+    },
+    moreOptions: "Timing",
+    freeAfter: "Free its track when clear for",
+    freeAfterHint: "How long this block must be clear, after a train has gone through, before another train can be given its track.",
     holdAfter: "Hold after cancelling",
-    holdAfterHint: "Keep the section for a while if a signal drops in front of a train. Railways call this approach locking.",
+    holdAfterHint: "Keep the track taken for a while if a signal drops in front of a train. Railways call this approach locking.",
     off: "Off",
     seconds: (n) => (n === 1 ? "1 second" : `${n} seconds`),
-    removeSection: "Stop taking one train at a time",
-    clashesTitle: "Track two trains can get onto",
-    clashNoBlocks: "Give the track they share a block with a sensor, so it can be taken one train at a time.",
-    clashFix: (blocks) => `Make ${blocks} one train at a time`,
     pointTitle: Object.freeze({ plain: "Point on the track", turnout: "Where three lines meet", crossing: "Crossing", end: "End of the track" }),
     turnout: "Turnout",
     turnoutPick: "Pick one…",
@@ -78,6 +69,9 @@
     straightAuto: "Pick one…",
     straightInLine: "The line that carries straight on",
     straightIs: "Turnout is straight when",
+    pairWith: "Moves with",
+    pairNone: "No other turnout",
+    pairHint: "The two turnouts of a crossover move together: throwing one throws the other, from a button, JMRI or CATS. A crossover on your drawing is found for you.",
     closed: "Closed",
     thrown: "Thrown",
     crossingNote: "Two lines cross here. Trains run straight through.",
@@ -118,7 +112,7 @@
 
   /**
    * The picture, in grid units: { view: { x, y, w, h }, pieces, blocks, breaks,
-   * signals, points, ends, arrows, sections }.
+   * signals, points, ends, arrows }.
    */
   function layout(config) {
     // Where signals and their names lie, so block names keep clear of them.
@@ -220,20 +214,7 @@
       return { at: mid(arrow.from, [arrow.from[0] + step[0], arrow.from[1] + step[1]]), way };
     });
 
-    // Each section's track, and where its label goes: over its middle.
-    const sections = list(plan?.sections).filter(isObject).map((section) => {
-      const inside = pieces.filter((piece) => piece.block && list(section.blocks).includes(piece.block));
-      if (!inside.length) return null;
-      const ends = inside.flatMap((piece) => [piece.a, piece.b]);
-      const across = ends.map((p) => p[0]);
-      return {
-        name: String(section.name ?? ""),
-        pieces: inside.map(({ a, b }) => ({ a, b })),
-        label: [(Math.min(...across) + Math.max(...across)) / 2, Math.min(...ends.map((p) => p[1])) - 0.55],
-      };
-    }).filter(Boolean);
-
-    return { view, pieces, blocks, breaks, signals, points, ends: outEnds, arrows, sections };
+    return { view, pieces, blocks, breaks, signals, points, ends: outEnds, arrows };
   }
 
   /**
@@ -298,11 +279,6 @@
     const selected = state.selected;
     const chosen = new Set(selected?.kind === "piece" ? E().stretchOfBlock(config, selected.a, selected.b).map(([a, b]) => [key(a), key(b)].sort().join("|")) : []);
     const line = (a, b, className) => svg("line", { class: className, x1: px(a[0]), y1: px(a[1]), x2: px(b[0]), y2: px(b[1]) });
-    // Sections lie under the track.
-    for (const section of shape.sections) {
-      for (const piece of section.pieces) drawing.append(line(piece.a, piece.b, "plan-section"));
-      drawing.append(svg("text", { class: "plan-section-name", x: px(section.label[0]), y: px(section.label[1]), "text-anchor": "middle" }, TEXT.oneTrain));
-    }
     for (const piece of shape.pieces) {
       const picked = chosen.has([key(piece.a), key(piece.b)].sort().join("|"));
       drawing.append(line(piece.a, piece.b, `plan-rail${piece.detected ? "" : " is-undetected"}${picked ? " is-selected" : ""}`));
@@ -502,56 +478,13 @@
   const times = (values, current) => [...new Set([...values, ...(current ? [current] : [])])]
     .map((value) => ({ value, label: /^[\d.]+s$/.test(value) ? TEXT.seconds(parseFloat(value)) : value }));
 
-  // One train at a time, for the block picked.
-  function sectionPart(panel, config, ctx, ui, block) {
-    const box = el("div", "plan-section-part");
+  // What protects the block picked, and its Timing.
+  function blockPart(panel, config, ctx, ui, block, a, b) {
+    const box = el("div", "plan-block-part");
     panel.append(box);
-    const section = E().sectionOf(config, block.name);
-    if (!section) {
-      if (!list(block.sensors).length) {
-        box.append(el("p", "hint", TEXT.oneTrainNeedsSensor));
-        return;
-      }
-      const add = button(TEXT.oneTrainAdd, () => {
-        E().addSection(config, [block.name], (first, n) => TEXT.sectionName(n, first));
-        changed(ctx, "#logic-plan-section-name");
-      });
-      add.id = "logic-plan-section-add";
-      box.append(add, ctx.hintEl(TEXT.oneTrainHint));
-      return;
-    }
-    const name = section.name;
-    box.append(el("h4", "", TEXT.oneTrain), ui.paragraph(TEXT.oneTrainHint, "hint"));
-    const look = global.EsphomeMrPlanBuilder.look(config);
-    for (const problem of look.problems.filter((p) => p.where.section === name)) {
-      box.append(el("p", "linked-warning", problem.text));
-    }
-    const found = look.sections.find((s) => s.name === name);
-    if (found) {
-      box.append(el("span", "field-label", TEXT.entrances));
-      const items = el("ul", "plan-entrances");
-      for (const way of found.entrances) items.append(el("li", "", TEXT.entrance(way.mast, way.waiting)));
-      box.append(items);
-    }
-
-    const fields = el("div", "fields");
-    const nameField = ctx.field(TEXT.sectionNameLabel, name, () => {}, { hint: TEXT.sectionNameHint, full: true });
-    const input = nameField.querySelector("input");
-    input.id = "logic-plan-section-name";
-    input.addEventListener("change", () => {
-      E().setSection(config, name, { name: input.value.trim() });
-      changed(ctx, "#logic-plan-section-name");
-    });
-    fields.append(nameField);
-    // Blocks a train can be seen in, that no other section has.
-    const free = list(config.logic.plan.blocks)
-      .filter((b) => isObject(b) && b.name && list(b.sensors).length && [null, section].includes(E().sectionOf(config, b.name)))
-      .map((b) => b.name);
-    fields.append(ticks(ctx, "logic-plan-section-block", TEXT.sectionBlocks,
-      [{ label: "", options: free.map((b) => ({ value: b, text: b })) }], list(section.blocks),
-      (blocks) => E().setSection(config, name, { blocks })));
-    box.append(fields);
-
+    const found = global.EsphomeMrPlanBuilder.look(config).protects.find((p) => p.block === block.name);
+    if (found) box.append(ui.paragraph(TEXT.protectedBy(found.masts), "hint"));
+    if (!list(block.sensors).length) return;
     const more = el("details", "plan-more");
     more.open = state.more;
     // Noted on the click itself: the "toggle" event can come after the next redraw.
@@ -559,46 +492,14 @@
     summary.addEventListener("click", () => { state.more = !more.open; });
     more.append(summary);
     const inner = el("div", "fields");
-    const release = String(section.release || "3s");
-    inner.append(choice(ctx, "logic-plan-section-release", TEXT.freeAfter, release, times(RELEASES, release),
-      (v) => E().setSection(config, name, { release: v === "3s" ? "" : v })));
-    const hold = String(section.approachLock || "");
-    inner.append(choice(ctx, "logic-plan-section-hold", TEXT.holdAfter, hold, [{ value: "", label: TEXT.off }, ...times(HOLDS, hold)],
-      (v) => E().setSection(config, name, { approachLock: v }), TEXT.holdAfterHint));
+    const release = String(block.release || "3s");
+    inner.append(choice(ctx, "logic-plan-block-release", TEXT.freeAfter, release, times(RELEASES, release),
+      (v) => E().setBlock(config, a, b, { release: v === "3s" ? "" : v }), TEXT.freeAfterHint));
+    const hold = String(block.approachLock || "");
+    inner.append(choice(ctx, "logic-plan-block-hold", TEXT.holdAfter, hold, [{ value: "", label: TEXT.off }, ...times(HOLDS, hold)],
+      (v) => E().setBlock(config, a, b, { approachLock: v }), TEXT.holdAfterHint));
     more.append(inner);
-    box.append(more, button(TEXT.removeSection, () => {
-      E().removeSection(config, name);
-      changed(ctx, "#logic-plan-section-add");
-    }, "remove"));
-  }
-
-  // Signals that can still send two trains onto one track, each with the way
-  // to stop it when the drawing shows one.
-  function clashes(config, ctx) {
-    const found = global.EsphomeMrPlanBuilder.look(config).problems.filter((p) => Array.isArray(p.where.blocks));
-    const box = el("div", found.length ? "plan-clashes" : "plan-clashes is-empty");
-    if (!found.length) return box;
-    box.append(el("h4", "", TEXT.clashesTitle));
-    const offered = new Set();
-    for (const problem of found) {
-      box.append(el("p", "linked-warning", problem.text));
-      const blocks = problem.where.blocks;
-      const key = JSON.stringify(blocks);
-      if (!blocks.length) box.append(ctx.hintEl(TEXT.clashNoBlocks));
-      // Not when they are already one section: that did not settle it.
-      const held = new Set(blocks.map((b) => E().sectionOf(config, b)));
-      if (!blocks.length || offered.has(key) || (held.size === 1 && !held.has(null))) continue;
-      offered.add(key);
-      box.append(button(TEXT.clashFix(blocks.join(", ")), () => {
-        E().addSection(config, blocks, (first, n) => TEXT.sectionName(n, first));
-        // Pick its track, so the section shows.
-        const shape = layout(config);
-        const named = shape.blocks.find((b) => b.name === blocks[0]);
-        state.selected = named ? pick(shape, ...named.label) : null;
-        changed(ctx, "#logic-plan-section-name");
-      }));
-    }
-    return box;
+    box.append(more);
   }
 
   function trackPanel(panel, config, ctx, ui, { a, b }, repaint) {
@@ -610,8 +511,8 @@
     const nameField = ctx.field(TEXT.blockName, block?.name || "", () => {}, { hint: TEXT.blockNameHint, full: true });
     const input = nameField.querySelector("input");
     input.id = "logic-plan-block-name";
-    // Kept once typing is finished: sections follow the name. Only the
-    // picture is drawn again, so a click that ends the typing is not lost.
+    // Kept once typing is finished. Only the picture is drawn again, so a
+    // click that ends the typing is not lost.
     input.addEventListener("change", () => {
       E().setBlock(config, a, b, { name: input.value.trim() });
       ctx.persist();
@@ -621,10 +522,10 @@
       title.textContent = TEXT.trackTitle(name);
       if (name) end.replaceWith((end = endButton()));
       repaint();
-      // A block just named can be taken one train at a time.
+      // A block just named has its Timing.
       if (name) {
-        panel.querySelector(".plan-section-part")?.remove();
-        sectionPart(panel, config, ctx, ui, E().blockAt(config, a, b));
+        panel.querySelector(".plan-block-part")?.remove();
+        blockPart(panel, config, ctx, ui, E().blockAt(config, a, b), a, b);
       }
     });
     fields.append(nameField);
@@ -656,7 +557,7 @@
       : button(TEXT.nameBlock, () => { E().setBlock(config, a, b, { name: newName() }); changed(ctx, "#logic-plan-block-name"); }));
     let end = endButton();
     panel.append(end);
-    if (block) sectionPart(panel, config, ctx, ui, block);
+    if (block) blockPart(panel, config, ctx, ui, block, a, b);
   }
 
   // The buttons that pick the track either side of a point.
@@ -698,6 +599,13 @@
     fields.append(choice(ctx, "logic-plan-straight-is", TEXT.straightIs, set.straightIs === "thrown" ? "thrown" : "closed", [
       { value: "closed", label: TEXT.closed }, { value: "thrown", label: TEXT.thrown },
     ], (v) => E().setPoint(config, at, { straightIs: v })));
+    // A crossover's turnouts move together: found on the drawing, or picked.
+    const pair = list(global.EsphomeMrPlanBuilder.trace(config).pairs).find((p) => p.turnout === set.turnout || p.with === set.turnout);
+    const current = pair ? (pair.turnout === set.turnout ? pair.with : pair.turnout) : "";
+    const others = [...new Set(list(plan.points).filter((p) => isObject(p) && p.turnout && p.turnout !== set.turnout).map((p) => p.turnout))];
+    fields.append(choice(ctx, "logic-plan-pair", TEXT.pairWith, current, [
+      { value: "", label: TEXT.pairNone }, ...others.map((name) => ({ value: name, label: name })),
+    ], (v) => E().setPoint(config, at, { pairedWith: v }), TEXT.pairHint));
   }
 
   // The masts a signal here can be: those not already elsewhere on the drawing.
@@ -832,13 +740,11 @@
     // The picture, and what names it: drawn again without the rest of the page.
     const repaint = () => {
       wrap.querySelector("svg").replaceWith(picture(layout(config)));
-      card.querySelector(".plan-clashes")?.replaceWith(clashes(config, ctx));
     };
     wrap.addEventListener("scroll", () => { state.scroll = [wrap.scrollLeft, wrap.scrollTop]; });
     card.append(wrap);
 
     if (tool === "select") {
-      card.append(clashes(config, ctx));
       const panel = el("div", "plan-panel");
       if (!state.selected) panel.append(el("p", "hint", TEXT.nothing));
       else if (state.selected.kind === "piece") trackPanel(panel, config, ctx, ui, state.selected, repaint);

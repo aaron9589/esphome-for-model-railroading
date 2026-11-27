@@ -2993,45 +2993,10 @@ button.clear-page {
   margin-top: 0.75rem;
 }
 
-.plan-section {
-  stroke: #bfdbfe;
-  stroke-width: 22;
-  stroke-linecap: round;
-}
-
-.plan-section-name {
-  font-weight: 650;
-  fill: var(--accent);
-}
-
-.plan-section-part,
-.plan-clashes {
+.plan-block-part {
   margin-top: 0.9rem;
   padding-top: 0.75rem;
   border-top: 1px solid var(--line);
-}
-
-.plan-section-part > button,
-.plan-clashes > button {
-  margin-top: 0.5rem;
-}
-
-.plan-clashes {
-  border-top: 0;
-  padding-top: 0;
-}
-
-.plan-clashes.is-empty {
-  display: none;
-}
-
-.plan-clashes p {
-  margin: 0.5rem 0 0;
-}
-
-.plan-entrances {
-  margin: 0.25rem 0 0.75rem;
-  padding-left: 1.2rem;
 }
 
 .plan-more {

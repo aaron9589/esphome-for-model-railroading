@@ -27,10 +27,22 @@ static constexpr uint16_t NONE = 0xFFFF;
 // A condition or a moment. ALL / ANY / NOT have kids, a range in Table::kids.
 // END is what a plant end's track hears: item is the end (NONE: no such end),
 // `first` its track number (0: not a track), and hears_mast says which value.
+//
+// AUTO is the Auto/Manual switch (is IS_ON or IS_OFF). A mast on this board
+// with IS_HELD / IS_UNHELD reads what JMRI last said of its hold; as a moment,
+// that hold changing (README rule 30).
+//
+// As a moment, a node may also have: `if_node`, a condition it counts only
+// while true; `timed` with `for_ms`, counting once its state has held that
+// long (rule 32); and, on a BLOCK, `not_from`: entered, but not from the
+// blocks in a range of Table::block_refs (rule 31).
 struct Node {
-  enum Kind : uint8_t { ALL, ANY, NOT, BLOCK, TURNOUT, MAST, BUTTON, END };
+  enum Kind : uint8_t { ALL, ANY, NOT, BLOCK, TURNOUT, MAST, BUTTON, END, AUTO };
   // What `is` asks for. A mast's tags are in `tags` (a bit per Tag).
-  enum Is : uint8_t { IS_OCCUPIED, IS_CLEAR, IS_CLOSED, IS_THROWN, IS_MOVING, IS_PRESSED, IS_DIVERGING, IS_TAGS, IS_OTHER };
+  enum Is : uint8_t {
+    IS_OCCUPIED, IS_CLEAR, IS_CLOSED, IS_THROWN, IS_MOVING, IS_PRESSED, IS_DIVERGING, IS_TAGS, IS_OTHER,
+    IS_HELD, IS_UNHELD, IS_ON, IS_OFF,
+  };
   uint8_t kind = BLOCK;
   uint8_t is = IS_OTHER;
   uint8_t tags = 0;
@@ -40,12 +52,17 @@ struct Node {
   uint8_t remote = 0;  // another board's item
   uint8_t hears_mast = 0;  // END: the Mast it hears, not the Block
   uint16_t first = 0, count = 0;  // kids
+  uint16_t if_node = NONE;
+  uint8_t timed = 0, not_from = 0;
+  uint32_t for_ms = 0;
+  uint16_t from_first = 0, from_count = 0;  // not_from: a range in Table::block_refs
 };
 
 struct Trigger {
   bool present = false;
   bool when = false;
   bool leaving_guard = false;
+  uint16_t guard_first = 0, guard_count = 0;  // the resources the leaving guard watches: a range in Table::res_refs
   uint16_t cond = NONE;  // while
   uint16_t seq_first = 0, seq_count = 0;  // when, then ...: a range in Table::seq
   uint32_t for_ms = 0;
@@ -88,6 +105,7 @@ struct Member {
 struct LogicBlock {
   uint16_t name = 0;
   uint16_t first = 0, count = 0;  // a range in Table::members
+  uint16_t next_first = 0, next_count = 0;  // its neighbours: a range in Table::block_refs
 };
 
 struct RemoteItem {
@@ -128,9 +146,23 @@ struct Rule {
   uint16_t checks_first = 0, checks_count = 0;  // a range in Table::kids
   uint16_t mast = NONE;  // a declared mast
   int16_t aspect = -1;  // within that mast's aspects; -1: not one of them
-  uint16_t resource = NONE;
-  uint16_t locks_first = 0, locks_count = 0;  // a range in Table::locks
+  // The resources it takes, all at once or none: a range in Table::res_refs.
+  // None: a plain rule.
+  // Parallel to it, in Table::res_next: the blocks a train must be seen
+  // going into after each resource before it is freed (sequential release).
+  uint16_t res_first = 0, res_count = 0;
+  // A range in Table::locks, and in Table::lock_with the resource each is
+  // held with (NONE: the whole rule's).
+  uint16_t locks_first = 0, locks_count = 0;
   uint16_t cancel = NONE;  // a moment node
+  uint16_t withdraw = NONE;  // a moment node
+  uint16_t approach_block = NONE;  // its own approach locking: a block ref in Table::block_refs
+  uint32_t approach_ms = 0;
+};
+
+// A range in Table::block_refs.
+struct Range {
+  uint16_t first = 0, count = 0;
 };
 
 // Every name once, in one string: far smaller than a string each.
@@ -165,6 +197,9 @@ struct Table {
   std::vector<BlockRef> block_refs;
   std::vector<Member> members;
   std::vector<uint16_t> locks;  // turnout indices
+  std::vector<uint16_t> lock_with;  // per lock: a resource index, or NONE
+  std::vector<uint16_t> res_refs;  // resource indices
+  std::vector<Range> res_next;  // per res_ref
 
   std::vector<uint16_t> sensors;  // names; declared first, then any only named
   std::vector<uint16_t> buttons;
@@ -178,6 +213,7 @@ struct Table {
   std::vector<Resource> resources;
   std::vector<Rule> rules;  // layers in order, rules in order
   std::vector<uint16_t> layers;  // names
+  std::vector<uint8_t> layer_routes;  // per layer: its reserving When rules share one request
   std::vector<End> ends;
   std::vector<EndTrack> end_tracks;
   std::vector<uint16_t> end_sensors;  // sensor indices
@@ -199,6 +235,7 @@ struct Start {
   std::string board;  // this board's name, as in its topics
   std::vector<std::pair<std::string, std::string>> links;  // end, its saved link
   bool logic_on = true;
+  bool auto_on = true;  // the Auto/Manual switch
   bool broker_connected = true;
   std::map<std::string, bool> sensors_occupied;
   std::map<std::string, std::string> turnouts;
@@ -210,6 +247,8 @@ struct Start {
 struct Event {
   enum Kind : uint8_t {
     SENSOR, BUTTON, TURNOUT, REMOTE_LOCK, JMRI, RELEASE, LOGIC, BROKER,
+    AUTO,  // value "on" or "off"
+    RELEASE_GROUP,  // name the group, value "mqtt" or not
     REMOTE_ONLINE, REMOTE_ITEM, REMOTE_MAST,
     // Plant ends: name is this board's end. END_BLOCK and END_MAST carry the
     // linked end's track number, as it numbers it. PAIRING is an announcement.
@@ -227,7 +266,9 @@ struct Event {
 struct LogEvent {
   // PAIRING: what is the end, by the result, rule the end it paired with.
   // DISAGREES: what is the end, rule its link, by the linked end's link.
-  enum Kind : uint8_t { STARTUP, GRANT, CANCEL, PASS, RELEASE, IGNORED, RESYNC, PAIRING, DISAGREES };
+  // IGNORED: by is "release" (what, a resource) or "releaseGroup" (what, a
+  // group). RELEASE_GROUP: what is the group.
+  enum Kind : uint8_t { STARTUP, GRANT, CANCEL, PASS, RELEASE, IGNORED, RESYNC, PAIRING, DISAGREES, RELEASE_GROUP };
   Kind kind;
   std::string what;
   std::string rule;  // empty: none (a start-up pass)
@@ -243,7 +284,8 @@ struct Write {
 
 struct Publish {
   // END_*: resource is the end's name, and track its track. PAIRING: value only.
-  enum Kind : uint8_t { HELD, STATE, RELEASE, PAIRING, END_LINK, END_BLOCK, END_MAST };
+  // RELEASE_GROUP: resource is the group.
+  enum Kind : uint8_t { HELD, STATE, RELEASE, PAIRING, END_LINK, END_BLOCK, END_MAST, RELEASE_GROUP };
   Kind kind;
   std::string resource;
   std::string value;
@@ -258,6 +300,7 @@ struct ScanOut {
 
 struct State {
   bool logic_on = false;
+  bool auto_on = true;
   std::vector<std::pair<std::string, std::string>> masts;  // "" when nothing is shown
   std::vector<std::pair<std::string, std::string>> rules;
   std::vector<std::pair<std::string, std::string>> resources;
@@ -302,18 +345,28 @@ class Engine {
   };
   struct TrigState {
     int64_t run_true = -1, run_false = -1, since = -1;
-    bool eff = false, guard = false, request = false, fired = false;
+    bool eff = false, guard = false;
+    bool asked = false, cancelled = false, withdrawn = false;  // this scan's moments, for its request
     int8_t prev_raw = -1;
     uint16_t seq_p = 0;
   };
   struct RuleState {
     Phase phase = IDLE;
-    bool true_now = false, checks_now = false;
+    bool true_now = false, checks_now = false, cancel_now = false;
     int64_t cancel_at = 0;
+    uint16_t ask = NONE;  // a reserving When rule's request, in asks_
     TrigState trig;
+  };
+  // A request, a rule's own or shared by a routes group's rules (rule 5).
+  struct Ask {
+    bool request = false;
+    int64_t since = -1;
+    std::vector<uint16_t> rules;
   };
   struct ResState {
     uint16_t holder = NONE;
+    bool passed = false;  // its holder's train has entered it
+    bool seen = false;  // and has been seen going on (sequential release)
     bool startup_held = false, rel_done = false, release_now = false;
     int64_t rel_run_true = -1;
     uint16_t rel_seq_p = 0;
@@ -355,7 +408,13 @@ class Engine {
   std::vector<int16_t> remote_values_;  // per remote item; see value_of
   std::vector<uint8_t> edges_;  // per node: 0 false, 1 true, 2 not taken
   std::vector<uint16_t> tracked_;
+  std::vector<uint16_t> timed_;  // timed moment nodes
+  std::vector<int64_t> timed_start_;  // per node: the scan its run began, -1 none
   std::vector<bool> prev_block_;
+  std::vector<Ask> asks_;
+  bool startup_scan_ = false;
+  bool auto_on_ = true;
+  bool starting_ = true;  // the start's retained messages are no moment
 
   int64_t n_ = 0;
   bool broker_ = true;
@@ -365,9 +424,12 @@ class Engine {
   bool startup_next_ = true;
   int8_t pending_logic_ = -1;  // -1 none, 0 off, 1 on
   std::vector<std::pair<std::string, bool>> pending_releases_;  // resource name, ignored
+  std::vector<std::pair<std::string, bool>> pending_group_releases_;  // group name, ignored
 
   std::vector<int16_t> jmri_shown_, display_, prev_out_;  // per mast: aspect, SHOWS_NOTHING or SHOWS_DARK
   std::vector<bool> holds_;
+  std::vector<int8_t> last_held_;  // per mast (rule 30): -1 no message, 0 unheld, 1 held
+  std::vector<uint8_t> hold_went_;  // per mast: 1 went held, 2 went unheld, since the last scan
   std::vector<int8_t> published_;  // per resource: held, then state; -1 not yet
 
   std::string board_;
@@ -387,11 +449,17 @@ class Engine {
   bool went(uint16_t item, bool logic_block, bool on);
   bool condition(uint16_t node);
   bool moment(uint16_t node);
+  bool moment_now(uint16_t node);
+  bool came_from(uint16_t node);
+  void update_timed();
+  void settle_asks();
   bool same_input_in_order(uint16_t prev, uint16_t next);
   bool advance(uint16_t first, uint16_t count, uint16_t *p);
   void reset_trigger(uint16_t r);
   void reset_release(uint16_t i);
   bool held(uint16_t i) const;
+  bool holds_any(uint16_t r) const;
+  uint16_t res_of(uint16_t r, uint16_t k) const { return t_.res_refs[t_.rules[r].res_first + k]; }
   void eval_trigger(uint16_t r, const Ctx &ctx);
   void eval_release(uint16_t i);
   void free_res(uint16_t i);
@@ -402,13 +470,15 @@ class Engine {
   bool locks_held(uint16_t r) const;
   const char *resource_state(uint16_t i) const;
   void finish(ScanOut *out, const std::vector<int16_t> *new_out, const std::vector<bool> &new_locks);
-  void publish_resources(ScanOut *out, const std::vector<std::string> &echoes);
+  void publish_resources(ScanOut *out, const std::vector<Publish> &echoes);
   void record_edges();
   void end_scan();
-  void switch_off(ScanOut *out, const std::vector<std::string> &echoes);
+  void switch_off(ScanOut *out, const std::vector<Publish> &echoes);
+  void release_by_hand(uint16_t i, ScanOut *out, std::vector<bool> *released_now, std::vector<bool> *force_stop);
   void jmri_message(uint16_t mast, const std::string &message);
   std::string aspect_text(uint16_t mast, int16_t a) const;
   void track(uint16_t node);
+  bool has_layer(const std::string &name) const;
   // Plant ends (README rules 23-29).
   int16_t find_end(const std::string &name) const;
   const std::string &who(uint16_t end) const { return ends_[end].who; }

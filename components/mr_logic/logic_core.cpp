@@ -50,9 +50,9 @@ const char *tag_name(Tag tag) { return tag == TAG_NONE ? "" : TAG_NAMES[tag]; }
 
 size_t Table::bytes() const {
   size_t n = names.chars.capacity() + vec_bytes(names.starts) + vec_bytes(nodes) + vec_bytes(kids) + vec_bytes(seq) + vec_bytes(aspects) +
-             vec_bytes(states) + vec_bytes(block_refs) + vec_bytes(members) + vec_bytes(locks) + vec_bytes(sensors) +
+             vec_bytes(states) + vec_bytes(block_refs) + vec_bytes(members) + vec_bytes(locks) + vec_bytes(lock_with) + vec_bytes(res_next) + vec_bytes(layer_routes) + vec_bytes(sensors) +
              vec_bytes(buttons) + vec_bytes(turnouts) + vec_bytes(masts) + vec_bytes(remote_boards) +
-             vec_bytes(remote_masts) + vec_bytes(remote_items) + vec_bytes(blocks) + vec_bytes(resources) +
+             vec_bytes(remote_masts) + vec_bytes(remote_items) + vec_bytes(blocks) + vec_bytes(resources) + vec_bytes(res_refs) +
              vec_bytes(rules) + vec_bytes(layers) + vec_bytes(ends) + vec_bytes(end_tracks) + vec_bytes(end_sensors);
   for (const auto &s : states) n += s.text.capacity() > 15 ? s.text.capacity() + 1 : 0;
   return n;
@@ -66,7 +66,7 @@ Engine::Engine(const Table &table, const Start &start) : t_(table) {
   res_.resize(resources);
   res_rules_.resize(resources);
   for (size_t r = 0; r < rules; r++)
-    if (t_.rules[r].resource != NONE) res_rules_[t_.rules[r].resource].push_back(static_cast<uint16_t>(r));
+    for (uint16_t k = 0; k < t_.rules[r].res_count; k++) res_rules_[res_of(static_cast<uint16_t>(r), k)].push_back(static_cast<uint16_t>(r));
   field_.assign(masts, false);
   for (const auto &rule : t_.rules)
     if (rule.mast != NONE) field_[rule.mast] = true;
@@ -83,6 +83,8 @@ Engine::Engine(const Table &table, const Start &start) : t_(table) {
   prev_block_.assign(t_.blocks.size(), false);
   published_.assign(resources * 2, -1);
 
+  auto_on_ = start.auto_on;
+  timed_start_.assign(t_.nodes.size(), -1);
   broker_ = start.broker_connected;
   connect_at_ = broker_ ? 0 : -1;
   publish_all_ = broker_;
@@ -104,6 +106,8 @@ Engine::Engine(const Table &table, const Start &start) : t_(table) {
   display_.assign(masts, SHOWS_NOTHING);
   prev_out_.assign(masts, SHOWS_NOTHING);
   holds_.assign(masts, false);
+  last_held_.assign(masts, -1);
+  hold_went_.assign(masts, 0);
   for (size_t m = 0; m < masts; m++) {
     display_[m] = t_.masts[m].startup;  // -1 (nothing) when it has none
     if (field_[m]) {
@@ -120,6 +124,26 @@ Engine::Engine(const Table &table, const Start &start) : t_(table) {
       track(t.cond);
     }
     if (t_.rules[r].cancel != NONE) track(t_.rules[r].cancel);
+    if (t_.rules[r].withdraw != NONE) track(t_.rules[r].withdraw);
+  }
+  // Requests (rule 5): a routes group's, shared by its reserving When rules,
+  // or a reserving When rule's own.
+  std::vector<uint16_t> layer_ask(t_.layers.size(), NONE);
+  for (size_t l = 0; l < t_.layers.size(); l++) {
+    if (!t_.layer_routes[l]) continue;
+    layer_ask[l] = static_cast<uint16_t>(asks_.size());
+    asks_.emplace_back();
+  }
+  for (size_t r = 0; r < rules; r++) {
+    const Rule &rule = t_.rules[r];
+    if (rule.res_count == 0 || !rule.trigger.when) continue;
+    uint16_t a = layer_ask[rule.layer];
+    if (a == NONE) {
+      a = static_cast<uint16_t>(asks_.size());
+      asks_.emplace_back();
+    }
+    rules_[r].ask = a;
+    asks_[a].rules.push_back(static_cast<uint16_t>(r));
   }
   for (const auto &res : t_.resources)
     if (res.release.when)
@@ -182,9 +206,22 @@ Engine::Engine(const Table &table, const Start &start) : t_(table) {
   }
   for (size_t i = 0; i < t_.declared_turnouts; i++) prev_locked_[i] = remote_locks_[i];
   record_edges();
+  starting_ = false;
 }
 
-void Engine::track(uint16_t node) { tracked_.push_back(node); }
+void Engine::track(uint16_t node) {
+  tracked_.push_back(node);
+  const Node &m = t_.nodes[node];
+  if (m.kind == Node::ANY)
+    for (uint16_t i = 0; i < m.count; i++) track(t_.kids[m.first + i]);
+  if (m.timed) timed_.push_back(node);
+}
+
+bool Engine::has_layer(const std::string &name) const {
+  for (uint16_t l : t_.layers)
+    if (t_.names.equals(l, name)) return true;
+  return false;
+}
 
 size_t Engine::bytes() const {
   size_t n = vec_bytes(rules_) + vec_bytes(res_) + vec_bytes(res_rules_) + vec_bytes(sensors_) + vec_bytes(buttons_) +
@@ -355,6 +392,8 @@ bool Engine::condition(uint16_t index) {
       return known(t_.remote_items[c.item].board, v != R_UNSET) && v == want;
     }
     case Node::MAST: {
+      if (c.is == Node::IS_HELD || c.is == Node::IS_UNHELD)
+        return c.item != NONE && last_held_[c.item] == (c.is == Node::IS_HELD ? 1 : 0);
       // Rule 13: what the mast reads as, or nothing (stop).
       const Mast *def = nullptr;
       int16_t a = -1;
@@ -377,6 +416,8 @@ bool Engine::condition(uint16_t index) {
     }
     case Node::BUTTON:
       return c.item != NONE && buttons_[c.item].value;
+    case Node::AUTO:
+      return auto_on_ == (c.is == Node::IS_ON);
     case Node::END: {
       // What a plant end hears: its Block, or its Mast, which is a tag only.
       bool occ = true;
@@ -389,11 +430,78 @@ bool Engine::condition(uint16_t index) {
   return false;
 }
 
+// An `if` counts a moment only while that condition holds, and a `for` only
+// once its state has then held that long (rule 32).
 bool Engine::moment(uint16_t index) {
   const Node &m = t_.nodes[index];
+  bool now;
+  if (m.timed) {
+    const int64_t start = timed_start_[index];
+    now = start >= 0 && n_ == start + static_cast<int64_t>((m.for_ms + SCAN_MS - 1) / SCAN_MS);
+  } else {
+    now = moment_now(index);
+  }
+  return now && (m.if_node == NONE || condition(m.if_node));
+}
+
+bool Engine::moment_now(uint16_t index) {
+  const Node &m = t_.nodes[index];
+  if (m.kind == Node::ANY) {
+    for (uint16_t i = 0; i < m.count; i++)
+      if (moment(t_.kids[m.first + i])) return true;
+    return false;
+  }
+  if (m.kind == Node::MAST && (m.is == Node::IS_HELD || m.is == Node::IS_UNHELD))
+    return m.item != NONE && (hold_went_[m.item] & (m.is == Node::IS_HELD ? 1 : 2)) != 0;
   if (!m.remote && m.kind == Node::BUTTON) return m.is == Node::IS_PRESSED && m.item != NONE && buttons_[m.item].on;
+  if (!m.remote && m.kind == Node::BLOCK && m.not_from) {
+    // Rule 31: entered, and not from these. At start-up a train already there
+    // counts as entered from where the board cannot tell.
+    const bool entered = went(m.item, m.logic_block, true) || (startup_scan_ && occupied_ref(m.item, m.logic_block));
+    return entered && !came_from(index);
+  }
   if (!m.remote && m.kind == Node::BLOCK) return went(m.item, m.logic_block, m.is != Node::IS_CLEAR);
   return condition(index) && edges_[index] == 0;
+}
+
+// Where a train entering a block came from: the one neighbour occupied now,
+// its block's next or those named; none or several cannot tell.
+bool Engine::came_from(uint16_t index) {
+  const Node &m = t_.nodes[index];
+  std::vector<BlockRef> near;
+  auto add = [&](const BlockRef &ref) {
+    for (const auto &x : near)
+      if (x.item == ref.item && x.logic_block == ref.logic_block) return;
+    near.push_back(ref);
+  };
+  if (m.logic_block && m.item != NONE) {
+    const LogicBlock &b = t_.blocks[m.item];
+    for (uint16_t i = 0; i < b.next_count; i++) add(t_.block_refs[b.next_first + i]);
+  }
+  for (uint16_t i = 0; i < m.from_count; i++) add(t_.block_refs[m.from_first + i]);
+  int found = 0;
+  BlockRef occ{NONE, false};
+  for (const auto &ref : near) {
+    if (!occupied_ref(ref.item, ref.logic_block)) continue;
+    found += 1;
+    occ = ref;
+  }
+  if (found != 1) return false;
+  for (uint16_t i = 0; i < m.from_count; i++) {
+    const BlockRef &ref = t_.block_refs[m.from_first + i];
+    if (ref.item == occ.item && ref.logic_block == occ.logic_block) return true;
+  }
+  return false;
+}
+
+// A timed moment's run starts when its state happens, and lasts while it holds.
+void Engine::update_timed() {
+  for (uint16_t node : timed_) {
+    if (moment_now(node))
+      timed_start_[node] = n_;
+    else if (!condition(node))
+      timed_start_[node] = -1;
+  }
 }
 
 // { sensor: X } and { block: X } are one input.
@@ -660,6 +768,11 @@ void Engine::end_event(const Event &e, int64_t t) {
 void Engine::reset_trigger(uint16_t r) {
   rules_[r].trig = TrigState();
   rules_[r].phase = IDLE;
+  rules_[r].cancel_now = false;
+  if (rules_[r].ask != NONE) {
+    asks_[rules_[r].ask].request = false;
+    asks_[rules_[r].ask].since = -1;
+  }
 }
 
 void Engine::reset_release(uint16_t i) {
@@ -670,6 +783,13 @@ void Engine::reset_release(uint16_t i) {
 
 bool Engine::held(uint16_t i) const { return res_[i].holder != NONE || res_[i].startup_held; }
 
+// A rule that no longer holds any of its resources is idle again.
+bool Engine::holds_any(uint16_t r) const {
+  for (uint16_t k = 0; k < t_.rules[r].res_count; k++)
+    if (res_[res_of(r, k)].holder == r) return true;
+  return false;
+}
+
 void Engine::eval_trigger(uint16_t r, const Ctx &ctx) {
   const Rule &rule = t_.rules[r];
   RuleState &rs = rules_[r];
@@ -677,21 +797,36 @@ void Engine::eval_trigger(uint16_t r, const Ctx &ctx) {
   TrigState &st = rs.trig;
   bool is_true;
   if (t.when) {
-    if (advance(t.seq_first, t.seq_count, &st.seq_p)) {
-      st.request = true;
-      if (rule.resource == NONE) st.fired = true;
+    const bool asked = advance(t.seq_first, t.seq_count, &st.seq_p);
+    if (rs.ask != NONE) {
+      // Read now, settled for the whole request once every rule has been
+      // read (settle_asks), so rules sharing one see the same moments.
+      st.asked = asked;
+      st.cancelled = rule.cancel != NONE && moment(rule.cancel);
+      st.withdrawn = rule.withdraw != NONE && moment(rule.withdraw);
+      rs.checks_now = true;
+      for (uint16_t i = 0; i < rule.checks_count; i++) {
+        if (!condition(t_.kids[rule.checks_first + i])) {
+          rs.checks_now = false;
+          break;
+        }
+      }
+      return;
     }
-    is_true = rule.resource != NONE ? st.request : st.fired;
-    st.fired = false;
+    is_true = asked;
   } else {
-    bool raw = t.present && t.cond != NONE && condition(t.cond);
+    const bool seen = t.present && t.cond != NONE && condition(t.cond);
     if (t.leaving_guard) {
-      if (!raw)
+      if (!seen)
         st.guard = false;
-      else if (!ctx.startup && st.prev_raw == 0 && rule.resource != NONE && ctx.held_at_start[rule.resource])
-        st.guard = true;
+      else if (!ctx.startup && st.prev_raw == 0) {
+        for (uint16_t k = 0; k < t.guard_count; k++)
+          if (ctx.held_at_start[t_.res_refs[t.guard_first + k]]) st.guard = true;
+      }
     }
-    st.prev_raw = raw ? 1 : 0;
+    st.prev_raw = seen ? 1 : 0;
+    // Rule 20: while guarded the trigger counts as false, for its for too.
+    const bool raw = seen && !st.guard;
     if (raw) {
       if (st.run_true < 0) st.run_true = n_;
       st.run_false = -1;
@@ -715,6 +850,39 @@ void Engine::eval_trigger(uint16_t r, const Ctx &ctx) {
   }
 }
 
+// Rule 5: a reserving When rule's request, read for every rule that shares
+// it. A withdraw takes back a request still waiting; then a cancel with
+// something to cancel (that request, or a rule that is ACTIVE) takes it back,
+// and cancels the ACTIVE rule, and this scan's moment with it; otherwise the
+// moment asks.
+void Engine::settle_asks() {
+  for (auto &ask : asks_) {
+    bool asked = false, cancelled = false, withdrawn = false, active = false;
+    for (uint16_t r : ask.rules) {
+      const TrigState &st = rules_[r].trig;
+      asked = asked || st.asked;
+      cancelled = cancelled || st.cancelled;
+      withdrawn = withdrawn || st.withdrawn;
+      active = active || rules_[r].phase == ACTIVE;
+      rules_[r].cancel_now = false;
+    }
+    if (withdrawn) ask.request = false;
+    if (cancelled && (ask.request || active)) {
+      ask.request = false;
+      for (uint16_t r : ask.rules)
+        if (rules_[r].phase == ACTIVE) rules_[r].cancel_now = true;
+    } else if (asked) {
+      ask.request = true;
+    }
+    if (ask.request && ask.since < 0) ask.since = n_;
+    if (!ask.request) ask.since = -1;
+    for (uint16_t r : ask.rules) {
+      rules_[r].true_now = ask.request;
+      rules_[r].trig.since = ask.since;
+    }
+  }
+}
+
 void Engine::eval_release(uint16_t i) {
   const Trigger &t = t_.resources[i].release;
   ResState &res = res_[i];
@@ -734,10 +902,11 @@ void Engine::eval_release(uint16_t i) {
 
 void Engine::free_res(uint16_t i) {
   ResState &res = res_[i];
-  if (res.holder != NONE) {
-    rules_[res.holder].phase = IDLE;
-    res.holder = NONE;
-  }
+  const uint16_t holder = res.holder;
+  res.holder = NONE;
+  res.passed = false;
+  res.seen = false;
+  if (holder != NONE && !holds_any(holder)) rules_[holder].phase = IDLE;
   res.startup_held = false;
   res.rel_seq_p = 0;
   res.rel_done = false;
@@ -767,22 +936,20 @@ bool Engine::mast_held(uint16_t r) const {
 }
 
 bool Engine::is_active(uint16_t r) const {
-  return t_.rules[r].resource != NONE ? rules_[r].phase == ACTIVE : (rules_[r].true_now && rules_[r].checks_now);
+  return t_.rules[r].res_count > 0 ? rules_[r].phase == ACTIVE : (rules_[r].true_now && rules_[r].checks_now);
 }
 
 bool Engine::locks_held(uint16_t r) const {
-  return t_.rules[r].resource != NONE ? rules_[r].phase != IDLE : (rules_[r].true_now && rules_[r].checks_now);
+  return t_.rules[r].res_count > 0 ? rules_[r].phase != IDLE : (rules_[r].true_now && rules_[r].checks_now);
 }
 
+// A held resource is PASSED once its train has entered it; until then it is
+// CANCELLING while its rule is, and otherwise ACTIVE.
 const char *Engine::resource_state(uint16_t i) const {
   if (res_[i].startup_held) return "PASSED";
   if (res_[i].holder == NONE) return "IDLE";
-  switch (rules_[res_[i].holder].phase) {
-    case ACTIVE: return "ACTIVE";
-    case PASSED: return "PASSED";
-    case CANCELLING: return "CANCELLING";
-    default: return "IDLE";
-  }
+  if (res_[i].passed) return "PASSED";
+  return rules_[res_[i].holder].phase == CANCELLING ? "CANCELLING" : "ACTIVE";
 }
 
 // --- writes and publishes (rules 21, 22) ----------------------------------
@@ -806,7 +973,7 @@ void Engine::finish(ScanOut *out, const std::vector<int16_t> *new_out, const std
   }
 }
 
-void Engine::publish_resources(ScanOut *out, const std::vector<std::string> &echoes) {
+void Engine::publish_resources(ScanOut *out, const std::vector<Publish> &echoes) {
   if (!broker_) return;
   for (size_t i = 0; i < t_.resources.size(); i++) {
     const std::string &name = t_.names[t_.resources[i].name];
@@ -823,7 +990,7 @@ void Engine::publish_resources(ScanOut *out, const std::vector<std::string> &ech
       published_[2 * i + 1] = state_v;
     }
   }
-  for (const auto &name : echoes) out->publishes.push_back(Publish{Publish::RELEASE, name, "CLOSED"});
+  for (const auto &echo : echoes) out->publishes.push_back(echo);
   publish_all_ = false;
 }
 
@@ -835,10 +1002,11 @@ void Engine::record_edges() {
 void Engine::end_scan() {
   for (auto &l : sensors_) l.on = l.off = false;
   for (auto &l : buttons_) l.on = l.off = false;
+  std::fill(hold_went_.begin(), hold_went_.end(), 0);
   n_ += 1;
 }
 
-void Engine::switch_off(ScanOut *out, const std::vector<std::string> &echoes) {
+void Engine::switch_off(ScanOut *out, const std::vector<Publish> &echoes) {
   for (size_t i = 0; i < t_.resources.size(); i++) {
     if (held(static_cast<uint16_t>(i))) {
       out->events.push_back(LogEvent{LogEvent::RELEASE, t_.names[t_.resources[i].name], "", "switch"});
@@ -854,6 +1022,23 @@ void Engine::switch_off(ScanOut *out, const std::vector<std::string> &echoes) {
   logic_on_ = false;
 }
 
+// A manual release: the resource is freed, its rule's mast goes to Stop, and
+// any other resources that rule holds stay held until its train has passed
+// through them.
+void Engine::release_by_hand(uint16_t i, ScanOut *out, std::vector<bool> *released_now, std::vector<bool> *force_stop) {
+  out->events.push_back(LogEvent{LogEvent::RELEASE, t_.names[t_.resources[i].name], "", "manual"});
+  const uint16_t holder = res_[i].holder;
+  free_res(i);
+  if (holder != NONE && rules_[holder].phase != IDLE) rules_[holder].phase = PASSED;
+  (*released_now)[i] = true;
+  for (uint16_t r : res_rules_[i]) {
+    uint16_t m = t_.rules[r].mast;
+    if (m == NONE) continue;
+    holds_[m] = false;
+    (*force_stop)[m] = true;
+  }
+}
+
 // --- the scan (rule 6) ----------------------------------------------------
 
 ScanOut Engine::scan() {
@@ -866,15 +1051,19 @@ ScanOut Engine::scan() {
   pending_logic_ = -1;
   if (switching_off || !logic_on_) {
     // No section to release while logic is off, but each press is answered.
-    std::vector<std::string> echoes;
-    if (broker_)
-      for (const auto &p : pending_releases_) echoes.push_back(p.first);
+    std::vector<Publish> echoes;
+    if (broker_) {
+      for (const auto &p : pending_releases_) echoes.push_back(Publish{Publish::RELEASE, p.first, "CLOSED"});
+      for (const auto &p : pending_group_releases_)
+        if (has_layer(p.first)) echoes.push_back(Publish{Publish::RELEASE_GROUP, p.first, "CLOSED"});
+    }
     pending_releases_.clear();
+    pending_group_releases_.clear();
     if (switching_off) {
       switch_off(&out, echoes);
     } else {
       finish(&out, nullptr, std::vector<bool>(t_.turnouts.size(), false));
-      for (const auto &name : echoes) out.publishes.push_back(Publish{Publish::RELEASE, name, "CLOSED"});
+      for (const auto &echo : echoes) out.publishes.push_back(echo);
     }
     record_edges();
     finish_ends(&out);
@@ -888,7 +1077,7 @@ ScanOut Engine::scan() {
   startup_next_ = false;
   std::vector<bool> force_stop(t_.masts.size(), false);
   std::vector<bool> released_now(t_.resources.size(), false);
-  std::vector<std::string> echoes;
+  std::vector<Publish> echoes;
 
   // 6.1: start-up, then manual releases.
   if (ctx.startup) {
@@ -916,25 +1105,37 @@ ScanOut Engine::scan() {
     const std::string &name = t_.names[t_.resources[i].name];
     for (const auto &press : pending_releases_) {
       if (press.first != name) continue;
-      if (broker_) echoes.push_back(name);
+      if (broker_) echoes.push_back(Publish{Publish::RELEASE, name, "CLOSED"});
       if (press.second) {
-        out.events.push_back(LogEvent{LogEvent::IGNORED, name, "", ""});
+        out.events.push_back(LogEvent{LogEvent::IGNORED, name, "", "release"});
         continue;
       }
-      out.events.push_back(LogEvent{LogEvent::RELEASE, name, "", "manual"});
-      free_res(static_cast<uint16_t>(i));
-      released_now[i] = true;
-      for (uint16_t r : res_rules_[i]) {
-        uint16_t m = t_.rules[r].mast;
-        if (m == NONE) continue;
-        holds_[m] = false;
-        force_stop[m] = true;
-      }
+      release_by_hand(static_cast<uint16_t>(i), &out, &released_now, &force_stop);
     }
   }
   pending_releases_.clear();
+  // Rule 33: Release for a group frees everything its rules hold, in resource
+  // order.
+  for (const auto &press : pending_group_releases_) {
+    if (!has_layer(press.first)) continue;
+    if (broker_) echoes.push_back(Publish{Publish::RELEASE_GROUP, press.first, "CLOSED"});
+    if (press.second) {
+      out.events.push_back(LogEvent{LogEvent::IGNORED, press.first, "", "releaseGroup"});
+      continue;
+    }
+    out.events.push_back(LogEvent{LogEvent::RELEASE_GROUP, press.first, "", ""});
+    for (size_t i = 0; i < t_.resources.size(); i++) {
+      const uint16_t holder = res_[i].holder;
+      if (holder != NONE && t_.names.equals(t_.layers[t_.rules[holder].layer], press.first))
+        release_by_hand(static_cast<uint16_t>(i), &out, &released_now, &force_stop);
+    }
+  }
+  pending_group_releases_.clear();
 
-  // 6.2: releases read this scan, a start-up hold's release, then each rule.
+  // 6.2: releases read this scan, a start-up hold's release, every rule's
+  // trigger, the requests, then each reserving rule.
+  startup_scan_ = ctx.startup;
+  update_timed();
   for (size_t i = 0; i < t_.resources.size(); i++) eval_release(static_cast<uint16_t>(i));
   for (size_t i = 0; i < t_.resources.size(); i++) {
     if (res_[i].startup_held && res_[i].release_now) {
@@ -942,79 +1143,138 @@ ScanOut Engine::scan() {
       free_res(static_cast<uint16_t>(i));
     }
   }
+  for (size_t ri = 0; ri < t_.rules.size(); ri++) eval_trigger(static_cast<uint16_t>(ri), ctx);
+  settle_asks();
   for (size_t ri = 0; ri < t_.rules.size(); ri++) {
     const uint16_t r = static_cast<uint16_t>(ri);
-    eval_trigger(r, ctx);
     const Rule &rule = t_.rules[r];
     RuleState &rs = rules_[r];
-    if (rule.resource == NONE) continue;
-    const uint16_t i = rule.resource;
-    if (res_[i].holder != r) continue;
-    const std::string &name = t_.names[t_.resources[i].name];
+    if (rule.res_count == 0 || rs.phase == IDLE) continue;
+    // Passed first: a train that has entered a resource is never cancelled,
+    // even by a cancel in the same scan. The mast goes back to Stop.
+    for (uint16_t k = 0; k < rule.res_count; k++) {
+      const uint16_t i = res_of(r, k);
+      if (res_[i].holder != r || res_[i].passed || !block_occupied_or_went(i)) continue;
+      res_[i].passed = true;
+      rs.phase = PASSED;
+      out.events.push_back(LogEvent{LogEvent::PASS, t_.names[t_.resources[i].name], t_.rule_ref(r), ""});
+    }
+    // Sequential release (rule 9): the train seen going into the next block
+    // along the way, from the scan it passed.
+    for (uint16_t k = 0; k < rule.res_count; k++) {
+      const uint16_t i = res_of(r, k);
+      if (res_[i].holder != r || !res_[i].passed || res_[i].seen) continue;
+      const Range &next = t_.res_next[rule.res_first + k];
+      for (uint16_t b = 0; b < next.count; b++) {
+        const BlockRef &ref = t_.block_refs[next.first + b];
+        if (went(ref.item, ref.logic_block, true)) res_[i].seen = true;
+      }
+    }
     if (rs.phase == ACTIVE) {
       bool cancel = false;
       if (rule.trigger.when) {
-        if (rule.cancel != NONE && moment(rule.cancel)) {
-          cancel = true;
-          rs.trig.request = false;
-        }
+        cancel = rs.cancel_now;
       } else if (!rs.true_now) {
         cancel = true;
       }
       if (!cancel && mast_held(r)) {
         cancel = true;
-        if (rule.trigger.when) rs.trig.request = true;
+        if (rs.ask != NONE) asks_[rs.ask].request = true;
       }
       if (cancel) {
-        out.events.push_back(LogEvent{LogEvent::CANCEL, name, t_.rule_ref(r), ""});
-        if (t_.resources[i].approach_lock_ms > 0) {
-          rs.phase = CANCELLING;
-          rs.cancel_at = n_;
-        } else {
+        // Each resource: held while approach locking holds it, or freed now.
+        rs.phase = CANCELLING;
+        rs.cancel_at = n_;
+        bool behind = false;
+        if (rule.approach_block != NONE) {
+          const BlockRef &ref = t_.block_refs[rule.approach_block];
+          behind = occupied_ref(ref.item, ref.logic_block);
+        }
+        for (uint16_t k = 0; k < rule.res_count; k++) {
+          const uint16_t i = res_of(r, k);
+          if (res_[i].holder != r) continue;
+          const std::string &name = t_.names[t_.resources[i].name];
+          out.events.push_back(LogEvent{LogEvent::CANCEL, name, t_.rule_ref(r), ""});
+          const uint32_t locked_for = rule.approach_block != NONE ? (behind ? rule.approach_ms : 0) : t_.resources[i].approach_lock_ms;
+          if (locked_for > 0) continue;
           out.events.push_back(LogEvent{LogEvent::RELEASE, name, "", "cancel"});
           free_res(i);
-          continue;
         }
+        if (rs.phase == IDLE) continue;
       }
     }
-    if ((rs.phase == ACTIVE || rs.phase == CANCELLING) && block_occupied_or_went(i)) {
-      rs.phase = PASSED;
-      out.events.push_back(LogEvent{LogEvent::PASS, name, t_.rule_ref(r), ""});
-    }
-    if (rs.phase == CANCELLING && (n_ - rs.cancel_at) * SCAN_MS >= t_.resources[i].approach_lock_ms) {
-      out.events.push_back(LogEvent{LogEvent::RELEASE, name, "", "time"});
-      free_res(i);
+    if (rs.phase == CANCELLING) {
+      // Rule 10: by time; with a rule's own approach locking, also at once
+      // when the train behind the signal leaves.
+      bool left = false;
+      if (rule.approach_block != NONE) {
+        const BlockRef &ref = t_.block_refs[rule.approach_block];
+        left = !occupied_ref(ref.item, ref.logic_block);
+      }
+      for (uint16_t k = 0; k < rule.res_count; k++) {
+        const uint16_t i = res_of(r, k);
+        if (res_[i].holder != r) continue;
+        const uint32_t hold = rule.approach_block != NONE ? rule.approach_ms : t_.resources[i].approach_lock_ms;
+        const bool time = (n_ - rs.cancel_at) * static_cast<int64_t>(SCAN_MS) >= static_cast<int64_t>(hold);
+        if (!time && !left) continue;
+        out.events.push_back(LogEvent{LogEvent::RELEASE, t_.names[t_.resources[i].name], "", time ? "time" : "left"});
+        free_res(i);
+      }
       continue;
     }
-    if (rs.phase == PASSED && res_[i].release_now) {
-      out.events.push_back(LogEvent{LogEvent::RELEASE, name, "", "release"});
+    if (rs.phase != PASSED) continue;
+    for (uint16_t k = 0; k < rule.res_count; k++) {
+      const uint16_t i = res_of(r, k);
+      if (res_[i].holder != r || !res_[i].passed || !res_[i].release_now) continue;
+      if (t_.res_next[rule.res_first + k].count && !res_[i].seen) continue;
+      out.events.push_back(LogEvent{LogEvent::RELEASE, t_.names[t_.resources[i].name], "", "release"});
       free_res(i);
     }
   }
 
-  // 6.3: grants, longest waiting first, then list order.
-  for (size_t ii = 0; ii < t_.resources.size(); ii++) {
-    const uint16_t i = static_cast<uint16_t>(ii);
-    if (held(i) || released_now[i] || !blocks_clear(i)) continue;
-    uint16_t best = NONE;
-    for (uint16_t r : res_rules_[i]) {
-      const RuleState &rs = rules_[r];
-      if (rs.phase != IDLE || !rs.true_now || !rs.checks_now || mast_held(r)) continue;
-      if (best == NONE || rs.trig.since < rules_[best].trig.since || (rs.trig.since == rules_[best].trig.since && r < best))
-        best = r;
-    }
-    if (best == NONE) continue;
-    RuleState &rs = rules_[best];
-    rs.phase = ACTIVE;
-    res_[i].holder = best;
-    res_[i].rel_seq_p = 0;
-    res_[i].rel_done = false;
-    if (t_.rules[best].trigger.when) {
-      rs.trig.request = false;
-      rs.trig.since = -1;
-    }
-    out.events.push_back(LogEvent{LogEvent::GRANT, t_.names[t_.resources[i].name], t_.rule_ref(best), ""});
+  // 6.3: grants, longest waiting first, then list order. A rule takes all of
+  // its resources at once or none of them, and each resource it waits for is
+  // kept from the rules that started waiting after it. A request shared by
+  // several rules is used up by the first granted.
+  std::vector<uint16_t> asking;
+  for (size_t ri = 0; ri < t_.rules.size(); ri++) {
+    const uint16_t r = static_cast<uint16_t>(ri);
+    const RuleState &rs = rules_[r];
+    if (t_.rules[r].res_count > 0 && rs.phase == IDLE && rs.true_now && rs.checks_now && !mast_held(r)) asking.push_back(r);
   }
+  std::stable_sort(asking.begin(), asking.end(), [this](uint16_t a, uint16_t b) { return rules_[a].trig.since < rules_[b].trig.since; });
+  std::vector<bool> claimed(t_.resources.size(), false);
+  std::vector<uint16_t> granted(t_.resources.size(), NONE);
+  for (uint16_t r : asking) {
+    const Rule &rule = t_.rules[r];
+    RuleState &rs = rules_[r];
+    if (rs.ask != NONE && !asks_[rs.ask].request) continue;
+    bool ok = true;
+    for (uint16_t k = 0; k < rule.res_count; k++) {
+      const uint16_t i = res_of(r, k);
+      if (claimed[i] || held(i) || released_now[i] || !blocks_clear(i)) ok = false;
+    }
+    for (uint16_t k = 0; k < rule.res_count; k++) claimed[res_of(r, k)] = true;
+    if (!ok) continue;
+    rs.phase = ACTIVE;
+    for (uint16_t k = 0; k < rule.res_count; k++) {
+      const uint16_t i = res_of(r, k);
+      res_[i].holder = r;
+      res_[i].passed = false;
+      res_[i].seen = false;
+      res_[i].rel_seq_p = 0;
+      res_[i].rel_done = false;
+      granted[i] = r;
+    }
+    if (rs.ask != NONE) {
+      Ask &ask = asks_[rs.ask];
+      ask.request = false;
+      ask.since = -1;
+      for (uint16_t other : ask.rules) rules_[other].trig.since = -1;
+    }
+  }
+  for (size_t i = 0; i < t_.resources.size(); i++)
+    if (granted[i] != NONE) out.events.push_back(LogEvent{LogEvent::GRANT, t_.names[t_.resources[i].name], t_.rule_ref(granted[i]), ""});
 
   // 6.4: who wins each mast (rule 12), approach lighting, then the locks.
   std::vector<int16_t> new_out(t_.masts.size(), SHOWS_NOTHING);
@@ -1054,11 +1314,16 @@ ScanOut Engine::scan() {
     }
     new_out[mi] = pick;
   }
+  // Rule 21: a rule's turnout locks, while it holds them; one held with a
+  // resource only while the rule holds that resource.
   std::vector<bool> new_locks(t_.turnouts.size(), false);
   for (size_t r = 0; r < t_.rules.size(); r++) {
     if (!locks_held(static_cast<uint16_t>(r))) continue;
     const Rule &rule = t_.rules[r];
-    for (uint16_t l = 0; l < rule.locks_count; l++) new_locks[t_.locks[rule.locks_first + l]] = true;
+    for (uint16_t l = 0; l < rule.locks_count; l++) {
+      const uint16_t with = t_.lock_with[rule.locks_first + l];
+      if (with == NONE || res_[with].holder == r) new_locks[t_.locks[rule.locks_first + l]] = true;
+    }
   }
   finish(&out, &new_out, new_locks);
   record_edges();
@@ -1156,6 +1421,14 @@ void Engine::event(const Event &e) {
       pending_releases_.emplace_back(e.name, ignored);
       return;
     }
+    case Event::RELEASE_GROUP: {
+      bool ignored = e.value == "mqtt" && connect_at_ >= 0 && now - connect_at_ < RELEASE_WINDOW_MS;
+      pending_group_releases_.emplace_back(e.name, ignored);
+      return;
+    }
+    case Event::AUTO:
+      auto_on_ = e.value == "on";
+      return;
     case Event::LOGIC:
       pending_logic_ = e.value == "on" ? 1 : e.value == "off" ? 0 : -1;
       return;
@@ -1176,7 +1449,11 @@ void Engine::event(const Event &e) {
 void Engine::jmri_message(uint16_t m, const std::string &message) {
   int16_t pick = pick_aspect(m, message);
   if (field_[m]) {
-    holds_[m] = message.find("; Held") != std::string::npos;
+    const bool held = message.find("; Held") != std::string::npos;
+    // Rule 30: a change of hold, from a message the board was sent.
+    if (!starting_ && last_held_[m] != (held ? 1 : 0) && (held || last_held_[m] == 1)) hold_went_[m] |= held ? 1 : 2;
+    last_held_[m] = held ? 1 : 0;
+    holds_[m] = held;
     if (pick != IGNORED) jmri_shown_[m] = pick;
     if (!logic_on_ && pick != IGNORED) display_[m] = pick;
   } else if (pick != IGNORED) {
@@ -1192,6 +1469,7 @@ std::string Engine::shows(const std::string &mast) const {
 State Engine::state() const {
   State s;
   s.logic_on = logic_on_;
+  s.auto_on = auto_on_;
   for (size_t m = 0; m < t_.masts.size(); m++) s.masts.emplace_back(t_.names[t_.masts[m].name], aspect_text(m, display_[m]));
   for (size_t r = 0; r < t_.rules.size(); r++) {
     const char *phase = "idle";
@@ -1201,7 +1479,7 @@ State Engine::state() const {
         case PASSED: phase = "passed"; break;
         case CANCELLING: phase = "cancelling"; break;
         default:
-          phase = (t_.rules[r].resource != NONE && rules_[r].true_now && rules_[r].checks_now) ? "waiting" : "idle";
+          phase = (t_.rules[r].res_count > 0 && rules_[r].true_now && rules_[r].checks_now) ? "waiting" : "idle";
       }
     }
     s.rules.emplace_back(t_.rule_ref(static_cast<uint16_t>(r)), phase);

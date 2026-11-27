@@ -10,6 +10,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { configuratorDir, loadModules, test } from "./harness.js";
+import { builtPlanCases } from "./plan-cases.js";
 
 const bin = process.env.ENGINE_TESTS_BIN;
 const { EsphomeMrLogic: L } = loadModules("logic.js");
@@ -65,6 +66,8 @@ function candidates(board, me = "") {
     list.push({ jmri: m, message: "null; Lit; Held" }, { jmri: m, message: "Bogus; Lit; Unheld" });
   }
   for (const r of logic.resources || []) list.push({ release: r.name, via: "button" }, { release: r.name, via: "mqtt" });
+  for (const l of logic.layers || []) list.push({ releaseGroup: l.name, via: "button" }, { releaseGroup: l.name, via: "mqtt" });
+  list.push({ releaseGroup: "Nowhere", via: "button" }, { auto: "on" }, { auto: "off" });
   for (const [b, def] of Object.entries(board.remote || {})) {
     list.push({ board: b, online: true }, { board: b, online: true }, { board: b, online: false });
     for (const s of def.sensors || []) for (const is of ["occupied", "clear", "unknown"]) list.push({ board: b, sensor: s, is });
@@ -196,6 +199,95 @@ const EXTRA_BOARDS = {
     },
     start: { board: "mid", links: { A: "west/B", B: "east/A", Nowhere: "x/y" } },
   },
+  // Rules that take several resources at once (a track plan's moves), with
+  // approach locking on some, and leaving guards on their own resources and
+  // on named ones.
+  "several resources": {
+    board: {
+      sensors: ["W", "N", "S", "A", "B", "C", "D"],
+      turnouts: ["P1"],
+      masts: { West: S2, North: S2, South: S2 },
+      logic: {
+        resources: [
+          { name: "A", blocks: ["A"], release: { while: { block: "A", is: "clear" }, for: "0.5s" }, approachLock: "1s" },
+          { name: "B", blocks: ["B"], release: { while: { block: "B", is: "clear" }, for: "0.3s" } },
+          { name: "C", blocks: ["C", "D"], release: { when: { block: "D", is: "occupied" }, then: [{ block: "D", is: "clear" }] }, approachLock: "0.4s" },
+        ],
+        layers: [
+          { name: "Moves", rules: [
+            { trigger: { while: { block: "W", is: "occupied" }, for: "0.5s", leavingGuard: true }, checks: [{ turnout: "P1", is: "closed" }],
+              then: { mast: "West", aspect: "R281", reserve: ["A", "B", "A", "Nowhere"], lock: ["P1"] } },
+            { trigger: { while: { block: "N", is: "occupied" }, for: "0.3s", leavingGuard: ["C"] }, checks: [],
+              then: { mast: "North", aspect: "R285", reserve: ["B", "C"] } },
+            { trigger: { when: { block: "S", is: "occupied" } }, checks: [{ block: "C", is: "clear" }],
+              then: { mast: "South", aspect: "R281", reserve: ["C"] }, cancel: { when: { block: "S", is: "clear" } } },
+            { trigger: { while: { block: "S", is: "clear" } }, checks: [], then: { mast: "South", aspect: "R285", reserve: [] } },
+          ] },
+          { name: "More", rules: [
+            { trigger: { while: { block: "D", is: "occupied" }, leavingGuard: ["A", "Nowhere"] }, checks: [], then: { mast: "North", aspect: "R281", reserve: ["A", "C"] } },
+          ] },
+        ],
+      },
+    },
+  },
+  // Routes (track plan TP 4): a routes group sharing one request, asked
+  // for by a train entering from the far side (in Auto), a mast going Held to
+  // Unheld or a button (in Manual), cancelled by a hold, a button or a train
+  // leaving for a while, withdrawn when the switch flips; sequential release,
+  // locks held with a resource, a rule's own approach locking, and Release
+  // for a group.
+  routes: {
+    board: {
+      sensors: ["W", "X", "A", "B", "C", "E"],
+      turnouts: ["P1", "P2"],
+      masts: { West: S2, East: S2 },
+      logic: {
+        buttons: [{ name: "Ask" }],
+        blocks: [
+          { name: "Behind", sensors: ["W"], next: ["Ahead", "Far"] },
+          { name: "Ahead", sensors: ["A"], next: ["Behind", "Beyond"] },
+          { name: "Far", sensors: ["X"] },
+          { name: "Beyond", sensors: ["B", "C"] },
+        ],
+        resources: [
+          { name: "Ahead", blocks: ["Ahead"], release: { while: { block: "Ahead", is: "clear" }, for: "0.5s" } },
+          { name: "Beyond", blocks: ["Beyond"], release: { while: { block: "Beyond", is: "clear" }, for: "0.3s" }, approachLock: "0.4s" },
+          { name: "Exit", blocks: ["E"], release: { while: { block: "E", is: "clear" }, for: "0.2s" } },
+        ],
+        layers: [
+          { name: "West moves", routes: true, rules: [
+            { trigger: { when: { any: [
+                { block: "Behind", is: "occupied", notFrom: "Ahead", if: { auto: "on" } },
+                { mast: "West", is: "unheld", if: { auto: "off" } },
+                { button: "Ask", is: "pressed", if: { auto: "off" } },
+              ] } },
+              cancel: { when: { any: [
+                { block: "Behind", is: "clear", for: "0.5s", if: { auto: "on" } },
+                { mast: "West", is: "held", if: { auto: "off" } },
+                { button: "Ask", is: "pressed", if: { auto: "off" } },
+              ] } },
+              withdraw: { when: { any: [{ auto: "on" }, { auto: "off" }] } },
+              approachLock: { block: "Behind", for: "0.6s" },
+              checks: [{ turnout: "P1", is: "closed" }, { block: "Ahead", is: "clear" }],
+              then: { mast: "West", aspect: "R281", reserve: ["Ahead", "Beyond"], next: { Ahead: ["Beyond"], Beyond: ["E", "Nowhere"] }, lock: [{ turnout: "P1", with: "Ahead" }, "P2", { turnout: "P2", with: "Nobody" }, { with: "Ahead" }] } },
+            { trigger: { when: { any: [
+                { block: "Behind", is: "occupied", notFrom: ["Ahead"], if: { auto: "on" } },
+                { mast: "West", is: "unheld", if: { auto: "off" } },
+              ] } },
+              cancel: { when: { block: "Behind", is: "clear", for: "300ms" } },
+              checks: [{ turnout: "P1", is: "thrown" }],
+              then: { mast: "West", aspect: "R285", reserve: ["Ahead", "Exit"], next: { Exit: [] }, lock: [{ turnout: "P1", with: "Exit" }] } },
+          ] },
+          { name: "East", rules: [
+            { trigger: { when: { block: "Beyond", is: "occupied", notFrom: "Ahead" } }, checks: [], cancel: { when: { mast: "East", is: "held" } },
+              then: { mast: "East", aspect: "R281", reserve: ["Beyond"] } },
+            { trigger: { while: { all: [{ mast: "East", is: "unheld" }, { auto: "off" }] } }, checks: [], then: { mast: "East", aspect: "R285" } },
+          ] },
+        ],
+      },
+    },
+    start: { auto: "off", jmri: { West: "R292; Lit; Held" } },
+  },
   // One end, so that pairing with east/A often succeeds, then is heard.
   pairing: {
     board: {
@@ -247,6 +339,21 @@ if (!bin) {
       return Object.entries(data.boards).map(([name, board]) => [`${file} (${name})`, { board, start: { ...(data.start?.[name] || {}), board: name } }]);
     });
   for (const [name, data] of Object.entries(EXTRA_BOARDS)) boards.push([name, data]);
+  // The track plan's cases, built into rule tables: replayed in the C++ core
+  // (plan-builder.test.js replays them in JS), then cross-checked like the rest.
+  const plans = builtPlanCases();
+  test(`the C++ core passes every track plan case (${plans.length})`, () => {
+    const planDir = fs.mkdtempSync(path.join(os.tmpdir(), "plan-cases-"));
+    for (const { name, data } of plans) fs.writeFileSync(path.join(planDir, `plan-${name}.json`), JSON.stringify(data));
+    try {
+      execFileSync(bin, [planDir], { encoding: "utf8", stdio: "pipe" });
+    } catch (err) {
+      assert.fail(`${err.stdout}${err.stderr}`);
+    } finally {
+      fs.rmSync(planDir, { recursive: true, force: true });
+    }
+  });
+  for (const { name, data } of plans) boards.push([`plan/${name}`, { board: data.board, start: data.start }]);
   for (const [file, { board, start = {} }] of boards) {
     const runs = file in EXTRA_BOARDS ? TRACES * 10 : TRACES;
     test(`JS and C++ agree on ${file}'s board, ${runs} random runs of ${SCANS} scans`, () => {

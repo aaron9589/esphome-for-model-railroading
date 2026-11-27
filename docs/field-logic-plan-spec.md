@@ -1,6 +1,6 @@
 # Field Logic Track Plan — Feature Spec
 
-Status: design approved on 2026-11-26 from a clickable mock (#135, kept as a private design canvas). Protection amended on 2026-11-27 to follow prototype interlocking: [routes are asked for, set and released](#routes-asked-for-set-and-released), not inferred from a train standing at a signal; who asks is [Auto or Manual](#auto-or-manual). The stored format and builder (`configurator/plan-builder.js`, TP 2) and turnout locking are built. The page described here is not: the Field Logic page on `feature/logic` today is the old one, which this replaces. It changes how the Field Logic mode of the [Field Logic spec](field-logic-spec.md) is **set up**. The engine and its fail-safe rules stay; the [engine changes](#engine-and-board-changes) it needs are listed.
+Status: design approved on 2026-11-26 from a clickable mock (#135, kept as a private design canvas). Protection amended on 2026-11-27 to follow prototype interlocking: [routes are asked for, set and released](#routes-asked-for-set-and-released), not inferred from a train standing at a signal; who asks is [Auto or Manual](#auto-or-manual). The stored format and builder (`configurator/plan-builder.js`, TP 2), turnout locking, and routes asked for, set and released (TP 4, with the Auto/Manual switch, signal buttons and Release for a route on the board) are built. The page described here is not: the Field Logic page on `feature/logic` today is the old one, which this replaces. It changes how the Field Logic mode of the [Field Logic spec](field-logic-spec.md) is **set up**. The engine and its fail-safe rules stay; the [engine changes](#engine-and-board-changes) it needs are listed.
 
 ## Why
 
@@ -132,7 +132,7 @@ A route is set only when something asks for it. Who asks is the only thing Auto 
 
 | | Asks for a route | Cancels it (before the train has entered) |
 |---|---|---|
-| **Auto** | the board, when a train [enters the block behind the signal from the far side](#which-way-a-train-is-heading) | that train leaving the block behind |
+| **Auto** | the board, when a train [enters the block behind the signal from the far side](#which-way-a-train-is-heading) | nothing: once set, a route is freed only as its train goes through it, or by hand. A train that asked and never entered (it backed away) leaves the route set until the block behind has been clear for its hold time, or its Timing if it has none: a time release. Amended 2026-11-27 |
 | **Manual** | CATS or JMRI clearing the signal (Held to Unheld), or the signal's button being pressed: whichever comes first | the signal being held, or its button being pressed again |
 
 - **The Auto/Manual switch.** One for the board, set on the running layout: on the board's web page, on MQTT (`trains/track/light/auto/<board>`, a JMRI light `MLauto/<board>`, so CATS or a JMRI panel can flip it), and optionally a toggle on the fascia. It starts as the configurator says (Auto by default) and is kept across a restart, as the logic switch is.
@@ -160,18 +160,18 @@ A route is set when it has been asked for and, in the same scan:
 
 It then takes all its track **at once**, so two routes can never each hold part of what the other needs. Its turnouts are locked ([route locking](#turnout-locks)) and the signal shows what the track ahead allows. If a block on it becomes occupied by anything but its own train, the signal goes to Stop and the route stays set.
 
-Track is taken in **pieces**: the track between turnouts, crossings, breaks and ends, with a crossing a piece of its own. A route takes only the pieces another route can clash on, so on a scissors crossover a train along one line and a train along the other run together, and on a crossing loop a train can stand in one road while another is routed into the other. Where two routes clash on track that no sensor of its own sees, the board can't tell when it is free: that is an error, saying to give that track a sensor.
+A route takes **everything from its signal to its end** (the next signal, or the end of the drawing): every block, piece of track and turnout on it. Track is taken in **pieces**: the track between turnouts, crossings, breaks and ends, with a crossing a piece of its own. Two routes are kept apart only where they share a piece, so on a scissors crossover a train along one line and a train along the other run together, and on a crossing loop a train can stand in one road while another is routed into the other. Track no sensor of its own sees is freed with the next block along the route that has one; no other route can take it. The track just past a controlled signal must have a sensor of its own, so the board sees the train enter (an error otherwise). Where two routes clash on track that no sensor of its own sees, the board can't tell when it is free: that is an error, saying to give that track a sensor.
 
 #### Releasing a route
 
-- **Behind the train, piece by piece.** A piece is freed once its train has been in its block, the block has then been clear for its **Timing** (3 seconds unless changed), and the train has been seen in the next block along the route; the last piece of a route that ends at the drawing's end needs only the first two. A detector that drops out under a train therefore frees nothing. The turnouts in a piece unlock with it.
+- **Behind the train, in sequence.** The route's objects fall in sequence behind the train, the last once the train has occupied the route's last block and then left it. A piece is freed once its train has been in its block, the block has then been clear for its **Timing** (3 seconds unless changed), and the train has been seen in the next block along the route; the last piece of a route that ends at the drawing's end needs only the first two. A detector that drops out under a train therefore frees nothing. *Seen* is the next block becoming occupied after the train entered the piece: another train already standing there is no proof that this one went on. The next block is the next one with a sensor along the way, or past the signal the route ends at. The turnouts in a piece unlock with it.
 - **Cancelled before the train enters:** the route is freed at once, unless a train is in the block behind the signal: then it is freed after the block's hold time (approach locking; off by default), or at once if that train leaves.
 - **Once the train has entered, a cancel does nothing.** CATS holds a signal as soon as its train passes, so that hold must never free track ahead of the train.
 - **A piece the train never reaches** (it backed out, or stalled on dead track) stays taken. Release the route by hand: **Release** on the board's web page, or its JMRI turnout, frees what is left of it at once, as today's manual release. That is the operator's call, as an emergency route release is the signaller's.
 
 #### Which way a train is heading
 
-Only Auto needs to know. Each block remembers where its train came from: the neighbouring block that was occupied when it became occupied. In Auto, a train entering the block behind a signal asks only if it came from the side away from the signal, so a train that has just come the other way through the signal never asks. If the board can't tell (it came from track with no sensor, or both neighbours were occupied), the train counts as heading through: stranding a waiting train is worse, and the route's locking still protects the track.
+Only Auto needs to know. Each block remembers where its train came from: the neighbouring block that was occupied when it became occupied. A train already standing behind a signal when the board starts counts as arriving from where the board can't tell, so it asks. In Auto, a train entering the block behind a signal asks only if it came from the side away from the signal, so a train that has just come the other way through the signal never asks. If the board can't tell (it came from track with no sensor, or both neighbours were occupied), the train counts as heading through: stranding a waiting train is worse, and the route's locking still protects the track.
 
 Selecting a block shows what protects it in words: which signals' routes lead onto it, that only one is set at a time, and which is set now.
 
@@ -249,6 +249,7 @@ Marked on the drawing where they are: red for errors, which stop the download, a
 - A signal that faces an end with no track ahead.
 - Nothing detected on a route (error).
 - Two routes that clash on track no sensor of its own sees (error).
+- A controlled signal with no sensor of its own just past it: the board can't see a train enter its route (error).
 - A controlled signal that nothing can ask for: with no sensor behind it, no train can ask in Auto (error unless it is Manual only); with MQTT off and no button, nothing can ask in Manual (error).
 - Undetected track on a route (warning), a block no signal checks (warning), a signal that can't be approach locked (warning).
 - Everything the checker finds, pointed back at the signal, rule or block.
@@ -332,7 +333,7 @@ The milestone *Track plan* on GitHub has an issue for each.
 | 1 | Hide Plant ends in Field Logic | done |
 | 2 | Stored format and builder | done; fail-safe sign-off open |
 | 3 | First grid editor | done, replaced by 6 |
-| 4 | Routes: controlled signals and block signals; asked for in Auto by the board, in Manual by CATS or JMRI or a signal button, with the Auto/Manual switch and Manual only; set all at once, released behind the train; route locking; paired turnouts; sections removed | hand-worked cases pass in both engines: the gauntlet asked for by CATS, a crossing loop meet by signal buttons, a scissors crossover with parallel routes, a diamond and a merge in Auto, the switch flipped with a route set, a detector dropout that frees nothing, and CATS holding a signal as its train passes |
+| 4 | Routes: controlled signals and block signals; asked for in Auto by the board, in Manual by CATS or JMRI or a signal button, with the Auto/Manual switch and Manual only; set all at once, released behind the train; route locking; paired turnouts; sections removed | done; fail-safe sign-off open. Hand-worked cases pass in both engines (`test/cases/plan/`): the gauntlet asked for by CATS, a crossing loop meet by signal buttons, a scissors crossover with parallel routes, a diamond and a merge in Auto, the switch flipped with a route set, a detector dropout that frees nothing, CATS holding a signal as its train passes, and a route cancelled and released by hand |
 | 5 | Checker on drawn plans | the passing siding and a station of the size above are checked completely |
 | 6 | The new page: steps, drawing, making hardware, protection shown | a newcomer on an empty page has one thing to do, and the four TP 2 drawings can be drawn |
 | 7 | Pieces, rules and examples | the gauntlet with a button before Left Bridge, and the industry siding with a local panel, built from an empty page |

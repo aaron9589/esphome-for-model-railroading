@@ -1,0 +1,403 @@
+{
+  "name": "track plan: two tracks merging at a join with no turnout, in Auto",
+  "covers": [
+    "Track plan: a merge in Auto"
+  ],
+  "about": "Both routes run onto the same track past the join, so they clash on Merge and Out, and each takes both at once. In Auto the upper train asks first and goes. When it has gone on into Out and Merge has been clear for 3 seconds, Merge is freed, but Out is still taken for it, so the lower train waits for both.",
+  "module": {
+    "sensors": [
+      "Upper current",
+      "Lower current",
+      "Merge current",
+      "Out current"
+    ],
+    "masts": [
+      "Upper",
+      "Lower"
+    ],
+    "plan": {
+      "track": [
+        [
+          [
+            0,
+            0
+          ],
+          [
+            3,
+            0
+          ]
+        ],
+        [
+          [
+            3,
+            0
+          ],
+          [
+            4,
+            1
+          ]
+        ],
+        [
+          [
+            0,
+            2
+          ],
+          [
+            3,
+            2
+          ]
+        ],
+        [
+          [
+            3,
+            2
+          ],
+          [
+            4,
+            1
+          ]
+        ],
+        [
+          [
+            4,
+            1
+          ],
+          [
+            10,
+            1
+          ]
+        ]
+      ],
+      "points": [
+        {
+          "at": [
+            4,
+            1
+          ],
+          "turnout": null
+        }
+      ],
+      "arrows": [
+        {
+          "from": [
+            0,
+            0
+          ],
+          "to": [
+            1,
+            0
+          ]
+        },
+        {
+          "from": [
+            0,
+            2
+          ],
+          "to": [
+            1,
+            2
+          ]
+        },
+        {
+          "from": [
+            5,
+            1
+          ],
+          "to": [
+            6,
+            1
+          ]
+        }
+      ],
+      "breaks": [
+        {
+          "at": [
+            2,
+            0
+          ],
+          "sensors": [],
+          "signals": [
+            {
+              "mast": "Upper",
+              "facing": [
+                3,
+                0
+              ]
+            }
+          ]
+        },
+        {
+          "at": [
+            2,
+            2
+          ],
+          "sensors": [],
+          "signals": [
+            {
+              "mast": "Lower",
+              "facing": [
+                3,
+                2
+              ]
+            }
+          ]
+        },
+        {
+          "at": [
+            8,
+            1
+          ],
+          "sensors": [],
+          "signals": []
+        }
+      ],
+      "blocks": [
+        {
+          "name": "Upper",
+          "at": [
+            [
+              0,
+              0
+            ],
+            [
+              1,
+              0
+            ]
+          ],
+          "sensors": [
+            "Upper current"
+          ]
+        },
+        {
+          "name": "Lower",
+          "at": [
+            [
+              0,
+              2
+            ],
+            [
+              1,
+              2
+            ]
+          ],
+          "sensors": [
+            "Lower current"
+          ]
+        },
+        {
+          "name": "Merge",
+          "at": [
+            [
+              5,
+              1
+            ],
+            [
+              6,
+              1
+            ]
+          ],
+          "sensors": [
+            "Merge current"
+          ]
+        },
+        {
+          "name": "Out",
+          "at": [
+            [
+              8,
+              1
+            ],
+            [
+              9,
+              1
+            ]
+          ],
+          "sensors": [
+            "Out current"
+          ]
+        }
+      ],
+      "ends": [
+        {
+          "at": [
+            10,
+            1
+          ],
+          "beyond": "plain"
+        }
+      ]
+    }
+  },
+  "steps": [
+    {
+      "at": 5,
+      "do": [
+        {
+          "sensor": "Upper current",
+          "is": "occupied"
+        }
+      ],
+      "expect": {
+        "events": [
+          {
+            "grant": "Merge",
+            "rule": "Upper moves/1"
+          },
+          {
+            "grant": "Out",
+            "rule": "Upper moves/1"
+          }
+        ],
+        "masts": {
+          "Upper": "R281",
+          "Lower": "R292"
+        }
+      }
+    },
+    {
+      "at": 8,
+      "do": [
+        {
+          "sensor": "Lower current",
+          "is": "occupied"
+        }
+      ],
+      "expect": {
+        "events": [],
+        "rules": {
+          "Lower moves/1": "waiting"
+        },
+        "masts": {
+          "Lower": "R292"
+        }
+      }
+    },
+    {
+      "at": 12,
+      "do": [
+        {
+          "sensor": "Merge current",
+          "is": "occupied"
+        }
+      ],
+      "expect": {
+        "events": [
+          {
+            "pass": "Merge",
+            "rule": "Upper moves/1"
+          }
+        ],
+        "masts": {
+          "Upper": "R292"
+        },
+        "resources": {
+          "Merge": "PASSED",
+          "Out": "ACTIVE"
+        }
+      }
+    },
+    {
+      "at": 15,
+      "do": [
+        {
+          "sensor": "Upper current",
+          "is": "clear"
+        }
+      ]
+    },
+    {
+      "at": 20,
+      "do": [
+        {
+          "sensor": "Out current",
+          "is": "occupied"
+        }
+      ],
+      "expect": {
+        "events": [
+          {
+            "pass": "Out",
+            "rule": "Upper moves/1"
+          }
+        ],
+        "resources": {
+          "Out": "PASSED"
+        }
+      }
+    },
+    {
+      "at": 24,
+      "do": [
+        {
+          "sensor": "Merge current",
+          "is": "clear"
+        }
+      ]
+    },
+    {
+      "at": 54,
+      "expect": {
+        "events": [
+          {
+            "release": "Merge",
+            "by": "release"
+          }
+        ],
+        "resources": {
+          "Merge": "IDLE",
+          "Out": "PASSED"
+        },
+        "holders": {
+          "Out": "Upper moves/1"
+        },
+        "masts": {
+          "Lower": "R292"
+        }
+      }
+    },
+    {
+      "at": 60,
+      "do": [
+        {
+          "sensor": "Out current",
+          "is": "clear"
+        }
+      ]
+    },
+    {
+      "at": 89,
+      "expect": {
+        "events": [],
+        "resources": {
+          "Out": "PASSED"
+        }
+      }
+    },
+    {
+      "at": 90,
+      "expect": {
+        "events": [
+          {
+            "release": "Out",
+            "by": "release"
+          },
+          {
+            "grant": "Merge",
+            "rule": "Lower moves/1"
+          },
+          {
+            "grant": "Out",
+            "rule": "Lower moves/1"
+          }
+        ],
+        "masts": {
+          "Lower": "R281"
+        },
+        "holders": {
+          "Merge": "Lower moves/1",
+          "Out": "Lower moves/1"
+        }
+      }
+    }
+  ]
+}

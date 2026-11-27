@@ -885,6 +885,11 @@
         r.error(where, `${who} reads signal "${name}", which is not on the Signal Masts page or a signal with no lights. Add it, or pick another.`);
         return;
       }
+      // Held or Unheld: what JMRI or CATS last said of a signal the board sets.
+      if (is === "held" || is === "unheld") {
+        if (!fieldMastNames(config).has(name)) r.error(where, `${who} reads whether JMRI holds signal "${name}", but no rule sets that signal, so the board does not read its hold. Pick a signal the board sets.`);
+        return;
+      }
       const words = Array.isArray(is) ? is : [is];
       const bad = words.filter((word) => !(word === "diverging" || Object.hasOwn(MEANING_WORDS, word)));
       if (!words.length || bad.length) {
@@ -943,8 +948,11 @@
       .map((b) => (onExpander(b)
         ? { name: String(b.name || ""), expander: b.expander, pin: b.pin, where: BUTTONS }
         : { name: String(b.name || ""), pin: String(b.pin).trim().toUpperCase(), where: BUTTONS }));
-    // Plant ends' Pair and LED pins are checked beside them.
-    return [...buttons, ...endPins(config)];
+    // The Auto/Manual switch's toggle, and plant ends' Pair and LED pins, are
+    // checked beside them.
+    const toggle = autoUsed(config) ? String(autoSettings(config).pin || "").trim().toUpperCase() : "";
+    const auto = toggle ? [{ name: "Auto switch", pin: toggle, where: BUTTONS }] : [];
+    return [...buttons, ...auto, ...endPins(config)];
   }
 
   // A block's key across boards: (board, name). A sensor and a block on one
@@ -1042,6 +1050,9 @@
     const here = config.board?.name || "";
     const names = new Set();
     const owner = new Map();
+    // The track plan's pieces of one block share it: each is its own track,
+    // and a move takes them all at once (plan-builder.js).
+    const pieces = new Set(list(logicItems(config).origins).filter((o) => o?.kind === "piece").map((o) => o.name));
     for (const res of resourcesOf(config)) {
       const name = String(res.name || "").trim();
       const label = name ? `Section "${name}"` : "A section";
@@ -1058,7 +1069,7 @@
           continue;
         }
         const other = owner.get(found.key);
-        if (other && other !== name) {
+        if (other && other !== name && !(pieces.has(other) && pieces.has(name))) {
           r.error(SECTIONS, `Block "${found.name}" is in sections "${other}" and "${name}". A block can be in one section only, or two trains could be let into it: remove it from one.`);
         } else owner.set(found.key, name);
       }
@@ -1149,10 +1160,10 @@
       } else if (typeof then.aspect === "string" && then.aspect) {
         r.error(GROUPS, `${who} shows "${then.aspect}" but names no signal. Pick the signal it sets.`);
       }
-      if (then.reserve !== undefined && !sections.has(String(then.reserve))) {
-        r.error(GROUPS, `${who} takes section "${then.reserve}", which is not under Sections. Add the section, or pick another.`);
+      for (const name of reservesOf(then)) {
+        if (!sections.has(String(name))) r.error(GROUPS, `${who} takes section "${name}", which is not under Sections. Add the section, or pick another.`);
       }
-      for (const name of list(then.lock)) {
+      for (const name of list(then.lock).map(lockTurnout)) {
         if (!turnouts.has(name)) r.error(GROUPS, `${who} locks turnout "${name}", which is not on the Turnouts page. Pick another, or remove it.`);
       }
     }
@@ -1173,6 +1184,8 @@
   // trigger, checks and cancel, and in the release of the section it takes.
   // Another board's masts are left out: they are not set here.
   const planLayer = (layer) => String(layer?.starter || "").startsWith("plan-");
+  // What a rule takes: one section, or several at once (a track plan's move).
+  const reservesOf = (then) => (then?.reserve === undefined ? [] : [].concat(then.reserve));
 
   function mastReadsBySetter(config) {
     const releases = new Map(resourcesOf(config).map((res) => [String(res.name || ""), res.release]));
@@ -1182,7 +1195,7 @@
       const set = rule?.then?.mast;
       if (typeof set !== "string" || !set) continue;
       const parts = [rule.trigger, rule.checks, rule.cancel];
-      if (rule.then.reserve !== undefined) parts.push(releases.get(String(rule.then.reserve)));
+      for (const name of reservesOf(rule.then)) parts.push(releases.get(String(name)));
       for (const cond of conditionsIn(parts)) {
         if (cond.board !== undefined || typeof cond.mast !== "string" || !cond.mast) continue;
         if (!edges.has(set)) edges.set(set, new Map());
@@ -1615,6 +1628,8 @@
           masts: joined(items.masts, list(own.masts).filter((entry) => !(entry?.virtual !== true && onPlan.has(entry?.mast)))),
           layers: joined(items.layers, own.layers),
           resources: joined(items.resources, own.resources),
+          buttons: joined(items.buttons, own.buttons),
+          pairs: items.pairs,
           origins: items.origins,
         },
       };
@@ -1643,6 +1658,48 @@
 
   function mastEntry(config, name) {
     return mastEntries(config).find((entry) => entry.virtual !== true && entry.mast === name);
+  }
+
+  // --- Routes (track plan spec, Routes asked for, set and released) ---
+
+  // The Auto/Manual switch: on the board when a rule reads it. `startsOn`
+  // and the fascia toggle's `pin` are the track plan's `auto`.
+  const AUTO_ID = "logic_auto";
+  function autoUsed(config) {
+    if (!fieldMode(config)) return false;
+    let used = false;
+    walkObjects(layersOf(config), (obj) => {
+      if (obj.auto !== undefined) used = true;
+    });
+    return used;
+  }
+  function autoSettings(config) {
+    const auto = config?.logic?.plan?.auto;
+    return isObject(auto) ? auto : {};
+  }
+
+  // Routes groups (one signal's routes): each has a Release of its own, for
+  // what is left of its route. Named on the board for its signal.
+  function routeGroups(config) {
+    if (!fieldMode(config)) return [];
+    return layersOf(config).filter((layer) => layer.routes === true && String(layer.name || "")).map((layer) => ({
+      name: String(layer.name),
+      mast: list(layer.rules).map((rule) => rule?.then?.mast).find((mast) => typeof mast === "string" && mast) || String(layer.name),
+    }));
+  }
+
+  // The resources a person can release on their own: the track plan's pieces
+  // are released with their route instead.
+  function releasableResources(config) {
+    const pieces = new Set(list(logicItems(config).origins).filter((o) => o?.kind === "piece").map((o) => o.name));
+    return resourcesOf(config).filter((res) => String(res.name || "") && !pieces.has(res.name));
+  }
+
+  // Rule buttons with their ESPHome ids: <button>_button for the pin.
+  function logicButtonIds(config) {
+    if (!fieldMode(config)) return [];
+    return M().uniqueIds(list(logicItems(config).buttons).filter((b) => isObject(b) && String(b.name || "").trim()))
+      .map((button) => ({ ...button, id: `${button.id}_button` }));
   }
 
   // Every object in a rule, depth first: conditions, moments, then.
@@ -1727,15 +1784,32 @@
   }
 
   // Turnouts a rule locks: they get a field-lock global.
+  // Turnouts that move together (the track plan's crossovers, plan-builder.js
+  // `pairs`): the other one's name, and whether it goes to the same command.
+  function pairedTurnout(config, name) {
+    if (M().logicMode(config) !== "field") return null;
+    for (const pair of list(logicItems(config).pairs)) {
+      if (pair?.turnout === name) return { name: pair.with, same: pair.same !== false };
+      if (pair?.with === name) return { name: pair.turnout, same: pair.same !== false };
+    }
+    return null;
+  }
+
   function lockedTurnoutNames(config) {
     const names = new Set();
     if (!fieldMode(config)) return names;
     for (const layer of layersOf(config)) {
       for (const rule of list(layer.rules)) {
-        for (const name of list(rule?.then?.lock)) if (typeof name === "string" && name) names.add(name);
+        for (const name of list(rule?.then?.lock).map(lockTurnout)) if (typeof name === "string" && name) names.add(name);
       }
     }
     return names;
+  }
+
+  // A rule's lock: a turnout's name, or { turnout, with } for one held with
+  // a resource (a track plan's route locking).
+  function lockTurnout(item) {
+    return isObject(item) ? item.turnout : item;
   }
 
   // An aspect's tag on this board: as set under Masts, else stop. An untagged
@@ -1818,7 +1892,11 @@
   // the page and the YAML; they are not part of the logic.
   function tableLogic(config) {
     const logic = {};
-    const blocks = logicBlocks(config).map((block) => ({ name: String(block.name || ""), sensors: sorted(list(block.sensors)) }));
+    const blocks = logicBlocks(config).map((block) => {
+      const out = { name: String(block.name || ""), sensors: sorted(list(block.sensors)) };
+      if (list(block.next).length) out.next = list(block.next).map(String);
+      return out;
+    });
     if (blocks.length) logic.blocks = blocks;
     const resources = resourcesOf(config).map((res) => {
       const out = { name: String(res.name || ""), blocks: sorted(list(res.blocks)) };
@@ -1829,9 +1907,10 @@
     if (resources.length) logic.resources = resources;
     const layers = layersOf(config).map((layer) => ({
       name: String(layer.name || ""),
+      ...(layer.routes === true ? { routes: true } : {}),
       rules: list(layer.rules).filter(isObject).map((rule) => {
         const out = {};
-        for (const key of ["trigger", "checks", "then", "cancel"]) if (rule[key] !== undefined) out[key] = sorted(rule[key]);
+        for (const key of ["trigger", "checks", "then", "cancel", "withdraw", "approachLock"]) if (rule[key] !== undefined) out[key] = sorted(rule[key]);
         return out;
       }),
     }));
@@ -2084,18 +2163,20 @@
     return rows;
   }
 
-  // --- button: Release <section>, a press for the component.
+  // --- button: Release <section> or Release <signal> (a route), a press
+  // for the component; and each rule button, as on its pin.
   function emitLogicButtons(lines, config) {
     if (!fieldMode(config)) return;
-    for (const res of resourcesOf(config)) {
-      const name = String(res.name || "");
-      if (!name) continue;
+    const press = (name, call) => {
       lines.push("  - platform: template");
-      lines.push(`    name: ${M().yamlQuote(M().entityName(`Release ${name}`))}`);
+      lines.push(`    name: ${M().yamlQuote(M().entityName(name))}`);
       lines.push("    on_press:");
       lines.push("      - lambda: |-");
-      lines.push(`          id(${LOGIC_ID}).release(${M().cppString(name)});`);
-    }
+      lines.push(`          id(${LOGIC_ID}).${call};`);
+    };
+    for (const res of releasableResources(config)) press(`Release ${res.name}`, `release(${M().cppString(res.name)})`);
+    for (const group of routeGroups(config)) press(`Release ${group.mast}`, `release_group(${M().cppString(group.name)})`);
+    for (const button of logicButtonIds(config)) press(button.name, `press(${M().cppString(button.name)})`);
     emitEndButtons(lines, config);
   }
 
@@ -2108,6 +2189,14 @@
     lines.push('    name: "Field logic"');
     lines.push("    optimistic: true");
     lines.push(`    restore_mode: ${config.logic?.startsOn === false ? "RESTORE_DEFAULT_OFF" : "RESTORE_DEFAULT_ON"}`);
+    // The Auto/Manual switch: on is Auto. Kept across a restart.
+    if (autoUsed(config)) {
+      lines.push("  - platform: template");
+      lines.push(`    id: ${AUTO_ID}`);
+      lines.push('    name: "Auto"');
+      lines.push("    optimistic: true");
+      lines.push(`    restore_mode: ${autoSettings(config).startsOn === false ? "RESTORE_DEFAULT_OFF" : "RESTORE_DEFAULT_ON"}`);
+    }
     emitEndLeds(lines, config);
   }
 
@@ -2161,6 +2250,7 @@
 
   // binary_sensor: the optional Pair push button, wired to GND like a turnout's.
   function emitEndSensors(lines, config) {
+    emitLogicButtonSensors(lines, config);
     for (const end of endIds(config)) {
       const pin = endPin(end, "pair");
       if (!pin) continue;
@@ -2182,6 +2272,48 @@
       lines.push("      - lambda: |-");
       lines.push(`          id(${LOGIC_ID}).pair(${M().cppString(end.name)});`);
     }
+  }
+
+  // binary_sensor: each rule button with a pin, and the Auto/Manual switch's
+  // fascia toggle, wired to GND like a turnout's button.
+  function emitPinInput(lines, config, pin, id, name) {
+    lines.push("  - platform: gpio");
+    lines.push("    pin:");
+    const hub = expanderHub(config, pin);
+    if (hub) lines.push(`      mcp23xxx: ${hub}`);
+    lines.push(`      number: ${hub ? Number(pin.pin) : pin.pin}`);
+    lines.push("      inverted: true");
+    lines.push("      mode:");
+    lines.push("        input: true");
+    lines.push("        pullup: true");
+    lines.push(`    id: ${id}`);
+    lines.push(`    name: ${M().yamlQuote(M().entityName(name))}`);
+    lines.push("    internal: true");
+    lines.push("    filters:");
+    lines.push("      - delayed_on: 50ms");
+    lines.push("      - delayed_off: 50ms");
+  }
+
+  function emitLogicButtonSensors(lines, config) {
+    for (const button of logicButtonIds(config)) {
+      const pin = buttonPin(button);
+      if (pin) emitPinInput(lines, config, pin, button.id, `${button.name} pin`);
+    }
+    const toggle = String(autoSettings(config).pin || "").trim().toUpperCase();
+    if (!autoUsed(config) || !toggle) return;
+    emitPinInput(lines, config, { pin: toggle }, `${AUTO_ID}_pin`, "Auto switch pin");
+    // On is Auto. The board's switch follows the toggle whenever it moves.
+    lines.push("    on_press:");
+    lines.push(`      - switch.turn_on: ${AUTO_ID}`);
+    lines.push("    on_release:");
+    lines.push(`      - switch.turn_off: ${AUTO_ID}`);
+  }
+
+  // A rule button's pin: { pin } on the ESP, { expander, pin } on an expander, or null.
+  function buttonPin(button) {
+    if (onExpander(button)) return { expander: button.expander, pin: button.pin };
+    const text = String(button.pin ?? "").trim().toUpperCase();
+    return text ? { pin: text } : null;
   }
 
   // The ESPHome id of the expander an end pin is on, or "" (an ESP pin, or an
@@ -2233,6 +2365,15 @@
     // A single-quoted YAML scalar: a ' inside is written twice.
     lines.push(`  table: '${logicTableJson(config).replace(/'/g, "''")}'`);
     lines.push(`  logic_switch: ${SWITCH_ID}`);
+    if (autoUsed(config)) lines.push(`  auto_switch: ${AUTO_ID}`);
+    const buttons = logicButtonIds(config);
+    if (buttons.length) {
+      lines.push("  buttons:");
+      for (const button of buttons) {
+        lines.push(`    - name: ${yamlQuote(button.name)}`);
+        if (buttonPin(button)) lines.push(`      sensor: ${button.id}`);
+      }
+    }
     const sensors = M().uniqueIds(config.blocks || []);
     if (sensors.length) {
       lines.push("  sensors:");
@@ -2340,14 +2481,18 @@
 
   function jmriLights(config) {
     if (!mqttOn(config) || !fieldMode(config)) return [];
-    return [{ kind: "switch", label: "Logic switch light", topic: logicTopic(config, "light", "") }];
+    const lights = [{ kind: "switch", label: "Logic switch light", topic: logicTopic(config, "light", "") }];
+    // The Auto/Manual switch: MLauto/<board>, so CATS or a panel can flip it.
+    if (autoUsed(config)) lights.push({ kind: "auto", label: "Auto/Manual switch light", topic: `trains/track/light/auto/${config.board.name}` });
+    return lights;
   }
 
   function jmriTurnouts(config) {
     if (!mqttOn(config) || !fieldMode(config)) return [];
-    return resourcesOf(config)
-      .filter((res) => String(res.name || ""))
-      .map((res) => ({ kind: "release", label: `Release "${res.name}"`, topic: logicTopic(config, "turnout", `/${res.name}/Release`) }));
+    return [
+      ...releasableResources(config).map((res) => ({ kind: "release", label: `Release "${res.name}"`, topic: logicTopic(config, "turnout", `/${res.name}/Release`) })),
+      ...routeGroups(config).map((group) => ({ kind: "release", label: `Release "${group.mast}"`, topic: logicTopic(config, "turnout", `/${group.name}/Release`) })),
+    ];
   }
 
   global.EsphomeMrLogicYaml = {
@@ -2358,6 +2503,7 @@
     versionCode,
     fieldMastNames,
     lockedTurnoutNames,
+    pairedTurnout,
     virtualMasts,
     isBootMast,
     emitBootMast,
