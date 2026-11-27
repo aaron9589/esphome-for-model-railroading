@@ -91,7 +91,9 @@ test("block signals: the worked example's board passes; rule 1 with no diverging
 });
 
 test("too many states: random runs, said so, and the same every time", () => {
-  const board = readCase("blocksig-worked-example.json").board;
+  // Sections asked for *while* a train stands are not checked from the rules
+  // (TP 5), so with too small a budget this stays a partial check.
+  const board = gauntlet();
   const a = C.checkBoard(board, { maxStates: 5, runs: 20, steps: 10, seed: 7 });
   const b = C.checkBoard(board, { maxStates: 5, runs: 20, steps: 10, seed: 7 });
   assert.equal(a.complete, false);
