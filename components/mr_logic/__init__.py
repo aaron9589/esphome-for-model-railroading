@@ -24,6 +24,8 @@ CONF_TABLE = "table"
 CONF_BOARD = "board"
 CONF_TOPIC_PREFIX = "topic_prefix"
 CONF_LOGIC_SWITCH = "logic_switch"
+CONF_AUTO_SWITCH = "auto_switch"
+CONF_BUTTONS = "buttons"
 CONF_SENSORS = "sensors"
 CONF_EXPANDER = "expander"
 CONF_MASTS = "masts"
@@ -124,6 +126,14 @@ REMOTE_SCHEMA = cv.Schema(
     }
 )
 
+BUTTON_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_NAME): cv.string_strict,
+        # Its push button on the fascia, wired to GND. Without one, the web page's button only.
+        cv.Optional(CONF_SENSOR): cv.use_id(binary_sensor.BinarySensor),
+    }
+)
+
 END_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_NAME): cv.string_strict,
@@ -146,6 +156,9 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional(CONF_VERSION): cv.string_strict,
         # The Field logic / MSS logic switch. Without one, logic is always on.
         cv.Optional(CONF_LOGIC_SWITCH): cv.use_id(switch.Switch),
+        # The Auto/Manual switch (on is Auto), for a track plan's routes. Without one, Auto.
+        cv.Optional(CONF_AUTO_SWITCH): cv.use_id(switch.Switch),
+        cv.Optional(CONF_BUTTONS, default=[]): cv.ensure_list(BUTTON_SCHEMA),
         cv.Optional(CONF_SENSORS, default=[]): cv.ensure_list(SENSOR_SCHEMA),
         cv.Optional(CONF_MASTS, default=[]): cv.ensure_list(MAST_SCHEMA),
         cv.Optional(CONF_TURNOUTS, default=[]): cv.ensure_list(TURNOUT_SCHEMA),
@@ -190,6 +203,11 @@ async def to_code(config):
         cg.add(var.set_version(config[CONF_VERSION]))
     if CONF_LOGIC_SWITCH in config:
         cg.add(var.set_logic_switch(await cg.get_variable(config[CONF_LOGIC_SWITCH])))
+    if CONF_AUTO_SWITCH in config:
+        cg.add(var.set_auto_switch(await cg.get_variable(config[CONF_AUTO_SWITCH])))
+    for item in config[CONF_BUTTONS]:
+        sens = await cg.get_variable(item[CONF_SENSOR]) if CONF_SENSOR in item else cg.nullptr
+        cg.add(var.add_button(item[CONF_NAME], sens))
     for item in config[CONF_SENSORS]:
         sens = await cg.get_variable(item[CONF_SENSOR])
         hub = await cg.get_variable(item[CONF_EXPANDER]) if CONF_EXPANDER in item else cg.nullptr

@@ -13,7 +13,7 @@ import { planBoard, planCasesDir, readPlanCase } from "./plan-cases.js";
 
 const context = loadModules("generator.js", "logic-yaml.js", "logic.js", "logic-checker.js", "logic-try.js", "logic-ui.js", "logic-ui-masts.js", "logic-ui-rules.js", "logic-ui-views.js", "logic-ui-start.js", "logic-ui-try.js", "logic-starters.js", "logic-starters-sections.js", "logic-starters-signals.js", "mss-builder.js", "plan-builder.js", "logic-summary.js");
 const { EsphomeMr, EsphomeMrLogicYaml: L, EsphomeMrPlanBuilder: B } = context;
-const { generateYaml, myFirstBoardPreset, parseConfigFromYaml, topicFor, validateConfig } = EsphomeMr;
+const { generateJmriXml, generateYaml, myFirstBoardPreset, parseConfigFromYaml, topicFor, validateConfig } = EsphomeMr;
 
 const plain = (value) => JSON.parse(JSON.stringify(value));
 const casesDir = planCasesDir;
@@ -219,6 +219,31 @@ test("a crossover's turnouts move together on the board: a command for one throw
   const reversed = generateYaml(broken("scissors", (p) => { p.points[3].straightIs = "thrown"; }));
   assert.ok(reversed.slice(reversed.indexOf("  - id: p1_throw_thrown\n")).split("  - id: ")[1].includes("id: p4_throw_closed"));
   assert.ok(!generateYaml(of("passing-siding")).includes("A crossover"));
+});
+
+test("a track plan's board: the Auto/Manual switch, each signal's button, and Release for each route, not each piece", () => {
+  const config = of("passing-siding");
+  config.logic.plan.auto = { startsOn: false, pin: "GPIO12" };
+  assert.deepEqual(plain(validateConfig(config).errors), []);
+  const yaml = generateYaml(config);
+  // The switch: on the web page, kept across a restart, starting as the drawing says; its toggle; the component's binding.
+  assert.match(yaml, /  - platform: template\n    id: logic_auto\n    name: "Auto"\n    optimistic: true\n    restore_mode: RESTORE_DEFAULT_OFF\n/);
+  assert.match(yaml, /    id: logic_auto_pin\n[\s\S]*?    on_press:\n      - switch.turn_on: logic_auto\n    on_release:\n      - switch.turn_off: logic_auto\n/);
+  assert.match(yaml, /  auto_switch: logic_auto\n/);
+  // A signal's button: its pin, the web page's button, and the binding.
+  assert.match(yaml, /      number: GPIO5\n[\s\S]*?    id: west_home_button_button\n/);
+  assert.match(yaml, /    name: "West Home button"\n    on_press:\n      - lambda: \|-\n          id\(logic\)\.press\("West Home button"\);/);
+  assert.match(yaml, /  buttons:\n    - name: "West Home button"\n      sensor: west_home_button_button\n/);
+  // Release for a route, by its signal; none for the pieces it takes.
+  assert.match(yaml, /    name: "Release West Home"\n    on_press:\n      - lambda: \|-\n          id\(logic\)\.release_group\("West Home moves"\);/);
+  assert.ok(!yaml.includes('release("Main loop")'));
+  // In JMRI: the switch's light, and each route's Release turnout.
+  const xml = generateJmriXml(config).xml;
+  assert.match(xml, /<systemName>MLauto\/plan-k7m4x2<\/systemName>/);
+  assert.match(xml, /<systemName>MTlogic\/plan-k7m4x2\/West Home moves\/Release<\/systemName>/);
+  assert.ok(!xml.includes("Main loop/Release"));
+  // A board whose plan has only block signals has no switch.
+  assert.ok(!generateYaml(of("junction")).includes("logic_auto"));
 });
 
 test("fail safe: two tracks that join with no turnout cannot both clear onto it, unless a turnout keeps them apart", () => {

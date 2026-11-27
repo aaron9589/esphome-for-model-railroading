@@ -786,6 +786,8 @@
         res.name = S().freeName(inBlock.length === 1 ? block.name : TEXT.piece(block.name, i + 1), takenNames);
         takenNames.add(res.name);
         resources.push({ name: res.name, blocks: [block.name], release: { while: { block: block.name, is: "clear" }, for: block.release || "3s" } });
+        // A route's Release is on its group's topic, beside the pieces': never the same name.
+        taken.add(res.name);
         origin("piece", res.name, { block: block.name });
       });
     }

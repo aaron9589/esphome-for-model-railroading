@@ -339,6 +339,37 @@ void MrLogicComponent::ends_led_() {
   }
 }
 
+// --- rule buttons, the Auto/Manual switch and a route's Release ---------------
+
+void MrLogicComponent::add_button(const std::string &name, binary_sensor::BinarySensor *sensor) {
+  if (sensor == nullptr) return;
+  // Recorded as it arrives, so a press between scans is not lost.
+  sensor->add_on_state_callback([this, name](bool pressed) { this->button_(name, pressed); });
+}
+
+void MrLogicComponent::press(const std::string &button) {
+  this->button_(button, true);
+  this->button_(button, false);
+}
+
+void MrLogicComponent::button_(const std::string &name, bool pressed) {
+  if (!this->engine_) return;
+  Event e;
+  e.kind = Event::BUTTON;
+  e.name = name;
+  e.value = pressed ? "pressed" : "released";
+  this->event_(e);
+}
+
+void MrLogicComponent::release_group(const std::string &group) {
+  if (!this->engine_) return;
+  Event e;
+  e.kind = Event::RELEASE_GROUP;
+  e.name = group;
+  e.value = "button";
+  this->event_(e);
+}
+
 void MrLogicComponent::release(const std::string &resource) {
   if (!this->engine_) return;
   Event e;
@@ -389,6 +420,17 @@ void MrLogicComponent::setup() {
       this->switch_published_ = false;  // echo the new state on the light topic
     });
   }
+  if (this->auto_switch_ != nullptr) {
+    this->auto_switch_->add_on_state_callback([this](bool on) {
+      if (!this->engine_) return;
+      Event e;
+      e.kind = Event::AUTO;
+      e.value = on ? "on" : "off";
+      this->event_(e);
+      ESP_LOGI(TAG, "Routes are asked for in %s", on ? "Auto" : "Manual");
+      this->auto_published_ = false;  // echo the new state on its light topic
+    });
+  }
   this->mqtt_setup_();
   ESP_LOGD(TAG, "Logic table: %u bytes of JSON compiled into about %u bytes", (unsigned) strlen(this->table_),
            (unsigned) t.bytes());
@@ -400,6 +442,7 @@ void MrLogicComponent::start_() {
   ::logic_core::Start start;
   start.board = this->board_;  // plant ends' links and pairing name it
   start.logic_on = this->want_logic_();
+  start.auto_on = this->auto_switch_ == nullptr || this->auto_switch_->state;
 #ifdef USE_MQTT
   this->broker_ = mqtt::global_mqtt_client != nullptr && mqtt::global_mqtt_client->is_connected();
 #endif
@@ -495,6 +538,7 @@ void MrLogicComponent::scan_() {
     e.value = connected ? "connected" : "disconnected";
     this->event_(e);
     this->switch_published_ = false;
+    this->auto_published_ = false;
   }
 #endif
   for (auto &s : this->sensors_) {
@@ -544,6 +588,11 @@ void MrLogicComponent::scan_() {
     if (!this->version_.empty())
       this->mqtt_publish_(this->topic_("track/logic/" + this->board_ + "/Version"), this->version_);
     this->switch_published_ = true;
+  }
+  if (this->broker_ && this->auto_switch_ != nullptr && !this->auto_published_ && !this->board_.empty()) {
+    this->auto_light_published_ = this->auto_switch_->state ? "ON" : "OFF";
+    this->mqtt_publish_(this->topic_("track/light/auto/" + this->board_), this->auto_light_published_);
+    this->auto_published_ = true;
   }
 #endif
   if (!this->ends_.empty() && (this->ends_refresh_ || this->scans_ % 10 == 0)) {
@@ -599,6 +648,7 @@ void MrLogicComponent::apply_(const ::logic_core::ScanOut &out) {
           ESP_LOGI(TAG, "%s: released (%s)", e.what.c_str(), e.by.c_str());
         break;
       case LogEvent::IGNORED: ESP_LOGW(TAG, "%s: a release waiting on the broker was ignored", e.what.c_str()); break;
+      case LogEvent::RELEASE_GROUP: ESP_LOGW(TAG, "%s: route released by hand", e.what.c_str()); break;
       case LogEvent::RESYNC:
         for (auto &t : this->turnouts_) {
           if (t.name != e.what || !t.resync) continue;
@@ -643,6 +693,7 @@ void MrLogicComponent::apply_(const ::logic_core::ScanOut &out) {
         this->mqtt_publish_(this->topic_("track/logic/" + this->board_ + "/" + p.resource + "/State"), p.value);
         break;
       case Publish::RELEASE:
+      case Publish::RELEASE_GROUP:
         this->mqtt_publish_(this->topic_("track/turnout/logic/" + this->board_ + "/" + p.resource + "/Release"), p.value);
         break;
       // Plant ends: what each end offers its neighbour, and its link, all
@@ -713,8 +764,35 @@ void MrLogicComponent::mqtt_setup_() {
           1);
     }
   }
+  // The Auto/Manual switch's JMRI light: ON is Auto, as the logic switch's.
+  if (this->auto_switch_ != nullptr) {
+    mqtt::global_mqtt_client->subscribe(
+        this->topic_("track/light/auto/" + this->board_),
+        [this](const std::string &, const std::string &payload) {
+          if (!this->auto_published_ || payload == this->auto_light_published_) return;
+          if (payload == "ON" && !this->auto_switch_->state) this->auto_switch_->turn_on();
+          if (payload == "OFF" && this->auto_switch_->state) this->auto_switch_->turn_off();
+        },
+        1);
+  }
   // Each Release turnout: THROWN presses it; the board answers CLOSED.
   const ::logic_core::Table &t = this->table_data_;
+  // A route's: its routes group's.
+  for (size_t l = 0; l < t.layers.size(); l++) {
+    if (!t.layer_routes[l]) continue;
+    const std::string name = t.names[t.layers[l]];
+    mqtt::global_mqtt_client->subscribe(
+        this->topic_("track/turnout/logic/" + this->board_ + "/" + name + "/Release"),
+        [this, name](const std::string &, const std::string &payload) {
+          if (payload != "THROWN" || !this->engine_) return;
+          Event e;
+          e.kind = Event::RELEASE_GROUP;
+          e.name = name;
+          e.value = "mqtt";
+          this->event_(e);
+        },
+        1);
+  }
   for (const auto &res : t.resources) {
     const std::string name = t.names[res.name];
     mqtt::global_mqtt_client->subscribe(

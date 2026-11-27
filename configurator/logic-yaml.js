@@ -948,8 +948,11 @@
       .map((b) => (onExpander(b)
         ? { name: String(b.name || ""), expander: b.expander, pin: b.pin, where: BUTTONS }
         : { name: String(b.name || ""), pin: String(b.pin).trim().toUpperCase(), where: BUTTONS }));
-    // Plant ends' Pair and LED pins are checked beside them.
-    return [...buttons, ...endPins(config)];
+    // The Auto/Manual switch's toggle, and plant ends' Pair and LED pins, are
+    // checked beside them.
+    const toggle = autoUsed(config) ? String(autoSettings(config).pin || "").trim().toUpperCase() : "";
+    const auto = toggle ? [{ name: "Auto switch", pin: toggle, where: BUTTONS }] : [];
+    return [...buttons, ...auto, ...endPins(config)];
   }
 
   // A block's key across boards: (board, name). A sensor and a block on one
@@ -1657,6 +1660,48 @@
     return mastEntries(config).find((entry) => entry.virtual !== true && entry.mast === name);
   }
 
+  // --- Routes (track plan spec, Routes asked for, set and released) ---
+
+  // The Auto/Manual switch: on the board when a rule reads it. `startsOn`
+  // and the fascia toggle's `pin` are the track plan's `auto`.
+  const AUTO_ID = "logic_auto";
+  function autoUsed(config) {
+    if (!fieldMode(config)) return false;
+    let used = false;
+    walkObjects(layersOf(config), (obj) => {
+      if (obj.auto !== undefined) used = true;
+    });
+    return used;
+  }
+  function autoSettings(config) {
+    const auto = config?.logic?.plan?.auto;
+    return isObject(auto) ? auto : {};
+  }
+
+  // Routes groups (one signal's routes): each has a Release of its own, for
+  // what is left of its route. Named on the board for its signal.
+  function routeGroups(config) {
+    if (!fieldMode(config)) return [];
+    return layersOf(config).filter((layer) => layer.routes === true && String(layer.name || "")).map((layer) => ({
+      name: String(layer.name),
+      mast: list(layer.rules).map((rule) => rule?.then?.mast).find((mast) => typeof mast === "string" && mast) || String(layer.name),
+    }));
+  }
+
+  // The resources a person can release on their own: the track plan's pieces
+  // are released with their route instead.
+  function releasableResources(config) {
+    const pieces = new Set(list(logicItems(config).origins).filter((o) => o?.kind === "piece").map((o) => o.name));
+    return resourcesOf(config).filter((res) => String(res.name || "") && !pieces.has(res.name));
+  }
+
+  // Rule buttons with their ESPHome ids: <button>_button for the pin.
+  function logicButtonIds(config) {
+    if (!fieldMode(config)) return [];
+    return M().uniqueIds(list(logicItems(config).buttons).filter((b) => isObject(b) && String(b.name || "").trim()))
+      .map((button) => ({ ...button, id: `${button.id}_button` }));
+  }
+
   // Every object in a rule, depth first: conditions, moments, then.
   function walkObjects(value, visit) {
     if (Array.isArray(value)) {
@@ -2118,18 +2163,20 @@
     return rows;
   }
 
-  // --- button: Release <section>, a press for the component.
+  // --- button: Release <section> or Release <signal> (a route), a press
+  // for the component; and each rule button, as on its pin.
   function emitLogicButtons(lines, config) {
     if (!fieldMode(config)) return;
-    for (const res of resourcesOf(config)) {
-      const name = String(res.name || "");
-      if (!name) continue;
+    const press = (name, call) => {
       lines.push("  - platform: template");
-      lines.push(`    name: ${M().yamlQuote(M().entityName(`Release ${name}`))}`);
+      lines.push(`    name: ${M().yamlQuote(M().entityName(name))}`);
       lines.push("    on_press:");
       lines.push("      - lambda: |-");
-      lines.push(`          id(${LOGIC_ID}).release(${M().cppString(name)});`);
-    }
+      lines.push(`          id(${LOGIC_ID}).${call};`);
+    };
+    for (const res of releasableResources(config)) press(`Release ${res.name}`, `release(${M().cppString(res.name)})`);
+    for (const group of routeGroups(config)) press(`Release ${group.mast}`, `release_group(${M().cppString(group.name)})`);
+    for (const button of logicButtonIds(config)) press(button.name, `press(${M().cppString(button.name)})`);
     emitEndButtons(lines, config);
   }
 
@@ -2142,6 +2189,14 @@
     lines.push('    name: "Field logic"');
     lines.push("    optimistic: true");
     lines.push(`    restore_mode: ${config.logic?.startsOn === false ? "RESTORE_DEFAULT_OFF" : "RESTORE_DEFAULT_ON"}`);
+    // The Auto/Manual switch: on is Auto. Kept across a restart.
+    if (autoUsed(config)) {
+      lines.push("  - platform: template");
+      lines.push(`    id: ${AUTO_ID}`);
+      lines.push('    name: "Auto"');
+      lines.push("    optimistic: true");
+      lines.push(`    restore_mode: ${autoSettings(config).startsOn === false ? "RESTORE_DEFAULT_OFF" : "RESTORE_DEFAULT_ON"}`);
+    }
     emitEndLeds(lines, config);
   }
 
@@ -2195,6 +2250,7 @@
 
   // binary_sensor: the optional Pair push button, wired to GND like a turnout's.
   function emitEndSensors(lines, config) {
+    emitLogicButtonSensors(lines, config);
     for (const end of endIds(config)) {
       const pin = endPin(end, "pair");
       if (!pin) continue;
@@ -2216,6 +2272,48 @@
       lines.push("      - lambda: |-");
       lines.push(`          id(${LOGIC_ID}).pair(${M().cppString(end.name)});`);
     }
+  }
+
+  // binary_sensor: each rule button with a pin, and the Auto/Manual switch's
+  // fascia toggle, wired to GND like a turnout's button.
+  function emitPinInput(lines, config, pin, id, name) {
+    lines.push("  - platform: gpio");
+    lines.push("    pin:");
+    const hub = expanderHub(config, pin);
+    if (hub) lines.push(`      mcp23xxx: ${hub}`);
+    lines.push(`      number: ${hub ? Number(pin.pin) : pin.pin}`);
+    lines.push("      inverted: true");
+    lines.push("      mode:");
+    lines.push("        input: true");
+    lines.push("        pullup: true");
+    lines.push(`    id: ${id}`);
+    lines.push(`    name: ${M().yamlQuote(M().entityName(name))}`);
+    lines.push("    internal: true");
+    lines.push("    filters:");
+    lines.push("      - delayed_on: 50ms");
+    lines.push("      - delayed_off: 50ms");
+  }
+
+  function emitLogicButtonSensors(lines, config) {
+    for (const button of logicButtonIds(config)) {
+      const pin = buttonPin(button);
+      if (pin) emitPinInput(lines, config, pin, button.id, `${button.name} pin`);
+    }
+    const toggle = String(autoSettings(config).pin || "").trim().toUpperCase();
+    if (!autoUsed(config) || !toggle) return;
+    emitPinInput(lines, config, { pin: toggle }, `${AUTO_ID}_pin`, "Auto switch pin");
+    // On is Auto. The board's switch follows the toggle whenever it moves.
+    lines.push("    on_press:");
+    lines.push(`      - switch.turn_on: ${AUTO_ID}`);
+    lines.push("    on_release:");
+    lines.push(`      - switch.turn_off: ${AUTO_ID}`);
+  }
+
+  // A rule button's pin: { pin } on the ESP, { expander, pin } on an expander, or null.
+  function buttonPin(button) {
+    if (onExpander(button)) return { expander: button.expander, pin: button.pin };
+    const text = String(button.pin ?? "").trim().toUpperCase();
+    return text ? { pin: text } : null;
   }
 
   // The ESPHome id of the expander an end pin is on, or "" (an ESP pin, or an
@@ -2267,6 +2365,15 @@
     // A single-quoted YAML scalar: a ' inside is written twice.
     lines.push(`  table: '${logicTableJson(config).replace(/'/g, "''")}'`);
     lines.push(`  logic_switch: ${SWITCH_ID}`);
+    if (autoUsed(config)) lines.push(`  auto_switch: ${AUTO_ID}`);
+    const buttons = logicButtonIds(config);
+    if (buttons.length) {
+      lines.push("  buttons:");
+      for (const button of buttons) {
+        lines.push(`    - name: ${yamlQuote(button.name)}`);
+        if (buttonPin(button)) lines.push(`      sensor: ${button.id}`);
+      }
+    }
     const sensors = M().uniqueIds(config.blocks || []);
     if (sensors.length) {
       lines.push("  sensors:");
@@ -2374,14 +2481,18 @@
 
   function jmriLights(config) {
     if (!mqttOn(config) || !fieldMode(config)) return [];
-    return [{ kind: "switch", label: "Logic switch light", topic: logicTopic(config, "light", "") }];
+    const lights = [{ kind: "switch", label: "Logic switch light", topic: logicTopic(config, "light", "") }];
+    // The Auto/Manual switch: MLauto/<board>, so CATS or a panel can flip it.
+    if (autoUsed(config)) lights.push({ kind: "auto", label: "Auto/Manual switch light", topic: `trains/track/light/auto/${config.board.name}` });
+    return lights;
   }
 
   function jmriTurnouts(config) {
     if (!mqttOn(config) || !fieldMode(config)) return [];
-    return resourcesOf(config)
-      .filter((res) => String(res.name || ""))
-      .map((res) => ({ kind: "release", label: `Release "${res.name}"`, topic: logicTopic(config, "turnout", `/${res.name}/Release`) }));
+    return [
+      ...releasableResources(config).map((res) => ({ kind: "release", label: `Release "${res.name}"`, topic: logicTopic(config, "turnout", `/${res.name}/Release`) })),
+      ...routeGroups(config).map((group) => ({ kind: "release", label: `Release "${group.mast}"`, topic: logicTopic(config, "turnout", `/${group.name}/Release`) })),
+    ];
   }
 
   global.EsphomeMrLogicYaml = {

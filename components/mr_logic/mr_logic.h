@@ -28,6 +28,13 @@ class MrLogicComponent : public Component {
   void set_topic_prefix(const std::string &prefix) { this->prefix_ = prefix; }
   void set_version(const std::string &version) { this->version_ = version; }
   void set_logic_switch(switch_::Switch *sw) { this->switch_ = sw; }
+  // The Auto/Manual switch (on is Auto), on the web page, on MQTT as a JMRI
+  // light and on an optional fascia toggle. Without one, the engine is in Auto.
+  void set_auto_switch(switch_::Switch *sw) { this->auto_switch_ = sw; }
+  // A rule button: its pin's binary sensor (pressed is on), or nullptr for one
+  // on the web page only. press() is the web page's button: a press and release.
+  void add_button(const std::string &name, binary_sensor::BinarySensor *sensor);
+  void press(const std::string &button);
 
   // expander: the sensor's MCP23017 hub, or nullptr. A hub that has failed or
   // warns makes the sensor read occupied (spec, More sensor pins).
@@ -55,6 +62,8 @@ class MrLogicComponent : public Component {
 
   // A press of a resource's Release button (spec, Manual release).
   void release(const std::string &resource);
+  // A press of a route's Release button: frees everything its group holds.
+  void release_group(const std::string &group);
   // True once the start-up scan has run: the toggle-switch boot moves wait for it.
   bool started() const { return this->engine_ != nullptr; }
   bool logic_on() const { return this->engine_ ? this->engine_->logic_on() : this->want_logic_(); }
@@ -147,6 +156,7 @@ class MrLogicComponent : public Component {
   void scan_();
   void apply_(const ::logic_core::ScanOut &out);
   void event_(const ::logic_core::Event &e);
+  void button_(const std::string &name, bool pressed);
   void show_(MastBinding &m, const std::string &aspect);
   void remote_turnout_(const RemoteTurnout &t);
   void feed_sensor_(SensorBinding &s, bool occupied);
@@ -173,6 +183,9 @@ class MrLogicComponent : public Component {
   std::string prefix_{"trains/"};
   std::string version_;
   switch_::Switch *switch_{nullptr};
+  switch_::Switch *auto_switch_{nullptr};
+  bool auto_published_{false};
+  std::string auto_light_published_;  // the Auto light state this board last published
   // The compiled table. The engine refers to it, so it lives here, in place.
   ::logic_core::Table table_data_;
   bool table_ok_{false};
