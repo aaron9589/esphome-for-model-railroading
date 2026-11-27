@@ -68,6 +68,21 @@
     return out;
   }
 
+  // The conditions in a value that apply in one position of the Auto/Manual
+  // switch: a moment whose `if` names the other position is left out (TP 5b).
+  function conditionsFor(value, mode, out = []) {
+    if (Array.isArray(value)) value.forEach((item) => conditionsFor(item, mode, out));
+    else if (isObject(value)) {
+      if (mode !== undefined && isObject(value.if) && value.if.auto !== undefined && value.if.auto !== mode) return out;
+      if (KINDS.some((kind) => value[kind] !== undefined)) out.push(value);
+      Object.values(value).forEach((inner) => conditionsFor(inner, mode, out));
+    }
+    return out;
+  }
+  // Whether anything in the rules reads the Auto/Manual switch.
+  const readsAuto = (logic) => JSON.stringify([list(logic?.layers), list(logic?.resources)]).includes('"auto":');
+  const isHold = (c) => c.board === undefined && c.mast !== undefined && (c.is === "held" || c.is === "unheld");
+
   /**
    * The inputs that can change: each { key, values, start, event(value) }.
    * Only what the rules, releases and approach lighting read, so a board's
@@ -142,6 +157,23 @@
       }
     }
     for (const mast of Object.values(board.masts || {})) if (typeof mast.approachLight === "string") block(mast.approachLight);
+    // JMRI's hold on a mast the rules set (TP 5b): read by a route's rule
+    // (a held mast is not granted, and a hold cancels its route), or by a
+    // Held or Unheld condition. No message yet is only ever the start. The
+    // old page's sections are left as they were checked before.
+    const holdMasts = new Set();
+    for (const layer of list(logic.layers)) {
+      for (const rule of list(layer.rules)) {
+        if (layer.routes === true && reservesOf(rule).length && rule?.then?.mast !== undefined) holdMasts.add(rule.then.mast);
+        for (const cond of conditionsIn([rule?.trigger, rule?.checks, rule?.cancel, rule?.withdraw])) if (isHold(cond)) holdMasts.add(cond.mast);
+      }
+    }
+    for (const name of holdMasts) {
+      if (!fieldMasts.has(name) || !board.masts?.[name]) continue;
+      add(`hold${SEP}${name}`, ["none", "unheld", "held"], "none", (is) => ({ jmri: name, message: `R292; Lit; ${is === "held" ? "Held" : "Unheld"}` }));
+    }
+    // The Auto/Manual switch, when the rules read it (TP 5b).
+    if (readsAuto(logic)) add("auto", ["on", "off"], "on", (is) => ({ auto: is }));
     // An event setting a value it already has is not a step, so "none" and
     // "unknown" are only ever start values.
     for (const [key, meanings] of mastMeanings) inputs.get(key).values = ["stop", ...E().TAGS.filter((t) => t !== "stop" && meanings.has(t))];
@@ -161,8 +193,11 @@
     }
     return events;
   }
-  // The inputs a rule's request depends on: its When and its Cancel.
-  function requestInputs(rule, board, inputs) {
+  // The inputs a rule's request depends on: its When and its Cancel, as
+  // they read in one position of the switch (`mode`), and the switch itself.
+  // A request in Auto stands with its train in the block behind; one made
+  // in Manual stands with its hold and its button, whatever is behind.
+  function requestInputs(rule, board, inputs, mode) {
     const keys = new Set();
     const logic = board.logic || {};
     const blocks = new Map(list(logic.blocks).map((b) => [b.name, list(b.sensors)]));
@@ -177,9 +212,14 @@
       } else if (cond.block !== undefined || cond.sensor !== undefined) keys.add(`sensor\u0000${cond.block ?? cond.sensor}`);
       else if (cond.turnout !== undefined) keys.add(`turnout\u0000${cond.turnout}`);
       else if (cond.button !== undefined) keys.add(`button\u0000${cond.button}`);
+      else if (isHold(cond)) keys.add(`hold${SEP}${cond.mast}`);
       else if (cond.mast !== undefined) keys.add(`jmri\u0000${cond.mast}`);
     };
-    conditionsIn([rule.trigger, rule.cancel]).forEach(add);
+    conditionsFor([rule.trigger, rule.cancel], mode).forEach(add);
+    // The switch stays where it is, and so does JMRI's hold on its own mast:
+    // CATS holding the signal it waits at is the dispatcher's choice.
+    keys.add("auto");
+    if (rule?.then?.mast !== undefined) keys.add(`hold${SEP}${rule.then.mast}`);
     return new Set(inputs.map((input, i) => (keys.has(input.key) ? i : -1)).filter((i) => i >= 0));
   }
 
@@ -633,15 +673,19 @@
           const sections = reservesOf(rule);
           if (!sections.length) return;
           const section = sections[0];
-          const frozen = requestInputs(rule, board, inputs);
-          const waiting = (node) => node.state.rules[ref] === "waiting";
+          const frozenBy = { on: requestInputs(rule, board, inputs, "on"), off: requestInputs(rule, board, inputs, "off") };
+          const autoAt = inputs.findIndex((input) => input.key === "auto");
+          const frozenAt = (id) => frozenBy[autoAt < 0 ? "on" : nodes[id].values[autoAt]];
+          // Waiting, and not held by JMRI or CATS: a held signal is not passed over.
+          const own = rule?.then?.mast;
+          const waiting = (node) => node.state.rules[ref] === "waiting" && !list(node.view.more?.[2]).some(([m, held]) => m === own && held === true);
           // States from which the rule can still be granted, its train waiting.
           const canGrant = new Set(nodes.filter((node) => node.view.active.includes(ref)).map((node) => node.id));
           const queue = [...canGrant];
           while (queue.length) {
             const id = queue.pop();
             for (const { from, input } of reverse[id]) {
-              if (frozen.has(input) || canGrant.has(from)) continue;
+              if (frozenAt(from).has(input) || canGrant.has(from)) continue;
               canGrant.add(from);
               queue.push(from);
             }
@@ -665,7 +709,7 @@
           // that route: inside the drawing a signal stops it, and at an open
           // end the layout beyond does (TP 5, decided 2026-11-27). Such a
           // state is not counted.
-          const onHeld = (node) => [...frozen].some((i) => {
+          const onHeld = (node) => [...frozenAt(node.id)].some((i) => {
             if (!inputs[i].values.includes("occupied") || node.values[i] !== "occupied") return false;
             const sensor = inputs[i].key.split(SEP)[1];
             return Object.entries(node.state.holders).some(([res, holder]) => holder && holder !== ref
@@ -675,7 +719,7 @@
           if (stuck) return void found.push({ kind: "deadlock", rule: ref, section, sequence: stuck.path });
           // Starvation: a loop of states, the rule waiting throughout and its
           // train still there, in which another rule is granted the section.
-          const inLoop = starvedLoop(nodes, ref, frozen, sections);
+          const inLoop = starvedLoop(nodes, ref, frozenAt, sections, waiting);
           if (inLoop) found.push({ kind: "starvation", rule: ref, section, sequence: inLoop.path });
         });
       }
@@ -831,7 +875,7 @@
     const canTake = (q) => sat([...q.rule.checks || [], ...clearOf(q.takes)], new Map());
     const found = [];
     for (const r of rules) {
-      const frozen = [...varsOf(conditionsIn([r.rule.trigger, r.rule.cancel]).map(({ if: _i, for: _f, notFrom: _n, ...c }) => c))];
+      const frozen = [...varsOf(conditionsFor([r.rule.trigger, r.rule.cancel], auto).map(({ if: _i, for: _f, notFrom: _n, ...c }) => c))];
       if (frozen.length > 12) continue;
       const mine = [...r.rule.checks || [], ...clearOf(r.takes)];
       let why = null;
@@ -897,6 +941,7 @@
     const { maxStates, maxMs, runs, steps, runsMs } = { ...BUDGETS.full, ...options };
     const { seed = 1, split = true, allInputs = false, quick = false } = options;
     const ignore = new Set(list(options.ignore));
+    const fromRules = options.fromRules !== false;
     const endBlocks = list(options.endBlocks);
     const started = Date.now();
     const deadline = started + maxMs;
@@ -921,11 +966,15 @@
       // A part the routes' rules can check need not be explored to the end
       // of the budget: past ANALYSED_STATES its rules decide.
       const share = Math.max(maxStates - states, 0);
-      const seen = explore(part.board, { maxStates: analysable(part.board) ? Math.min(share, ANALYSED_STATES) : share, deadline, runs, steps, seed, runsUntil, allInputs, endBlocks, need });
+      const byRules = fromRules && analysable(part.board);
+      const seen = explore(part.board, { maxStates: byRules ? Math.min(share, ANALYSED_STATES) : share, deadline, runs, steps, seed, runsUntil, allInputs, endBlocks, need });
       states += seen.states;
       tried += seen.tried;
-      if (!seen.complete && analysable(part.board)) {
-        for (const f of routeProblems(part.board, "on", endBlocks)) seen.found.push(f);
+      if (!seen.complete && byRules) {
+        // In each position of the switch the rules read (TP 5b).
+        for (const mode of readsAuto(part.board.logic) ? ["on", "off"] : ["on"]) {
+          for (const f of routeProblems(part.board, mode, endBlocks)) if (!seen.found.some((g) => g.rule === f.rule)) seen.found.push(f);
+        }
         analysed.push(part);
       } else if (!seen.complete) complete = false;
       seen.active.forEach((ref) => activeSeen.add(part.refOf(ref)));
@@ -996,8 +1045,8 @@
   // A loop of states where `ref` waits throughout (and its request's inputs
   // do not change) and some other rule takes one of its sections: the node
   // to show.
-  function starvedLoop(nodes, ref, frozen, sections) {
-    const inSet = (node) => node.state.rules[ref] === "waiting";
+  function starvedLoop(nodes, ref, frozenAt, sections, waiting) {
+    const inSet = waiting;
     const ids = nodes.filter(inSet).map((node) => node.id);
     const member = new Set(ids);
     // Tarjan's strongly connected components over the waiting states.
@@ -1014,7 +1063,7 @@
       stack.push(v);
       on.add(v);
       for (const { to, input } of nodes[v].edges) {
-        if (!member.has(to) || frozen.has(input)) continue;
+        if (!member.has(to) || frozenAt(v).has(input)) continue;
         if (!idx.has(to)) {
           strong(to);
           low.set(v, Math.min(low.get(v), low.get(to)));
@@ -1038,7 +1087,7 @@
       // holds the section that it did not hold before.
       for (const v of comp) {
         for (const { to, input } of nodes[v].edges) {
-          if (!inComp.has(to) || frozen.has(input)) continue;
+          if (!inComp.has(to) || frozenAt(v).has(input)) continue;
           for (const section of sections) {
             const before = nodes[v].state.holders[section];
             const after = nodes[to].state.holders[section];
