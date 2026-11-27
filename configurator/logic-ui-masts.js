@@ -877,8 +877,8 @@
     root.append(section);
   }
 
-  global.EsphomeMrLogicUi.registerPart({ id: "logic-masts", order: 50, modes: ["field"], text: TEXT, render: renderMasts });
-  global.EsphomeMrLogicUi.registerPart({ id: "logic-buttons", order: 60, modes: ["field"], text: TEXT, render: renderButtons });
+  global.EsphomeMrLogicUi.registerPart({ id: "logic-masts", order: 50, modes: [], text: TEXT, render: renderMasts });
+  global.EsphomeMrLogicUi.registerPart({ id: "logic-buttons", order: 60, modes: [], text: TEXT, render: renderButtons });
 
   global.EsphomeMrLogicUiMasts = {
     TEXT,

@@ -247,5 +247,9 @@
     return p;
   }
 
-  global.EsphomeMrMssTemplates = { TEXT, IDS, design, plan, apply, described };
+  // A CATS mast, as a template makes it, for the track plan's New signal (TP 6).
+  const ROWS = Object.freeze({ oneHead: ONE_HEAD_DIVERGING, twoHeads: TWO_HEADS });
+  const HEADS = Object.freeze({ oneHead: [""], twoHeads: [TEXT.lower, TEXT.upper] });
+
+  global.EsphomeMrMssTemplates = { TEXT, IDS, design, plan, apply, described, mast, ROWS, HEADS };
 })(typeof globalThis !== "undefined" ? globalThis : window);

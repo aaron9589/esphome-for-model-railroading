@@ -2940,10 +2940,184 @@ button.clear-page {
   stroke: var(--danger);
 }
 
+/* The Field Logic page (TP 6): one line, the steps, then the drawing beside
+   the panel for what is picked; the panel goes under the drawing when narrow. */
+.logic-field-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1.25rem;
+  padding: 0.75rem 1rem;
+  margin-bottom: 1rem;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+.logic-field-line .link-button {
+  margin-left: auto;
+}
+
+.link-button {
+  min-height: 0;
+  padding: 0.25rem 0.4rem;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.logic-field-steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin: 0 0 1rem;
+  padding: 0.5rem;
+  list-style: none;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+.step-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-height: 44px;
+  padding: 0.5rem 1rem;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: none;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.step-pill:disabled {
+  color: var(--muted);
+  cursor: default;
+}
+
+.step-pill.is-done {
+  color: var(--ok-ink);
+}
+
+.step-pill.is-current {
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 650;
+}
+
+.step-count {
+  font-size: 0.8em;
+  font-weight: 600;
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+}
+
+.step-count.is-error {
+  background: var(--err-bg);
+  color: var(--danger);
+}
+
+.step-count.is-warning {
+  background: var(--warn-bg);
+  color: var(--warn-ink);
+}
+
+.plan-body {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.25rem;
+  align-items: flex-start;
+}
+
+.plan-left {
+  flex: 999 1 480px;
+  min-width: 0;
+}
+
 .plan-panel {
-  margin-top: 0.75rem;
+  flex: 1 1 280px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.plan-maker {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.75rem;
+  margin-top: 0.5rem;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.plan-maker > button {
+  align-self: flex-start;
+}
+
+.plan-next {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin-top: 1rem;
   padding-top: 0.75rem;
   border-top: 1px solid var(--line);
+}
+
+.plan-next > button {
+  align-self: flex-start;
+}
+
+.plan-problems {
+  margin-top: 0.75rem;
+}
+
+.plan-problems ul {
+  margin: 0.4rem 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 0.3rem;
+}
+
+.plan-problems .msg-line {
+  padding: 0.4rem 0.6rem;
+  border-radius: 6px;
+}
+
+.plan-problems .msg-line.is-error {
+  background: var(--err-bg);
+  color: var(--danger);
+}
+
+.plan-problems .msg-line.is-warning {
+  background: var(--warn-bg);
+  color: var(--warn-ink);
+}
+
+.plan-problem {
+  fill: none;
+  stroke-width: 3;
+  pointer-events: none;
+}
+
+.plan-problem.is-track {
+  stroke-width: 14;
+  stroke-linecap: round;
+  opacity: 0.35;
+}
+
+.plan-problem.is-error {
+  stroke: var(--danger);
+}
+
+.plan-problem.is-warning {
+  stroke: #d97706;
 }
 
 .plan-panel h4 {

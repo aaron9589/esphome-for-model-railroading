@@ -437,8 +437,8 @@
 
   const api = global.EsphomeMrLogicUi;
   if (api) {
-    api.registerPart({ id: "logic-layers-view", order: 90, modes: ["field", "mss"], text: TEXT, render: renderWhoUses });
-    api.registerPart({ id: "logic-control-table", order: 95, modes: ["field", "mss"], text: TEXT, render: renderControlTable });
+    api.registerPart({ id: "logic-layers-view", order: 90, modes: ["mss"], text: TEXT, render: renderWhoUses });
+    api.registerPart({ id: "logic-control-table", order: 95, modes: ["mss"], text: TEXT, render: renderControlTable });
   }
 
   global.EsphomeMrLogicUiViews = { TEXT, whoUses, controlTable };

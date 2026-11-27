@@ -28,6 +28,54 @@
 // Nothing built is stored. Plain JS with no DOM; it needs generator.js,
 // logic-yaml.js, logic-starters*.js and mss-builder.js loaded first.
 (function (global) {
+  // The step of the page each problem belongs to (TP 6).
+  const STEP_OF = Object.freeze({
+    badSegment: "draw",
+    diagonalCross: "draw",
+    sharp: "draw",
+    badThree: "draw",
+    badCross: "draw",
+    tooMany: "draw",
+    needTurnout: "draw",
+    notPoint: "draw",
+    noTurnout: "draw",
+    needStraight: "draw",
+    badStraight: "draw",
+    badArrow: "draw",
+    arrowClash: "draw",
+    pairTwice: "draw",
+    pairMissing: "draw",
+    badBreak: "sensors",
+    blockTwice: "sensors",
+    blockOffTrack: "sensors",
+    blockShared: "sensors",
+    sensorsNoBlock: "sensors",
+    noSensor: "sensors",
+    remoteSensorsOnly: "sensors",
+    badTime: "sensors",
+    unwatched: "sensors",
+    badFacing: "signals",
+    twoFacing: "signals",
+    noMast: "signals",
+    needMast: "signals",
+    mastTwice: "signals",
+    badBeyond: "signals",
+    noRoute: "signals",
+    ambiguous: "draw",
+    loopSelf: "signals",
+    loopNone: "signals",
+    unproved: "signals",
+    needAspect: "signals",
+    notAspect: "signals",
+    aspectTwice: "signals",
+    undetected: "signals",
+    noApproach: "signals",
+    clashUnseen: "behaviour",
+    clashWaiting: "behaviour",
+    unseenEntry: "behaviour",
+    noAsking: "behaviour",
+  });
+
   const isObject = (value) => value && typeof value === "object" && !Array.isArray(value);
   const list = (value) => (Array.isArray(value) ? value : []);
   const text = (value) => (typeof value === "string" ? value.trim() : "");
@@ -136,7 +184,9 @@
   function trace(config) {
     const plan = planOf(config) || {};
     const found = [];
-    const report = (level) => (words, where = {}) => found.push({ level, text: words, where: { view: "logic", part: PART, ...where } });
+    // Each problem says which step of the page it belongs to (STEP_OF), so
+    // the page can count it there and mark it on the drawing.
+    const report = (level) => (key, words, where = {}) => found.push({ level, text: words, step: STEP_OF[key] || "draw", where: { view: "logic", part: PART, ...where } });
     const error = report("error");
     const warn = report("warning");
     const sensorNames = new Set(list(config?.blocks).map((b) => b.name));
@@ -153,7 +203,7 @@
     list(plan.track).forEach((segment, i) => {
       const parts = steps(segment?.[0], segment?.[1]);
       if (!parts) {
-        error(TEXT.badSegment(i + 1));
+        error("badSegment", TEXT.badSegment(i + 1));
         return;
       }
       for (const [p, q] of parts) {
@@ -168,7 +218,7 @@
       const [a, b] = edge.split("|").map(pointOf);
       if (a[0] === b[0] || a[1] === b[1]) continue;
       const other = edgeKey(key([a[0], b[1]]), key([b[0], a[1]]));
-      if (edges.has(other) && edge < other) error(TEXT.diagonalCross(a), { at: a });
+      if (edges.has(other) && edge < other) error("diagonalCross", TEXT.diagonalCross(a), { at: a });
     }
 
     // Points: what each is, and which way a train can pass.
@@ -179,38 +229,38 @@
       const where = TEXT.at(at);
       const connected = (a, b) => angle(node, a, b) >= (next.length === 4 ? 180 : 135);
       if (next.length === 2) {
-        if (!connected(next[0], next[1])) error(TEXT.sharp(where), { at });
+        if (!connected(next[0], next[1])) error("sharp", TEXT.sharp(where), { at });
       } else if (next.length === 3) {
         const stems = next.filter((s) => next.filter((o) => o !== s && connected(s, o)).length === 2);
         const others = next.filter((o) => o !== stems[0]);
         if (stems.length !== 1 || connected(others[0], others[1])) {
-          error(TEXT.badThree(where), { at });
+          error("badThree", TEXT.badThree(where), { at });
           continue;
         }
         const set = settings.get(node);
         if (!set) {
-          error(TEXT.needTurnout(where), { at });
+          error("needTurnout", TEXT.needTurnout(where), { at });
           continue;
         }
         const turnout = text(set.turnout);
         const info = { kind: "turnout", stem: stems[0], turnout, lock: set.lock !== false };
         if (turnout) {
-          if (!turnoutNames.has(turnout)) error(TEXT.noTurnout(turnout), { at });
+          if (!turnoutNames.has(turnout)) error("noTurnout", TEXT.noTurnout(turnout), { at });
           let straight = isPoint(set.straight) ? others.find((o) => sameWay(node, o, key(set.straight))) : null;
-          if (isPoint(set.straight) && !straight) error(TEXT.badStraight(where), { at });
+          if (isPoint(set.straight) && !straight) error("badStraight", TEXT.badStraight(where), { at });
           if (!isPoint(set.straight)) straight = others.find((o) => angle(node, stems[0], o) === 180);
-          if (!straight && !isPoint(set.straight)) error(TEXT.needStraight(where), { at });
+          if (!straight && !isPoint(set.straight)) error("needStraight", TEXT.needStraight(where), { at });
           info.straight = straight || others[0];
           info.straightIs = set.straightIs === "thrown" ? "thrown" : "closed";
         }
         points.set(node, info);
       } else if (next.length === 4) {
-        if (!next.every((a) => next.filter((b) => b !== a && connected(a, b)).length === 1)) error(TEXT.badCross(where), { at });
+        if (!next.every((a) => next.filter((b) => b !== a && connected(a, b)).length === 1)) error("badCross", TEXT.badCross(where), { at });
         points.set(node, { kind: "crossing" });
-      } else if (next.length > 4) error(TEXT.tooMany(where), { at });
+      } else if (next.length > 4) error("tooMany", TEXT.tooMany(where), { at });
     }
     for (const [node, set] of settings) {
-      if ((near.get(node)?.length ?? 0) !== 3) error(TEXT.notPoint(TEXT.at(set.at)), { at: pointOf(node) });
+      if ((near.get(node)?.length ?? 0) !== 3) error("notPoint", TEXT.notPoint(TEXT.at(set.at)), { at: pointOf(node) });
     }
 
     // Breaks and their signals.
@@ -221,7 +271,7 @@
       const at = isPoint(brk.at) ? brk.at : null;
       const node = at ? key(at) : "";
       if (!at || near.get(node)?.length !== 2) {
-        error(TEXT.badBreak(at ? TEXT.at(at) : "an unknown place"), at ? { at } : {});
+        error("badBreak", TEXT.badBreak(at ? TEXT.at(at) : "an unknown place"), at ? { at } : {});
         continue;
       }
       const entry = breaks.get(node) || { sensors: [] };
@@ -230,11 +280,11 @@
       for (const def of list(brk.signals).filter(isObject)) {
         const mast = text(def.mast);
         const facing = isPoint(def.facing) ? near.get(node).find((n) => sameWay(node, n, key(def.facing))) : null;
-        if (!mast) error(TEXT.needMast(TEXT.at(at)), { at });
-        else if (!mastNames.has(mast)) error(TEXT.noMast(mast), { at, mast });
-        if (!facing) error(TEXT.badFacing(TEXT.at(at)), { at });
-        else if (signals.some((s) => s.at === node && s.facing === facing)) error(TEXT.twoFacing(TEXT.at(at)), { at });
-        else if (mast && used.has(mast)) error(TEXT.mastTwice(mast), { at, mast });
+        if (!mast) error("needMast", TEXT.needMast(TEXT.at(at)), { at });
+        else if (!mastNames.has(mast)) error("noMast", TEXT.noMast(mast), { at, mast });
+        if (!facing) error("badFacing", TEXT.badFacing(TEXT.at(at)), { at });
+        else if (signals.some((s) => s.at === node && s.facing === facing)) error("twoFacing", TEXT.twoFacing(TEXT.at(at)), { at });
+        else if (mast && used.has(mast)) error("mastTwice", TEXT.mastTwice(mast), { at, mast });
         else if (mast && mastNames.has(mast)) {
           used.add(mast);
           signals.push({ mast, at: node, facing, def });
@@ -271,7 +321,7 @@
       const parts = steps(arrow?.from, arrow?.to);
       const [a, b] = parts ? [key(parts[0][0]), key(parts[0][1])] : ["", ""];
       if (!parts || !edges.has(edgeKey(a, b))) {
-        error(TEXT.badArrow(i + 1));
+        error("badArrow", TEXT.badArrow(i + 1));
         return;
       }
       const run = [[a, b]];
@@ -287,7 +337,7 @@
         }
       }
       if (run.some(([p, q]) => way.has(`${q}>${p}`))) {
-        error(TEXT.arrowClash(i + 1));
+        error("arrowClash", TEXT.arrowClash(i + 1));
         return;
       }
       for (const [p, q] of run) {
@@ -306,30 +356,30 @@
         continue;
       }
       if (blocks.some((b) => b.name === name)) {
-        error(TEXT.blockTwice(name), { block: name });
+        error("blockTwice", TEXT.blockTwice(name), { block: name });
         continue;
       }
       const parts = steps(def.at?.[0], def.at?.[1]);
       const id = parts ? region.get(edgeKey(key(parts[0][0]), key(parts[0][1]))) : undefined;
       if (id === undefined) {
-        error(TEXT.blockOffTrack(name), { block: name });
+        error("blockOffTrack", TEXT.blockOffTrack(name), { block: name });
         continue;
       }
       if (regionBlock.has(id)) {
-        error(TEXT.blockShared(regionBlock.get(id).name, name), { block: name });
+        error("blockShared", TEXT.blockShared(regionBlock.get(id).name, name), { block: name });
         continue;
       }
       const sensors = [];
       for (const member of list(def.sensors)) {
         if (typeof member === "string") {
-          if (!sensorNames.has(member)) error(TEXT.noSensor(member), { block: name });
+          if (!sensorNames.has(member)) error("noSensor", TEXT.noSensor(member), { block: name });
           sensors.push(member);
         } else if (isObject(member) && member.board && member.sensor !== undefined) sensors.push({ ...member });
-        else if (isObject(member) && member.block !== undefined) error(TEXT.remoteSensorsOnly(name), { block: name });
+        else if (isObject(member) && member.block !== undefined) error("remoteSensorsOnly", TEXT.remoteSensorsOnly(name), { block: name });
       }
       const block = { name, region: id, own: sensors, sensors: [...sensors], topic: text(def.topic), release: text(def.release), approachLock: text(def.approachLock) };
       for (const [what, value] of [["free-after time", block.release], ["hold time", block.approachLock]]) {
-        if (value && !TIME.test(value)) error(TEXT.badTime(name, what), { block: name });
+        if (value && !TIME.test(value)) error("badTime", TEXT.badTime(name, what), { block: name });
       }
       blocks.push(block);
       regionBlock.set(id, block);
@@ -338,11 +388,11 @@
     for (const [node, brk] of breaks) {
       if (!brk.sensors.length) continue;
       const at = pointOf(node);
-      for (const name of brk.sensors) if (typeof name === "string" && !sensorNames.has(name)) error(TEXT.noSensor(name), { at });
+      for (const name of brk.sensors) if (typeof name === "string" && !sensorNames.has(name)) error("noSensor", TEXT.noSensor(name), { at });
       for (const other of near.get(node)) {
         const block = regionBlock.get(region.get(edgeKey(node, other)));
         if (!block) {
-          error(TEXT.sensorsNoBlock(TEXT.at(at)), { at });
+          error("sensorsNoBlock", TEXT.sensorsNoBlock(TEXT.at(at)), { at });
           continue;
         }
         for (const member of brk.sensors) {
@@ -366,7 +416,7 @@
           blocks: list(beyond.blocks).filter((b) => text(b)).map((block) => ({ board: beyond.board, block })),
         };
       }
-      error(TEXT.badBeyond(TEXT.at(pointOf(node))), { at: pointOf(node) });
+      error("badBeyond", TEXT.badBeyond(TEXT.at(pointOf(node))), { at: pointOf(node) });
       return { kind: "signalled" };
     };
 
@@ -389,7 +439,7 @@
           if (to === prev || angle(cur, prev, to) < (next.length === 4 ? 180 : 135) || barred.has(`${cur}>${to}`)) continue;
           const reached = breaks.has(cur) ? signalAt(cur, to) : null;
           if (reached) {
-            if (reached === signal) error(TEXT.loopSelf(signal.mast), { mast: signal.mast });
+            if (reached === signal) error("loopSelf", TEXT.loopSelf(signal.mast), { mast: signal.mast });
             else done({ next: reached.mast });
             continue;
           }
@@ -428,11 +478,11 @@
           edges: [first], seen: new Set([first]),
         });
       }
-      if (failed.loop) error(TEXT.loopNone(signal.mast), { mast: signal.mast });
-      else if (!signal.routes.length) error(TEXT.noRoute(signal.mast), { mast: signal.mast });
+      if (failed.loop) error("loopNone", TEXT.loopNone(signal.mast), { mast: signal.mast });
+      else if (!signal.routes.length) error("noRoute", TEXT.noRoute(signal.mast), { mast: signal.mast });
       // Two ways that no turnout tells apart.
       if (signal.routes.some((a, i) => signal.routes.slice(i + 1).some((b) => !apart(a, b)))) {
-        error(TEXT.ambiguous(signal.mast), { mast: signal.mast });
+        error("ambiguous", TEXT.ambiguous(signal.mast), { mast: signal.mast });
       }
     }
 
@@ -510,7 +560,7 @@
     const pair = (a, b) => {
       if (pairs.some((x) => (x.turnout === a && x.with === b) || (x.turnout === b && x.with === a))) return;
       for (const name of [a, b]) {
-        if (paired.has(name)) error(TEXT.pairTwice(name));
+        if (paired.has(name)) error("pairTwice", TEXT.pairTwice(name));
         paired.set(name, true);
       }
       pairs.push({ turnout: a, with: b, same: straightIs.get(a) === straightIs.get(b) });
@@ -518,7 +568,7 @@
     for (const [a, b] of crossovers) if (!chosen.has(a) && !chosen.has(b)) pair(a, b);
     for (const [a, b] of chosen) {
       if (!b) continue;
-      if (!straightIs.has(b)) error(TEXT.pairMissing(a, b));
+      if (!straightIs.has(b)) error("pairMissing", TEXT.pairMissing(a, b));
       else pair(a, b);
     }
 
@@ -592,10 +642,10 @@
       for (const route of signal.routes) {
         const local = route.regions.filter((id) => regionBlock.get(id)?.sensors.length).map((id) => regionBlock.get(id).name);
         route.clear = [...local, ...(route.end?.blocks || [])];
-        if (!route.clear.length) error(TEXT.unproved(signal.mast), { mast: signal.mast });
+        if (!route.clear.length) error("unproved", TEXT.unproved(signal.mast), { mast: signal.mast });
         for (const slot of slotsOf(route)) shown.add(indication(plan, route, slot));
       }
-      if (signal.routes.some((route) => route.regions.some((id) => !detected(id)))) warn(TEXT.undetected(signal.mast), { mast: signal.mast });
+      if (signal.routes.some((route) => route.regions.some((id) => !detected(id)))) warn("undetected", TEXT.undetected(signal.mast), { mast: signal.mast });
 
       // The meaning of each aspect it shows.
       const mast = list(config?.signals?.masts).find((m) => m.name === signal.mast);
@@ -611,16 +661,16 @@
         const words = Mss().TEXT.indications[i.key];
         signal.aspects[i.key] = aspect;
         if (!aspect) {
-          error(TEXT.needAspect(signal.mast, words), { mast: signal.mast });
+          error("needAspect", TEXT.needAspect(signal.mast, words), { mast: signal.mast });
           continue;
         }
         if (!labels.includes(aspect)) {
-          error(TEXT.notAspect(signal.mast, aspect, words), { mast: signal.mast });
+          error("notAspect", TEXT.notAspect(signal.mast, aspect, words), { mast: signal.mast });
           continue;
         }
         const before = meant.get(aspect);
         if (before && (before.tag !== i.tag || !!before.diverging !== !!i.diverging)) {
-          error(TEXT.aspectTwice(signal.mast, aspect, Mss().TEXT.indications[before.key], words), { mast: signal.mast });
+          error("aspectTwice", TEXT.aspectTwice(signal.mast, aspect, Mss().TEXT.indications[before.key], words), { mast: signal.mast });
         } else if (!before) {
           meant.set(aspect, i);
           tags[aspect] = i.tag;
@@ -701,7 +751,7 @@
     for (const signal of signals) {
       const behind = regionBlock.get(signal.behind);
       const routes = signal.routes.filter((route) => route.turnouts.length && route.clear?.length);
-      if (routes.length && !behind?.sensors.length) warn(TEXT.noApproach(signal.mast), { mast: signal.mast });
+      if (routes.length && !behind?.sensors.length) warn("noApproach", TEXT.noApproach(signal.mast), { mast: signal.mast });
       for (const route of routes) {
         for (const t of route.turnouts) {
           for (const id of route.regions.slice(0, route.reach[t.turnout] ?? 0)) {
@@ -752,7 +802,7 @@
       for (const piece of move.route.pieces) if (detected(model.pieceRegion.get(piece))) takes.add(piece);
     }
     for (const signal of controlled) {
-      if (!detected(model.pieceRegion.get(model.pieceOf.get(edgeKey(signal.at, signal.facing))))) error(TEXT.unseenEntry(signal.mast), { mast: signal.mast });
+      if (!detected(model.pieceRegion.get(model.pieceOf.get(edgeKey(signal.at, signal.facing))))) error("unseenEntry", TEXT.unseenEntry(signal.mast), { mast: signal.mast });
     }
     // A piece of a block is taken with another of the same block when every
     // route that uses it uses that one too: it keeps no train out that the
@@ -769,7 +819,7 @@
       if (!detected(id)) {
         const [a, b] = contested.get(piece);
         const key = `${a.mast}\u0000${b.mast}`;
-        if (!unseen.has(key)) error(TEXT.clashUnseen(a.mast, b.mast), { mast: a.mast });
+        if (!unseen.has(key)) error("clashUnseen", TEXT.clashUnseen(a.mast, b.mast), { mast: a.mast });
         unseen.add(key);
         continue;
       }
@@ -817,9 +867,9 @@
       if (!behind && !manualOnly) {
         const piece = moves.find((m) => m.signal === signal).route.pieces.find((p) => contested.has(p));
         const other = (contested.get(piece) || []).find((s) => s !== signal) || signal;
-        error(TEXT.clashWaiting(signal.mast, other.mast), { mast: signal.mast });
+        error("clashWaiting", TEXT.clashWaiting(signal.mast, other.mast), { mast: signal.mast });
       }
-      if (!mqtt && !pin) error(TEXT.noAsking(signal.mast), { mast: signal.mast });
+      if (!mqtt && !pin) error("noAsking", TEXT.noAsking(signal.mast), { mast: signal.mast });
       const button = pin ? S().freeName(TEXT.button(signal.mast), new Set(buttons.map((b) => b.name))) : "";
       if (button) buttons.push({ name: button, pin });
       const ahead = builtBlock(startOf.get(signal.mast));
@@ -898,7 +948,7 @@
     // train stands waiting at one.
     const watched = new Set(signals.flatMap((s) => [s.behind, ...s.routes.flatMap((route) => route.regions)]));
     for (const block of blocks) {
-      if (block.sensors.length && !watched.has(block.region)) warn(TEXT.unwatched(block.name), { block: block.name });
+      if (block.sensors.length && !watched.has(block.region)) warn("unwatched", TEXT.unwatched(block.name), { block: block.name });
     }
 
     // Each message once.
