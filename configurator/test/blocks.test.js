@@ -12,8 +12,9 @@ const yamlOut = process.env.ESPHOME_YAML_OUT;
 if (yamlOut) fs.mkdirSync(yamlOut, { recursive: true });
 const plain = (value) => JSON.parse(JSON.stringify(value));
 
+// Its rules are hand-written, so the board runs its own logic keys (see useOwnItems).
 function fixture(name) {
-  return JSON.parse(fs.readFileSync(path.join(configuratorDir, "test", "fixtures", `${name}.json`), "utf8"));
+  return L.useOwnItems(JSON.parse(fs.readFileSync(path.join(configuratorDir, "test", "fixtures", `${name}.json`), "utf8")));
 }
 
 function block(name, sensors, extra = {}) {
@@ -37,7 +38,7 @@ function northSnapshot() {
   const north = fixture("sensors");
   north.board.name = "kiama-north-k7m4x2";
   north.logic = { mode: "field", blocks: [block("North Loop", ["Yard Ladder"])] };
-  return L.linkedBoardFromConfig(parseConfigFromYaml(generateYaml(north)));
+  return L.linkedBoardFromConfig(L.useOwnItems(parseConfigFromYaml(generateYaml(north))));
 }
 
 function errorsOf(config) {
@@ -206,9 +207,10 @@ test("a sensor listed twice is read once", () => {
   ]);
 });
 
-test("blocks are only for Field Logic; None and MSS Logic keep them in the file and generate none", () => {
-  for (const mode of [undefined, "mss"]) {
-    const config = expanderBoard({ share: false });
+test("the old page's blocks are kept in the file and generate none, in any mode: Field Logic's come from its drawing", () => {
+  for (const mode of [undefined, "mss", "field"]) {
+    // A board as the page has it, not hand-built: a copy is not registered.
+    const config = plain(expanderBoard({ share: false }));
     if (mode) config.logic.mode = mode;
     else delete config.logic.mode;
     const yaml = generateYaml(config);
@@ -291,7 +293,7 @@ test("a sensor in more than two blocks is a warning: a boundary has two sides", 
 test("blocks survive download and import, and odd entries are tidied", () => {
   const config = expanderBoard();
   const yaml = generateYaml(config);
-  const restored = normalizeConfig(parseConfigFromYaml(yaml));
+  const restored = normalizeConfig(L.useOwnItems(parseConfigFromYaml(yaml)));
   assert.deepEqual(plain(restored.logic.blocks), plain(config.logic.blocks));
   assert.equal(generateYaml(restored), yaml);
   const odd = fixture("expanders");

@@ -627,11 +627,10 @@
   function work(config) {
     const model = trace(config);
     const { plan, error, warn, regionBlock, detected, signals, blocks, points } = model;
-    const logic = isObject(config?.logic) ? config.logic : {};
     const layers = [];
     const resources = [];
     const origins = [];
-    const taken = new Set(list(logic.layers).filter(isObject).map((g) => String(g.name ?? "")));
+    const taken = new Set();
     const freeGroup = (base) => {
       const name = S().freeName(base, taken);
       taken.add(name);
@@ -659,9 +658,8 @@
       // The meaning of each aspect it shows.
       const mast = list(config?.signals?.masts).find((m) => m.name === signal.mast);
       const labels = list(mast?.aspects).map((a) => String(a.label ?? ""));
-      const own = list(logic.masts).filter(isObject).find((e) => e.virtual !== true && e.mast === signal.mast);
-      const tags = { ...(isObject(own?.tags) ? own.tags : {}) };
-      const diverging = new Set(list(own?.diverging));
+      const tags = {};
+      const diverging = new Set();
       const meant = new Map(); // aspect -> indication
       signal.aspects = {};
       for (const i of Mss().INDICATIONS) {
@@ -689,19 +687,12 @@
       }
       signal.can = new Set(["stop", "restricting", ...Mss().INDICATIONS.filter((i) => shown.has(i.key)).map((i) => i.tag)]);
       signal.canDiverge = Mss().INDICATIONS.some((i) => shown.has(i.key) && i.diverging);
-      // Your own rules can hold it at any of its aspects.
-      for (const layer of list(logic.layers).filter(isObject)) {
-        for (const rule of list(layer.rules)) {
-          const aspect = rule?.then?.mast === signal.mast ? rule.then.aspect : undefined;
-          if (aspect === undefined) continue;
-          if (tags[aspect]) signal.can.add(tags[aspect]);
-          if (diverging.has(aspect)) signal.canDiverge = true;
-        }
-      }
+      // Your own rule can hold it at Approach, so the signal behind reads that too.
+      if (list(plan.rules).some((rule) => isObject(rule) && rule.on?.mast === signal.mast && rule.kind === "approachWhile")) signal.can.add("approach");
       const entry = { mast: signal.mast, tags };
       if (diverging.size) entry.diverging = [...diverging];
       if (signal.aspects.stop) entry.stopAspect = signal.aspects.stop;
-      const lit = text(signal.def.approachLight) || text(own?.approachLight);
+      const lit = text(signal.def.approachLight);
       if (lit) entry.approachLight = lit;
       masts.push(entry);
       origin("mast", signal.mast, { mast: signal.mast });
@@ -845,7 +836,7 @@
     const firstUse = (res) => Math.min(...res.pieces.map((p) => pieceList.indexOf(p)));
     const blockOrder = [...perBlock.values()].filter((inBlock) => inBlock.length).map((inBlock) => inBlock.sort((a, b) => firstUse(a) - firstUse(b)));
     blockOrder.sort((a, b) => firstUse(a[0]) - firstUse(b[0]));
-    const takenNames = new Set(list(logic.resources).filter(isObject).map((res) => String(res.name ?? "")));
+    const takenNames = new Set();
     for (const inBlock of blockOrder) {
       inBlock.forEach((res, i) => {
         const block = res.block;

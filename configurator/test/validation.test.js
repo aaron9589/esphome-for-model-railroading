@@ -15,8 +15,9 @@ const { generateYaml, normalizeConfig, parseConfigFromYaml, validateConfig, topi
 
 const plain = (value) => JSON.parse(JSON.stringify(value));
 
+// Its rules are hand-written, so the board runs its own logic keys (see useOwnItems).
 function fixture(name) {
-  return JSON.parse(fs.readFileSync(path.join(configuratorDir, "test", "fixtures", `${name}.json`), "utf8"));
+  return ctx.EsphomeMrLogicYaml.useOwnItems(JSON.parse(fs.readFileSync(path.join(configuratorDir, "test", "fixtures", `${name}.json`), "utf8")));
 }
 
 // Spec, Ease of use: "no page label uses a spec-only term". The same lint as
@@ -122,7 +123,7 @@ function southConfig(members = ["Bridge"], blocks = []) {
 
 // Linked the way the Logic page links it: from the board's downloaded file.
 function snapshotOf(other) {
-  return L.linkedBoardFromConfig(parseConfigFromYaml(generateYaml(normalizeConfig(plain(other)))));
+  return L.linkedBoardFromConfig(L.useOwnItems(parseConfigFromYaml(generateYaml(L.useOwnItems(normalizeConfig(plain(other)))))));
 }
 
 const SOUTH = "south-a3f9qp";
@@ -176,7 +177,7 @@ function blockSignals({ boundary = true } = {}) {
 // --- Reading the result -----------------------------------------------------
 
 function check(config) {
-  const result = validateConfig(normalizeConfig(plain(config)));
+  const result = validateConfig(ctx.EsphomeMrLogicYaml.useOwnItems(normalizeConfig(plain(config))));
   return { errors: [...result.errors], warnings: [...result.warnings], links: result.links };
 }
 
@@ -610,13 +611,13 @@ test("fail safe: a signal logic sets needs an aspect that means Stop", () => {
   const entry = config.logic.masts.find((m) => m.mast === "Left Bridge") || (config.logic.masts.push({ mast: "Left Bridge", tags: {} }), config.logic.masts.at(-1));
   const labels = config.signals.masts.find((m) => m.name === "Left Bridge").aspects.map((a) => a.label);
   entry.tags = Object.fromEntries(labels.map((label) => [label, "clear"]));
-  const { errors, links } = validateConfig(normalizeConfig(plain(config)));
+  const { errors, links } = validateConfig(L.useOwnItems(normalizeConfig(plain(config))));
   const text = [...errors].find((e) => e.includes('Signal "Left Bridge" has no aspect that means Stop'));
   assert.ok(text, [...errors].join("\n"));
   assert.equal(links.get(text).part, "logic-masts");
   // One aspect meaning Stop is enough.
   entry.tags[labels[0]] = "stop";
-  assert.ok(![...validateConfig(normalizeConfig(plain(config))).errors].some((e) => e.includes("means Stop")));
+  assert.ok(![...validateConfig(L.useOwnItems(normalizeConfig(plain(config)))).errors].some((e) => e.includes("means Stop")));
 });
 
 if (!process.exitCode) console.log("\nAll validation tests passed.");

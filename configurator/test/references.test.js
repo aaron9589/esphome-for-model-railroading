@@ -10,8 +10,9 @@ const { EsphomeMr, EsphomeMrLogicYaml: L } = loadModules("generator.js", "logic-
 const { generateYaml, normalizeConfig, validateConfig } = EsphomeMr;
 const plain = (value) => JSON.parse(JSON.stringify(value));
 
+// Its rules are hand-written, so the board runs its own logic keys (see useOwnItems).
 function fixture(name) {
-  return JSON.parse(fs.readFileSync(path.join(configuratorDir, "test", "fixtures", `${name}.json`), "utf8"));
+  return L.useOwnItems(JSON.parse(fs.readFileSync(path.join(configuratorDir, "test", "fixtures", `${name}.json`), "utf8")));
 }
 
 function block(name, sensors) {

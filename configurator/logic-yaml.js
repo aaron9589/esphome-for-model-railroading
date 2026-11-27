@@ -279,7 +279,7 @@
         })),
       },
       logic: {
-        blocks: pick(mss ? items.blocks : other.logic?.blocks),
+        blocks: pick(field ? items.blocks : []),
         // Its sections' blocks, so a block is in sections on one board only.
         resources: field ? list(items.resources).filter(isObject).map((res) => ({
           name: String(res.name || ""),
@@ -1585,13 +1585,24 @@
   const list = (value) => (Array.isArray(value) ? value : []);
   const isObject = (value) => value && typeof value === "object" && !Array.isArray(value);
 
-  // The items the engine runs: the Logic page's for Field Logic (and None),
-  // the built ones for MSS Logic. Built items are never stored; they are
-  // built again from `logic.mss` whenever it, or the masts it reads, change.
+  // The items the engine runs, built and never stored: from the drawing
+  // (`logic.plan`) in Field Logic, from `logic.mss` in MSS Logic. The old
+  // page's keys (blocks, layers, resources, buttons, masts) are not read: a
+  // Field Logic board with no drawing runs nothing.
+  const OLD_KEYS = Object.freeze({ blocks: [], layers: [], resources: [], buttons: [], masts: [] });
   let built = { key: null, items: null };
+  // Boards whose own logic keys are run as they stand, in the engine cases'
+  // format: for tests and tools that hand-write rules, which neither page
+  // makes. The configurator never registers a board.
+  const handBuilt = new WeakSet();
+  function useOwnItems(config) {
+    handBuilt.add(config);
+    return config;
+  }
   function logicItems(config) {
+    if (handBuilt.has(config)) return isObject(config?.logic) ? config.logic : {};
     const mode = M().logicMode(config);
-    if (mode === "field" && isObject(config.logic.plan)) return planItems(config);
+    if (mode === "field") return isObject(config.logic.plan) ? planItems(config) : { ...config.logic, ...OLD_KEYS };
     if (mode !== "mss") return isObject(config?.logic) ? config.logic : {};
     const builder = global.EsphomeMrMssBuilder;
     if (!builder) {
@@ -1606,9 +1617,7 @@
     return built.items;
   }
 
-  // Field Logic with a track plan (plan-builder.js): the plan's built items
-  // come first, so they win a tie, then the Logic page's own. A Masts entry for
-  // a signal on the plan is the plan's: it already carries what yours added.
+  // Field Logic's items, built from the track plan (plan-builder.js).
   let planned = { key: null, items: null };
   function planItems(config) {
     const builder = global.EsphomeMrPlanBuilder;
@@ -1620,19 +1629,16 @@
       list(config.points).map((point) => point?.name),
     ]);
     if (planned.key !== key) {
-      const own = config.logic;
       const items = builder.build(config);
-      const onPlan = new Set(items.masts.map((entry) => entry.mast));
-      const joined = (first, second) => [...first, ...list(second)];
       planned = {
         key,
         items: {
-          ...own,
-          blocks: joined(items.blocks, own.blocks),
-          masts: joined(items.masts, list(own.masts).filter((entry) => !(entry?.virtual !== true && onPlan.has(entry?.mast)))),
-          layers: joined(items.layers, own.layers),
-          resources: joined(items.resources, own.resources),
-          buttons: joined(items.buttons, own.buttons),
+          ...config.logic,
+          blocks: items.blocks,
+          masts: items.masts,
+          layers: items.layers,
+          resources: items.resources,
+          buttons: items.buttons,
           pairs: items.pairs,
           origins: items.origins,
           endBlocks: items.endBlocks,
@@ -2553,6 +2559,7 @@
   }
 
   global.EsphomeMrLogicYaml = {
+    useOwnItems,
     LOGIC_COMPONENT_REF,
     LOGIC_COMPONENT_SOURCE,
     logicTable,

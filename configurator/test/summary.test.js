@@ -12,7 +12,8 @@ const { generateYaml, normalizeConfig, parseConfigFromYaml } = EsphomeMr;
 // Same words as test/logic-page.test.js.
 const SPEC_ONLY = /\b(scans?|scanning|latch(es|ed)?|interpreters?|rule tables?|phases?|resources?|layers?|tags?|tagged)\b/i;
 
-const fixture = (name) => JSON.parse(fs.readFileSync(path.join(configuratorDir, "test", "fixtures", `${name}.json`), "utf8"));
+// Its rules are hand-written, so the board runs its own logic keys (see useOwnItems).
+const fixture = (name) => ctx.EsphomeMrLogicYaml.useOwnItems(JSON.parse(fs.readFileSync(path.join(configuratorDir, "test", "fixtures", `${name}.json`), "utf8")));
 const lamp = (color) => ({ color, mode: "steady" });
 const tags = { Stop: "stop", Clear: "clear" };
 
@@ -37,7 +38,7 @@ function northSnapshot() {
   const north = fixture("sensors");
   north.board.name = "kiama-north-k7m4x2";
   north.logic = { mode: "field", blocks: [{ name: "North Loop", topic: "trains/track/sensor/North Loop", sensors: ["Yard Ladder"] }] };
-  return Y.linkedBoardFromConfig(parseConfigFromYaml(generateYaml(north)));
+  return Y.linkedBoardFromConfig(ctx.EsphomeMrLogicYaml.useOwnItems(parseConfigFromYaml(generateYaml(north))));
 }
 
 // The expanders fixture (ESP pin, MCP 1 and Yard MCP sensors) in Field Logic.

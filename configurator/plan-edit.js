@@ -453,7 +453,7 @@
   /** A name for a new block that nothing else uses: `make(n)` for n = 1, 2, ... */
   function freeBlockName(config, make) {
     const taken = new Set([
-      ...list(config?.logic?.plan?.blocks), ...list(config?.logic?.blocks), ...list(config?.blocks),
+      ...list(config?.logic?.plan?.blocks), ...list(config?.blocks),
     ].map((item) => item?.name));
     let n = 1;
     while (taken.has(make(n))) n += 1;

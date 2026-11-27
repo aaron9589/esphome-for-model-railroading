@@ -28,8 +28,9 @@ function mast(name, aspects, pin = "GPIO16") {
   };
 }
 
+// The starters write its logic keys, so the board runs them (see useOwnItems).
 function boardFor(data) {
-  const config = myFirstBoardPreset();
+  const config = context.EsphomeMrLogicYaml.useOwnItems(myFirstBoardPreset());
   config.blocks = (data.board.sensors || []).map((name) => ({ name, topic: topicFor("block", name) }));
   config.points = (data.board.turnouts || []).map((name) => ({ name, topic: topicFor("point", name) }));
   config.signals = { mode: "addressable", masts: Object.entries(data.board.masts || {}).map(([name, m]) => mast(name, Object.keys(m.aspects))) };

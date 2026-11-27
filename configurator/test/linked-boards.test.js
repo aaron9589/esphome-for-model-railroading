@@ -11,8 +11,9 @@ const { generateYaml, normalizeConfig, parseConfigFromYaml, validateConfig } = E
 const yamlOut = process.env.ESPHOME_YAML_OUT;
 const plain = (value) => JSON.parse(JSON.stringify(value));
 
+// Its rules are hand-written, so the board runs its own logic keys (see useOwnItems).
 function fixture(name) {
-  return JSON.parse(fs.readFileSync(path.join(configuratorDir, "test", "fixtures", `${name}.json`), "utf8"));
+  return L.useOwnItems(JSON.parse(fs.readFileSync(path.join(configuratorDir, "test", "fixtures", `${name}.json`), "utf8")));
 }
 
 // kiama-north: a board that shares, as another board would link it.
@@ -24,7 +25,7 @@ function northFile() {
 }
 
 function linked() {
-  return L.linkedBoardFromConfig(parseConfigFromYaml(northFile()));
+  return L.linkedBoardFromConfig(L.useOwnItems(parseConfigFromYaml(northFile())));
 }
 
 // This board, in Field Logic, with kiama-north linked and a block using it.
@@ -50,7 +51,7 @@ test("a linked board keeps names, topics and whether it shares; never its Wi-Fi 
 });
 
 test("a board that does not share is linked as not sharing", () => {
-  const quiet = L.linkedBoardFromConfig(parseConfigFromYaml(generateYaml(fixture("sensors"))));
+  const quiet = L.linkedBoardFromConfig(L.useOwnItems(parseConfigFromYaml(generateYaml(fixture("sensors")))));
   assert.equal(quiet.share, false);
   const off = fixture("mqtt-off");
   off.logic = { share: true };
@@ -169,7 +170,7 @@ test("remote inputs are only for Field Logic", () => {
 test("linked boards survive download and import", () => {
   const config = board([{ board: "kiama-north-k7m4x2", sensor: "Junction Track" }]);
   const yaml = generateYaml(config);
-  const restored = normalizeConfig(parseConfigFromYaml(yaml));
+  const restored = normalizeConfig(L.useOwnItems(parseConfigFromYaml(yaml)));
   assert.deepEqual(plain(restored.logic.remoteBoards), plain(config.logic.remoteBoards));
   assert.equal(generateYaml(restored), yaml);
 });
