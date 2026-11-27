@@ -3,7 +3,7 @@
   "covers": [
     "Track plan: a scissors crossover with parallel routes"
   ],
-  "about": "A train along the north line and one along the south line take only their own lines' pieces of the scissors, so both signals clear together. Leaving at the far end, neither asks for the signal it came past: each came from the scissors. Later both crossovers are set: the two diagonal routes clash only on the crossing. The train that asked first takes it; the other waits, and goes once the crossing is freed behind the first train, while the first still holds the south line's piece it is in. Each turnout of the first route unlocks as its piece is freed behind the train.",
+  "about": "Each route takes everything from its signal to the end of the drawing. A train along the north line and one along the south line take only their own lines' pieces of the scissors, so both signals clear together. Leaving at the far end, neither asks for the signal it came past: each came from the scissors. Later both crossovers are set: the two diagonal routes clash only on the crossing. The train that asked first takes it; the other waits, and goes once the crossing is freed behind the first train, while the first still holds the south line's piece it is in. Each turnout of the first route unlocks as its piece is freed behind the train.",
   "module": {
     "sensors": [
       "North west current",
@@ -367,11 +367,19 @@
             "rule": "NW signal moves/1"
           },
           {
+            "grant": "North east",
+            "rule": "NW signal moves/1"
+          },
+          {
             "grant": "South scissors 1",
             "rule": "SW signal moves/1"
           },
           {
             "grant": "South scissors 2",
+            "rule": "SW signal moves/1"
+          },
+          {
+            "grant": "South east",
             "rule": "SW signal moves/1"
           }
         ],
@@ -472,7 +480,16 @@
         }
       ],
       "expect": {
-        "events": [],
+        "events": [
+          {
+            "pass": "North east",
+            "rule": "NW signal moves/1"
+          },
+          {
+            "pass": "South east",
+            "rule": "SW signal moves/1"
+          }
+        ],
         "rules": {
           "NE signal moves/1": "idle",
           "SE signal moves/1": "idle"
@@ -547,6 +564,10 @@
           "P2": false,
           "P3": false,
           "P4": false
+        },
+        "holders": {
+          "North east": "NW signal moves/1",
+          "South east": "SW signal moves/1"
         }
       }
     },
@@ -569,7 +590,23 @@
           "turnout": "P3",
           "is": "thrown"
         }
-      ]
+      ],
+      "expect": {
+        "events": [
+          {
+            "release": "North east",
+            "by": "release"
+          },
+          {
+            "release": "South east",
+            "by": "release"
+          }
+        ],
+        "rules": {
+          "NW signal moves/1": "idle",
+          "SW signal moves/1": "idle"
+        }
+      }
     },
     {
       "at": 52,
@@ -591,6 +628,10 @@
           },
           {
             "grant": "South scissors 1",
+            "rule": "NW signal moves/2"
+          },
+          {
+            "grant": "South east",
             "rule": "NW signal moves/2"
           }
         ],
@@ -709,7 +750,15 @@
           "sensor": "South east current",
           "is": "occupied"
         }
-      ]
+      ],
+      "expect": {
+        "events": [
+          {
+            "pass": "South east",
+            "rule": "NW signal moves/2"
+          }
+        ]
+      }
     },
     {
       "at": 78,
@@ -764,13 +813,18 @@
           {
             "grant": "South scissors 2",
             "rule": "NE signal moves/2"
+          },
+          {
+            "grant": "South west",
+            "rule": "NE signal moves/2"
           }
         ],
         "masts": {
           "NE signal": "R283"
         },
         "holders": {
-          "South scissors 1": "NW signal moves/2"
+          "South scissors 1": "NW signal moves/2",
+          "South east": "NW signal moves/2"
         }
       }
     },

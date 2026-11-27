@@ -3,7 +3,7 @@
   "covers": [
     "Track plan: a diamond in Auto"
   ],
-  "about": "In Auto, each train asks as it arrives behind its signal. The two lines' routes clash only on the crossing, so each takes the Diamond block. Two trains arrive together: the signal listed first goes; the other waits until the first train has been seen going on into East and the diamond has been clear for 3 seconds.",
+  "about": "In Auto, each train asks as it arrives behind its signal. The two lines' routes clash on the crossing, and each takes everything from its signal to the end: the diamond and the block beyond. Two trains arrive together: the signal listed first goes; the other waits until the first train has been seen going on into East and the diamond has been clear for 3 seconds. East is freed in turn once it has been clear for 3 seconds.",
   "module": {
     "sensors": [
       "West current",
@@ -261,6 +261,10 @@
           {
             "grant": "Diamond",
             "rule": "West signal moves/1"
+          },
+          {
+            "grant": "East",
+            "rule": "West signal moves/1"
           }
         ],
         "masts": {
@@ -292,7 +296,8 @@
           "North signal": "R292"
         },
         "resources": {
-          "Diamond": "PASSED"
+          "Diamond": "PASSED",
+          "East": "ACTIVE"
         }
       }
     },
@@ -312,7 +317,18 @@
           "sensor": "East current",
           "is": "occupied"
         }
-      ]
+      ],
+      "expect": {
+        "events": [
+          {
+            "pass": "East",
+            "rule": "West signal moves/1"
+          }
+        ],
+        "resources": {
+          "East": "PASSED"
+        }
+      }
     },
     {
       "at": 18,
@@ -355,13 +371,36 @@
           {
             "grant": "Diamond",
             "rule": "North signal moves/1"
+          },
+          {
+            "grant": "South",
+            "rule": "North signal moves/1"
           }
         ],
         "masts": {
           "North signal": "R281"
         },
         "holders": {
-          "Diamond": "North signal moves/1"
+          "Diamond": "North signal moves/1",
+          "South": "North signal moves/1",
+          "East": "West signal moves/1"
+        }
+      }
+    },
+    {
+      "at": 50,
+      "expect": {
+        "events": [
+          {
+            "release": "East",
+            "by": "release"
+          }
+        ],
+        "holders": {
+          "East": null
+        },
+        "rules": {
+          "West signal moves/1": "idle"
         }
       }
     }

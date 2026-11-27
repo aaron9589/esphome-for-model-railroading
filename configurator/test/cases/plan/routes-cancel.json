@@ -3,7 +3,7 @@
   "covers": [
     "Track plan: a route cancelled before its train enters, and released by hand"
   ],
-  "about": "At power-on, in Auto, a train standing behind Left Bridge counts as arriving: its route is set. It backs away, and once Left has been clear for a second the route is cancelled. In Manual, Left Bridge's button asks and, pressed again, cancels: with a train behind the signal the bridge is held for Left's 5 second hold time, or freed at once if that train leaves. Last, a train stands on the bridge, and Release for Left Bridge frees what is left of its route.",
+  "about": "At power-on, in Auto, a train standing behind Left Bridge counts as arriving: its route is set. It backs away without entering; once Left has been clear for its 5 second hold time, the route is released by time. In Manual, Left Bridge's button asks and, pressed again, cancels: with a train behind the signal the bridge is held for Left's hold time, or freed at once if that train leaves. Last, a train stands on the bridge, and Release for Left Bridge frees what is left of its route.",
   "module": {
     "sensors": [
       "Left current",
@@ -321,7 +321,7 @@
       ]
     },
     {
-      "at": 14,
+      "at": 54,
       "expect": {
         "events": [],
         "masts": {
@@ -333,7 +333,7 @@
       }
     },
     {
-      "at": 15,
+      "at": 55,
       "expect": {
         "events": [
           {
@@ -354,7 +354,7 @@
       }
     },
     {
-      "at": 20,
+      "at": 70,
       "do": [
         {
           "auto": "off"
@@ -362,7 +362,7 @@
       ]
     },
     {
-      "at": 22,
+      "at": 72,
       "do": [
         {
           "sensor": "Left current",
@@ -374,7 +374,7 @@
       }
     },
     {
-      "at": 25,
+      "at": 75,
       "do": [
         {
           "button": "Left Bridge button",
@@ -398,7 +398,7 @@
       }
     },
     {
-      "at": 30,
+      "at": 80,
       "do": [
         {
           "button": "Left Bridge button",
@@ -428,7 +428,7 @@
       }
     },
     {
-      "at": 39,
+      "at": 89,
       "expect": {
         "events": [],
         "resources": {
@@ -437,7 +437,7 @@
       }
     },
     {
-      "at": 40,
+      "at": 90,
       "do": [
         {
           "sensor": "Left current",
@@ -460,7 +460,7 @@
       }
     },
     {
-      "at": 45,
+      "at": 95,
       "do": [
         {
           "sensor": "Left current",
@@ -469,7 +469,7 @@
       ]
     },
     {
-      "at": 47,
+      "at": 97,
       "do": [
         {
           "button": "Left Bridge button",
@@ -490,7 +490,7 @@
       }
     },
     {
-      "at": 50,
+      "at": 100,
       "do": [
         {
           "button": "Left Bridge button",
@@ -514,7 +514,7 @@
       }
     },
     {
-      "at": 99,
+      "at": 149,
       "expect": {
         "events": [],
         "resources": {
@@ -523,7 +523,7 @@
       }
     },
     {
-      "at": 100,
+      "at": 150,
       "expect": {
         "events": [
           {
@@ -537,7 +537,7 @@
       }
     },
     {
-      "at": 105,
+      "at": 155,
       "do": [
         {
           "button": "Left Bridge button",
@@ -561,7 +561,7 @@
       }
     },
     {
-      "at": 110,
+      "at": 160,
       "do": [
         {
           "sensor": "Bridge current",
@@ -581,7 +581,7 @@
       }
     },
     {
-      "at": 120,
+      "at": 170,
       "do": [
         {
           "releaseGroup": "Left Bridge moves",

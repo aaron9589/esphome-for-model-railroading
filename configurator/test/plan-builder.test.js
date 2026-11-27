@@ -123,20 +123,23 @@ test("a file of the wrong shape is reported, not thrown", () => {
 const movesOf = (config, mast) => plain(B.build(config)).layers.find((g) => g.name === `${mast} moves`)?.rules.map((r) => r.then.reserve) ?? null;
 const movesGroup = (config, mast) => plain(B.build(config)).layers.find((g) => g.name === `${mast} moves`);
 
-test("routes that clash take their pieces of track: a crossing is one piece, and track no sensor sees is an error", () => {
-  // The diamond's lines share only the crossing; each signal's first piece is
-  // in the same block, so the block is taken whole.
-  assert.deepEqual(plain(B.build(of("diamond")).resources).map((r) => [r.name, r.blocks]), [["Diamond", ["Diamond"]]]);
-  assert.deepEqual(movesOf(of("diamond"), "West signal"), [["Diamond"]]);
+test("a route takes everything from its signal to its end; routes clash on a crossing, and track no sensor sees is an error", () => {
+  // The diamond's lines share only the crossing, and each route takes the
+  // diamond and the block beyond it.
+  assert.deepEqual(plain(B.build(of("diamond")).resources).map((r) => [r.name, r.blocks]), [["Diamond", ["Diamond"]], ["East", ["East"]], ["South", ["South"]]]);
+  assert.deepEqual(movesOf(of("diamond"), "West signal"), [["Diamond", "East"]]);
+  // Track no sensor sees on a route is not taken: it is freed with the next block that has one.
+  assert.deepEqual(movesOf(of("gauntlet"), "Left Bridge"), [["Bridge"]]);
   has(broken("diamond", (p) => { p.blocks = p.blocks.filter((b) => b.name !== "Diamond"); }), "error", B.TEXT.clashUnseen("West signal", "North signal"));
   // A junction's signals never share track: they are block signals, and nothing is taken.
   assert.deepEqual(plain(B.build(of("junction")).resources), []);
   assert.equal(movesOf(of("junction"), "Home"), null);
 });
 
-test("a crossing loop: the points, each road and the single line are taken, and each piece is freed behind the train after its block's Timing", () => {
+test("a crossing loop: every block of a route is taken, and each is freed behind the train after its block's Timing", () => {
   const config = of("passing-siding");
-  assert.deepEqual(plain(B.build(config).resources).map((r) => r.name), ["West points", "Main loop", "Siding", "East points", "Single"]);
+  assert.deepEqual(plain(B.build(config).resources).map((r) => r.name), ["West points", "Main loop", "Siding", "West line", "East points", "Single"]);
+  assert.deepEqual(movesOf(config, "Main West"), [["West points", "West line"]]);
   assert.deepEqual(movesOf(config, "West Home"), [["West points", "Main loop"], ["West points", "Siding"]]);
   assert.deepEqual(movesOf(config, "Main East"), [["East points", "Single"]]);
   assert.deepEqual(movesOf(config, "East Home"), [["Single", "East points", "Main loop"], ["Single", "East points", "Siding"]]);
@@ -156,9 +159,9 @@ test("a crossing loop: the points, each road and the single line are taken, and 
 
 test("a scissors crossover: each line's routes take only their own line, and the crossovers clash only on the crossing", () => {
   const config = of("scissors");
-  assert.deepEqual(movesOf(config, "NW signal"), [["North scissors 1", "North scissors 2"], ["North scissors 1", "Diamond", "South scissors 1"]]);
-  assert.deepEqual(movesOf(config, "SW signal"), [["South scissors 2", "South scissors 1"], ["South scissors 2", "Diamond", "North scissors 2"]]);
-  assert.deepEqual(movesOf(config, "SE signal")[0], ["South scissors 1", "South scissors 2"]);
+  assert.deepEqual(movesOf(config, "NW signal"), [["North scissors 1", "North scissors 2", "North east"], ["North scissors 1", "Diamond", "South scissors 1", "South east"]]);
+  assert.deepEqual(movesOf(config, "SW signal"), [["South scissors 2", "South scissors 1", "South east"], ["South scissors 2", "Diamond", "North scissors 2", "North east"]]);
+  assert.deepEqual(movesOf(config, "SE signal")[0], ["South scissors 1", "South scissors 2", "South west"]);
 });
 
 test("a controlled signal is asked for in Auto by a train arriving from the far side, in Manual by CATS or its button", () => {
@@ -170,10 +173,14 @@ test("a controlled signal is asked for in Auto by a train arriving from the far 
     { mast: "Left Bridge", is: "unheld", if: { auto: "off" } },
   ] } });
   assert.deepEqual(rule.cancel, { when: { any: [
-    { block: "Left", is: "clear", for: "1s", if: { auto: "on" } },
+    { block: "Left", is: "clear", for: "3s", if: { auto: "on" } },
     { mast: "Left Bridge", is: "held", if: { auto: "off" } },
   ] } });
   assert.deepEqual(rule.withdraw, { when: { any: [{ auto: "on" }, { auto: "off" }] } });
+  // In Auto, a train that asked and never entered: time release after the
+  // block behind's hold time, or its Timing when it has none.
+  const held = movesGroup(broken("gauntlet", (p) => { p.blocks[0].approachLock = "20s"; }), "Left Bridge").rules[0];
+  assert.deepEqual(held.cancel.when.any[0], { block: "Left", is: "clear", for: "20s", if: { auto: "on" } });
   // Each block knows its neighbours, for where its train came from.
   assert.deepEqual(plain(B.build(of("gauntlet")).blocks).map((b) => [b.name, b.next]), [["Left", ["Bridge"]], ["Bridge", ["Left", "Right"]], ["Right", ["Bridge"]]]);
   // A button asks and cancels in Manual, and is built as a button on its pin.

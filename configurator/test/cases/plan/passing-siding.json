@@ -3,7 +3,7 @@
   "covers": [
     "Track plan: a crossing loop meet asked for by signal buttons"
   ],
-  "about": "In Manual, with buttons beside four signals. The eastbound train is given the main road, then the westbound train the siding (its points already thrown). Each takes the track to the signal at the far end of its road all at once, and gives it back behind it piece by piece: the points behind each train are freed once it has gone on into the loop and they have been clear for 3 seconds, so they can be set for the other train's way out. Each road stays taken by the train standing in it. Then the east points are closed and Main East's button sends the eastbound train on, and the west points are thrown and Siding West's button sends the westbound train on, and each road is freed behind its train.",
+  "about": "In Manual, with buttons beside four signals. The eastbound train is given the main road, then the westbound train the siding (its points already thrown). The eastbound train stands in West line at power-on, which holds it until it has gone. Each route takes everything to the signal at the far end of its road all at once, and gives it back behind it piece by piece: the points behind each train are freed once it has gone on into the loop and they have been clear for 3 seconds, so they can be set for the other train's way out. Each road stays taken by the train standing in it. Then the east points are closed and Main East's button sends the eastbound train on, and the west points are thrown and Siding West's button sends the westbound train on, and each road is freed behind its train.",
   "module": {
     "sensors": [
       "West line current",
@@ -356,6 +356,10 @@
         "events": [
           {
             "startup": true
+          },
+          {
+            "pass": "West line",
+            "rule": null
           }
         ],
         "masts": {
@@ -365,6 +369,9 @@
         "locks": {
           "PW": false,
           "PE": false
+        },
+        "resources": {
+          "West line": "PASSED"
         }
       }
     },
@@ -601,6 +608,20 @@
       ]
     },
     {
+      "at": 45,
+      "expect": {
+        "events": [
+          {
+            "release": "West line",
+            "by": "release"
+          }
+        ],
+        "resources": {
+          "West line": "IDLE"
+        }
+      }
+    },
+    {
       "at": 53,
       "expect": {
         "events": [],
@@ -743,6 +764,10 @@
         "events": [
           {
             "grant": "West points",
+            "rule": "Siding West moves/1"
+          },
+          {
+            "grant": "West line",
             "rule": "Siding West moves/1"
           }
         ],

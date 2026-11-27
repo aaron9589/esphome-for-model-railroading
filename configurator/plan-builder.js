@@ -36,7 +36,6 @@
   const Mss = () => global.EsphomeMrMssBuilder;
 
   const PART = "logic-plan";
-  const AUTO_CANCEL = "1s"; // in Auto, a train gone from behind a signal this long has not gone past it
   const TIME = /^\d+(\.\d+)?(ms|s)$/; // as the engine reads a time
   const MAX_SPAN = 200; // grid units in one segment, so a bad file cannot hang the page
 
@@ -742,24 +741,28 @@
       }
     });
     const controlled = signals.filter((signal) => moves.some((m) => m.signal === signal && m.route.pieces.some((piece) => contested.has(piece))));
-    // A controlled signal's routes also take the piece just past it, so a
-    // train entering any of them is seen, and the request is used up.
-    const firstPiece = (signal) => model.pieceOf.get(edgeKey(signal.at, signal.facing));
+    // A controlled signal's route takes everything from the signal to its
+    // end: every piece of track on it. A piece no sensor sees is not taken:
+    // no other route can clash on it (that is an error below), and it is
+    // freed with the next block along the way that has a sensor. The piece
+    // just past the signal must be seen, so the board knows the train entered.
+    const routesTaking = moves.filter((m) => controlled.includes(m.signal));
     const takes = new Set(contested.keys());
+    for (const move of routesTaking) {
+      for (const piece of move.route.pieces) if (detected(model.pieceRegion.get(piece))) takes.add(piece);
+    }
     for (const signal of controlled) {
-      const piece = firstPiece(signal);
-      if (detected(model.pieceRegion.get(piece))) takes.add(piece);
-      else error(TEXT.unseenEntry(signal.mast), { mast: signal.mast });
+      if (!detected(model.pieceRegion.get(model.pieceOf.get(edgeKey(signal.at, signal.facing))))) error(TEXT.unseenEntry(signal.mast), { mast: signal.mast });
     }
     // A piece of a block is taken with another of the same block when every
-    // move that uses it uses that one too: it keeps no train out that the
+    // route that uses it uses that one too: it keeps no train out that the
     // other does not.
     const resourceOf = new Map(); // piece -> resource
     const perBlock = new Map(); // region -> [resource]
     const unseen = new Set();
     const pieceList = [];
-    for (const move of moves) for (const piece of move.route.pieces) if (takes.has(piece) && !pieceList.includes(piece)) pieceList.push(piece);
-    const usersOf = (piece) => new Set(moves.filter((m) => m.route.pieces.includes(piece)));
+    for (const move of routesTaking) for (const piece of move.route.pieces) if (takes.has(piece) && !pieceList.includes(piece)) pieceList.push(piece);
+    const usersOf = (piece) => new Set(routesTaking.filter((m) => m.route.pieces.includes(piece)));
     const byUsers = pieceList.map((piece, i) => ({ piece, i, users: usersOf(piece) })).sort((a, b) => b.users.size - a.users.size || a.i - b.i);
     for (const { piece, users } of byUsers) {
       const id = model.pieceRegion.get(piece);
@@ -828,7 +831,9 @@
       const cancels = [];
       if (inAuto && behind) {
         asks.push(gate({ block: behind, is: "occupied", notFrom: ahead ? [ahead] : [] }, inAuto));
-        cancels.push(gate({ block: behind, is: "clear", for: AUTO_CANCEL }, inAuto));
+        // Time release: a train that asked and never entered.
+        const behindBlock = regionBlock.get(signal.behind);
+        cancels.push(gate({ block: behind, is: "clear", for: behindBlock.approachLock || behindBlock.release || "3s" }, inAuto));
       }
       if (mqtt) {
         asks.push(gate({ mast: signal.mast, is: "unheld" }, inManual));

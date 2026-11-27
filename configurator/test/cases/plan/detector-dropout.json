@@ -245,6 +245,10 @@
           {
             "grant": "Diamond",
             "rule": "West signal moves/1"
+          },
+          {
+            "grant": "East",
+            "rule": "West signal moves/1"
           }
         ],
         "masts": {
@@ -341,9 +345,15 @@
         }
       ],
       "expect": {
-        "events": [],
+        "events": [
+          {
+            "pass": "East",
+            "rule": "West signal moves/1"
+          }
+        ],
         "resources": {
-          "Diamond": "PASSED"
+          "Diamond": "PASSED",
+          "East": "PASSED"
         }
       }
     },
@@ -379,13 +389,18 @@
           {
             "grant": "Diamond",
             "rule": "North signal moves/1"
+          },
+          {
+            "grant": "South",
+            "rule": "North signal moves/1"
           }
         ],
         "masts": {
           "North signal": "R281"
         },
         "holders": {
-          "Diamond": "North signal moves/1"
+          "Diamond": "North signal moves/1",
+          "East": "West signal moves/1"
         }
       }
     }
