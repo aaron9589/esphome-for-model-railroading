@@ -13,6 +13,7 @@ const STATE_KEYS = ["masts", "rules", "resources", "holders", "locks", "locked",
 // Compares one step's expect with a scan's outputs and the state after it.
 function check(problems, where, expect = {}, out, state) {
   if ("logic" in expect && state.logic !== expect.logic) problems.push(`${where}: logic is ${state.logic}, expected ${expect.logic}`);
+  if ("auto" in expect && state.auto !== expect.auto) problems.push(`${where}: auto is ${state.auto}, expected ${expect.auto}`);
   for (const key of STATE_KEYS) {
     for (const [name, want] of Object.entries(expect[key] || {})) {
       const got = state[key][name];

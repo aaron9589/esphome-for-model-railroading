@@ -88,16 +88,25 @@
     const logic = board.logic || {};
     // Names are unique once validated; if not, the first one wins, as in the C++ core.
     const logicBlocks = new Map();
-    for (const b of logic.blocks || []) if (!logicBlocks.has(b.name)) logicBlocks.set(b.name, b.sensors || []);
+    const blockNext = new Map(); // a block's neighbours, for where its train came from
+    for (const b of logic.blocks || []) {
+      if (logicBlocks.has(b.name)) continue;
+      logicBlocks.set(b.name, b.sensors || []);
+      blockNext.set(b.name, Array.isArray(b.next) ? b.next : []);
+    }
     const remoteBoards = board.remote || {};
 
     const rules = [];
+    const asks = []; // a routes group's one request, shared by its rules
     const layers = (logic.layers || []).map((layer) => {
+      const ask = layer.routes === true ? { request: false, since: null, rules: [] } : null;
+      if (ask) asks.push(ask);
       const list = (layer.rules || []).map((def, i) => {
         const rule = {
           def,
           ref: `${layer.name}/${i + 1}`,
           index: rules.length,
+          layer: layer.name,
           then: def.then || {},
           forMs: ms(def.trigger?.for),
           trig: null,
@@ -107,11 +116,12 @@
           guard: [],
           trueNow: false,
           checksNow: false,
+          ask: null,
         };
         rules.push(rule);
         return rule;
       });
-      return { name: layer.name, rules: list };
+      return { name: layer.name, rules: list, ask };
     });
     const resources = (logic.resources || []).map((def) => ({
       def,
@@ -139,14 +149,35 @@
       }
       return found;
     };
-    for (const rule of rules) {
-      rule.resources = resourcesNamed(rule.then.reserve);
-      rule.resource = rule.resources.length ? rule.resources[0] : null;
-      for (const res of rule.resources) res.rules.push(rule);
-      const guard = rule.def.trigger?.leavingGuard;
-      rule.guard = Array.isArray(guard) ? resourcesNamed(guard) : guard ? rule.resources : [];
-    }
-    for (const [what, value] of [...rules.map((r) => [r.ref, r.forMs]), ...resources.flatMap((r) => [[r.name, r.lockMs], [r.name, r.releaseMs]])]) {
+    layers.forEach((layer) => {
+      for (const rule of layer.rules) {
+        rule.resources = resourcesNamed(rule.then.reserve);
+        rule.resource = rule.resources.length ? rule.resources[0] : null;
+        for (const res of rule.resources) res.rules.push(rule);
+        const guard = rule.def.trigger?.leavingGuard;
+        rule.guard = Array.isArray(guard) ? resourcesNamed(guard) : guard ? rule.resources : [];
+        // A reserving When rule's request: its own, or its routes group's,
+        // which the group's reserving When rules share (rule 5).
+        if (rule.resource && rule.def.trigger?.when) {
+          rule.ask = layer.ask || { request: false, since: null, rules: [] };
+          if (!layer.ask) asks.push(rule.ask);
+          rule.ask.rules.push(rule);
+        }
+        // Sequential release: the blocks a train must be seen in after each
+        // resource before it is freed.
+        const next = rule.then.next && typeof rule.then.next === "object" ? rule.then.next : {};
+        rule.next = new Map(rule.resources.map((res) => [res, Array.isArray(next[res.name]) ? next[res.name] : []]));
+        // Turnout locks: the whole rule's, or one held with a resource.
+        rule.locks = (rule.then.lock || []).map((item) => {
+          if (typeof item === "string") return { turnout: item, res: null };
+          const res = resourceByName.get(item?.with);
+          return { turnout: item?.turnout, res: res && rule.resources.includes(res) ? res : null };
+        });
+        const al = rule.def.approachLock;
+        rule.approach = al && typeof al === "object" && al.block !== undefined ? { block: al.block, ms: ms(al.for) } : null;
+      }
+    });
+    for (const [what, value] of [...rules.map((r) => [r.ref, r.forMs]), ...rules.filter((r) => r.approach).map((r) => [r.ref, r.approach.ms]), ...resources.flatMap((r) => [[r.name, r.lockMs], [r.name, r.releaseMs]])]) {
       if (Number.isNaN(value)) throw new Error(`${what}: a time the engine cannot read. Use a time such as 0.5s or 500ms.`);
     }
     const fieldMasts = mastOrder.filter((m) => rules.some((r) => r.then.mast === m));
@@ -201,9 +232,18 @@
     let startupNext = logicOn;
     let pendingLogic = null;
     const pendingReleases = [];
+    const pendingGroupReleases = [];
 
     const jmriShown = new Map(); // rule 17: what today's handler shows from JMRI's messages
     const holds = new Map(); // rule 15: the board's copy of each field mast's hold
+    // Rule 30: what JMRI's last message said of each field mast's hold
+    // (undefined: no message yet), and whether it went Held or Unheld since
+    // the last scan. A manual release clears `holds`, never these.
+    const lastHeld = new Map();
+    const holdWent = new Map();
+    let starting = true; // the start's retained messages are no moment
+    let autoOn = start.auto !== "off"; // rule 31: the Auto/Manual switch
+    const timedStart = new Map(); // rule 32: a moment with a for, the scan its run began
     const display = new Map(); // what each mast shows now
     let prevOut = new Map(); // rule 13: field masts as the previous scan wrote them
     let fieldLocks = new Map(turnoutOrder.map((t) => [t, false]));
@@ -306,6 +346,10 @@
         return first(c) === "clear" ? !occ : occ;
       }
       if (c.turnout !== undefined) return turnoutState(c.turnout, c.board) === first(c);
+      if (c.auto !== undefined) return autoOn === (c.auto === "on");
+      if (c.mast !== undefined && c.board === undefined && (c.is === "held" || c.is === "unheld")) {
+        return lastHeld.get(c.mast) === (c.is === "held");
+      }
       if (c.mast !== undefined) {
         const r = mastReading(c.mast, c.board);
         if (first(c) === "diverging") return r.aspect !== null && (r.def.diverging || []).includes(r.aspect);
@@ -323,16 +367,71 @@
       if (!momentKeys.has(m)) momentKeys.set(m, JSON.stringify(m));
       return momentKeys.get(m);
     };
-    // A moment: this board's sensors and buttons by their latches; anything
-    // else by its condition becoming true since the last scan.
+    // A moment: this board's sensors and buttons by their latches; a field
+    // mast's hold by what JMRI's messages changed (rule 30); any of several
+    // (rule 32); anything else by its condition becoming true since the last
+    // scan. An `if` counts it only while that condition holds, and a `for`
+    // only once its state has then held that long (rule 32).
     function moment(m) {
+      const now = m.for !== undefined ? timedFires(m) : momentNow(m);
+      return now && (m.if === undefined || condition(m.if));
+    }
+    let startupScan = false;
+    function momentNow(m) {
+      if (m.any) return m.any.some(moment);
+      if (m.mast !== undefined && m.board === undefined && (m.is === "held" || m.is === "unheld")) return holdWent.get(m.mast)?.[m.is] === true;
       const local = m.board === undefined && (m.block !== undefined || m.sensor !== undefined || m.button !== undefined);
       if (local && m.button !== undefined) return first(m) === "pressed" && input("button", m.button).on;
+      if (local && m.notFrom !== undefined) {
+        // Rule 31: entered, and not from these. At start-up a train already
+        // there counts as entered from where the board cannot tell.
+        const name = m.block ?? m.sensor;
+        const entered = went(name, true) || (startupScan && occupied(name));
+        return entered && !cameFrom(name, [].concat(m.notFrom));
+      }
       if (local) return went(m.block ?? m.sensor, first(m) !== "clear");
       return condition(m) && edges.get(momentKey(m)) === false;
     }
+    // Where a train entering a block came from: the one neighbour occupied
+    // now, its block's `next` or those named; none or several cannot tell.
+    function cameFrom(name, from) {
+      const near = [...new Set([...(blockNext.get(name) || []), ...from])];
+      const occ = near.filter((b) => occupied(b));
+      return occ.length === 1 && from.includes(occ[0]);
+    }
+    // A timed moment's state without its for and if: its run starts when that
+    // happens, and lasts while it holds.
+    const cores = new WeakMap();
+    const coreOf = (m) => {
+      if (!cores.has(m)) {
+        const { for: _f, if: _i, ...core } = m;
+        cores.set(m, core);
+      }
+      return cores.get(m);
+    };
+    function timedFires(m) {
+      const start = timedStart.get(momentKey(m));
+      return start !== undefined && n === start + Math.ceil(ms(m.for) / SCAN_MS);
+    }
     const trackedMoments = [];
-    const track = (m) => m && trackedMoments.push(m);
+    const timedMoments = [];
+    const track = (m) => {
+      if (!m) return;
+      trackedMoments.push(m);
+      if (Array.isArray(m.any)) m.any.forEach(track);
+      if (m.for !== undefined) {
+        timedMoments.push(m);
+        track(coreOf(m));
+      }
+    };
+    function updateTimed() {
+      for (const m of timedMoments) {
+        const core = coreOf(m);
+        const key = momentKey(m);
+        if (momentNow(core)) timedStart.set(key, n);
+        else if (!condition(core)) timedStart.delete(key);
+      }
+    }
 
     // Two moments on the same input in one scan, in the order the latches
     // and the value prove (rule 2). Moments on different inputs advance one
@@ -531,6 +630,10 @@
       if (t.when) sequenceOf(t).forEach(track);
       else track(t.while);
       track(rule.def.cancel?.when);
+      track(rule.def.withdraw?.when);
+    }
+    for (const m of timedMoments) {
+      if (Number.isNaN(ms(m.for))) throw new Error(`${momentKey(m)}: a time the engine cannot read. Use a time such as 0.5s or 500ms.`);
     }
     for (const res of resources) {
       const t = res.def.release || {};
@@ -538,8 +641,13 @@
     }
 
     function resetTrigger(rule) {
-      rule.trig = { runTrue: null, runFalse: null, eff: false, guard: false, prevRaw: null, request: false, seq: { p: 0 }, since: null };
+      rule.trig = { runTrue: null, runFalse: null, eff: false, guard: false, prevRaw: null, seq: { p: 0 }, since: null, asked: false, cancelled: false, withdrawn: false };
       rule.phase = "idle";
+      rule.cancelNow = false;
+      if (rule.ask) {
+        rule.ask.request = false;
+        rule.ask.since = null;
+      }
     }
     function resetRelease(res) {
       res.rel = { runTrue: null, seq: { p: 0 } };
@@ -554,12 +662,17 @@
       const st = rule.trig;
       let isTrue;
       if (t.when) {
-        if (advance(sequenceOf(t), st.seq)) {
-          st.request = true;
-          if (!rule.resource) st.fired = true;
+        const asked = advance(sequenceOf(t), st.seq);
+        if (rule.ask) {
+          // Read now, settled for the whole request once every rule has been
+          // read (settleAsks), so rules sharing one see the same moments.
+          st.asked = asked;
+          st.cancelled = rule.def.cancel?.when ? moment(rule.def.cancel.when) : false;
+          st.withdrawn = rule.def.withdraw?.when ? moment(rule.def.withdraw.when) : false;
+          rule.checksNow = (rule.def.checks || []).every(condition);
+          return;
         }
-        isTrue = rule.resource ? st.request : Boolean(st.fired);
-        st.fired = false;
+        isTrue = Boolean(asked);
       } else {
         const seen = condition(t.while);
         if (t.leavingGuard) {
@@ -586,6 +699,30 @@
       rule.checksNow = (rule.def.checks || []).every(condition);
     }
 
+    // Rule 5: a reserving When rule's request, read for every rule that
+    // shares it. A withdraw takes back a request still waiting; then a cancel
+    // with something to cancel (that request, or a rule that is ACTIVE) takes
+    // it back, and cancels the ACTIVE rule, and this scan's moment with it;
+    // otherwise the moment asks.
+    function settleAsks() {
+      for (const ask of asks) {
+        const any = (key) => ask.rules.some((rule) => rule.trig[key]);
+        const active = ask.rules.filter((rule) => rule.phase === "active");
+        for (const rule of ask.rules) rule.cancelNow = false;
+        if (any("withdrawn")) ask.request = false;
+        if (any("cancelled") && (ask.request || active.length)) {
+          ask.request = false;
+          for (const rule of active) rule.cancelNow = true;
+        } else if (any("asked")) ask.request = true;
+        if (ask.request && ask.since === null) ask.since = n;
+        if (!ask.request) ask.since = null;
+        for (const rule of ask.rules) {
+          rule.trueNow = ask.request;
+          rule.trig.since = ask.since;
+        }
+      }
+    }
+
     // Rule 9: a release is true when its while has held for its for, or its
     // then sequence has completed since the grant.
     function evalRelease(res) {
@@ -608,6 +745,7 @@
       const holder = res.holder;
       res.holder = null;
       res.passed = false;
+      res.seen = false;
       if (holder && !holdsAny(holder)) holder.phase = "idle";
       res.startupHeld = false;
       res.rel.seq = { p: 0 };
@@ -662,7 +800,7 @@
           }
         }
       }
-      for (const name of echoes) out.publishes.push({ release: name, value: "CLOSED" });
+      for (const echo of echoes) out.publishes.push(echo);
       publishAll = false;
     }
 
@@ -678,6 +816,7 @@
         v.on = false;
         v.off = false;
       }
+      holdWent.clear();
       n += 1;
     }
 
@@ -707,12 +846,16 @@
       pendingLogic = null;
       if (switchingOff || !logicOn) {
         // No section to release while logic is off, but the press is answered.
-        const echoes = broker ? pendingReleases.map((p) => p.resource) : [];
+        const echoes = broker
+          ? [...pendingReleases.map((p) => ({ release: p.resource, value: "CLOSED" })),
+            ...pendingGroupReleases.filter((p) => layers.some((layer) => layer.name === p.group)).map((p) => ({ releaseGroup: p.group, value: "CLOSED" }))]
+          : [];
         pendingReleases.length = 0;
+        pendingGroupReleases.length = 0;
         if (switchingOff) switchOff(out, echoes);
         else {
           finish(out, new Map(), new Map(turnoutOrder.map((t) => [t, false])));
-          for (const name of echoes) out.publishes.push({ release: name, value: "CLOSED" });
+          for (const echo of echoes) out.publishes.push(echo);
         }
         recordEdges();
         finishEnds(out);
@@ -742,30 +885,50 @@
           }
         }
       }
+      // A manual release: the resource is freed, its rule's mast goes to
+      // Stop, and any other resources that rule holds stay held until its
+      // train has passed through them.
+      const releaseByHand = (res) => {
+        out.events.push({ release: res.name, by: "manual" });
+        const holder = res.holder;
+        free(res);
+        if (holder && holder.phase !== "idle") holder.phase = "passed";
+        releasedNow.add(res);
+        for (const rule of res.rules) {
+          if (rule.then.mast === undefined) continue;
+          holds.set(rule.then.mast, false);
+          forceStop.add(rule.then.mast);
+        }
+      };
       for (const res of resources) {
         for (const press of pendingReleases.filter((p) => p.resource === res.name)) {
-          if (broker) echoes.push(res.name);
+          if (broker) echoes.push({ release: res.name, value: "CLOSED" });
           if (press.ignored) {
             out.events.push({ ignored: "release", resource: res.name });
             continue;
           }
-          out.events.push({ release: res.name, by: "manual" });
-          // Its rule's mast goes to Stop; any other resources it holds stay
-          // held until its train has passed through them.
-          const holder = res.holder;
-          free(res);
-          if (holder && holder.phase !== "idle") holder.phase = "passed";
-          releasedNow.add(res);
-          for (const rule of res.rules) {
-            if (rule.then.mast === undefined) continue;
-            holds.set(rule.then.mast, false);
-            forceStop.add(rule.then.mast);
-          }
+          releaseByHand(res);
         }
       }
       pendingReleases.length = 0;
+      // Rule 33: Release for a group frees everything its rules hold, in
+      // resource order.
+      for (const press of pendingGroupReleases) {
+        if (!layers.some((layer) => layer.name === press.group)) continue;
+        if (broker) echoes.push({ releaseGroup: press.group, value: "CLOSED" });
+        if (press.ignored) {
+          out.events.push({ ignored: "releaseGroup", group: press.group });
+          continue;
+        }
+        out.events.push({ releaseGroup: press.group });
+        for (const res of resources) if (res.holder && res.holder.layer === press.group) releaseByHand(res);
+      }
+      pendingGroupReleases.length = 0;
 
-      // 6.2: releases read this scan, a start-up hold's release, then each rule.
+      // 6.2: releases read this scan, a start-up hold's release, every rule's
+      // trigger, the requests, then each reserving rule.
+      startupScan = ctx.startup;
+      updateTimed();
       resources.forEach(evalRelease);
       for (const res of resources) {
         if (res.startupHeld && res.releaseNow) {
@@ -773,47 +936,56 @@
           free(res);
         }
       }
+      for (const rule of rules) evalTrigger(rule, ctx);
+      settleAsks();
       for (const rule of rules) {
-        evalTrigger(rule, ctx);
         if (!rule.resources.length || rule.phase === "idle") continue;
         const mine = () => rule.resources.filter((res) => res.holder === rule);
-        if (rule.phase === "active") {
-          const t = rule.def.trigger || {};
-          let cancel = false;
-          if (t.when) {
-            if (rule.def.cancel?.when && moment(rule.def.cancel.when)) {
-              cancel = true;
-              rule.trig.request = false;
-            }
-          } else if (!rule.trueNow) cancel = true;
-          if (!cancel && mastHeld(rule)) {
-            cancel = true;
-            if (t.when) rule.trig.request = true;
-          }
-          if (cancel) {
-            // Each resource: held for its approach locking time, or freed now.
-            rule.phase = "cancelling";
-            rule.cancelAt = n;
-            for (const res of mine()) {
-              out.events.push({ cancel: res.name, rule: rule.ref });
-              if (res.lockMs > 0) continue;
-              out.events.push({ release: res.name, by: "cancel" });
-              free(res);
-            }
-            if (rule.phase === "idle") continue;
-          }
-        }
-        // Passed: the train has entered a resource; the mast goes back to Stop.
+        // Passed first: a train that has entered a resource is never
+        // cancelled, even by a cancel in the same scan. The mast goes back to
+        // Stop.
         for (const res of mine()) {
           if (res.passed || !blockOccupiedOrWent(res)) continue;
           res.passed = true;
           rule.phase = "passed";
           out.events.push({ pass: res.name, rule: rule.ref });
         }
+        // Sequential release (rule 9): the train seen going into the next
+        // block along the way, from the scan it passed.
+        for (const res of mine()) {
+          if (res.passed && !res.seen && rule.next.get(res).some((b) => went(b, true))) res.seen = true;
+        }
+        if (rule.phase === "active") {
+          const t = rule.def.trigger || {};
+          let cancel = false;
+          if (t.when) cancel = rule.cancelNow;
+          else if (!rule.trueNow) cancel = true;
+          if (!cancel && mastHeld(rule)) {
+            cancel = true;
+            if (rule.ask) rule.ask.request = true;
+          }
+          if (cancel) {
+            // Each resource: held while approach locking holds it, or freed now.
+            rule.phase = "cancelling";
+            rule.cancelAt = n;
+            const lockedFor = (res) => (rule.approach ? (occupied(rule.approach.block) ? rule.approach.ms : 0) : res.lockMs);
+            for (const res of mine()) {
+              out.events.push({ cancel: res.name, rule: rule.ref });
+              if (lockedFor(res) > 0) continue;
+              out.events.push({ release: res.name, by: "cancel" });
+              free(res);
+            }
+            if (rule.phase === "idle") continue;
+          }
+        }
         if (rule.phase === "cancelling") {
           for (const res of mine()) {
-            if ((n - rule.cancelAt) * SCAN_MS < res.lockMs) continue;
-            out.events.push({ release: res.name, by: "time" });
+            // Rule 10: by time; with a rule's own approach locking, also at
+            // once when the train behind the signal leaves.
+            const time = (n - rule.cancelAt) * SCAN_MS >= (rule.approach ? rule.approach.ms : res.lockMs);
+            const left = rule.approach && !occupied(rule.approach.block);
+            if (!time && !left) continue;
+            out.events.push({ release: res.name, by: time ? "time" : "left" });
             free(res);
           }
           continue;
@@ -821,6 +993,7 @@
         if (rule.phase !== "passed") continue;
         for (const res of mine()) {
           if (!res.passed || !res.releaseNow) continue;
+          if (rule.next.get(res).length && !res.seen) continue;
           out.events.push({ release: res.name, by: "release" });
           free(res);
         }
@@ -828,12 +1001,14 @@
 
       // 6.3: grants, longest waiting first, then list order. A rule takes all
       // of its resources at once or none of them, and each resource it waits
-      // for is kept from the rules that started waiting after it.
+      // for is kept from the rules that started waiting after it. A request
+      // shared by several rules is used up by the first granted.
       const asking = rules.filter((r) => r.resources.length && r.phase === "idle" && r.trueNow && r.checksNow && !mastHeld(r));
       asking.sort((a, b) => a.trig.since - b.trig.since || a.index - b.index);
       const claimed = new Set();
       const granted = new Map(); // resource -> rule
       for (const rule of asking) {
+        if (rule.ask && !rule.ask.request) continue;
         const ok = rule.resources.every((res) => !claimed.has(res) && !heldRes(res) && !releasedNow.has(res) && blocksClear(res));
         for (const res of rule.resources) claimed.add(res);
         if (!ok) continue;
@@ -841,13 +1016,15 @@
         for (const res of rule.resources) {
           res.holder = rule;
           res.passed = false;
+          res.seen = false;
           res.rel.seq = { p: 0 };
           res.rel.done = false;
           granted.set(res, rule);
         }
-        if (rule.def.trigger?.when) {
-          rule.trig.request = false;
-          rule.trig.since = null;
+        if (rule.ask) {
+          rule.ask.request = false;
+          rule.ask.since = null;
+          for (const other of rule.ask.rules) other.trig.since = null;
         }
       }
       for (const res of resources) if (granted.has(res)) out.events.push({ grant: res.name, rule: granted.get(res).ref });
@@ -871,10 +1048,12 @@
         if (def.approachLight !== undefined && !occupied(def.approachLight)) pick = "dark";
         newOut.set(m, pick);
       }
+      // Rule 21: a rule's turnout locks, while it holds them; one held with a
+      // resource only while the rule holds that resource.
       const newLocks = new Map(turnoutOrder.map((t) => [t, false]));
       for (const rule of rules) {
         if (!locksHeld(rule)) continue;
-        for (const t of rule.then.lock || []) newLocks.set(t, true);
+        for (const lock of rule.locks) if (!lock.res || lock.res.holder === rule) newLocks.set(lock.turnout, true);
       }
       finish(out, newOut, newLocks);
       recordEdges();
@@ -920,6 +1099,11 @@
         const ignored = e.via === "mqtt" && connectAt !== null && t - connectAt < RELEASE_WINDOW_MS;
         return void pendingReleases.push({ resource: e.release, ignored });
       }
+      if (e.releaseGroup !== undefined) {
+        const ignored = e.via === "mqtt" && connectAt !== null && t - connectAt < RELEASE_WINDOW_MS;
+        return void pendingGroupReleases.push({ group: e.releaseGroup, ignored });
+      }
+      if (e.auto !== undefined) return void (autoOn = e.auto === "on");
       if (e.logic !== undefined) return void (pendingLogic = e.logic);
       if (e.broker === "connected") {
         broker = true;
@@ -936,7 +1120,13 @@
       if (!def) return;
       const pick = pickAspect(def, message);
       if (isField(m)) {
-        holds.set(m, isHeldMessage(message));
+        const held = isHeldMessage(message);
+        // Rule 30: a change of hold, from a message the board was sent.
+        if (!starting && lastHeld.get(m) !== held && (held || lastHeld.get(m) === true)) {
+          holdWent.set(m, { ...(holdWent.get(m) || {}), [held ? "held" : "unheld"]: true });
+        }
+        lastHeld.set(m, held);
+        holds.set(m, held);
         if (pick !== undefined) jmriShown.set(m, pick);
         if (!logicOn && pick !== undefined) display.set(m, pick);
       } else if (pick !== undefined) display.set(m, pick);
@@ -960,6 +1150,7 @@
     }
     for (const t of turnoutOrder) prevLocked.set(t, remoteLocks.get(t));
     recordEdges();
+    starting = false;
 
     function state() {
       const rulePhases = {};
@@ -971,6 +1162,7 @@
       }
       return {
         logic: logicOn ? "on" : "off",
+        auto: autoOn ? "on" : "off",
         masts: Object.fromEntries(mastOrder.map((m) => [m, display.get(m) ?? null])),
         rules: rulePhases,
         resources: Object.fromEntries(resources.map((r) => [r.name, resourceState(r)])),
@@ -1000,6 +1192,14 @@
         asked: [
           asking(rules.filter((rule) => !rule.resource)).map((rule) => rule.ref),
           ...resources.map((res) => asking(res.rules).sort(byAsk).map((rule) => rule.ref)),
+        ],
+        // The rest of what changes what happens next: which passed resources
+        // have seen their train go on, how far each timed moment has run, and
+        // what JMRI last said of each hold.
+        more: [
+          resources.filter((res) => res.seen).map((res) => res.name),
+          [...timedStart].map(([key, at]) => [key, n - at]),
+          [...lastHeld],
         ],
       };
     }

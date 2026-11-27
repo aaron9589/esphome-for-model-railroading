@@ -212,8 +212,8 @@
   // rules, such as an MSS module, has far fewer states.
   function keyOf(engine, values) {
     const { logic, ...state } = engine.state();
-    const { active, asked } = engine.checkerView();
-    return JSON.stringify([state, active, asked, values]);
+    const { active, asked, more } = engine.checkerView();
+    return JSON.stringify([state, active, asked, more, values]);
   }
 
   // A seeded random number generator (mulberry32), so random runs repeat.

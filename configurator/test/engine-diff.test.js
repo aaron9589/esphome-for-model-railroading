@@ -66,6 +66,8 @@ function candidates(board, me = "") {
     list.push({ jmri: m, message: "null; Lit; Held" }, { jmri: m, message: "Bogus; Lit; Unheld" });
   }
   for (const r of logic.resources || []) list.push({ release: r.name, via: "button" }, { release: r.name, via: "mqtt" });
+  for (const l of logic.layers || []) list.push({ releaseGroup: l.name, via: "button" }, { releaseGroup: l.name, via: "mqtt" });
+  list.push({ releaseGroup: "Nowhere", via: "button" }, { auto: "on" }, { auto: "off" });
   for (const [b, def] of Object.entries(board.remote || {})) {
     list.push({ board: b, online: true }, { board: b, online: true }, { board: b, online: false });
     for (const s of def.sensors || []) for (const is of ["occupied", "clear", "unknown"]) list.push({ board: b, sensor: s, is });
@@ -227,6 +229,64 @@ const EXTRA_BOARDS = {
         ],
       },
     },
+  },
+  // Routes (track plan TP 4): a routes group sharing one request, asked
+  // for by a train entering from the far side (in Auto), a mast going Held to
+  // Unheld or a button (in Manual), cancelled by a hold, a button or a train
+  // leaving for a while, withdrawn when the switch flips; sequential release,
+  // locks held with a resource, a rule's own approach locking, and Release
+  // for a group.
+  routes: {
+    board: {
+      sensors: ["W", "X", "A", "B", "C", "E"],
+      turnouts: ["P1", "P2"],
+      masts: { West: S2, East: S2 },
+      logic: {
+        buttons: [{ name: "Ask" }],
+        blocks: [
+          { name: "Behind", sensors: ["W"], next: ["Ahead", "Far"] },
+          { name: "Ahead", sensors: ["A"], next: ["Behind", "Beyond"] },
+          { name: "Far", sensors: ["X"] },
+          { name: "Beyond", sensors: ["B", "C"] },
+        ],
+        resources: [
+          { name: "Ahead", blocks: ["Ahead"], release: { while: { block: "Ahead", is: "clear" }, for: "0.5s" } },
+          { name: "Beyond", blocks: ["Beyond"], release: { while: { block: "Beyond", is: "clear" }, for: "0.3s" }, approachLock: "0.4s" },
+          { name: "Exit", blocks: ["E"], release: { while: { block: "E", is: "clear" }, for: "0.2s" } },
+        ],
+        layers: [
+          { name: "West moves", routes: true, rules: [
+            { trigger: { when: { any: [
+                { block: "Behind", is: "occupied", notFrom: "Ahead", if: { auto: "on" } },
+                { mast: "West", is: "unheld", if: { auto: "off" } },
+                { button: "Ask", is: "pressed", if: { auto: "off" } },
+              ] } },
+              cancel: { when: { any: [
+                { block: "Behind", is: "clear", for: "0.5s", if: { auto: "on" } },
+                { mast: "West", is: "held", if: { auto: "off" } },
+                { button: "Ask", is: "pressed", if: { auto: "off" } },
+              ] } },
+              withdraw: { when: { any: [{ auto: "on" }, { auto: "off" }] } },
+              approachLock: { block: "Behind", for: "0.6s" },
+              checks: [{ turnout: "P1", is: "closed" }, { block: "Ahead", is: "clear" }],
+              then: { mast: "West", aspect: "R281", reserve: ["Ahead", "Beyond"], next: { Ahead: ["Beyond"], Beyond: ["E", "Nowhere"] }, lock: [{ turnout: "P1", with: "Ahead" }, "P2", { turnout: "P2", with: "Nobody" }, { with: "Ahead" }] } },
+            { trigger: { when: { any: [
+                { block: "Behind", is: "occupied", notFrom: ["Ahead"], if: { auto: "on" } },
+                { mast: "West", is: "unheld", if: { auto: "off" } },
+              ] } },
+              cancel: { when: { block: "Behind", is: "clear", for: "300ms" } },
+              checks: [{ turnout: "P1", is: "thrown" }],
+              then: { mast: "West", aspect: "R285", reserve: ["Ahead", "Exit"], next: { Exit: [] }, lock: [{ turnout: "P1", with: "Exit" }] } },
+          ] },
+          { name: "East", rules: [
+            { trigger: { when: { block: "Beyond", is: "occupied", notFrom: "Ahead" } }, checks: [], cancel: { when: { mast: "East", is: "held" } },
+              then: { mast: "East", aspect: "R281", reserve: ["Beyond"] } },
+            { trigger: { while: { all: [{ mast: "East", is: "unheld" }, { auto: "off" }] } }, checks: [], then: { mast: "East", aspect: "R285" } },
+          ] },
+        ],
+      },
+    },
+    start: { auto: "off", jmri: { West: "R292; Lit; Held" } },
   },
   // One end, so that pairing with east/A often succeeds, then is heard.
   pairing: {

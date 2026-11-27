@@ -29,6 +29,7 @@ Start to_start(const Value *v) {
   if (!v) return s;
   s.board = v->text("board");
   s.logic_on = v->text("logic", "on") != "off";
+  s.auto_on = v->text("auto", "on") != "off";
   s.broker_connected = v->text("broker", "connected") != "disconnected";
   if (const Value *x = v->get("links"))
     for (const auto &p : x->obj) s.links.emplace_back(p.first, p.second.str);
@@ -125,6 +126,7 @@ Event to_event(const Value &v) {
       {"sensor", Event::SENSOR, "is"},       {"button", Event::BUTTON, "is"},
       {"turnout", Event::TURNOUT, "is"},     {"remoteLock", Event::REMOTE_LOCK, "is"},
       {"jmri", Event::JMRI, "message"},      {"release", Event::RELEASE, "via"},
+      {"releaseGroup", Event::RELEASE_GROUP, "via"},
   };
   for (const auto &m : maps) {
     if (v.has(m.key)) {
@@ -134,7 +136,10 @@ Event to_event(const Value &v) {
       return e;
     }
   }
-  if (v.has("logic")) {
+  if (v.has("auto")) {
+    e.kind = Event::AUTO;
+    e.value = v.text("auto");
+  } else if (v.has("logic")) {
     e.kind = Event::LOGIC;
     e.value = v.text("logic");
   } else if (v.has("broker")) {
@@ -155,7 +160,10 @@ Value to_json(const LogEvent &e) {
     case LogEvent::CANCEL: return object({{"cancel", str(e.what)}, {"rule", str(e.rule)}});
     case LogEvent::PASS: return object({{"pass", str(e.what)}, {"rule", nullable(e.rule)}});
     case LogEvent::RELEASE: return object({{"release", str(e.what)}, {"by", str(e.by)}});
-    case LogEvent::IGNORED: return object({{"ignored", str("release")}, {"resource", str(e.what)}});
+    case LogEvent::IGNORED:
+      if (e.by == "releaseGroup") return object({{"ignored", str("releaseGroup")}, {"group", str(e.what)}});
+      return object({{"ignored", str("release")}, {"resource", str(e.what)}});
+    case LogEvent::RELEASE_GROUP: return object({{"releaseGroup", str(e.what)}});
     case LogEvent::RESYNC: return object({{"resync", str(e.what)}});
     case LogEvent::PAIRING:
       if (e.by == "paired") return object({{"pairing", str(e.what)}, {"result", str(e.by)}, {"with", str(e.rule)}});
@@ -177,6 +185,7 @@ Value to_json(const Publish &p) {
     case Publish::HELD: return object({{"resource", str(p.resource)}, {"held", str(p.value)}});
     case Publish::STATE: return object({{"resource", str(p.resource)}, {"state", str(p.value)}});
     case Publish::RELEASE: return object({{"release", str(p.resource)}, {"value", str(p.value)}});
+    case Publish::RELEASE_GROUP: return object({{"releaseGroup", str(p.resource)}, {"value", str(p.value)}});
     case Publish::PAIRING: return object({{"pairing", str(p.value)}});
     case Publish::END_LINK: return object({{"end", str(p.resource)}, {"link", str(p.value)}});
     case Publish::END_BLOCK: return object({{"end", str(p.resource)}, {"track", json::number(p.track)}, {"block", str(p.value)}});
@@ -201,6 +210,10 @@ void check_step(std::vector<std::string> *problems, const std::string &label, co
   if (const Value *logic = expect->get("logic")) {
     std::string got = s.logic_on ? "on" : "off";
     if (got != logic->str) problems->push_back(where + "logic is " + got + ", expected " + logic->str);
+  }
+  if (const Value *want = expect->get("auto")) {
+    std::string got = s.auto_on ? "on" : "off";
+    if (got != want->str) problems->push_back(where + "auto is " + got + ", expected " + want->str);
   }
   // A link is a string, "" included; elsewhere "" is null (nothing).
   auto check_strings = [&](const char *name, const std::vector<std::pair<std::string, std::string>> &have, bool keep_empty) {
@@ -504,6 +517,7 @@ int run_trace(const std::string &path) {
         {"writes", list(o.writes)},
         {"publishes", list(o.publishes)},
         {"logic", json::str(s.logic_on ? "on" : "off")},
+        {"auto", json::str(s.auto_on ? "on" : "off")},
         {"masts", pairs(s.masts, from_string)},
         {"rules", pairs(s.rules, from_string)},
         {"resources", pairs(s.resources, from_string)},

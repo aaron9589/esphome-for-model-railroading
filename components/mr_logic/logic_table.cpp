@@ -226,7 +226,9 @@ struct RawRule {
   std::vector<uint16_t> reserve;  // resource names
   bool guard_named = false;  // the leaving guard names its resources (in guard), not the rule's own
   std::vector<uint16_t> guard;
-  std::vector<uint16_t> locks;
+  std::vector<std::pair<uint16_t, uint16_t>> locks;  // turnout, the resource it is held with (NONE: the rule)
+  std::vector<std::pair<uint16_t, std::vector<uint16_t>>> next;  // resource, the blocks after it
+  uint16_t approach_block = NONE;  // a name
 };
 
 class Compiler {
@@ -251,6 +253,8 @@ class Compiler {
   std::vector<uint16_t> declared_sensors_, declared_buttons_;
   std::vector<RawRemote> remotes_;
   std::vector<std::vector<RawMember>> block_members_;
+  std::vector<std::vector<uint16_t>> block_next_;  // names
+  std::vector<std::vector<uint16_t>> node_from_;  // per node: notFrom's names
   std::vector<std::vector<uint16_t>> resource_blocks_;
   std::vector<uint16_t> approach_lights_;  // per mast: a name, or NONE
   std::vector<RawRule> raw_rules_;
@@ -512,11 +516,14 @@ class Compiler {
     LogicBlock b;
     b.name = intern("");
     std::vector<RawMember> members;
+    std::vector<uint16_t> next;
     bool first = true;
     std::string key;
     while (r_.member(&first, &key)) {
       if (key == "name") {
         b.name = read_name();
+      } else if (key == "next") {
+        next = read_names();
       } else if (key == "sensors") {
         bool f2 = true;
         while (r_.element(&f2)) {
@@ -551,6 +558,7 @@ class Compiler {
     }
     t_.blocks.push_back(b);
     block_members_.push_back(std::move(members));
+    block_next_.push_back(std::move(next));
   }
 
   void read_resource() {
@@ -578,12 +586,15 @@ class Compiler {
   void read_layer() {
     uint16_t layer = static_cast<uint16_t>(t_.layers.size());
     t_.layers.push_back(intern(""));
+    t_.layer_routes.push_back(0);
     uint16_t number = 0;
     bool first = true;
     std::string key;
     while (r_.member(&first, &key)) {
       if (key == "name") {
         t_.layers[layer] = read_name();
+      } else if (key == "routes") {
+        t_.layer_routes[layer] = r_.boolean() ? 1 : 0;
       } else if (key == "rules") {
         bool f2 = true;
         while (r_.element(&f2)) read_rule(layer, ++number);
@@ -618,19 +629,39 @@ class Compiler {
           else if (k == "reserve")
             raw.reserve = read_name_or_names();
           else if (k == "lock")
-            raw.locks = read_names();
-          else
+            read_locks(&raw);
+          else if (k == "next" && r_.peek() == '{') {
+            bool f3 = true;
+            std::string res;
+            while (r_.member(&f3, &res)) raw.next.emplace_back(intern(res), r_.peek() == '[' ? read_names() : (r_.skip(), std::vector<uint16_t>()));
+          } else
             r_.skip();
         }
-      } else if (key == "cancel") {
+      } else if (key == "cancel" || key == "withdraw") {
+        uint16_t *into = key == "cancel" ? &rule.cancel : &rule.withdraw;
         bool f2 = true;
         std::string k;
         while (r_.member(&f2, &k)) {
           if (k == "when")
-            rule.cancel = read_condition();
+            *into = read_condition();
           else
             r_.skip();
         }
+      } else if (key == "approachLock" && r_.peek() == '{') {
+        bool f2 = true;
+        std::string k;
+        bool has_block = false;
+        while (r_.member(&f2, &k)) {
+          if (k == "block") {
+            raw.approach_block = read_name();
+            has_block = true;
+          } else if (k == "for") {
+            rule.approach_ms = read_ms("a rule's approach locking");
+          } else {
+            r_.skip();
+          }
+        }
+        if (!has_block) raw.approach_block = NONE;
       } else {
         r_.skip();
       }
@@ -640,6 +671,34 @@ class Compiler {
     t_.kids.insert(t_.kids.end(), checks.begin(), checks.end());
     t_.rules.push_back(rule);
     raw_rules_.push_back(std::move(raw));
+  }
+
+  // A rule's locks: a turnout's name, the whole rule's, or { turnout, with },
+  // held only while the rule holds that resource.
+  void read_locks(RawRule *raw) {
+    bool f2 = true;
+    while (r_.element(&f2)) {
+      if (r_.peek() == '"') {
+        raw->locks.emplace_back(read_name(), NONE);
+        continue;
+      }
+      if (r_.peek() != '{') {
+        r_.skip();
+        continue;
+      }
+      uint16_t turnout = NONE, with = NONE;
+      bool f3 = true;
+      std::string k;
+      while (r_.member(&f3, &k)) {
+        if (k == "turnout")
+          turnout = read_name();
+        else if (k == "with")
+          with = read_name();
+        else
+          r_.skip();
+      }
+      if (turnout != NONE) raw->locks.emplace_back(turnout, with);
+    }
   }
 
   // A rule's trigger takes `raw`, for a leaving guard that names resources.
@@ -694,8 +753,13 @@ class Compiler {
     bool has_all = false, has_any = false, has_not = false;
     uint16_t block = NONE, sensor = NONE, turnout = NONE, mast = NONE, button = NONE;
     uint16_t board_name = NONE, item_name = NONE, end = NONE, track = 0;
-    std::string hears;
+    std::string hears, auto_is;
+    bool has_auto = false, is_list = false;
     std::vector<std::string> is;
+    std::vector<uint16_t> from;
+    uint16_t if_node = NONE;
+    bool timed = false, not_from = false;
+    uint32_t for_ms = 0;
     bool first = true;
     std::string key;
     while (r_.member(&first, &key)) {
@@ -725,8 +789,20 @@ class Compiler {
         track = read_track();
       } else if (key == "hears") {
         hears = r_.text();
+      } else if (key == "auto") {
+        has_auto = true;
+        auto_is = r_.text();
+      } else if (key == "if") {
+        if_node = read_condition();
+      } else if (key == "for") {
+        timed = true;
+        for_ms = read_ms("a moment's for");
+      } else if (key == "notFrom") {
+        not_from = true;
+        from = read_name_or_names();
       } else if (key == "is") {
         if (r_.peek() == '[') {
+          is_list = true;
           bool f2 = true;
           while (r_.element(&f2)) is.push_back(r_.text());
         } else {
@@ -776,10 +852,16 @@ class Compiler {
              : first_is == "thrown" ? Node::IS_THROWN
              : first_is == "moving" ? Node::IS_MOVING
                                     : Node::IS_OTHER;
+    } else if (has_auto) {
+      n.kind = Node::AUTO;
+      n.is = auto_is == "on" ? Node::IS_ON : Node::IS_OFF;
+      board_name = NONE;
     } else if (mast != NONE) {
       n.kind = Node::MAST;
       item_name = mast;
-      if (first_is == "diverging") {
+      if (!is_list && board_name == NONE && (first_is == "held" || first_is == "unheld")) {
+        n.is = first_is == "held" ? Node::IS_HELD : Node::IS_UNHELD;
+      } else if (first_is == "diverging") {
         n.is = Node::IS_DIVERGING;
       } else {
         n.is = Node::IS_TAGS;
@@ -797,8 +879,13 @@ class Compiler {
       kids(Node::ANY, {});
     }
     n.remote = board_name != NONE ? 1 : 0;
+    n.if_node = if_node;
+    n.timed = timed ? 1 : 0;
+    n.for_ms = for_ms;
+    n.not_from = not_from && n.kind == Node::BLOCK && !n.remote ? 1 : 0;
     t_.nodes.push_back(n);
     node_names_.emplace_back(item_name, board_name);
+    node_from_.push_back(std::move(from));
     return static_cast<uint16_t>(t_.nodes.size() - 1);
   }
 
@@ -885,10 +972,20 @@ class Compiler {
       }
       t_.blocks[i].count = static_cast<uint16_t>(t_.members.size() - t_.blocks[i].first);
     }
+    for (size_t i = 0; i < t_.blocks.size(); i++) {
+      t_.blocks[i].next_first = static_cast<uint16_t>(t_.block_refs.size());
+      for (uint16_t name : block_next_[i]) t_.block_refs.push_back(block_ref(name));
+      t_.blocks[i].next_count = static_cast<uint16_t>(t_.block_refs.size() - t_.blocks[i].next_first);
+    }
     for (size_t ni = 0; ni < t_.nodes.size(); ni++) {
       Node &n = t_.nodes[ni];
       const uint16_t name = node_names_[ni].first, board_name = node_names_[ni].second;
-      if (n.kind <= Node::NOT) continue;
+      if (n.not_from) {
+        n.from_first = static_cast<uint16_t>(t_.block_refs.size());
+        for (uint16_t from : node_from_[ni]) t_.block_refs.push_back(block_ref(from));
+        n.from_count = static_cast<uint16_t>(t_.block_refs.size() - n.from_first);
+      }
+      if (n.kind <= Node::NOT || n.kind == Node::AUTO) continue;
       if (n.kind == Node::END) {
         n.item = end_index(name);
         continue;
@@ -960,9 +1057,32 @@ class Compiler {
         add_resources(raw.guard);
         rule.trigger.guard_count = static_cast<uint16_t>(t_.res_refs.size() - rule.trigger.guard_first);
       }
+      t_.res_next.resize(t_.res_refs.size());
+      // Sequential release: each resource's next blocks, as named.
+      for (const auto &next : raw.next) {
+        for (uint16_t k = 0; k < rule.res_count; k++) {
+          if (t_.resources[t_.res_refs[rule.res_first + k]].name != next.first) continue;
+          Range range;
+          range.first = static_cast<uint16_t>(t_.block_refs.size());
+          for (uint16_t name : next.second) t_.block_refs.push_back(block_ref(name));
+          range.count = static_cast<uint16_t>(t_.block_refs.size() - range.first);
+          t_.res_next[rule.res_first + k] = range;
+        }
+      }
+      // A lock held with a resource the rule does not take is the whole rule's.
       rule.locks_first = static_cast<uint16_t>(t_.locks.size());
-      for (uint16_t name : raw.locks) t_.locks.push_back(add_to(&t_.turnouts, name));
+      for (const auto &lock : raw.locks) {
+        t_.locks.push_back(add_to(&t_.turnouts, lock.first));
+        uint16_t with = NONE;
+        for (uint16_t k = 0; lock.second != NONE && k < rule.res_count; k++)
+          if (t_.resources[t_.res_refs[rule.res_first + k]].name == lock.second) with = t_.res_refs[rule.res_first + k];
+        t_.lock_with.push_back(with);
+      }
       rule.locks_count = static_cast<uint16_t>(t_.locks.size() - rule.locks_first);
+      if (raw.approach_block != NONE) {
+        rule.approach_block = static_cast<uint16_t>(t_.block_refs.size());
+        t_.block_refs.push_back(block_ref(raw.approach_block));
+      }
     }
     const size_t sizes[] = {t_.nodes.size(), t_.names.size(), t_.names.chars.size(), t_.rules.size(), t_.kids.size(),
                             t_.seq.size(), t_.aspects.size(), t_.states.size(), t_.block_refs.size(), t_.members.size(),
@@ -1019,7 +1139,9 @@ bool compile_table(const char *json, Table *out, std::string *error) {
   fit(&t.block_refs);
   fit(&t.members);
   fit(&t.locks);
+  fit(&t.lock_with);
   fit(&t.res_refs);
+  fit(&t.res_next);
   fit(&t.sensors);
   fit(&t.buttons);
   fit(&t.turnouts);
@@ -1031,6 +1153,7 @@ bool compile_table(const char *json, Table *out, std::string *error) {
   fit(&t.resources);
   fit(&t.rules);
   fit(&t.layers);
+  fit(&t.layer_routes);
   fit(&t.ends);
   fit(&t.end_tracks);
   fit(&t.end_sensors);
