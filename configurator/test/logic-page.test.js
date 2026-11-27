@@ -6,7 +6,7 @@ import path from "node:path";
 import { configuratorDir, loadModules, test } from "./harness.js";
 
 // Every Logic page file, in index.html's order.
-export const LOGIC_UI_FILES = ["generator.js", "logic-yaml.js", "logic.js", "logic-checker.js", "logic-try.js", "logic-ui.js", "logic-ui-masts.js", "logic-ui-ends.js", "logic-ui-rules.js", "logic-ui-views.js", "logic-ui-start.js", "logic-ui-try.js", "logic-starters.js", "logic-starters-sections.js", "logic-starters-signals.js", "mss-builder.js", "plan-builder.js", "plan-edit.js", "logic-ui-field.js", "logic-ui-own.js", "logic-ui-plan.js", "logic-ui-plan-try.js", "mss-templates.js", "logic-ui-mss-marks.js", "logic-ui-mss-steps.js", "logic-ui-mss-tracks.js", "logic-ui-mss-junctions.js", "logic-ui-mss-module.js", "logic-summary.js", "mss-card.js"];
+export const LOGIC_UI_FILES = ["generator.js", "logic-yaml.js", "logic.js", "logic-checker.js", "logic-try.js", "logic-ui.js", "logic-ui-masts.js", "logic-ui-ends.js", "logic-ui-views.js", "logic-ui-start.js", "logic-ui-try.js", "logic-starters.js", "logic-starters-sections.js", "logic-starters-signals.js", "mss-builder.js", "plan-builder.js", "plan-edit.js", "logic-ui-field.js", "logic-ui-own.js", "logic-ui-plan.js", "logic-ui-plan-try.js", "mss-templates.js", "logic-ui-mss-marks.js", "logic-ui-mss-steps.js", "logic-ui-mss-tracks.js", "logic-ui-mss-junctions.js", "logic-ui-mss-module.js", "logic-summary.js", "mss-card.js"];
 const context = loadModules(...LOGIC_UI_FILES);
 const { generateYaml, logicMode, myFirstBoardPreset, normalizeConfig, parseConfigFromYaml, sharesWithOtherBoards } =
   context.EsphomeMr;
@@ -33,14 +33,16 @@ function strings(value, where = "TEXT") {
 }
 
 test("no Logic page label uses a spec-only term, in any part", () => {
-  const texts = [...allText(), ["EsphomeMrLogicStarters.TEXT", context.EsphomeMrLogicStarters.TEXT]];
+  // Files with no card of their own: the Masts helpers MSS Logic and the
+  // starters use, and the Download page's Logic version card.
+  const texts = [...allText(), ...["EsphomeMrLogicStarters", "EsphomeMrLogicUiMasts", "EsphomeMrLogicUiStart"].map((name) => [`${name}.TEXT`, context[name].TEXT])];
   const found = texts.flatMap(([where, text]) => strings(text, where)).filter(([, text]) => SPEC_ONLY.test(text));
   assert.deepEqual(found, []);
 });
 
 test("every part file hands its TEXT to the lint", () => {
   const linted = new Set([...allText()].map(([, text]) => text));
-  for (const name of ["Masts", "Ends", "Plan", "Rules", "Views", "Start", "MssSteps", "MssTracks", "MssJunctions", "MssModule"]) {
+  for (const name of ["Ends", "Plan", "Views", "MssSteps", "MssTracks", "MssJunctions", "MssModule"]) {
     const { TEXT: own } = context[`EsphomeMrLogicUi${name}`];
     assert.ok(Object.keys(own).length === 0 || linted.has(own), `EsphomeMrLogicUi${name}.TEXT is not registered with a part`);
   }

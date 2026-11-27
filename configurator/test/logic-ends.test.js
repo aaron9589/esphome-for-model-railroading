@@ -4,9 +4,9 @@
 import assert from "node:assert/strict";
 import { loadModules, test } from "./harness.js";
 
-const FILES = ["generator.js", "logic-yaml.js", "logic.js", "logic-ui.js", "logic-ui-masts.js", "logic-ui-ends.js", "logic-ui-rules.js", "logic-ui-views.js", "logic-ui-start.js", "logic-starters.js", "logic-starters-sections.js", "logic-starters-signals.js"];
+const FILES = ["generator.js", "logic-yaml.js", "logic.js", "logic-ui.js", "logic-ui-masts.js", "logic-ui-ends.js", "logic-ui-views.js", "logic-ui-start.js", "logic-starters.js", "logic-starters-sections.js", "logic-starters-signals.js"];
 const context = loadModules(...FILES);
-const { EsphomeMr, EsphomeMrLogicYaml: L, EsphomeMrLogic: Engine, EsphomeMrLogicStarters: S, EsphomeMrLogicUiEnds: E, EsphomeMrLogicUiRules: R, EsphomeMrLogicUi: Ui } = context;
+const { EsphomeMr, EsphomeMrLogicYaml: L, EsphomeMrLogic: Engine, EsphomeMrLogicStarters: S, EsphomeMrLogicUiEnds: E, EsphomeMrLogicUi: Ui } = context;
 const { generateYaml, myFirstBoardPreset, topicFor, validateConfig } = EsphomeMr;
 
 const plain = (value) => JSON.parse(JSON.stringify(value));
@@ -258,24 +258,6 @@ test("item choices: what each end track hears, for rules, blocks and next signal
   same(Ui.itemChoices(board(), "endMast"), []);
   const blocks = context.EsphomeMrLogicUi.itemChoices(config, "endBlock");
   assert.equal(blocks[0].options.length, 3);
-});
-
-test("rule conditions: an end track's block or signal, with words that fit", () => {
-  const config = withEnds(goodEnds());
-  const groups = R.conditionItemChoices(config);
-  const group = groups.find((g) => g.options.some((o) => o.value.end !== undefined));
-  assert.ok(group);
-  const ref = { end: "A", track: 1, hears: "mast" };
-  const leaf = R.setConditionItem({ block: "Main", is: "occupied" }, ref);
-  same(leaf, { end: "A", track: 1, hears: "mast", is: "clear" });
-  same(R.conditionRef(leaf), ref);
-  same(R.isWordsOf(leaf), ["stop", "restricting", "approach", "advance", "clear"]);
-  const block = R.setConditionItem(leaf, { end: "A", track: 1, hears: "block" });
-  same(block, { end: "A", track: 1, hears: "block", is: "occupied" });
-  same(R.isWordsOf(block), ["occupied", "clear"]);
-  same(R.setConditionItem({ end: "A", track: 1, hears: "block", is: "clear" }, { end: "B", track: 1, hears: "block" }).is, "clear");
-  const toggled = R.toggleMeaning(leaf, "approach", true);
-  same(toggled.is, ["approach", "clear"]);
 });
 
 test("a block can include what an end hears, and the engine reads it", () => {

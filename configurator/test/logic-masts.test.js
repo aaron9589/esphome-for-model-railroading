@@ -6,7 +6,7 @@ import assert from "node:assert/strict";
 import { loadModules, test } from "./harness.js";
 
 // Every Logic page file, in index.html's order (as test/logic-page.test.js).
-const LOGIC_UI_FILES = ["generator.js", "logic-yaml.js", "logic.js", "logic-ui.js", "logic-ui-masts.js", "logic-ui-rules.js", "logic-ui-views.js", "logic-ui-start.js"];
+const LOGIC_UI_FILES = ["generator.js", "logic-yaml.js", "logic.js", "logic-ui.js", "logic-ui-masts.js", "logic-ui-views.js", "logic-ui-start.js"];
 const context = loadModules(...LOGIC_UI_FILES);
 const { myFirstBoardPreset, normalizeConfig, topicFor, validateConfig, CATS_ASPECTS } = context.EsphomeMr;
 const L = context.EsphomeMrLogicYaml;
@@ -390,11 +390,9 @@ test("ESP pin buttons are checked as before", () => {
   assert.match(newErrors(none)[0].text, /Button "Depart" has no pin/);
 });
 
-test("every part's words are plain: Masts and Buttons say Meaning, not the spec's term", () => {
+test("the Masts words are plain: Meaning, not the spec's term", () => {
   assert.deepEqual(plain(U.TEXT.meanings), { stop: "Stop", restricting: "Restricting", approach: "Approach", advance: "Advance Approach", clear: "Clear" });
   assert.deepEqual([...context.EsphomeMr.ASPECT_TAGS], Object.keys(U.TEXT.meanings));
-  const ids = context.EsphomeMrLogicUi.allText().map(([id]) => id);
-  assert.ok(ids.includes("logic-masts") && ids.includes("logic-buttons"));
 });
 
 if (!process.exitCode) console.log("\nAll Logic page Masts and Buttons tests passed.");

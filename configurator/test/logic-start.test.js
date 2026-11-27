@@ -6,7 +6,7 @@ import path from "node:path";
 import { configuratorDir, loadModules, test } from "./harness.js";
 
 // Every Logic page file, in index.html's order (as test/logic-page.test.js).
-const LOGIC_UI_FILES = ["generator.js", "logic-yaml.js", "logic.js", "logic-ui.js", "logic-ui-masts.js", "logic-ui-rules.js", "logic-ui-views.js", "logic-ui-start.js"];
+const LOGIC_UI_FILES = ["generator.js", "logic-yaml.js", "logic.js", "logic-ui.js", "logic-ui-masts.js", "logic-ui-views.js", "logic-ui-start.js"];
 const context = loadModules(...LOGIC_UI_FILES);
 const { generateYaml, normalizeConfig, parseConfigFromYaml, validateConfig } = context.EsphomeMr;
 const L = context.EsphomeMrLogicYaml;
@@ -87,7 +87,7 @@ test("every card has a picture, and the pictures have no words", () => {
   assert.equal(S.starterPicture("nope"), "");
 });
 
-test("a starter 2.8 registers is ready, opens, and its words are linted", () => {
+test("a starter 2.8 registers is ready, and opens", () => {
   const own = loadModules(...LOGIC_UI_FILES);
   const start = own.EsphomeMrLogicUiStart;
   const opened = [];
@@ -99,15 +99,8 @@ test("a starter 2.8 registers is ready, opens, and its words are linted", () => 
   assert.equal(start.startStarter("block-signals", config, "ctx", "ui"), true);
   assert.equal(opened.length, 1);
   assert.equal(opened[0][0], config);
-  const linted = JSON.stringify(plain([...own.EsphomeMrLogicUi.allText()]));
-  assert.match(linted, /Block signals form/);
   assert.throws(() => start.registerStarter("approach-lighting", { open() {} }), /no starter called/);
   assert.throws(() => start.registerStarter("route-signal", {}), /open function/);
-});
-
-test("the starters part is no longer shown in Field Logic (the track plan page replaces it, TP 6)", () => {
-  const html = fs.readFileSync(path.join(configuratorDir, "logic-ui-start.js"), "utf8");
-  assert.match(html, /registerPart\(\{ id: "logic-starters", order: 85, modes: \[\], text: TEXT/);
 });
 
 // ===== Remote masts in Linked boards =======================================

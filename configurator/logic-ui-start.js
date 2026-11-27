@@ -204,79 +204,6 @@
     return `<svg class="starter-picture" viewBox="0 0 120 48" width="120" height="48" aria-hidden="true" focusable="false">${shapes.join("")}</svg>`;
   }
 
-  function goTo(id) {
-    document.getElementById(id)?.scrollIntoView({ block: "start" });
-  }
-
-  function cardEl(card, config, ctx, ui) {
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = `starter-card starter-${card.key}`;
-    button.disabled = !card.ready;
-    const picture = document.createElement("span");
-    picture.className = "starter-picture-wrap";
-    picture.innerHTML = starterPicture(card.key);
-    const title = document.createElement("strong");
-    title.textContent = card.title;
-    const about = document.createElement("span");
-    about.className = "starter-about";
-    about.textContent = card.about;
-    button.append(picture, title, about);
-    if (!card.ready) {
-      const soon = document.createElement("span");
-      soon.className = "starter-soon";
-      soon.textContent = TEXT.comingSoon;
-      button.append(soon);
-    }
-    button.addEventListener("click", () => {
-      if (card.action === "scratch") {
-        writeRuleFromScratch(config);
-        ctx.persist();
-        ctx.render();
-        goTo(card.target);
-      } else if (card.action === "goto") {
-        goTo(card.target);
-      } else {
-        startStarter(card.key, config, ctx, ui);
-      }
-    });
-    return button;
-  }
-
-  function renderStarters(root, config, ctx, ui) {
-    const { layout, cards } = starterCards(config);
-    const grid = document.createElement("div");
-    grid.className = `starter-grid is-${layout}`;
-    for (const card of cards) grid.append(cardEl(card, config, ctx, ui));
-    if (layout === "empty") {
-      const section = ui.card("logic-starters", TEXT.startCard);
-      section.classList.add("logic-starters");
-      section.append(ui.paragraph(TEXT.startIntro), grid);
-      root.append(section);
-      return;
-    }
-    const section = ui.card("logic-starters", TEXT.addFromStarter);
-    section.classList.add("logic-starters", "is-compact");
-    const fold = document.createElement("details");
-    fold.className = "starter-fold";
-    const summary = document.createElement("summary");
-    summary.textContent = TEXT.addFromStarterHint;
-    fold.append(summary, grid);
-    section.append(fold);
-    root.append(section);
-  }
-
-  // ===== The Download page ==================================================
-
-  /**
-   * What the Download page shows about the logic, or null outside Field
-   * Logic: { title, version, hint, warningsTitle, warnings: [{ text, link }],
-   * noWarnings, warningsHint, errorsNote, fullCheck }. `warnings` are
-   * validation's warnings that point at the Logic page; the rest are in the
-   * box at the top of every page. `errorsNote` is "" with no errors.
-   * `fullCheck` is { button, hint, checking } when the quick check of these
-   * rules did not finish (work item 4.5), else null.
-   */
   function downloadLogic(config, validation) {
     if (!["field", "mss"].includes(global.EsphomeMr.logicMode(config))) return null;
     const { warnings = [], errors = [], links } = validation || global.EsphomeMr.validateConfig(config);
@@ -297,8 +224,6 @@
   }
 
   const api = global.EsphomeMrLogicUi;
-  if (api) api.registerPart({ id: "logic-starters", order: 85, modes: [], text: TEXT, render: renderStarters });
-
   global.EsphomeMrLogicUiStart = {
     TEXT, STARTERS, CARD_KEYS, registerStarter, startStarter, starterCards, writeRuleFromScratch, starterPicture, downloadLogic,
   };
