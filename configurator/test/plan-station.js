@@ -1,4 +1,6 @@
-// A station: a single line each end, three roads, two crossovers.
+// A station drawn on the track plan (TP 5): a single line at each end, three
+// roads and two crossovers; 18 blocks, 10 signals and 8 turnouts. The checker
+// must check it completely (test/checker.test.js, test/bench/checker-limits.mjs).
 export function station() {
   const H = (y, a, b) => [[a, y], [b, y]];
   const track = [

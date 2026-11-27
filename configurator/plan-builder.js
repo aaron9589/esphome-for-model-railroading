@@ -916,7 +916,11 @@
       }
       if (next.size) block.next = [...next];
     }
-    return { items: { blocks: built, masts, layers, resources, buttons, pairs: model.pairs, origins }, problems, protects: look };
+    // The blocks at an end of the drawing, for the checker: the layout
+    // beyond keeps a train off track routed towards that end (TP 5).
+    const endBlocks = [...new Set([...model.near].filter(([, others]) => others.length === 1)
+      .map(([node, [other]]) => builtBlock(model.region.get(edgeKey(node, other)))).filter(Boolean))];
+    return { items: { blocks: built, masts, layers, resources, buttons, pairs: model.pairs, origins, endBlocks }, problems, protects: look };
   }
 
   /** The built items, from the plan. `config` is not changed. */

@@ -97,9 +97,10 @@ test("too many states: random runs, said so, and the same every time", () => {
   const a = C.checkBoard(board, { maxStates: 5, runs: 20, steps: 10, seed: 7 });
   const b = C.checkBoard(board, { maxStates: 5, runs: 20, steps: 10, seed: 7 });
   assert.equal(a.complete, false);
-  assert.equal(a.runs, 20);
+  // Runs stop once they have seen every rule apply and every mast leave Stop.
+  assert.ok(a.runs >= 1 && a.runs <= 20, `${a.runs} runs`);
   assert.deepEqual(kinds(a), kinds(b));
-  assert.ok(a.problems.some((p) => p.kind === "partial" && /20 random runs/.test(p.text)));
+  assert.ok(a.problems.some((p) => p.kind === "partial" && p.text.includes(`${a.runs} random runs`)));
   // Without every state, deadlock and starvation are not claimed.
   assert.ok(!a.problems.some((p) => p.kind === "deadlock" || p.kind === "starvation"));
 });
