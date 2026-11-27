@@ -55,6 +55,17 @@ function candidates(board, me = "") {
   list.push({ end: "Nowhere", link: "east/A" });
   for (const s of board.sensors || []) list.push({ sensor: s, is: "occupied" }, { sensor: s, is: "clear" });
   for (const b of logic.buttons || []) list.push({ button: b.name, is: "pressed" }, { button: b.name, is: "released" });
+  // Switches (TP 7): every one the rules name.
+  const switches = new Set();
+  const findSwitches = (v) => {
+    if (Array.isArray(v)) v.forEach(findSwitches);
+    else if (v && typeof v === "object") {
+      if (typeof v.switch === "string") switches.add(v.switch);
+      Object.values(v).forEach(findSwitches);
+    }
+  };
+  findSwitches(logic.layers || []);
+  for (const w of switches) list.push({ switch: w, is: "on" }, { switch: w, is: "off" });
   for (const t of board.turnouts || []) {
     for (const is of ["closed", "thrown", "moving"]) list.push({ turnout: t, is });
     list.push({ remoteLock: t, is: "locked" }, { remoteLock: t, is: "unlocked" });

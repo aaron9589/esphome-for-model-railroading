@@ -1,0 +1,436 @@
+{
+ "name": "a local panel: a switch, lamps, a lock only the turnout's own buttons get past, and has shown Stop for",
+ "covers": [
+  "a switch on the fascia: a rule reads it on or off, and as a moment going on",
+  "a lamp lights while a rule that lights it is active, flashes while one that flashes it is, and goes out when logic is switched off",
+  "a turnout lock that lets only its own buttons through is not the field lock, and goes when logic is switched off",
+  "a condition held for a time: has shown Stop for counts from the scan the mast is read as Stop, and a break starts it again"
+ ],
+ "about": "An industry siding's local panel, as the track plan's Hand a turnout to a local panel example writes it. While the switch Local is on, Home is kept at Stop; once Home has shown Stop for 3 seconds, P1 is locked so only its own buttons move it, and the panel lamp lights. With the switch back to Remote and P1 still thrown, the lamp flashes. The Bell lamp lights for the one scan in which the switch goes on. Home goes to Stop at scan 10 and is read as Stop from scan 11 (rule 13), so its 3 seconds end at scan 41. Switching logic off puts out the lamps and drops the panel lock.",
+ "board": {
+  "sensors": [
+   "Siding"
+  ],
+  "turnouts": [
+   "P1"
+  ],
+  "masts": {
+   "Home": {
+    "aspects": {
+     "R292": "stop",
+     "R281": "clear"
+    }
+   }
+  },
+  "logic": {
+   "layers": [
+    {
+     "name": "Home",
+     "rules": [
+      {
+       "trigger": {
+        "while": {
+         "block": "Siding",
+         "is": "clear"
+        }
+       },
+       "checks": [],
+       "then": {
+        "mast": "Home",
+        "aspect": "R281"
+       }
+      }
+     ]
+    },
+    {
+     "name": "Local panel",
+     "rules": [
+      {
+       "trigger": {
+        "while": {
+         "switch": "Local",
+         "is": "off"
+        }
+       },
+       "checks": [],
+       "then": {
+        "mast": "Home",
+        "aspect": "R281"
+       }
+      }
+     ]
+    },
+    {
+     "name": "P1 panel",
+     "rules": [
+      {
+       "trigger": {
+        "while": {
+         "all": [
+          {
+           "switch": "Local",
+           "is": "on"
+          },
+          {
+           "mast": "Home",
+           "is": "stop",
+           "for": "3s"
+          }
+         ]
+        }
+       },
+       "checks": [],
+       "then": {
+        "lock": [
+         {
+          "turnout": "P1",
+          "own": true
+         }
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "Panel lamp",
+     "rules": [
+      {
+       "trigger": {
+        "while": {
+         "all": [
+          {
+           "switch": "Local",
+           "is": "on"
+          },
+          {
+           "mast": "Home",
+           "is": "stop",
+           "for": "3s"
+          }
+         ]
+        }
+       },
+       "checks": [],
+       "then": {
+        "lamp": "Panel lamp",
+        "light": "on"
+       }
+      },
+      {
+       "trigger": {
+        "while": {
+         "all": [
+          {
+           "switch": "Local",
+           "is": "off"
+          },
+          {
+           "turnout": "P1",
+           "is": "thrown"
+          }
+         ]
+        }
+       },
+       "checks": [],
+       "then": {
+        "lamp": "Panel lamp",
+        "light": "flash"
+       }
+      }
+     ]
+    },
+    {
+     "name": "Bell",
+     "rules": [
+      {
+       "trigger": {
+        "when": {
+         "switch": "Local",
+         "is": "on"
+        }
+       },
+       "checks": [],
+       "then": {
+        "lamp": "Bell",
+        "light": "on"
+       }
+      }
+     ]
+    }
+   ]
+  }
+ },
+ "steps": [
+  {
+   "at": 0,
+   "expect": {
+    "masts": {
+     "Home": "R281"
+    },
+    "lamps": {
+     "Panel lamp": "off",
+     "Bell": "off"
+    },
+    "panel": {
+     "P1": false
+    },
+    "locks": {
+     "P1": false
+    },
+    "writes": [
+     {
+      "mast": "Home",
+      "aspect": "R281"
+     }
+    ]
+   }
+  },
+  {
+   "at": 10,
+   "do": [
+    {
+     "switch": "Local",
+     "is": "on"
+    }
+   ],
+   "expect": {
+    "masts": {
+     "Home": "R292"
+    },
+    "lamps": {
+     "Bell": "on"
+    },
+    "writes": [
+     {
+      "mast": "Home",
+      "aspect": "R292"
+     },
+     {
+      "lamp": "Bell",
+      "light": "on"
+     }
+    ]
+   }
+  },
+  {
+   "at": 11,
+   "expect": {
+    "lamps": {
+     "Bell": "off"
+    },
+    "writes": [
+     {
+      "lamp": "Bell",
+      "light": "off"
+     }
+    ]
+   }
+  },
+  {
+   "at": 40,
+   "expect": {
+    "panel": {
+     "P1": false
+    },
+    "lamps": {
+     "Panel lamp": "off"
+    },
+    "writes": []
+   }
+  },
+  {
+   "at": 41,
+   "expect": {
+    "panel": {
+     "P1": true
+    },
+    "locks": {
+     "P1": false
+    },
+    "locked": {
+     "P1": false
+    },
+    "lamps": {
+     "Panel lamp": "on"
+    },
+    "writes": [
+     {
+      "panelLock": "P1",
+      "on": true
+     },
+     {
+      "lamp": "Panel lamp",
+      "light": "on"
+     }
+    ],
+    "events": []
+   }
+  },
+  {
+   "at": 50,
+   "do": [
+    {
+     "turnout": "P1",
+     "is": "thrown"
+    }
+   ],
+   "expect": {
+    "lamps": {
+     "Panel lamp": "on"
+    },
+    "writes": []
+   }
+  },
+  {
+   "at": 60,
+   "do": [
+    {
+     "switch": "Local",
+     "is": "off"
+    }
+   ],
+   "expect": {
+    "masts": {
+     "Home": "R281"
+    },
+    "panel": {
+     "P1": false
+    },
+    "lamps": {
+     "Panel lamp": "flash"
+    },
+    "writes": [
+     {
+      "mast": "Home",
+      "aspect": "R281"
+     },
+     {
+      "panelLock": "P1",
+      "on": false
+     },
+     {
+      "lamp": "Panel lamp",
+      "light": "flash"
+     }
+    ],
+    "events": []
+   }
+  },
+  {
+   "at": 70,
+   "do": [
+    {
+     "turnout": "P1",
+     "is": "closed"
+    }
+   ],
+   "expect": {
+    "lamps": {
+     "Panel lamp": "off"
+    },
+    "writes": [
+     {
+      "lamp": "Panel lamp",
+      "light": "off"
+     }
+    ]
+   }
+  },
+  {
+   "at": 75,
+   "do": [
+    {
+     "switch": "Local",
+     "is": "on"
+    }
+   ],
+   "expect": {
+    "masts": {
+     "Home": "R292"
+    },
+    "writes": [
+     {
+      "mast": "Home",
+      "aspect": "R292"
+     },
+     {
+      "lamp": "Bell",
+      "light": "on"
+     }
+    ]
+   }
+  },
+  {
+   "at": 76,
+   "expect": {
+    "writes": [
+     {
+      "lamp": "Bell",
+      "light": "off"
+     }
+    ]
+   }
+  },
+  {
+   "at": 105,
+   "expect": {
+    "panel": {
+     "P1": false
+    },
+    "writes": []
+   }
+  },
+  {
+   "at": 106,
+   "expect": {
+    "panel": {
+     "P1": true
+    },
+    "lamps": {
+     "Panel lamp": "on"
+    },
+    "writes": [
+     {
+      "panelLock": "P1",
+      "on": true
+     },
+     {
+      "lamp": "Panel lamp",
+      "light": "on"
+     }
+    ]
+   }
+  },
+  {
+   "at": 110,
+   "do": [
+    {
+     "logic": "off"
+    }
+   ],
+   "expect": {
+    "logic": "off",
+    "masts": {
+     "Home": "R292"
+    },
+    "panel": {
+     "P1": false
+    },
+    "lamps": {
+     "Panel lamp": "off",
+     "Bell": "off"
+    },
+    "writes": [
+     {
+      "panelLock": "P1",
+      "on": false
+     },
+     {
+      "lamp": "Panel lamp",
+      "light": "off"
+     }
+    ]
+   }
+  }
+ ]
+}

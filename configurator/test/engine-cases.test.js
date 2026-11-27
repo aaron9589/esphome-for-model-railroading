@@ -148,6 +148,11 @@ function checkBoard(file, data) {
       for (const is of [].concat(c.is)) if (!allowed.includes(is)) fail(where, `end ${c.end} is ${is}`);
       return;
     }
+    if (c.for !== undefined && !DURATION.test(c.for)) fail(where, `for ${c.for}`);
+    if (c.switch !== undefined) {
+      for (const is of [].concat(c.is)) if (!["on", "off"].includes(is)) fail(where, `switch ${c.switch} is ${is}`);
+      return;
+    }
     const kind = ["block", "sensor", "turnout", "mast", "button"].find((k) => c[k] !== undefined);
     if (!kind) return fail(where, `unknown condition ${JSON.stringify(c)}`);
     const name = c[kind];
@@ -195,7 +200,8 @@ function checkBoard(file, data) {
       for (const name of [].concat(then.reserve ?? [])) if (!resources.has(name)) fail(where, `reserves ${name}`);
       const guard = rule.trigger?.leavingGuard;
       if (Array.isArray(guard)) for (const name of guard) if (!resources.has(name)) fail(where, `leaving guard watches ${name}`);
-      for (const t of then.lock || []) if (!turnouts.has(t)) fail(where, `locks ${t}`);
+      for (const t of then.lock || []) if (!turnouts.has(typeof t === "string" ? t : t?.turnout)) fail(where, `locks ${JSON.stringify(t)}`);
+      if (then.lamp !== undefined && (typeof then.lamp !== "string" || !["on", "flash"].includes(then.light ?? "on"))) fail(where, `lamp ${then.lamp} ${then.light}`);
       if (rule.cancel) {
         if (!rule.trigger?.when) fail(where, "CANCEL is only for a when trigger");
         condition(rule.cancel.when, `${where} cancel`);
@@ -253,6 +259,7 @@ function checkBoard(file, data) {
     }
     if (e.sensor !== undefined) return void ((!sensors.has(e.sensor) || !["occupied", "clear"].includes(e.is)) && fail(where, `sensor ${e.sensor} ${e.is}`));
     if (e.button !== undefined) return void ((!buttons.has(e.button) || !["pressed", "released"].includes(e.is)) && fail(where, `button ${e.button}`));
+    if (e.switch !== undefined) return void (!["on", "off"].includes(e.is) && fail(where, `switch ${e.switch} ${e.is}`));
     if (e.turnout !== undefined) return void ((!turnouts.has(e.turnout) || !["closed", "thrown", "moving"].includes(e.is)) && fail(where, `turnout ${e.turnout} ${e.is}`));
     if (e.remoteLock !== undefined) return void ((!turnouts.has(e.remoteLock) || !["locked", "unlocked"].includes(e.is)) && fail(where, `remoteLock ${e.remoteLock}`));
     if (e.jmri !== undefined) return void ((!(e.jmri in masts) || typeof e.message !== "string") && fail(where, `jmri ${e.jmri}`));
@@ -291,7 +298,7 @@ function checkBoard(file, data) {
     (step.do || []).forEach((e) => event(e, where));
     const expect = step.expect || {};
     for (const key of Object.keys(expect)) {
-      if (!["logic", "masts", "rules", "resources", "holders", "locks", "locked", "events", "writes", "publishes", "ends", "links"].includes(key)) fail(where, `expect ${key}`);
+      if (!["logic", "masts", "rules", "resources", "holders", "locks", "locked", "panel", "lamps", "events", "writes", "publishes", "ends", "links"].includes(key)) fail(where, `expect ${key}`);
     }
     for (const [e, st] of Object.entries(expect.ends || {})) if (!ends.has(e) || !END_STATES.includes(st)) fail(where, `end ${e} is ${st}`);
     for (const [e, link] of Object.entries(expect.links || {})) if (!ends.has(e) || typeof link !== "string") fail(where, `link ${e}`);
@@ -308,14 +315,17 @@ function checkBoard(file, data) {
       if (!["IDLE", "ACTIVE", "PASSED", "CANCELLING"].includes(state)) fail(where, `resource state ${state}`);
     }
     for (const [r, holder] of Object.entries(expect.holders || {})) res(r, where) && (holder === null || ref(holder, where));
-    for (const key of ["locks", "locked"]) {
+    for (const [l, light] of Object.entries(expect.lamps || {})) if (!["off", "on", "flash"].includes(light)) fail(where, `lamp ${l} ${light}`);
+    for (const key of ["locks", "locked", "panel"]) {
       for (const [t, v] of Object.entries(expect[key] || {})) if (!turnouts.has(t) || typeof v !== "boolean") fail(where, `${key} ${t}`);
     }
     (expect.events || []).forEach((e) => logged(e, where));
     for (const w of expect.writes || []) {
       if (w.mast !== undefined) {
         if (!(w.mast in masts) || (w.aspect !== "dark" && !(w.aspect in masts[w.mast].aspects))) fail(where, `write ${JSON.stringify(w)}`);
-      } else if (!turnouts.has(w.lock) || typeof w.on !== "boolean") fail(where, `write ${JSON.stringify(w)}`);
+      } else if (w.lamp !== undefined) {
+        if (!["off", "on", "flash"].includes(w.light)) fail(where, `write ${JSON.stringify(w)}`);
+      } else if (!turnouts.has(w.lock ?? w.panelLock) || typeof w.on !== "boolean") fail(where, `write ${JSON.stringify(w)}`);
     }
     for (const p of expect.publishes || []) {
       if (p.pairing !== undefined) {

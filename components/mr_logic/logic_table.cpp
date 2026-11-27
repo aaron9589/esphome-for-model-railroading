@@ -227,6 +227,9 @@ struct RawRule {
   bool guard_named = false;  // the leaving guard names its resources (in guard), not the rule's own
   std::vector<uint16_t> guard;
   std::vector<std::pair<uint16_t, uint16_t>> locks;  // turnout, the resource it is held with (NONE: the rule)
+  std::vector<uint8_t> lock_own;  // per lock: a panel lock (rule 37)
+  uint16_t lamp = NONE;  // a name (rule 36)
+  uint8_t light = 1;
   std::vector<std::pair<uint16_t, std::vector<uint16_t>>> next;  // resource, the blocks after it
   uint16_t approach_block = NONE;  // a name
 };
@@ -630,6 +633,10 @@ class Compiler {
             raw.reserve = read_name_or_names();
           else if (k == "lock")
             read_locks(&raw);
+          else if (k == "lamp")
+            raw.lamp = read_name();
+          else if (k == "light")
+            raw.light = r_.text() == "flash" ? 2 : 1;
           else if (k == "next" && r_.peek() == '{') {
             bool f3 = true;
             std::string res;
@@ -680,6 +687,7 @@ class Compiler {
     while (r_.element(&f2)) {
       if (r_.peek() == '"') {
         raw->locks.emplace_back(read_name(), NONE);
+        raw->lock_own.push_back(0);
         continue;
       }
       if (r_.peek() != '{') {
@@ -687,6 +695,7 @@ class Compiler {
         continue;
       }
       uint16_t turnout = NONE, with = NONE;
+      bool own = false;
       bool f3 = true;
       std::string k;
       while (r_.member(&f3, &k)) {
@@ -694,10 +703,15 @@ class Compiler {
           turnout = read_name();
         else if (k == "with")
           with = read_name();
+        else if (k == "own")
+          own = r_.boolean();
         else
           r_.skip();
       }
-      if (turnout != NONE) raw->locks.emplace_back(turnout, with);
+      if (turnout != NONE) {
+        raw->locks.emplace_back(turnout, with);
+        raw->lock_own.push_back(own ? 1 : 0);
+      }
     }
   }
 
@@ -751,7 +765,7 @@ class Compiler {
     std::vector<uint16_t> all, any;
     uint16_t neg = NONE;
     bool has_all = false, has_any = false, has_not = false;
-    uint16_t block = NONE, sensor = NONE, turnout = NONE, mast = NONE, button = NONE;
+    uint16_t block = NONE, sensor = NONE, turnout = NONE, mast = NONE, button = NONE, switch_name = NONE;
     uint16_t board_name = NONE, item_name = NONE, end = NONE, track = 0;
     std::string hears, auto_is;
     bool has_auto = false, is_list = false;
@@ -781,6 +795,8 @@ class Compiler {
         mast = read_name();
       } else if (key == "button") {
         button = read_name();
+      } else if (key == "switch") {
+        switch_name = read_name();
       } else if (key == "board") {
         board_name = read_name();
       } else if (key == "end") {
@@ -874,6 +890,11 @@ class Compiler {
       n.kind = Node::BUTTON;
       item_name = button;
       n.is = first_is == "pressed" ? Node::IS_PRESSED : Node::IS_OTHER;
+    } else if (switch_name != NONE) {
+      n.kind = Node::SWITCH;
+      item_name = switch_name;
+      n.is = first_is == "off" ? Node::IS_OFF : first_is == "on" ? Node::IS_ON : Node::IS_OTHER;
+      board_name = NONE;
     } else {
       // Nothing to read: an empty any, which is never true.
       kids(Node::ANY, {});
@@ -1006,6 +1027,7 @@ class Compiler {
         case Node::TURNOUT: n.item = add_to(&t_.turnouts, name); break;
         case Node::MAST: n.item = mast_index(name); break;
         case Node::BUTTON: n.item = add_to(&t_.buttons, name); break;
+        case Node::SWITCH: n.item = add_to(&t_.switches, name); break;
         default: break;
       }
     }
@@ -1071,14 +1093,21 @@ class Compiler {
       }
       // A lock held with a resource the rule does not take is the whole rule's.
       rule.locks_first = static_cast<uint16_t>(t_.locks.size());
-      for (const auto &lock : raw.locks) {
+      for (size_t l = 0; l < raw.locks.size(); l++) {
+        const auto &lock = raw.locks[l];
         t_.locks.push_back(add_to(&t_.turnouts, lock.first));
         uint16_t with = NONE;
         for (uint16_t k = 0; lock.second != NONE && k < rule.res_count; k++)
           if (t_.resources[t_.res_refs[rule.res_first + k]].name == lock.second) with = t_.res_refs[rule.res_first + k];
         t_.lock_with.push_back(with);
+        t_.lock_own.push_back(l < raw.lock_own.size() ? raw.lock_own[l] : 0);
       }
       rule.locks_count = static_cast<uint16_t>(t_.locks.size() - rule.locks_first);
+      // Rule 36: a lamp, numbered in the order rules first name them.
+      if (raw.lamp != NONE) {
+        rule.lamp = add_to(&t_.lamps, raw.lamp);
+        rule.light = raw.light;
+      }
       if (raw.approach_block != NONE) {
         rule.approach_block = static_cast<uint16_t>(t_.block_refs.size());
         t_.block_refs.push_back(block_ref(raw.approach_block));
@@ -1144,6 +1173,9 @@ bool compile_table(const char *json, Table *out, std::string *error) {
   fit(&t.res_next);
   fit(&t.sensors);
   fit(&t.buttons);
+  fit(&t.switches);
+  fit(&t.lamps);
+  fit(&t.lock_own);
   fit(&t.turnouts);
   fit(&t.masts);
   fit(&t.remote_boards);

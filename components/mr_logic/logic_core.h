@@ -37,7 +37,9 @@ static constexpr uint16_t NONE = 0xFFFF;
 // long (rule 32); and, on a BLOCK, `not_from`: entered, but not from the
 // blocks in a range of Table::block_refs (rule 31).
 struct Node {
-  enum Kind : uint8_t { ALL, ANY, NOT, BLOCK, TURNOUT, MAST, BUTTON, END, AUTO };
+  // SWITCH is a switch piece, IS_ON or IS_OFF (README rule 35). A leaf
+  // condition with `timed` is also a state held for for_ms (rule 34).
+  enum Kind : uint8_t { ALL, ANY, NOT, BLOCK, TURNOUT, MAST, BUTTON, END, AUTO, SWITCH };
   // What `is` asks for. A mast's tags are in `tags` (a bit per Tag).
   enum Is : uint8_t {
     IS_OCCUPIED, IS_CLEAR, IS_CLOSED, IS_THROWN, IS_MOVING, IS_PRESSED, IS_DIVERGING, IS_TAGS, IS_OTHER,
@@ -158,6 +160,8 @@ struct Rule {
   uint16_t withdraw = NONE;  // a moment node
   uint16_t approach_block = NONE;  // its own approach locking: a block ref in Table::block_refs
   uint32_t approach_ms = 0;
+  uint16_t lamp = NONE;  // a lamp it lights (rule 36), in Table::lamps
+  uint8_t light = 0;  // 1 on, 2 flash
 };
 
 // A range in Table::block_refs.
@@ -198,11 +202,14 @@ struct Table {
   std::vector<Member> members;
   std::vector<uint16_t> locks;  // turnout indices
   std::vector<uint16_t> lock_with;  // per lock: a resource index, or NONE
+  std::vector<uint8_t> lock_own;  // per lock: 1 a panel lock, its own buttons get past (rule 37)
   std::vector<uint16_t> res_refs;  // resource indices
   std::vector<Range> res_next;  // per res_ref
 
   std::vector<uint16_t> sensors;  // names; declared first, then any only named
   std::vector<uint16_t> buttons;
+  std::vector<uint16_t> switches;  // names
+  std::vector<uint16_t> lamps;  // names, in the order rules first name them
   std::vector<uint16_t> turnouts;
   uint16_t declared_turnouts = 0;
   std::vector<Mast> masts;  // declared masts, in order
@@ -242,6 +249,7 @@ struct Start {
   std::vector<std::pair<std::string, std::string>> jmri;  // mast, retained message
   std::vector<RemoteStart> remote;
   std::map<std::string, bool> remote_locks;
+  std::map<std::string, bool> switches;  // on
 };
 
 struct Event {
@@ -253,6 +261,7 @@ struct Event {
     // Plant ends: name is this board's end. END_BLOCK and END_MAST carry the
     // linked end's track number, as it numbers it. PAIRING is an announcement.
     END_PAIR, END_LINK, END_THEIR_LINK, END_ONLINE, END_BLOCK, END_MAST, PAIRING,
+    SWITCH,  // value "on" or "off"
   };
   Kind kind = SENSOR;
   std::string name;
@@ -275,11 +284,15 @@ struct LogEvent {
   std::string by;
 };
 
+// A mast's aspect; a field lock (lock); a panel lock (panel, rule 37); or a
+// lamp (lamp, its light in aspect: "off", "on" or "flash", rule 36).
 struct Write {
   bool lock = false;
   std::string name;
   std::string aspect;
   bool on = false;
+  bool panel = false;
+  bool lamp = false;
 };
 
 struct Publish {
@@ -307,6 +320,8 @@ struct State {
   std::vector<std::pair<std::string, std::string>> holders;  // "" for none
   std::vector<std::pair<std::string, bool>> locks;
   std::vector<std::pair<std::string, bool>> locked;
+  std::vector<std::pair<std::string, bool>> panel;  // rule 37
+  std::vector<std::pair<std::string, std::string>> lamps;  // rule 36
   std::vector<std::pair<std::string, std::string>> ends;  // README rule 26
   std::vector<std::pair<std::string, std::string>> links;
 };
@@ -401,7 +416,11 @@ class Engine {
   std::vector<ResState> res_;
   std::vector<std::vector<uint16_t>> res_rules_;  // rules reserving each resource
   std::vector<bool> field_;  // per mast: some rule sets it
-  std::vector<Latch> sensors_, buttons_;
+  std::vector<Latch> sensors_, buttons_, switches_;
+  std::vector<bool> panel_locks_;  // rule 37
+  std::vector<uint8_t> lamps_shown_;  // rule 36: 0 off, 1 on, 2 flash
+  std::vector<uint16_t> held_;  // rule 34: leaf conditions with a for
+  std::vector<int64_t> held_since_;  // per node: the scan its run began, -1 none
   std::vector<uint8_t> turnouts_;
   std::vector<bool> remote_locks_, field_locks_, prev_locked_;
   std::vector<int8_t> online_;  // per remote board
@@ -448,6 +467,7 @@ class Engine {
   bool remote_occupied(uint16_t item);
   bool went(uint16_t item, bool logic_block, bool on);
   bool condition(uint16_t node);
+  bool condition_core(uint16_t node);  // its state, ignoring a for
   bool moment(uint16_t node);
   bool moment_now(uint16_t node);
   bool came_from(uint16_t node);
@@ -469,7 +489,9 @@ class Engine {
   bool is_active(uint16_t r) const;
   bool locks_held(uint16_t r) const;
   const char *resource_state(uint16_t i) const;
-  void finish(ScanOut *out, const std::vector<int16_t> *new_out, const std::vector<bool> &new_locks);
+  // new_panel and new_lamps null: all off.
+  void finish(ScanOut *out, const std::vector<int16_t> *new_out, const std::vector<bool> &new_locks,
+              const std::vector<bool> *new_panel = nullptr, const std::vector<uint8_t> *new_lamps = nullptr);
   void publish_resources(ScanOut *out, const std::vector<Publish> &echoes);
   void record_edges();
   void end_scan();

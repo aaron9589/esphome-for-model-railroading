@@ -72,6 +72,15 @@ Engine::Engine(const Table &table, const Start &start) : t_(table) {
     if (rule.mast != NONE) field_[rule.mast] = true;
   sensors_.resize(t_.sensors.size());
   buttons_.resize(t_.buttons.size());
+  switches_.resize(t_.switches.size());
+  panel_locks_.assign(t_.turnouts.size(), false);
+  lamps_shown_.assign(t_.lamps.size(), 0);
+  held_since_.assign(t_.nodes.size(), -1);
+  // Rule 34: every leaf condition with a for.
+  for (size_t i = 0; i < t_.nodes.size(); i++) {
+    const Node &c = t_.nodes[i];
+    if (c.timed && c.kind != Node::ALL && c.kind != Node::ANY && c.kind != Node::NOT) held_.push_back(static_cast<uint16_t>(i));
+  }
   turnouts_.assign(t_.turnouts.size(), T_NONE);
   for (size_t i = 0; i < t_.declared_turnouts; i++) turnouts_[i] = T_CLOSED;
   remote_locks_.assign(t_.turnouts.size(), false);
@@ -164,6 +173,10 @@ Engine::Engine(const Table &table, const Start &start) : t_(table) {
   for (const auto &s : start.remote_locks) {
     int16_t i = find(t_.turnouts, s.first);
     if (i >= 0) remote_locks_[i] = s.second;
+  }
+  for (const auto &s : start.switches) {
+    int16_t i = find(t_.switches, s.first);
+    if (i >= 0) switches_[i].value = s.second;
   }
   for (const auto &rs : start.remote) {
     int16_t b = find(t_.remote_boards, rs.board);
@@ -364,7 +377,17 @@ bool Engine::went(uint16_t item, bool logic_block, bool on) {
   return on ? (!prev && (now || pulsed)) : (!now && (prev || pulsed));
 }
 
+// Rule 34: a condition with a for holds once its state has held that long.
 bool Engine::condition(uint16_t index) {
+  const Node &c = t_.nodes[index];
+  if (c.timed) {
+    const int64_t since = held_since_[index];
+    return since >= 0 && (n_ - since) * static_cast<int64_t>(SCAN_MS) >= static_cast<int64_t>(c.for_ms) && condition_core(index);
+  }
+  return condition_core(index);
+}
+
+bool Engine::condition_core(uint16_t index) {
   const Node &c = t_.nodes[index];
   switch (c.kind) {
     case Node::ALL:
@@ -416,6 +439,8 @@ bool Engine::condition(uint16_t index) {
     }
     case Node::BUTTON:
       return c.item != NONE && buttons_[c.item].value;
+    case Node::SWITCH:
+      return c.item != NONE && switches_[c.item].value == (c.is != Node::IS_OFF);
     case Node::AUTO:
       return auto_on_ == (c.is == Node::IS_ON);
     case Node::END: {
@@ -453,6 +478,7 @@ bool Engine::moment_now(uint16_t index) {
   }
   if (m.kind == Node::MAST && (m.is == Node::IS_HELD || m.is == Node::IS_UNHELD))
     return m.item != NONE && (hold_went_[m.item] & (m.is == Node::IS_HELD ? 1 : 2)) != 0;
+  if (m.kind == Node::SWITCH) return m.item != NONE && (m.is == Node::IS_OFF ? switches_[m.item].off : switches_[m.item].on);
   if (!m.remote && m.kind == Node::BUTTON) return m.is == Node::IS_PRESSED && m.item != NONE && buttons_[m.item].on;
   if (!m.remote && m.kind == Node::BLOCK && m.not_from) {
     // Rule 31: entered, and not from these. At start-up a train already there
@@ -461,7 +487,7 @@ bool Engine::moment_now(uint16_t index) {
     return entered && !came_from(index);
   }
   if (!m.remote && m.kind == Node::BLOCK) return went(m.item, m.logic_block, m.is != Node::IS_CLEAR);
-  return condition(index) && edges_[index] == 0;
+  return condition_core(index) && edges_[index] == 0;
 }
 
 // Where a train entering a block came from: the one neighbour occupied now,
@@ -499,8 +525,15 @@ void Engine::update_timed() {
   for (uint16_t node : timed_) {
     if (moment_now(node))
       timed_start_[node] = n_;
-    else if (!condition(node))
+    else if (!condition_core(node))
       timed_start_[node] = -1;
+  }
+  // Rule 34: each held condition's run, once a scan.
+  for (uint16_t node : held_) {
+    if (!condition_core(node))
+      held_since_[node] = -1;
+    else if (held_since_[node] < 0)
+      held_since_[node] = n_;
   }
 }
 
@@ -954,7 +987,8 @@ const char *Engine::resource_state(uint16_t i) const {
 
 // --- writes and publishes (rules 21, 22) ----------------------------------
 
-void Engine::finish(ScanOut *out, const std::vector<int16_t> *new_out, const std::vector<bool> &new_locks) {
+void Engine::finish(ScanOut *out, const std::vector<int16_t> *new_out, const std::vector<bool> &new_locks,
+                    const std::vector<bool> *new_panel, const std::vector<uint8_t> *new_lamps) {
   if (new_out) {
     for (size_t m = 0; m < t_.masts.size(); m++) {
       if (!field_[m]) continue;
@@ -966,6 +1000,30 @@ void Engine::finish(ScanOut *out, const std::vector<int16_t> *new_out, const std
   for (size_t t = 0; t < t_.declared_turnouts; t++)
     if (field_locks_[t] != new_locks[t]) out->writes.push_back(Write{true, t_.names[t_.turnouts[t]], "", new_locks[t]});
   field_locks_ = new_locks;
+  // Rules 37 and 36: panel locks, then lamps; none given is all off.
+  for (size_t t = 0; t < t_.declared_turnouts; t++) {
+    const bool on = new_panel && (*new_panel)[t];
+    if (panel_locks_[t] != on) {
+      Write w;
+      w.panel = true;
+      w.name = t_.names[t_.turnouts[t]];
+      w.on = on;
+      out->writes.push_back(w);
+    }
+    panel_locks_[t] = on;
+  }
+  static const char *const LIGHTS[] = {"off", "on", "flash"};
+  for (size_t l = 0; l < t_.lamps.size(); l++) {
+    const uint8_t light = new_lamps ? (*new_lamps)[l] : 0;
+    if (lamps_shown_[l] != light) {
+      Write w;
+      w.lamp = true;
+      w.name = t_.names[t_.lamps[l]];
+      w.aspect = LIGHTS[light];
+      out->writes.push_back(w);
+    }
+    lamps_shown_[l] = light;
+  }
   for (size_t t = 0; t < t_.declared_turnouts; t++) {
     bool locked = field_locks_[t] || remote_locks_[t];
     if (prev_locked_[t] && !locked) out->events.push_back(LogEvent{LogEvent::RESYNC, t_.names[t_.turnouts[t]], "", ""});
@@ -995,13 +1053,14 @@ void Engine::publish_resources(ScanOut *out, const std::vector<Publish> &echoes)
 }
 
 void Engine::record_edges() {
-  for (uint16_t m : tracked_) edges_[m] = condition(m) ? 1 : 0;
+  for (uint16_t m : tracked_) edges_[m] = condition_core(m) ? 1 : 0;
   for (size_t b = 0; b < t_.blocks.size(); b++) prev_block_[b] = occupied_ref(static_cast<uint16_t>(b), true);
 }
 
 void Engine::end_scan() {
   for (auto &l : sensors_) l.on = l.off = false;
   for (auto &l : buttons_) l.on = l.off = false;
+  for (auto &l : switches_) l.on = l.off = false;
   std::fill(hold_went_.begin(), hold_went_.end(), 0);
   n_ += 1;
 }
@@ -1317,15 +1376,23 @@ ScanOut Engine::scan() {
   // Rule 21: a rule's turnout locks, while it holds them; one held with a
   // resource only while the rule holds that resource.
   std::vector<bool> new_locks(t_.turnouts.size(), false);
+  std::vector<bool> new_panel(t_.turnouts.size(), false);
   for (size_t r = 0; r < t_.rules.size(); r++) {
     if (!locks_held(static_cast<uint16_t>(r))) continue;
     const Rule &rule = t_.rules[r];
     for (uint16_t l = 0; l < rule.locks_count; l++) {
       const uint16_t with = t_.lock_with[rule.locks_first + l];
-      if (with == NONE || res_[with].holder == r) new_locks[t_.locks[rule.locks_first + l]] = true;
+      if (with == NONE || res_[with].holder == r) (t_.lock_own[rule.locks_first + l] ? new_panel : new_locks)[t_.locks[rule.locks_first + l]] = true;
     }
   }
-  finish(&out, &new_out, new_locks);
+  // Rule 36: each lamp, flash before on.
+  std::vector<uint8_t> new_lamps(t_.lamps.size(), 0);
+  for (size_t r = 0; r < t_.rules.size(); r++) {
+    const Rule &rule = t_.rules[r];
+    if (rule.lamp == NONE || !is_active(static_cast<uint16_t>(r))) continue;
+    if (rule.light > new_lamps[rule.lamp]) new_lamps[rule.lamp] = rule.light;
+  }
+  finish(&out, &new_out, new_locks, &new_panel, &new_lamps);
   record_edges();
   prev_out_ = new_out;
   publish_resources(&out, echoes);
@@ -1391,6 +1458,19 @@ void Engine::event(const Event &e) {
       if (i < 0) return;  // nothing reads it
       Latch &l = sensor ? sensors_[i] : buttons_[i];
       bool value = e.value == (sensor ? "occupied" : "pressed");
+      if (l.value == value) return;
+      l.value = value;
+      if (value)
+        l.on = true;
+      else
+        l.off = true;
+      return;
+    }
+    case Event::SWITCH: {
+      int16_t i = find(t_.switches, e.name);
+      if (i < 0) return;  // nothing reads it
+      Latch &l = switches_[i];
+      const bool value = e.value == "on";
       if (l.value == value) return;
       l.value = value;
       if (value)
@@ -1492,7 +1572,10 @@ State Engine::state() const {
   for (size_t t = 0; t < t_.declared_turnouts; t++) {
     s.locks.emplace_back(t_.names[t_.turnouts[t]], field_locks_[t]);
     s.locked.emplace_back(t_.names[t_.turnouts[t]], field_locks_[t] || remote_locks_[t]);
+    s.panel.emplace_back(t_.names[t_.turnouts[t]], panel_locks_[t]);
   }
+  static const char *const LIGHTS[] = {"off", "on", "flash"};
+  for (size_t l = 0; l < t_.lamps.size(); l++) s.lamps.emplace_back(t_.names[t_.lamps[l]], LIGHTS[lamps_shown_[l]]);
   static const char *const END_STATES[] = {"pairing", "empty", "end", "unheard", "disagrees", "heard"};
   for (size_t e = 0; e < t_.ends.size(); e++) {
     s.ends.emplace_back(t_.names[t_.ends[e].name], END_STATES[end_state(static_cast<uint16_t>(e))]);
