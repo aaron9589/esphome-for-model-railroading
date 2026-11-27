@@ -231,6 +231,7 @@ This is what CATS's **Hold Only** option on a signal template is for. CATS's own
 - A reserving rule that sets a held mast is **not granted**. It keeps waiting, and can be granted in a later scan once the mast is unheld.
 - **Held after the grant, before the train passes:** the rule is cancelled back to waiting. The resource is freed for another rule, after the approach locking time if that is on.
 - **Held after the train has passed:** nothing changes; the mast is already at Stop.
+- **On a track plan's controlled signal** ([track plan spec, Routes](field-logic-plan-spec.md#routes-asked-for-set-and-released)) the hold does more: going from Held to Unheld asks for a route, and Held cancels it until the train enters. Everywhere else it only holds.
 
 ### Stale holds
 
