@@ -1015,9 +1015,19 @@
       let rules;
       if (what === "mast") {
         // A mast's best aspect stands for "no restriction": the others decide.
-        const tags = masts.find((m) => m.mast === thing).tags || {};
+        const entry = masts.find((m) => m.mast === thing);
+        const tags = entry.tags || (entry.tags = {});
         const best = Object.keys(tags).sort((a, b) => TAG_ORDER.indexOf(tags[b]) - TAG_ORDER.indexOf(tags[a]))[0];
-        const approach = Object.keys(tags).find((a) => tags[a] === "approach");
+        // Approach: one the drawing uses, else the mast's own (a CATS mast's R285).
+        let approach = Object.keys(tags).find((a) => tags[a] === "approach");
+        if (!approach && rule.kind === "approachWhile") {
+          const own = Mss().prefill(config, thing, "approach");
+          const labels = list(list(config?.signals?.masts).find((m) => m.name === thing)?.aspects).map((a) => String(a.label ?? ""));
+          if (own && labels.includes(own) && !tags[own]) {
+            tags[own] = "approach";
+            approach = own;
+          }
+        }
         if (!best) return report("ruleKind", TEXT.ruleKind(n, thing));
         if (rule.kind === "stopWhile") rules = [plain(not, { mast: thing, aspect: best })];
         else if (rule.kind === "stopUnless") rules = [plain(when, { mast: thing, aspect: best })];

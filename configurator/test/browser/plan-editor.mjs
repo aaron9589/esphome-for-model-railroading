@@ -154,6 +154,13 @@ await click(6.5, 1);
 assert.match(await panel.innerText(), /Signals "Left Bridge" and "Right Bridge" each have a route onto this block/);
 await click(2, 0);
 assert.match(await panel.innerText(), /"Left Bridge" is a controlled signal/);
+// TP 7: hold Left Bridge until a button is pressed, from the example.
+await page.click("#logic-plan-example-hold-0");
+assert.deepEqual(await page.evaluate(() => state.logic.plan.pieces.map((p) => [p.kind, p.name])), [["button", "Left Bridge go"]]);
+await click(2, 0);
+assert.match(await panel.innerText(), /Keep at Stop unless: Left Bridge go was pressed in the last 30 seconds\./);
+assert.equal(await page.locator(".plan-reads").count(), 1);
+assert.ok(await page.evaluate(() => EsphomeMr.generateYaml(state).includes("Left Bridge rule 1")));
 await shot("5-behaviour");
 await page.click("#logic-plan-next");
 

@@ -12,6 +12,7 @@
   const isObject = (value) => value && typeof value === "object" && !Array.isArray(value);
   const list = (value) => (Array.isArray(value) ? value : []);
   const E = () => global.EsphomeMrPlanEdit;
+  const Own = () => global.EsphomeMrLogicUiOwn;
   const PART = "logic-plan";
 
   const TEXT = Object.freeze({
@@ -139,6 +140,47 @@
     oneSignal: "No two signals can send trains onto this block, so there is nothing to keep apart here. Each signal still checks it is clear.",
     noSignalHere: "No signal stands here.",
     problemsHere: "Problems in this step",
+    // TP 7: pieces, rules and the signal's own settings.
+    lockUnderTrain: "Lock it while a train is on it",
+    lockUnderTrainHint: "So its points never move under a train. Untick only for a turnout a train can safely run through.",
+    aspectsFold: "Aspects for each meaning",
+    aspectFor: (meaning) => `For ${meaning}`,
+    aspectDefault: (label) => (label ? `As usual: ${label}` : "As usual"),
+    approachLight: (mast) => `Light ${mast} only while a train comes up to it`,
+    approachNone: "Always lit",
+    approachHint: "Approach lighting: the signal is dark until the block behind it is occupied.",
+    spotTitle: "A place on the drawing",
+    spotHint: "Put a button, switch or lamp here: something on the fascia your rules can read or light.",
+    pieceKind: "Kind",
+    piecePin: "Pin",
+    pinNone: "No pin yet",
+    addPiece: "Put it here",
+    pieceTitle: (kind, name) => `${kind}: ${name}`,
+    removePiece: "Take it off the drawing",
+    rulesOn: (name) => `Rules on ${name}`,
+    noRules: "No rules of your own yet. The drawing already protects the track.",
+    addRule: "Add a rule",
+    ruleKind: "Rule",
+    conditionWhat: (n) => `Condition ${n}`,
+    conditionIs: "Is",
+    conditionSeconds: "Seconds",
+    addCondition: "Add a condition",
+    removeCondition: "Remove this condition",
+    joinLabel: "Conditions",
+    joinAll: "All of them",
+    joinAny: "Any of them",
+    saveRule: "Save the rule",
+    removeRule: "Remove",
+    pickSubject: "Pick something…",
+    subjectGroups: Object.freeze({ block: "Blocks", turnout: "Turnouts", mast: "Signals", switch: "Switches", button: "Buttons" }),
+    choiceWords: Object.freeze({
+      occupied: "occupied", clear: "clear", occupiedFor: "occupied for a time",
+      closed: "closed", thrown: "thrown",
+      stop: "at Stop", notStop: "not at Stop", stopFor: "has shown Stop for a time",
+      on: "on", off: "off", pressed: "pressed in the last few seconds",
+    }),
+    needCondition: "Pick what the rule reads first.",
+    madeExample: "Added the example's pieces and rules. They are yours to change or remove.",
     showProblem: "Show",
   });
 
@@ -177,8 +219,9 @@
     const plan = config?.logic?.plan;
     const g = E().graph(plan);
     const nodes = [...g.near.keys()].map((k) => k.split(",").map(Number));
-    const xs = nodes.map((p) => p[0]);
-    const ys = nodes.map((p) => p[1]);
+    const placed = list(plan?.pieces).filter((p) => isObject(p) && Array.isArray(p.at)).map((p) => p.at);
+    const xs = [...nodes, ...placed].map((p) => p[0]);
+    const ys = [...nodes, ...placed].map((p) => p[1]);
     // At least one spare cell all round, and room to draw to the right and below.
     const x = Math.min(-1, ...xs.map((v) => v - 1));
     const y = Math.min(-2, ...ys.map((v) => v - 2));
@@ -261,7 +304,9 @@
       return { at: mid(arrow.from, [arrow.from[0] + step[0], arrow.from[1] + step[1]]), way };
     });
 
-    return { view, pieces, blocks, breaks, signals, points, ends: outEnds, arrows };
+    // Your own pieces (TP 7): buttons, switches and lamps where they were put.
+    const fascia = list(plan?.pieces).filter((p) => isObject(p) && Array.isArray(p.at) && p.name).map((p) => ({ name: String(p.name), kind: String(p.kind || ""), at: p.at }));
+    return { view, pieces, blocks, breaks, signals, points, ends: outEnds, arrows, fascia };
   }
 
   /**
@@ -270,6 +315,8 @@
    */
   function pick(shape, x, y) {
     const distance = (p) => Math.hypot(p[0] - x, p[1] - y);
+    const piece = list(shape.fascia).find((f) => distance(f.at) <= 0.35);
+    if (piece) return { kind: "fascia", name: piece.name };
     const signal = shape.signals.find((s) => distance(s.head) <= 0.3);
     if (signal) return { kind: "point", at: signal.at };
     const nodes = shape.pieces.flatMap((p) => [p.a, p.b]);
@@ -319,7 +366,7 @@
 
   const SVG = "http://www.w3.org/2000/svg";
   // What the person is doing: kept while the page is drawn again.
-  const state = { tool: null, start: null, cursor: [0, 0], selected: null, scroll: [0, 0], board: null, more: false };
+  const state = { tool: null, start: null, cursor: [0, 0], selected: null, scroll: [0, 0], board: null, more: false, draft: null };
 
   function svg(tag, attrs = {}, text) {
     const node = document.createElementNS(SVG, tag);
@@ -344,7 +391,7 @@
 
   const px = (v) => Math.round(v * CELL * 10) / 10;
 
-  function drawPicture(config, shape, tool, found = []) {
+  function drawPicture(config, shape, tool, found = [], links = []) {
     const { view } = shape;
     const drawing = svg("svg", {
       id: "logic-plan-grid", class: `plan-grid is-${tool}`, tabindex: 0, role: "application", "aria-label": TEXT.gridLabel,
@@ -400,6 +447,20 @@
         : [x + Math.sign(signal.side[0]) * 14, y + 4, signal.side[0] > 0 ? "start" : "end"];
       drawing.append(svg("text", { class: "plan-signal-name", x: tx, y: ty, "text-anchor": anchor }, signal.mast));
     }
+    // Your own pieces: a square with its kind's letter, and its name.
+    for (const f of list(shape.fascia)) {
+      const [x, y] = [px(f.at[0]), px(f.at[1])];
+      drawing.append(svg("rect", { class: `plan-fascia is-${f.kind}`, x: x - 10, y: y - 10, width: 20, height: 20, rx: 4 }));
+      drawing.append(svg("text", { class: "plan-fascia-letter", x, y: y + 4, "text-anchor": "middle" }, (Own()?.TEXT.kinds[f.kind] || "?")[0]));
+      drawing.append(svg("text", { class: "plan-note", x, y: y + 24, "text-anchor": "middle" }, f.name));
+    }
+    // Dotted lines from a rule's thing to what it reads.
+    for (const l of links) drawing.append(svg("line", { class: "plan-reads", x1: px(l.from[0]), y1: px(l.from[1]), x2: px(l.to[0]), y2: px(l.to[1]) }));
+    if (selected?.kind === "fascia") {
+      const f = list(shape.fascia).find((x) => x.name === selected.name);
+      if (f) drawing.append(svg("circle", { class: "plan-picked", cx: px(f.at[0]), cy: px(f.at[1]), r: 15 }));
+    }
+    if (selected?.kind === "spot") drawing.append(svg("circle", { class: "plan-picked", cx: px(selected.at[0]), cy: px(selected.at[1]), r: 11 }));
     // Problems: red for errors, amber for warnings, under the selection ring.
     for (const mark of found) {
       const cls = `plan-problem is-${mark.level === "error" ? "error" : "warning"}`;
@@ -476,7 +537,8 @@
       const [from, to] = [nearest(first), nearest(last)];
       if (tool === "select") {
         state.cursor = to;
-        select(pick(shape, ...last));
+        // In Behaviour and rules, an empty place is where a piece can go.
+        select(pick(shape, ...last) || (state.step === "behaviour" ? { kind: "spot", at: to } : null));
       } else if (key(from) !== key(to)) {
         finish(from, to);
       } else {
@@ -501,7 +563,7 @@
         if (tool !== "select" && state.start) preview(state.start, state.cursor);
       } else if (event.key === "Enter" || event.key === " ") {
         event.preventDefault();
-        if (tool === "select") select(pick(shape, ...state.cursor));
+        if (tool === "select") select(pick(shape, ...state.cursor) || (state.step === "behaviour" ? { kind: "spot", at: state.cursor } : null));
         else mark(state.cursor);
       } else if (event.key === "Escape") {
         state.start = null;
@@ -825,6 +887,15 @@
     if (kind === "turnout") {
       const fields = el("div", "fields");
       turnoutFields(fields, config, ctx, at);
+      const set = list(config.logic.plan.points).find((p) => isObject(p) && key(p.at ?? [NaN, NaN]) === key(at));
+      if (set?.turnout) {
+        const lock = ctx.field(TEXT.lockUnderTrain, set.lock !== false, (checked) => {
+          E().setPoint(config, at, { lock: checked ? undefined : false });
+          changed(ctx, "#logic-plan-lock");
+        }, { checkbox: true, hint: TEXT.lockUnderTrainHint });
+        lock.querySelector("input").id = "logic-plan-lock";
+        fields.append(lock);
+      }
       panel.append(fields);
       if (!list(config.logic.plan.points).some((p) => isObject(p) && key(p.at ?? [NaN, NaN]) === key(at) && p.turnout)) {
         maker(panel, ctx, "logic-plan-new-turnout", TEXT.newTurnout, freeName(config, TEXT.turnoutName), TEXT.makeTurnout, (name) => {
@@ -895,6 +966,32 @@
     }, { checkbox: true, hint: TEXT.manualOnlyHint });
     manual.querySelector("input").id = `logic-plan-manual-${i}`;
     fields.append(manual);
+    // Approach lighting: dark until the block behind it is occupied.
+    const blocks = list(config.logic.plan.blocks).map((b) => b?.name).filter(Boolean);
+    const lit = String(signal.approachLight ?? "");
+    fields.append(choice(ctx, `logic-plan-approach-${i}`, TEXT.approachLight(signal.mast), lit,
+      [{ value: "", label: TEXT.approachNone }, ...blocks.map((b) => ({ value: b, label: b }))],
+      (v) => E().setSignalOptions(config, at, signal.facing, { approachLight: v }), TEXT.approachHint));
+    // The aspect for each meaning: as usual (a CATS mast's own), or picked.
+    const Mss = global.EsphomeMrMssBuilder;
+    const labels = list(list(config.signals?.masts).find((m) => m.name === signal.mast)?.aspects).map((a) => String(a.label ?? "")).filter(Boolean);
+    if (Mss && labels.length) {
+      const fold = el("details", "plan-more");
+      fold.open = state.aspects === `${key(at)}|${i}`;
+      const summary = el("summary", "", TEXT.aspectsFold);
+      summary.addEventListener("click", () => { state.aspects = fold.open ? null : `${key(at)}|${i}`; });
+      fold.append(summary);
+      const inner = el("div", "fields");
+      for (const ind of Mss.INDICATIONS) {
+        const usual = Mss.prefill(config, signal.mast, ind.key) || "";
+        const current = String(signal.aspects?.[ind.key] ?? "");
+        inner.append(choice(ctx, `logic-plan-aspect-${i}-${ind.key}`, TEXT.aspectFor(Mss.TEXT.indications[ind.key]), current,
+          [{ value: "", label: TEXT.aspectDefault(usual) }, ...labels.map((l) => ({ value: l, label: l }))],
+          (v) => E().setSignalOptions(config, at, signal.facing, { aspects: { ...(signal.aspects || {}), [ind.key]: v } })));
+      }
+      fold.append(inner);
+      fields.append(fold);
+    }
   }
 
   const KINDS = Object.freeze({
@@ -954,10 +1051,185 @@
     }
   }
 
+  // ===== Behaviour and rules: pieces, rules and examples (TP 7) =============
+
+  // Every subject a condition can read, grouped: [{ kind, label, names }].
+  function subjects(config) {
+    const plan = config.logic.plan || {};
+    const pieces = (kind) => list(plan.pieces).filter((p) => isObject(p) && p.kind === kind).map((p) => p.name);
+    return [
+      { kind: "block", names: list(plan.blocks).map((b) => b?.name).filter(Boolean) },
+      { kind: "turnout", names: list(config.points).map((p) => p?.name).filter(Boolean) },
+      { kind: "mast", names: list(plan.breaks).flatMap((b) => list(b?.signals).map((x) => x?.mast)).filter(Boolean) },
+      { kind: "switch", names: pieces("switch") },
+      { kind: "button", names: pieces("button") },
+    ].filter((g) => g.names.length);
+  }
+
+  // The rules on one thing ({ kind, name }), each with its place in plan.rules,
+  // and the form that adds one.
+  function rulesPart(panel, config, ctx, thing) {
+    const O = Own();
+    const all = list(config.logic.plan?.rules);
+    panel.append(el("h5", "", TEXT.rulesOn(thing.name)));
+    const mine = all.map((rule, index) => ({ rule, index })).filter(({ rule }) => {
+      const t = O.thingOf(rule);
+      return t && t.kind === thing.kind && t.name === thing.name;
+    });
+    if (!mine.length) panel.append(el("p", "hint", TEXT.noRules));
+    for (const { rule, index } of mine) {
+      const row = el("div", "plan-rule");
+      row.append(el("span", "", O.sentence(rule)));
+      const remove = button(TEXT.removeRule, () => { E().removeRule(config, index); changed(ctx, "#logic-plan-grid"); }, "remove link-button");
+      row.append(remove);
+      panel.append(row);
+    }
+    ruleForm(panel, config, ctx, thing);
+  }
+
+  // The form for a new rule: its kind, its conditions and how they join.
+  // Kept in state.draft while the page is drawn again.
+  function ruleForm(panel, config, ctx, thing) {
+    const O = Own();
+    const id = `${thing.kind}|${thing.name}`;
+    if (state.draft?.id !== id) state.draft = { id, kind: O.ON[thing.kind][0], join: "all", parts: [{ kind: "", name: "", choice: "", seconds: 30 }] };
+    const draft = state.draft;
+    const box = el("div", "plan-maker");
+    box.append(el("strong", "", TEXT.addRule));
+    const fields = el("div", "fields");
+    const redrawForm = (focus) => redraw(ctx, focus);
+    fields.append(ctx.field(TEXT.ruleKind, draft.kind, (v) => { draft.kind = v; }, {
+      select: O.ON[thing.kind].map((k) => ({ value: k, label: O.TEXT.rules[k] })), full: true, hint: O.TEXT.ruleHint[draft.kind],
+    }));
+    const groups = subjects(config);
+    draft.parts.forEach((part, n) => {
+      const value = part.kind ? `${part.kind}|${part.name}` : "";
+      const subject = ctx.field(TEXT.conditionWhat(n + 1), value, (v) => {
+        const [kind, ...rest] = v.split("|");
+        Object.assign(part, { kind, name: rest.join("|"), choice: O.CHOICES[kind]?.[0]?.id || "" });
+        redrawForm(`#logic-plan-cond-${n}`);
+      }, { select: [{ value: "", label: TEXT.pickSubject }, ...groups.flatMap((g) => g.names.map((name) => ({ value: `${g.kind}|${name}`, label: `${TEXT.subjectGroups[g.kind]}: ${name}` })))], full: true });
+      subject.querySelector("select").id = `logic-plan-cond-${n}`;
+      fields.append(subject);
+      if (part.kind) {
+        const choices = O.CHOICES[part.kind];
+        const is = ctx.field(TEXT.conditionIs, part.choice, (v) => { part.choice = v; redrawForm(`#logic-plan-cond-${n}-is`); }, {
+          select: choices.map((c) => ({ value: c.id, label: TEXT.choiceWords[c.id] })), full: true,
+        });
+        is.querySelector("select").id = `logic-plan-cond-${n}-is`;
+        fields.append(is);
+        if (choices.find((c) => c.id === part.choice)?.timed) {
+          const secs = ctx.field(TEXT.conditionSeconds, String(part.seconds), (v) => { part.seconds = Math.max(1, Number(v) || 30); }, { full: true });
+          fields.append(secs);
+        }
+      }
+      if (draft.parts.length > 1) {
+        const drop = button(TEXT.removeCondition, () => { draft.parts.splice(n, 1); redrawForm("#logic-plan-add-condition"); }, "link-button");
+        fields.append(drop);
+      }
+    });
+    if (draft.parts.length > 1) {
+      fields.append(ctx.field(TEXT.joinLabel, draft.join, (v) => { draft.join = v; }, {
+        select: [{ value: "all", label: TEXT.joinAll }, { value: "any", label: TEXT.joinAny }], full: true,
+      }));
+    }
+    box.append(fields);
+    const more = button(TEXT.addCondition, () => { draft.parts.push({ kind: "", name: "", choice: "", seconds: 30 }); redrawForm(`#logic-plan-cond-${draft.parts.length - 1}`); }, "link-button");
+    more.id = "logic-plan-add-condition";
+    const save = button(TEXT.saveRule, () => {
+      const made = draft.parts.filter((p) => p.kind && p.name).map((p) => O.CHOICES[p.kind].find((c) => c.id === p.choice)?.make(p.name, p.seconds)).filter(Boolean);
+      if (!made.length) return ctx.flash("err", TEXT.needCondition);
+      E().addRule(config, { on: { [thing.kind]: thing.name }, kind: draft.kind, when: O.joinParts(draft.join, made) });
+      state.draft = null;
+      changed(ctx, "#logic-plan-grid");
+    });
+    save.id = "logic-plan-save-rule";
+    box.append(more, save);
+    panel.append(box);
+  }
+
+  // The signals whose routes cross a turnout: those whose routes are locked with it.
+  function signalsOver(config, turnout) {
+    const B = global.EsphomeMrPlanBuilder;
+    const out = [];
+    for (const layer of list(B.build(config).layers)) {
+      if (layer.routes !== true) continue;
+      if (list(layer.rules).some((r) => list(r?.then?.lock).some((l) => (isObject(l) ? l.turnout : l) === turnout))) {
+        const mast = list(layer.rules)[0]?.then?.mast;
+        if (mast && !out.includes(mast)) out.push(mast);
+      }
+    }
+    return out;
+  }
+
+  function example(ctx, config, made) {
+    for (const piece of made.pieces) E().addPiece(config, piece);
+    for (const rule of made.rules) E().addRule(config, rule);
+    ctx.flash("ok", TEXT.madeExample);
+    changed(ctx, "#logic-plan-grid");
+  }
+
+  // A free grid point near another, for an example's piece.
+  function freeSpot(config, near) {
+    const taken = new Set([...E().graph(config.logic.plan).near.keys(), ...list(config.logic.plan.pieces).filter((p) => Array.isArray(p?.at)).map((p) => key(p.at))]);
+    for (let d = 1; d < 6; d += 1) {
+      for (const at of [[near[0], near[1] + d], [near[0], near[1] - d], [near[0] + d, near[1] + d], [near[0] - d, near[1] + d]]) {
+        if (!taken.has(key(at)) && !taken.has(key([at[0] + 1, at[1]]))) return at;
+      }
+    }
+    return [near[0], near[1] + 6];
+  }
+
   function behaviourPanel(panel, config, ctx, ui) {
     const s = state.selected;
     if (!s) return;
     const B = global.EsphomeMrPlanBuilder;
+    const O = Own();
+    if (s.kind === "spot") {
+      panel.append(el("h4", "", TEXT.spotTitle), ui.paragraph(TEXT.spotHint, "hint"));
+      let kindSelect;
+      let pinSelect;
+      maker(panel, ctx, "logic-plan-new-piece", O.TEXT.kinds.switch, freeName(config, (n) => `${O.TEXT.kinds.switch} ${n}`), TEXT.addPiece, (name) => {
+        E().addPiece(config, { kind: kindSelect.value, name, at: s.at, ...(pinSelect.value ? { pin: pinSelect.value } : {}) });
+        state.selected = { kind: "fascia", name };
+        changed(ctx, "#logic-plan-grid");
+      }, (box) => {
+        const kind = ctx.field(TEXT.pieceKind, "switch", () => {}, { select: ["button", "switch", "lamp"].map((k) => ({ value: k, label: O.TEXT.kinds[k] })), full: true });
+        kindSelect = kind.querySelector("select");
+        kindSelect.id = "logic-plan-new-piece-kind";
+        const pin = ctx.field(TEXT.piecePin, "", () => {}, { select: [{ value: "", label: TEXT.pinNone }, ...ctx.pinChoices()], full: true });
+        pinSelect = pin.querySelector("select");
+        pinSelect.id = "logic-plan-new-piece-pin";
+        box.append(kind, pin);
+        return kindSelect;
+      });
+      return;
+    }
+    if (s.kind === "fascia") {
+      const piece = list(config.logic.plan.pieces).find((p) => p?.name === s.name);
+      if (!piece) return;
+      panel.append(el("h4", "", TEXT.pieceTitle(O.TEXT.kinds[piece.kind] || piece.kind, piece.name)), ui.paragraph(O.TEXT.pieceHint[piece.kind] || "", "hint"));
+      const fields = el("div", "fields");
+      const nameField = ctx.field(TEXT.newName, piece.name, () => {}, { full: true });
+      const input = nameField.querySelector("input");
+      input.id = "logic-plan-piece-name";
+      input.addEventListener("change", () => {
+        const name = input.value.trim();
+        if (!name || name === piece.name) return;
+        if (taken(config).has(name) || list(config.logic.plan.pieces).some((p) => p?.name === name)) return ctx.flash("err", TEXT.nameTaken(name));
+        E().setPiece(config, piece.name, { name });
+        state.selected = { kind: "fascia", name };
+        changed(ctx, "#logic-plan-piece-name");
+      });
+      fields.append(nameField);
+      const pins = [{ value: "", label: TEXT.pinNone }, ...ctx.pinChoices()];
+      fields.append(choice(ctx, "logic-plan-piece-pin", TEXT.piecePin, String(piece.pin ?? ""), pins, (v) => E().setPiece(config, piece.name, { pin: v })));
+      panel.append(fields);
+      if (piece.kind === "lamp") rulesPart(panel, config, ctx, { kind: "lamp", name: piece.name });
+      const remove = button(TEXT.removePiece, () => { E().removePiece(config, piece.name); state.selected = null; changed(ctx, "#logic-plan-grid"); }, "remove");
+      panel.append(remove);
+      return;
+    }
     if (s.kind === "piece") {
       const block = E().blockAt(config, s.a, s.b);
       panel.append(el("h4", "", TEXT.trackTitle(block?.name)));
@@ -966,14 +1238,65 @@
       return;
     }
     const at = s.at;
+    const kind = E().kindAt(config, at);
+    panel.append(el("h4", "", TEXT.pointTitle[kind] || TEXT.pointTitle.crossing));
+    if (kind === "turnout") {
+      const turnout = list(config.logic.plan.points).find((p) => isObject(p) && key(p.at ?? [NaN, NaN]) === key(at))?.turnout;
+      if (!turnout) return void panel.append(ui.paragraph(TEXT.noSignalHere, "hint"));
+      rulesPart(panel, config, ctx, { kind: "turnout", name: turnout });
+      const local = button(O.TEXT.examples.local, () => example(ctx, config, O.exampleLocalPanel(config, turnout, signalsOver(config, turnout), freeSpot(config, at))), "link-button");
+      local.id = "logic-plan-example-local";
+      panel.append(local);
+      return;
+    }
     const brk = E().breakAt(config.logic.plan, at);
     const signals = list(brk?.signals).filter((sig) => isObject(sig) && sig.mast);
-    panel.append(el("h4", "", TEXT.pointTitle[E().kindAt(config, at)] || TEXT.pointTitle.crossing));
     if (!signals.length) return void panel.append(ui.paragraph(TEXT.noSignalHere, "hint"));
     const groups = new Set(list(B.build(config).layers).map((layer) => layer.name));
     for (const signal of signals) {
       panel.append(ui.paragraph(groups.has(B.TEXT.movesGroup(signal.mast)) ? TEXT.controlled(signal.mast) : TEXT.blockSignal(signal.mast), "card-copy"));
+      rulesPart(panel, config, ctx, { kind: "mast", name: signal.mast });
+      const hold = button(O.TEXT.examples.hold, () => example(ctx, config, O.exampleHold(config, signal.mast, freeSpot(config, at))), "link-button");
+      hold.id = `logic-plan-example-hold-${signals.indexOf(signal)}`;
+      panel.append(hold);
     }
+  }
+
+  // Where each thing a rule can read or be on is drawn, for the dotted lines.
+  function placeOf(config, shape, item) {
+    if (item.kind === "block") return shape.blocks.find((b) => b.name === item.name)?.label || null;
+    if (item.kind === "mast") return shape.signals.find((x) => x.mast === item.name)?.head || null;
+    if (item.kind === "turnout") return list(config.logic.plan?.points).find((p) => isObject(p) && p.turnout === item.name)?.at || null;
+    return list(shape.fascia).find((f) => f.name === item.name)?.at || null;
+  }
+
+  // The dotted lines for what is selected in Behaviour and rules: from the
+  // thing to what each of its rules reads.
+  function linksFor(config, shape) {
+    const s = state.selected;
+    const O = Own();
+    if (state.step !== "behaviour" || !s || !O) return [];
+    const things = [];
+    if (s.kind === "fascia") things.push({ kind: "lamp", name: s.name });
+    if (s.kind === "point") {
+      const turnout = list(config.logic.plan?.points).find((p) => isObject(p) && key(p.at ?? [NaN, NaN]) === key(s.at))?.turnout;
+      if (turnout) things.push({ kind: "turnout", name: turnout });
+      for (const sig of list(E().breakAt(config.logic.plan, s.at)?.signals)) if (sig?.mast) things.push({ kind: "mast", name: sig.mast });
+    }
+    const out = [];
+    for (const thing of things) {
+      const from = placeOf(config, shape, thing);
+      if (!from) continue;
+      for (const rule of list(config.logic.plan?.rules)) {
+        const t = O.thingOf(rule);
+        if (!t || t.kind !== thing.kind || t.name !== thing.name) continue;
+        for (const read of O.readsOf(rule)) {
+          const to = placeOf(config, shape, read);
+          if (to) out.push({ from, to });
+        }
+      }
+    }
+    return out;
   }
 
   const PANELS = Object.freeze({ draw: drawPanel, sensors: sensorsPanel, signals: signalsPanel, behaviour: behaviourPanel });
@@ -982,6 +1305,8 @@
   function stillThere(config) {
     const s = state.selected;
     if (!s) return null;
+    if (s.kind === "spot") return s;
+    if (s.kind === "fascia") return list(config.logic?.plan?.pieces).some((p) => p?.name === s.name) ? s : null;
     if (s.kind === "point") return E().kindAt(config, s.at) === "none" ? null : s;
     return E().stretchOfBlock(config, s.a, s.b).length ? s : null;
   }
@@ -1062,7 +1387,7 @@
     const upTo = (m) => order.indexOf(m.step) <= order.indexOf(step);
     const found = marks(config, shape).filter(upTo);
     const picture = (drawn) => {
-      const drawing = drawPicture(config, drawn, tool, marks(config, drawn).filter(upTo));
+      const drawing = drawPicture(config, drawn, tool, marks(config, drawn).filter(upTo), linksFor(config, drawn));
       listen(drawing, config, ctx, drawn, tool);
       return drawing;
     };
