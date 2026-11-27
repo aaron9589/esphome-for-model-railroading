@@ -28,7 +28,7 @@
     starved: (rule, section) => `${rule} can be passed over forever: other trains keep getting section "${section}" while it waits. Use Show me to see how.`,
     neverActive: (rule) => `${rule} can never apply: no mix of trains, turnouts and signals makes its When and Only if true together. Look for a block that must be both occupied and clear.`,
     stuck: (mast) => `Signal "${mast}" can never show anything but Stop: no rule that sets it can apply. Check the rules that set it.`,
-    tooMany: (runs, quick) => `This board has too many combinations to check every one${quick ? " quickly" : ""}, so the checker tried ${runs} random runs. It may not have found every problem.${quick ? " Use Check every combination on the Download page to check them all: it can take a few seconds." : ""}`,
+    tooMany: (runs, quick) => `This board has too many combinations to check every one${quick ? " quickly" : ""}${runs ? `, so the checker tried ${runs} random runs` : ""}. It may not have found every problem.${quick ? " Use Check every combination on the Download page to check them all: it can take a few seconds." : ""}`,
     neverSeen: (rule, runs) => `${rule} did not apply in ${runs} random runs. It may never apply: look for a block that must be both occupied and clear.`,
     stuckSeen: (mast, runs) => `Signal "${mast}" showed only Stop in ${runs} random runs. Check the rules that set it.`,
   });
@@ -334,16 +334,30 @@
     const kept = targets.filter((cone, i) => !targets.some((other, j) => j !== i && inside(cone, other) && (other.size > cone.size || j < i)));
     // A group nothing reads joins a part that has all it reads, when it
     // reads no input that part does not; otherwise it is a part of its own.
-    const namesOf = (cone) => new Set([...cone].flatMap((g) => membersOf.get(g).flatMap((i) => {
+    // The inputs each group reads, worked out once; a part's are its groups'.
+    const resourceBlocks = new Map(list(logic.resources).map((r) => [r?.name, list(r?.blocks).map((b) => (typeof b === "string" ? { block: b } : {}))]));
+    const groupNames = new Map(groups.map((g) => [g, new Set(membersOf.get(g).flatMap((i) => {
       const { rule } = rules[i];
-      return namesIn([rule?.trigger, rule?.checks, rule?.cancel, rule?.withdraw, ...reservesOf(rule).map((res) => [releaseOf.get(res), list(list(logic.resources).find((r) => r?.name === res)?.blocks).map((b) => (typeof b === "string" ? { block: b } : {}))])]);
-    })));
+      return namesIn([rule?.trigger, rule?.checks, rule?.cancel, rule?.withdraw, ...reservesOf(rule).map((res) => [releaseOf.get(res), resourceBlocks.get(res)])]);
+    }))]));
+    const namesCache = new Map();
+    const namesOf = (cone) => {
+      if (!namesCache.has(cone)) {
+        const names = new Set();
+        for (const g of cone) for (const name of groupNames.get(g)) names.add(name);
+        namesCache.set(cone, names);
+      }
+      return namesCache.get(cone);
+    };
+    const within = (a, b) => [...a].every((name) => b.has(name));
     for (const sink of sinks) {
       const own = coneOf([sink]);
       const rest = new Set([...own].filter((g) => g !== sink));
-      const into = rest.size ? kept.find((cone) => inside(rest, cone) && [...namesOf([sink])].every((name) => namesOf(cone).has(name))) : null;
-      if (into) into.add(sink);
-      else if (!kept.some((cone) => inside(own, cone))) kept.push(own);
+      const into = rest.size ? kept.find((cone) => inside(rest, cone) && within(groupNames.get(sink), namesOf(cone))) : null;
+      if (into) {
+        into.add(sink);
+        namesCache.delete(into);
+      } else if (!kept.some((cone) => inside(own, cone))) kept.push(own);
     }
     // A part that reads no input another does not is checked with it: its
     // rules add few states to the other's, and none of the other's inputs.
@@ -351,11 +365,9 @@
       merged = false;
       for (let a = 0; a < kept.length && !merged; a += 1) {
         for (let b = 0; b < kept.length && !merged; b += 1) {
-          if (a === b) continue;
-          const mine = namesOf(kept[a]);
-          const theirs = namesOf(kept[b]);
-          if (![...mine].every((name) => theirs.has(name))) continue;
+          if (a === b || !within(namesOf(kept[a]), namesOf(kept[b]))) continue;
           for (const g of kept[a]) kept[b].add(g);
+          namesCache.delete(kept[b]);
           kept.splice(a, 1);
           merged = true;
         }
