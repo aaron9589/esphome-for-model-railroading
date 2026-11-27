@@ -836,7 +836,7 @@ bool Engine::holds_any(uint16_t r) const {
   return false;
 }
 
-void Engine::eval_trigger(uint16_t r, const Ctx &ctx) {
+void Engine::eval_trigger(uint16_t r, const Ctx &) {
   const Rule &rule = t_.rules[r];
   RuleState &rs = rules_[r];
   const Trigger &t = rule.trigger;
@@ -861,18 +861,7 @@ void Engine::eval_trigger(uint16_t r, const Ctx &ctx) {
     }
     is_true = asked;
   } else {
-    const bool seen = t.present && t.cond != NONE && condition(t.cond);
-    if (t.leaving_guard) {
-      if (!seen)
-        st.guard = false;
-      else if (!ctx.startup && st.prev_raw == 0) {
-        for (uint16_t k = 0; k < t.guard_count; k++)
-          if (ctx.held_at_start[t_.res_refs[t.guard_first + k]]) st.guard = true;
-      }
-    }
-    st.prev_raw = seen ? 1 : 0;
-    // Rule 20: while guarded the trigger counts as false, for its for too.
-    const bool raw = seen && !st.guard;
+    const bool raw = t.present && t.cond != NONE && condition(t.cond);
     if (raw) {
       if (st.run_true < 0) st.run_true = n_;
       st.run_false = -1;
@@ -882,7 +871,7 @@ void Engine::eval_trigger(uint16_t r, const Ctx &ctx) {
       st.run_true = -1;
       if (st.eff && (n_ - st.run_false) * SCAN_MS >= t.for_ms) st.eff = false;
     }
-    is_true = st.eff && !st.guard;
+    is_true = st.eff;
   }
   if (is_true && st.since < 0) st.since = n_;
   if (!is_true) st.since = -1;

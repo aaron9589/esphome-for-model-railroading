@@ -278,62 +278,6 @@ test("play starts from power-on each time", () => {
 
 // ===== Track shapes ===========================================================
 
-function sectionConfig({ leave = false } = {}) {
-  const config = boardFor({ board: { sensors: ["Left", "Bridge", "Right"], masts: { "Left Bridge": { aspects: { R292: 0, R281: 0 } }, "Right Bridge": { aspects: { R292: 0, R281: 0 } } } } });
-  apply(config, "one-train-section", {
-    name: "Bridge",
-    blocks: ["Bridge"],
-    entrances: [
-      { block: "Left", mast: "Left Bridge", aspect: "R281", leave },
-      { block: "Right", mast: "Right Bridge", aspect: "R281", leave },
-    ],
-  });
-  return config;
-}
-
-test("the track shape of a One-train section group", () => {
-  const config = sectionConfig();
-  const [shape, ...more] = Try.shapesOf(config);
-  assert.equal(more.length, 0);
-  assert.equal(shape.group, "Bridge");
-  assert.equal(shape.kind, "one-train-section");
-  assert.equal(shape.rows.length, 1);
-  assert.deepEqual(plain(shape.rows[0].items.map((i) => `${i.type}:${i.name}`)), ["block:Left", "mast:Left Bridge", "block:Bridge", "mast:Right Bridge", "block:Right"]);
-  assert.deepEqual(plain(shape.rows[0].items.filter((i) => i.type === "mast").map((i) => i.dir)), [1, -1], "each faces its way in");
-  assert.deepEqual(plain(shape.blocks), ["Left", "Bridge", "Right"]);
-  assert.deepEqual(plain(shape.masts), ["Left Bridge", "Right Bridge"]);
-  // The strip lays out left to right, and a train can run along it.
-  const layout = Try.stripLayout(shape.rows[0]);
-  assert.deepEqual(plain(layout.items.map((i) => i.name)), ["Left", "Left Bridge", "Bridge", "Right Bridge", "Right"]);
-  assert.ok(layout.items.every((item, i) => i === 0 || item.x >= layout.items[i - 1].x + layout.items[i - 1].w));
-  assert.deepEqual(plain(Try.trainPath(shape.rows[0], "Left")), ["Left", "Bridge", "Right"]);
-  assert.deepEqual(plain(Try.trainPath(shape.rows[0], "Right", "back")), ["Right", "Bridge", "Left"]);
-  assert.deepEqual(plain(Try.trainPath(shape.rows[0], "Nowhere")), []);
-
-  // Click a block, and the signals follow: a train at Left asks for the bridge.
-  const session = Try.createSession(config);
-  session.setBlock("Left", true);
-  session.advance(2000);
-  assert.equal(session.blockOccupied("Left"), true);
-  assert.equal(session.view().masts.find((m) => m.name === "Left Bridge").aspect, "R281");
-  assert.equal(session.view().masts.find((m) => m.name === "Right Bridge").aspect, "R292");
-  session.setBlock("Left", false);
-  assert.equal(session.blockOccupied("Left"), false);
-});
-
-test("a One-train section with three entrances is a row for each", () => {
-  const config = boardFor({ board: { sensors: ["A", "B", "C", "Mid"], masts: { MA: { aspects: { R292: 0, R281: 0 } }, MB: { aspects: { R292: 0, R281: 0 } }, MC: { aspects: { R292: 0, R281: 0 } } } } });
-  apply(config, "one-train-section", {
-    name: "Diamond",
-    blocks: ["Mid"],
-    entrances: ["A", "B", "C"].map((block) => ({ block, mast: `M${block}`, aspect: "R281", leave: false })),
-  });
-  const [shape] = Try.shapesOf(config);
-  assert.equal(shape.rows.length, 3);
-  assert.deepEqual(plain(shape.rows.map((row) => row.items.map((i) => i.name))), [["A", "MA", "Mid"], ["B", "MB", "Mid"], ["C", "MC", "Mid"]]);
-  assert.deepEqual(plain(shape.blocks), ["A", "Mid", "B", "C"]);
-});
-
 test("the track shape of a Block signals group, turnouts included", () => {
   const config = workedExampleConfig();
   config.points = [{ name: "P1", topic: topicFor("point", "P1") }];
@@ -367,9 +311,8 @@ test("the track shape of a Block signals group, turnouts included", () => {
 
 test("groups with no starter, or no known shape, give none", () => {
   assert.deepEqual(plain(Try.shapesOf(readCase("blocksig-worked-example").board)), []);
-  const config = sectionConfig();
-  config.logic.layers[0].starter = "route-signal";
-  assert.deepEqual(plain(Try.shapesOf(config)), []);
+  // A route signal group, and a One-train section's (that starter went in TP 9), have no shape.
+  assert.deepEqual(plain(Try.shapesOf({ logic: { layers: [{ name: "R", starter: "route-signal", rules: [] }, { name: "B", starter: "one-train-section", rules: [] }] } })), []);
   assert.deepEqual(plain(Try.shapesOf({})), []);
   assert.equal(Try.createSession({ logic: { layers: [] }, masts: {} }), null, "no rules, no session");
 });

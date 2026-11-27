@@ -603,7 +603,7 @@ Each board picks one **logic mode** on the Logic page:
 | JMRI/CATS hold, logic switch | yes | yes |
 | Share with other boards | on by default | always on (neighbours read it) |
 
-**Switching mode** keeps both descriptions in the file, but only the chosen mode generates YAML. **Convert to Field Logic** is offered in MSS Logic mode. It copies the built items, plant ends included, into Field Logic as ordinary, editable blocks, masts, plant ends and layers, and switches the mode. The board still pairs at a meet. It only goes that way: Field Logic rules cannot be turned back into an MSS description.
+**Switching mode** keeps both descriptions in the file, but only the chosen mode generates YAML. (*Convert to Field Logic* went in TP 9, with the old Field Logic page: Field Logic is now a drawing.)
 
 ## Ease of use
 
@@ -734,7 +734,6 @@ Measured on an Apple-silicon Mac with Node 26. A + means the check stopped at it
 | One-train section, 2 entrances | 3 | 2 | 1 (3) | 120, 0.01 s | done | done |
 | One-train section, 3 entrances | 4 | 3 | 1 (4) | 1,024, 0.09 s | done | done |
 | One-train section, 4 entrances | 5 | 4 | 1 (5) | 10,388, 1.0 s | 2,000+ | done |
-| 4 entrances, trains leave the way they came | 5 | 4 | 1 (5) | 3,889, 0.4 s | 2,000+ | done |
 | 4 entrances, Hold after cancelling 10 s | 5 | 4 | 1 (5) | 14,543, 1.5 s | 2,000+ | done |
 | 4 entrances, two blocks in the section | 6 | 4 | 1 (6) | 20,775, 2.5 s | 2,000+ | done |
 | Block signals worked example | 4 | 12 | 1 (4) | 123, 0.02 s | done | done |
@@ -987,7 +986,7 @@ In `configurator/test/`, run through `configurator/package.json`:
   - Share with other boards on its own adds the publishes and nothing else.
 - **Virtual masts:** no lamp code; `/State` published; validation error when no rule sets one.
 - **Interpreter, C++ and JS:** the interpreter core is compiled on a computer in CI, with no ESP. The JS engine and the C++ core replay the same **test cases**, kept as JSON in `configurator/test/cases/`: an input sequence in, and the expected outputs scan by scan. Every Scan, Rules and Fail safe test below is written as such a case, so both engines must pass all of them.
-- **Logic modes:** only the chosen mode generates; switching keeps both descriptions; Convert to Field Logic gives editable items that generate the same YAML and the same version code as the MSS Logic they came from. The [MSS Logic spec](mss-emulation-spec.md) has its own tests.
+- **Logic modes:** only the chosen mode generates; switching keeps both descriptions. The [MSS Logic spec](mss-emulation-spec.md) has its own tests.
 - **JMRI XML:** the Logic box adds each block as a sensor, `MLlogic/<board>`, `MTlogic/<board>/<resource>/Release`, `MSlogic/<board>/<resource>/Held` and `MSboard/<board>/Online`, validating against JMRI's `layout-4-19-2.xsd`. Unticked, it adds none of them, and the other three boxes give what they do today. The Release turnout has no `/Thrown` feedback. None with MQTT off.
 - **Scan** (against `logic.js`):
   - a pulse shorter than a scan is still seen, including "occupied, then clear" inside one scan
@@ -1000,14 +999,12 @@ In `configurator/test/`, run through `configurator/package.json`:
   - cancel before passing; a trigger flicker shorter than its *for* neither starts nor cancels a request
   - approach locking: off frees at once; on holds for the time, then frees; a block occupied during that time goes to PASSED; manual release ends it
   - a detector dropout shorter than the release delay does not release
-  - the leaving guard: a departing train does not clear its own mast
   - who wins a mast: first active rule within a layer, most restrictive across layers, in tag order
   - block signals: the worked example's four rows; the tumbledown with and without Advance Approach; Approach Diverging behind a diverging aspect, and Approach there when Approach Diverging is not used; a remote next mast going offline leaves Approach; a reversed or moving turnout in a block gives Stop
   - the two lock flags: the re-sync runs only when both are clear, not when one of two clears.
   - lock turnouts under a train: the turnout is locked while its block is occupied, and unlocked once it clears
   - several resources: all at once or none, the one that waited first goes first, and each passed and freed on its own
   - several resources: approach locking for each, and a manual release of one
-  - a leaving guard that watches the resources it names
   - route signal: the first row whose turnouts and blocks match wins; a moving turnout matches no row; a row that follows the next mast joins the block signals tumbledown
   - block signals round a continuous run settle, and drop and recover behind a train, with and without Advance Approach
   - a switch on the fascia: a rule reads it on or off, and as a moment going on
@@ -1023,7 +1020,6 @@ In `configurator/test/`, run through `configurator/package.json`:
   - a held mast is not granted until unheld; held after the grant, before passing, cancels it so another rule can go
   - with logic on, a JMRI message's aspect name is ignored (`refresh()`, `null; Lit; Held`)
   - a stale hold stays at Stop until released
-  - the start-up scan counts a train in a leaving-guard block as waiting
   - switching off hands masts to JMRI's last aspect; switching on runs a start-up scan.
 - **Plant ends:**
   - an end offers its Block and Mast; a pass-through offers its own sensors OR the far end's Block, and the far end's Mast

@@ -154,8 +154,6 @@
         rule.resources = resourcesNamed(rule.then.reserve);
         rule.resource = rule.resources.length ? rule.resources[0] : null;
         for (const res of rule.resources) res.rules.push(rule);
-        const guard = rule.def.trigger?.leavingGuard;
-        rule.guard = Array.isArray(guard) ? resourcesNamed(guard) : guard ? rule.resources : [];
         // A reserving When rule's request: its own, or its routes group's,
         // which the group's reserving When rules share (rule 5).
         if (rule.resource && rule.def.trigger?.when) {
@@ -726,14 +724,7 @@
         }
         isTrue = Boolean(asked);
       } else {
-        const seen = condition(t.while);
-        if (t.leavingGuard) {
-          if (!seen) st.guard = false;
-          else if (!ctx.startup && st.prevRaw === false && rule.guard.some((res) => ctx.heldAtStart.has(res))) st.guard = true;
-        }
-        st.prevRaw = seen;
-        // Rule 20: while guarded the trigger counts as false, for its *for* too.
-        const raw = seen && !st.guard;
+        const raw = condition(t.while);
         if (raw) {
           if (st.runTrue === null) st.runTrue = n;
           st.runFalse = null;
@@ -743,7 +734,7 @@
           st.runTrue = null;
           if (st.eff && (n - st.runFalse) * SCAN_MS >= rule.forMs) st.eff = false;
         }
-        isTrue = st.eff && !st.guard;
+        isTrue = st.eff;
       }
       if (isTrue && st.since === null) st.since = n;
       if (!isTrue) st.since = null;
@@ -1501,7 +1492,6 @@
     else if (t.while) {
       lead.push(sayCondition(t.while, t.for));
       conds.push(t.while);
-      if (t.leavingGuard) lead.push("that train did not arrive while the section was in use");
     }
     const checks = rule.checks || [];
     const reserve = [].concat(rule.then?.reserve ?? []).filter((name) => name !== "");

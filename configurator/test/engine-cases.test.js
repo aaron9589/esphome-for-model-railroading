@@ -177,7 +177,6 @@ function checkBoard(file, data) {
     else if (t.when) {
       condition(t.when, `${where} when`);
       (t.then || []).forEach((m, i) => condition(m, `${where} then ${i + 1}`));
-      if (t.leavingGuard) fail(where, "a leaving guard needs a while trigger");
     } else fail(where, "neither while nor when");
   }
 
@@ -199,8 +198,7 @@ function checkBoard(file, data) {
         else if (!(then.aspect in masts[then.mast].aspects)) fail(where, `${then.mast} has no aspect ${then.aspect}`);
       }
       for (const name of [].concat(then.reserve ?? [])) if (!resources.has(name)) fail(where, `reserves ${name}`);
-      const guard = rule.trigger?.leavingGuard;
-      if (Array.isArray(guard)) for (const name of guard) if (!resources.has(name)) fail(where, `leaving guard watches ${name}`);
+      if (rule.trigger?.leavingGuard !== undefined) fail(where, "the leaving guard went in TP 9");
       for (const t of then.lock || []) if (!turnouts.has(typeof t === "string" ? t : t?.turnout)) fail(where, `locks ${JSON.stringify(t)}`);
       if (then.lamp !== undefined && (typeof then.lamp !== "string" || !["on", "flash"].includes(then.light ?? "on"))) fail(where, `lamp ${then.lamp} ${then.light}`);
       if (rule.cancel) {
@@ -440,12 +438,12 @@ test("the README's table lists every case file", () => {
 });
 
 test("the check would catch a broken case", () => {
-  const broken = JSON.parse(JSON.stringify(cases.find(({ file }) => file === "rules-leaving-guard.json")));
-  broken.data.steps.push({ at: 999, do: [{ sensor: "Nowhere", is: "occupied" }], expect: { masts: { "Left Bridge": "R999" }, rules: { "Single line/9": "active" } } });
+  const broken = JSON.parse(JSON.stringify(cases.find(({ file }) => file === "rules-cancel-and-flicker.json")));
+  broken.data.steps.push({ at: 999, do: [{ sensor: "Nowhere", is: "occupied" }], expect: { masts: { "Left Bridge": "R999" }, rules: { "Gauntlet/9": "active" } } });
   const problems = check(broken);
   assert.ok(problems.some((p) => p.includes("sensor Nowhere")));
   assert.ok(problems.some((p) => p.includes("no aspect R999")));
-  assert.ok(problems.some((p) => p.includes("no rule Single line/9")));
+  assert.ok(problems.some((p) => p.includes("no rule Gauntlet/9")));
   const odd = JSON.parse(JSON.stringify(broken));
   odd.data.board.remote = { south: { masts: { Home: {} } } };
   odd.data.start = { remote: { south: { online: "true", masts: { Home: "R281" } } }, jmri: { "Left Bridge": 7 } };

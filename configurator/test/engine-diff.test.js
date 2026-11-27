@@ -145,7 +145,7 @@ const EXTRA_BOARDS = {
           { name: "One", rules: [
             { trigger: { when: { button: "Go", is: "pressed" } }, checks: [{ any: [{ block: "C", is: "clear" }, { turnout: "P1", is: ["closed"] }] }],
               then: { mast: "M1", aspect: "R281", reserve: "Main", lock: ["P1"] }, cancel: { when: { button: "Stop it", is: "pressed" } } },
-            { trigger: { while: { block: "Outer", is: "occupied" }, for: "0.4s", leavingGuard: true }, checks: [{ not: { mast: "JM", is: ["stop", "restricting"] } }],
+            { trigger: { while: { block: "Outer", is: "occupied" }, for: "0.4s" }, checks: [{ not: { mast: "JM", is: ["stop", "restricting"] } }],
               then: { mast: "M2", aspect: "R285", reserve: "Main" } },
             { trigger: { while: { board: "south", mast: "RM", is: "diverging" } }, checks: [{ board: "south", turnout: "RT", is: "thrown" }],
               then: { mast: "M3", aspect: "R283", lock: ["P2"] } },
@@ -226,16 +226,16 @@ const EXTRA_BOARDS = {
         ],
         layers: [
           { name: "Moves", rules: [
-            { trigger: { while: { block: "W", is: "occupied" }, for: "0.5s", leavingGuard: true }, checks: [{ turnout: "P1", is: "closed" }],
+            { trigger: { while: { block: "W", is: "occupied" }, for: "0.5s" }, checks: [{ turnout: "P1", is: "closed" }],
               then: { mast: "West", aspect: "R281", reserve: ["A", "B", "A", "Nowhere"], lock: ["P1"] } },
-            { trigger: { while: { block: "N", is: "occupied" }, for: "0.3s", leavingGuard: ["C"] }, checks: [],
+            { trigger: { while: { block: "N", is: "occupied" }, for: "0.3s" }, checks: [],
               then: { mast: "North", aspect: "R285", reserve: ["B", "C"] } },
             { trigger: { when: { block: "S", is: "occupied" } }, checks: [{ block: "C", is: "clear" }],
               then: { mast: "South", aspect: "R281", reserve: ["C"] }, cancel: { when: { block: "S", is: "clear" } } },
             { trigger: { while: { block: "S", is: "clear" } }, checks: [], then: { mast: "South", aspect: "R285", reserve: [] } },
           ] },
           { name: "More", rules: [
-            { trigger: { while: { block: "D", is: "occupied" }, leavingGuard: ["A", "Nowhere"] }, checks: [], then: { mast: "North", aspect: "R281", reserve: ["A", "C"] } },
+            { trigger: { while: { block: "D", is: "occupied" } }, checks: [], then: { mast: "North", aspect: "R281", reserve: ["A", "C"] } },
           ] },
         ],
       },

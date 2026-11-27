@@ -37,7 +37,7 @@ MSS Logic **builds** ordinary engine items from its description:
 
 They are rebuilt whenever the description changes. Only the description is stored; the built items are rebuilt from it when the file is loaded. They are part of the rule table, so they count towards the version code.
 
-**Convert to Field Logic** copies the built items into Field Logic as ordinary, editable blocks, masts, plant ends and layers, and switches the mode. Use it when a module needs something MSS does not do, such as a one-train section. It only goes one way: the converted board is no longer described the MSS way. Its plant ends come with it, so it still pairs at a meet.
+*Convert to Field Logic* went in TP 9, with the old Field Logic page: Field Logic is now a drawing of the track, which MSS Logic may move to later.
 
 ## Masts
 
@@ -287,7 +287,6 @@ In `configurator/test/`, run through `configurator/package.json`, against the sa
   - a two-block track builds two engine blocks (the boundary sensor in both), one layer each way, and a virtual mast for a `null` mast
   - blocks at an end include what it hears; blocks at a junction include its sensors; a pass-through builds one block
   - built items are read-only and rebuilt on change
-  - Convert to Field Logic gives editable items, plant ends included, with the same YAML and version code.
 - **MSS behaviour:**
   - the four rows of MSS Appendix B (occupancy ahead to indication), with and without Advance Approach
   - the User Guide's train passing a block: the leading optical sensor, then the current sensor, then the trailing optical sensor hold the block occupied until the last car has gone

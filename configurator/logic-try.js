@@ -762,26 +762,6 @@
     return items;
   }
 
-  function oneTrainSectionShape(layer, resources) {
-    const rules = list(layer.rules).filter(isObject);
-    const entrances = rules.map((rule) => ({ block: refOf(rule.trigger?.while), mast: rule.then?.mast, section: rule.then?.reserve })).filter((e) => e.block !== undefined && e.mast);
-    if (entrances.length < 2) return null;
-    const section = list(resources).find((r) => r?.name === entrances[0].section);
-    const blocks = list(section?.blocks);
-    if (!blocks.length) return null;
-    const key = (ref) => JSON.stringify(ref);
-    const inside = new Set(blocks.map(key));
-    const middle = blocks.map((ref) => blockItem(ref));
-    const rows = [];
-    const entrance = (e) => (inside.has(key(e.block)) ? [] : [blockItem(e.block)]);
-    if (entrances.length === 2) {
-      const [a, b] = entrances;
-      rows.push({ items: [...entrance(a), mastItem(a.mast, 1), ...middle, mastItem(b.mast, -1), ...entrance(b).reverse()] });
-    } else {
-      for (const e of entrances) rows.push({ items: [...entrance(e), mastItem(e.mast, 1), ...middle] });
-    }
-    return rows;
-  }
 
   /** The shapes of the groups in a config or engine board that a starter wrote. */
   function shapesOf(source) {
@@ -792,7 +772,7 @@
       if (layer.starter === "block-signals") {
         const items = blockSignalsShape(layer);
         if (items) rows = [{ items }];
-      } else if (layer.starter === "one-train-section") rows = oneTrainSectionShape(layer, logic.resources);
+      }
       if (!rows) continue;
       const everything = rows.flatMap((row) => row.items);
       shapes.push({

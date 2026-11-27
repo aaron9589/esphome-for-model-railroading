@@ -338,8 +338,6 @@
     rules.forEach(({ layer, routes, rule }, i) => {
       const reserves = reservesOf(rule);
       for (const res of reserves) join(i, `res${SEP}${res}`);
-      const guard = rule?.trigger?.leavingGuard;
-      for (const res of Array.isArray(guard) ? guard : []) join(i, `res${SEP}${res}`);
       if (routes && reserves.length && rule?.trigger?.when) join(i, `ask${SEP}${layer}`);
     });
     const groups = [...new Set(rules.map((_, i) => find(i)))];
@@ -765,7 +763,7 @@
     // after it is granted, so with its train still there it can go first
     // again and again (rules-several-resources): only rules that ask *when*
     // something happens, as routes do, wait their turn after each grant.
-    return list(logic.layers).every((layer) => list(layer.rules).every((rule) => !rule?.trigger?.leavingGuard && (reservesOf(rule).length === 0 || rule?.trigger?.when !== undefined)));
+    return list(logic.layers).every((layer) => list(layer.rules).every((rule) => reservesOf(rule).length === 0 || rule?.trigger?.when !== undefined));
   }
 
   function routeProblems(board, auto = "on", endBlocks = []) {

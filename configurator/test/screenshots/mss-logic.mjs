@@ -189,11 +189,6 @@ await blur(page);
 await shot(picture(page), "08-west-track");
 await shot("#logic-mss-steps", "09-west-steps");
 
-// Step 12: Convert to Field Logic. West stops here, so it can be the copy.
-const convert = page.locator("#logic-mss-convert");
-await convert.getByRole("button", { name: "Convert to Field Logic" }).click();
-await shot(convert, "19-convert");
-
 // ===== East: a fresh board ===================================================
 
 const east = await freshPage();

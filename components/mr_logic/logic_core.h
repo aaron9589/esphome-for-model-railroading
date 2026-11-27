@@ -65,8 +65,6 @@ struct Node {
 struct Trigger {
   bool present = false;
   bool when = false;
-  bool leaving_guard = false;
-  uint16_t guard_first = 0, guard_count = 0;  // the resources the leaving guard watches: a range in Table::res_refs
   uint16_t cond = NONE;  // while
   uint16_t seq_first = 0, seq_count = 0;  // when, then ...: a range in Table::seq
   uint32_t for_ms = 0;

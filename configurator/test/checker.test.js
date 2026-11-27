@@ -14,11 +14,11 @@ const readCase = (name) => JSON.parse(fs.readFileSync(path.join(configuratorDir,
 const kinds = (result) => plain(result.problems.map((p) => `${p.level}:${p.kind}:${p.rule ?? p.mast ?? ""}`));
 
 // The gauntlet over a bridge, as the One-train section starter writes it.
-function gauntlet({ leave = false } = {}) {
+function gauntlet() {
   const mast = { aspects: { R292: "stop", R281: "clear" } };
   const entrance = (block, other) => ({
-    trigger: { while: { block, is: "occupied" }, for: "0.5s", ...(leave ? { leavingGuard: true } : {}) },
-    checks: leave ? [{ block: other, is: "clear" }] : [],
+    trigger: { while: { block, is: "occupied" }, for: "0.5s" },
+    checks: [],
     then: { mast: `${block} Bridge`, aspect: "R281", reserve: "Bridge" },
   });
   return {
@@ -33,15 +33,15 @@ function gauntlet({ leave = false } = {}) {
 }
 
 test("passes the one-train section: a gauntlet, and a single-line bridge", () => {
-  for (const leave of [false, true]) {
-    const result = C.checkBoard(gauntlet({ leave }));
-    assert.equal(result.complete, true, `${leave}: ${result.states} states`);
-    assert.deepEqual(kinds(result), [], `leave ${leave}`);
+  {
+    const result = C.checkBoard(gauntlet());
+    assert.equal(result.complete, true, `${result.states} states`);
+    assert.deepEqual(kinds(result), []);
   }
 });
 
 test("passes the gauntlet cases' own boards, three entrances included", () => {
-  for (const file of ["rules-waiting-order.json", "rules-approach-locking-time.json", "rules-leaving-guard.json"]) {
+  for (const file of ["rules-waiting-order.json", "rules-approach-locking-time.json"]) {
     const result = C.checkBoard(readCase(file).board);
     assert.equal(result.complete, true, file);
     assert.deepEqual(kinds(result), [], file);
@@ -213,10 +213,9 @@ test("inputs the rules cannot tell apart are explored once", () => {
 test("parts and merged inputs find exactly what the whole board, every input, finds", () => {
   const boards = {
     gauntlet: gauntlet(),
-    "single line": gauntlet({ leave: true }),
     "gauntlet and yard": gauntletAndYard(),
     "worked example": readCase("blocksig-worked-example.json").board,
-    ...Object.fromEntries(["rules-waiting-order.json", "rules-approach-locking-time.json", "rules-leaving-guard.json", "starter-lock-turnouts.json", "starter-route-signal.json"].map((f) => [f, readCase(f).board])),
+    ...Object.fromEntries(["rules-waiting-order.json", "rules-approach-locking-time.json", "starter-lock-turnouts.json", "starter-route-signal.json"].map((f) => [f, readCase(f).board])),
     ...readCase("ends-three-boards-turned.json").boards,
   };
   const deadlock = gauntletAndYard();
