@@ -274,37 +274,42 @@ const tryCard = page.locator("#logic-plan-try");
 const tryPanel = tryCard.locator(".plan-panel");
 const tryClick = (x, y) => click(x, y, "logic-try-grid");
 const tryButton = (name) => tryCard.getByRole("button", { name, exact: true });
+// Try it runs in real time: the script stops the page's clock and moves it on.
+const pauseClock = async () => page.clock.pauseAt(await page.evaluate(() => Date.now() + 100));
+const wait = (ms) => page.clock.runFor(ms);
 const live = (cls) => tryCard.locator(`#logic-try-grid .plan-live.is-${cls}`).count();
+await pauseClock();
 await expectText(tryCard, "The board is in Auto", "Step 8");
 // A train in Left asks for Left Bridge's route: set, but held at Stop by the rule.
 await tryClick(0.5, 0);
-await tryButton("Skip ahead 1 second").click();
+await wait(1000);
 if (!(await live("route"))) throw new Error("Step 8: Left Bridge's route should be set, in green.");
 await tryClick(2, 0);
 await expectText(tryPanel, ["Signal Left Bridge", "Shows Stop."], "Step 8, held by the rule");
 await snap(tryCard, "11-try-route");
 // Press the button: Left Bridge clears.
 await tryClick(...buttonAt);
-await tryButton("Step").click();
+await wait(100);
 await tryClick(2, 0);
 await expectText(tryPanel, "Shows Clear.", "Step 8, the button pressed");
 // A train waiting in Right is held: the bridge is Left Bridge's.
 await tryClick(11.5, 2);
-await tryButton("Skip ahead 1 second").click();
+await wait(1000);
 await tryClick(10, 2);
 await expectText(tryPanel, "Shows Stop.", "Step 8, Right waits");
 await snap(tryCard, "12-try-clear");
 // The train crosses: into Bridge, out of Left, out of Bridge.
 await tryClick(6.5, 1);
-await tryButton("Skip ahead 1 second").click();
+await wait(1000);
 await tryClick(0.5, 0);
-await tryButton("Skip ahead 1 second").click();
+await wait(1000);
 await tryClick(6.5, 1);
-await tryButton("Skip ahead 10 seconds").click();
-await tryButton("Skip ahead 10 seconds").click();
+// About 3 seconds later the bridge is given back.
+await wait(4000);
 await tryClick(10, 2);
 await expectText(tryPanel, "Shows Clear.", "Step 8, Right's turn");
 await tryButton("Start again").click();
+await page.clock.resume();
 
 // ===== Problems =============================================================
 
@@ -445,16 +450,18 @@ await click(3, 1);
 await expectText(panel, ["Rules on West turnout", "Example: hand this turnout to a local panel"], "A crossing loop, Behaviour");
 await next();
 // A meet: East turnout thrown, a train at each end.
+await pauseClock();
 await tryClick(13, 1);
 await tryClick(0.5, 1);
 await tryClick(15.5, 1);
-await tryButton("Skip ahead 1 second").click();
+await wait(1000);
 await tryClick(1, 1);
 await expectText(tryPanel, "Shows Approach.", "A crossing loop, West Home");
 await tryClick(15, 1);
 // A one-head mast has no diverging aspect of its own: it shows Approach.
 await expectText(tryPanel, ["Shows Approach.", `"East Home moves" took section "Loop"`], "A crossing loop, East Home");
 await snap(tryCard.locator("#logic-try-grid").locator(".."), "16-loop-meet");
+await page.clock.resume();
 
 // ===== An industry siding with a local panel =================================
 
@@ -489,11 +496,12 @@ await snap(trackCard, "17-local-panel");
 
 // Try it: the switch on, the signals go to Stop, and 30 seconds later the turnout is the panel's.
 await next();
+await pauseClock();
 await tryClick(...pieces[0].at);
-await tryButton("Skip ahead 1 second").click();
+await wait(1000);
 await tryClick(2, 1);
 await expectText(tryPanel, "Shows Stop.", "An industry siding, Try it");
-for (let i = 0; i < 3; i += 1) await tryButton("Skip ahead 10 seconds").click();
+for (let i = 0; i < 3; i += 1) await wait(10000);
 await snap(tryCard.locator("#logic-try-grid").locator(".."), "18-local-try");
 
 await done();

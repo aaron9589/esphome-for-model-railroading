@@ -25,6 +25,8 @@ const page = await browser.newPage({ viewport: { width: 1280, height: 1000 } });
 const errors = [];
 page.on("pageerror", (error) => errors.push(error.message));
 page.on("console", (message) => { if (message.type() === "error") errors.push(message.text()); });
+// Try it runs in real time: stop the page's clock and move it on by hand.
+await page.clock.install();
 await page.goto(`file://${path.join(configuratorDir, "index.html")}`);
 await page.evaluate(() => localStorage.clear());
 await page.reload();
@@ -44,6 +46,8 @@ await page.evaluate((m) => {
 }, module);
 await page.click('.nav-item[data-view="logic"]');
 await page.click("#logic-step-try");
+await page.clock.pauseAt(await page.evaluate(() => Date.now() + 100));
+const wait = (ms) => page.clock.runFor(ms);
 
 const grid = () => page.locator("#logic-try-grid");
 async function at(x, y) {
@@ -60,7 +64,7 @@ const lamp = (n) => page.locator("#logic-try-grid .plan-live-lamp").nth(n).getAt
 await click(12, 1);
 await click(0.5, 1);
 await click(19.5, 1);
-await page.click("button:text('Skip ahead 1 second')");
+await wait(1000);
 assert.ok((await count("route")) >= 2, "both routes are set, in green");
 assert.ok((await count("train")) >= 2, "two trains");
 await shot("try-1-both-routes");
@@ -74,16 +78,39 @@ await click(3.5, 1);
 await click(0.5, 1);
 await click(8.5, 1);
 await click(3.5, 1);
-await page.click("button:text('Step')");
+await wait(100);
 assert.ok((await count("taken")) >= 1, "track taken behind the train");
 await shot("try-2-meet");
-await page.click("button:text('Skip ahead 10 seconds')");
+await wait(10000);
 assert.equal(await count("taken"), 0, "freed behind the train");
 assert.ok((await page.locator(".plan-log li").count()) > 0, "what happened is listed");
 
 // Pick West Home: its panel says what it shows, and why.
 await click(2, 1);
 assert.match(await page.locator(".plan-panel").innerText(), /Signal West Home/);
+
+// Time runs on its own; Pause stops it, and Carry on starts it again.
+const seconds = async () => Number((await page.locator("#logic-try-time").innerText()).replace(/ s$/, ""));
+let before = await seconds();
+await wait(2000);
+assert.ok(Math.abs((await seconds()) - before - 2) < 0.15, "time runs on its own");
+await page.click("#logic-try-pause");
+before = await seconds();
+await wait(5000);
+assert.equal(await seconds(), before, "paused");
+await page.click("#logic-try-pause");
+await wait(1000);
+assert.ok((await seconds()) > before, "carried on");
+
+// Run a train from West Home: a block every few seconds, then gone.
+await page.click("button:text('Start again')");
+await page.selectOption("#logic-try-from", "West Home");
+await page.click("#logic-try-run");
+assert.ok((await count("train")) >= 1, "the train is in");
+assert.match(await page.locator("#logic-try-run").innerText(), /running/);
+await wait(60000);
+assert.equal(await count("train"), 0, "the train has run through");
+assert.match(await page.locator("#logic-try-run").innerText(), /^Run a train$/);
 
 await browser.close();
 if (errors.length) {

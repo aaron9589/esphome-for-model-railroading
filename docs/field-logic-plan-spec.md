@@ -235,7 +235,7 @@ The drawing already keeps signals at Stop while a turnout is set against them, s
 
 ## Try it
 
-The same drawing, live. Click a block to put a train in or take it out, a turnout to throw it, a button to press it, a switch to flip it, a controlled signal to ask for or cancel its route (as its button, or CATS, would), the Auto/Manual switch to flip it. **Run a train** from an end. Taken track is shaded, a set route is green, locked turnouts show a lock. A list says what happened, and the panel says why the selected signal shows what it does. Step, Skip ahead and Start again as today.
+The same drawing, live. Click a block to put a train in or take it out, a turnout to throw it, a button to press it, a switch to flip it, a controlled signal to ask for or cancel its route (as its button, or CATS, would), the Auto/Manual switch to flip it. **Run a train** from an end. Taken track is shaded, a set route is green, locked turnouts show a lock. A list says what happened, and the panel says why the selected signal shows what it does. Time runs in real time, as on the board, with Pause and Start again (decided 2026-11-28: no Step or Skip ahead).
 
 ## Download
 
