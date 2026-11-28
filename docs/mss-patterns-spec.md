@@ -6,15 +6,15 @@ Status: approved 2026-11-28; being built (milestone *MSS patterns*). It replaces
 
 MSS Logic is the opinionated mode: a module signals itself the way an MSS module does, with nothing to design. Today the page asks for a free-form description (ends, tracks, junctions and a Signals grid) and offers the standard MSS modules only as a shortcut. That puts the design work back on the person.
 
-The page is rebuilt around the **MSS node types**, as Iowa Scaled Engineering's boards build them, called **MSS boards** on the page. You place the boards your module is made of as cards, left to right, flipping them as needed, and they are stitched into one module; the page then steps you through wiring and signals on a picture of it. Every module is a mix of those three boards (amended 2026-11-28: no Siding end or Passing siding of their own; a passing siding is a sample, two Complex cascades). There is nothing to describe and nothing to draw freehand. A module that fits no pattern belongs in Field Logic's drawing.
+The page is rebuilt around the **MSS node types**, as the MSS standard (an open standard) defines them, called **MSS boards** on the page. You place the boards your module is made of as cards, left to right, flipping them as needed, and they are stitched into one module; the page then steps you through wiring and signals on a picture of it. MSS is an open standard: the page and these documents name its node types, never a maker's boards. Every module is a mix of those three boards (amended 2026-11-28: no Siding end or Passing siding of their own; a passing siding is a sample, two Complex cascades). There is nothing to describe and nothing to draw freehand. A module that fits no pattern belongs in Field Logic's drawing.
 
 ## The nodes
 
-| Node | ISE board | Sides | What it is |
-|---|---|---|---|
-| **Crossover** | MSS-CROSSOVER | 1 \| 1 | One block, one current detector, no signals |
-| **Cascade** | MSS-CASCADE-BASIC | 1 \| 1 | A block each side of an IR sensor, and a signal facing each way at the IR sensor |
-| **Complex cascade** | MSS-SWITCH | 1 \| 2 | Where the track divides at a turnout: a block to the points, then the main line and the diverging track (drawn as a siding). An IR sensor at the points, a two-head signal facing the points from the single track (upper head the main line, lower the diverging track), and a single-head signal facing back from each of the main and the diverging track |
+| Node | Sides | What it is |
+|---|---|---|
+| **Crossover** | 1 \| 1 | One block, one current detector, no signals |
+| **Cascade** | 1 \| 1 | A block each side of an IR sensor, and a signal facing each way at the IR sensor |
+| **Complex cascade** | 1 \| 2 | Where the track divides at a turnout: a block to the points, then the main line and the diverging track (drawn as a siding). An IR sensor at the points, a two-head signal facing the points from the single track (upper head the main line, lower the diverging track), and a single-head signal facing back from each of the main and the diverging track |
 
 A Complex cascade can be **flipped** (2 \| 1), so its points face the other way.
 

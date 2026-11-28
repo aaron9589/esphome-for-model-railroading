@@ -1,11 +1,11 @@
 // MSS Logic from the standard nodes (docs/mss-patterns-spec.md; work item
 // MP 1). A module is a row of MSS nodes, left to right, on one board:
 //
-//   crossover  MSS Crossover (ISE MSS-CROSSOVER): one block, no signals. A
+//   crossover  MSS Crossover: one block, no signals. A
 //              whole module on its own: in a row it would add nothing.
-//   cascade    MSS Cascade (ISE MSS-CASCADE-BASIC): a block each side of an
+//   cascade    MSS Cascade: a block each side of an
 //              IR sensor, and a signal facing each way at it.
-//   complex    MSS Complex Cascade (ISE MSS-SWITCH), where the track divides
+//   complex    MSS Complex Cascade, where the track divides
 //              at a turnout: a block to the points, then the main line and
 //              the diverging track (drawn as a siding). An IR sensor at the
 //              points, a two-head signal facing the points from the single
@@ -32,9 +32,9 @@
 
   const TEXT = Object.freeze({
     nodes: Object.freeze({
-      crossover: Object.freeze({ title: "Crossover", board: "ISE MSS-CROSSOVER", about: "One block right across the module, with one current detector and no signals." }),
-      cascade: Object.freeze({ title: "Cascade", board: "ISE MSS-CASCADE-BASIC", about: "A block each side of an IR sensor, and a signal facing each way at it." }),
-      complex: Object.freeze({ title: "Complex cascade", board: "ISE MSS-SWITCH", about: "Where the track divides at a turnout: a block to the points, then the main line and the diverging track. A two-head signal faces the points from the single track, and one head faces back from each of the others." }),
+      crossover: Object.freeze({ title: "Crossover", about: "One block right across the module, with one current detector and no signals." }),
+      cascade: Object.freeze({ title: "Cascade", about: "A block each side of an IR sensor, and a signal facing each way at it." }),
+      complex: Object.freeze({ title: "Complex cascade", about: "Where the track divides at a turnout: a block to the points, then the main line and the diverging track. A two-head signal faces the points from the single track, and one head faces back from each of the others." }),
     }),
     // One-click starting points: a board on its own, or a sample of boards stitched together.
     presets: Object.freeze({
