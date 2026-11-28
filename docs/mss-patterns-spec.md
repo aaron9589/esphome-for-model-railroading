@@ -1,6 +1,6 @@
 # MSS Logic from the standard nodes — Feature Spec (draft)
 
-Status: draft, for approval. It replaces the MSS Logic page described in the [MSS Logic spec](mss-emulation-spec.md) (its *Where it lives* and *Ease of use*). The engine side of that spec (masts, tracks, junctions, plant ends, what is built, validation and tests) stays as it is.
+Status: approved 2026-11-28; being built (milestone *MSS patterns*). It replaces the MSS Logic page described in the [MSS Logic spec](mss-emulation-spec.md) (its *Where it lives* and *Ease of use*). The engine side of that spec (masts, tracks, junctions, plant ends, what is built, validation and tests) stays as it is.
 
 ## Why
 
