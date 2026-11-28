@@ -35,38 +35,49 @@ test("an empty MSS page has one thing to do: pick your module", () => {
   assert.equal(g.waiting, F.TEXT.stillToDo);
 });
 
-test("a module picked opens every step; wiring and signals are done once their parts are on their pages", () => {
+test("plot, make, configure: the steps after Pick open once Make the module has made every part", () => {
   const config = emptyBoard();
-  R.use(config, R.PRESETS.passing, ({ sensors, turnouts, masts }) => {
-    config.blocks.push(...sensors.map((name, i) => ({ name, topic: M.topicFor("block", name), topicCustom: false, gpio: ["GPIO14", "GPIO27", "GPIO26", "GPIO25", "GPIO33", "GPIO32"][i], inverted: true, debounce: "500ms" })));
-    config.points.push(...turnouts.map((name, i) => ({ name, topic: M.topicFor("point", name), channel: i })));
-  }, { style: "strip" });
+  // Plotted, not made: only Pick your module is open, and its button makes the module.
+  config.logic.mss.row = R.preset("passing");
   let s = steps(config);
+  assert.deepEqual(Object.values(s).filter((step) => step.open).map((step) => step.id), ["pick"]);
+  assert.equal(s.pick.done, false);
+  assert.equal(s.pick.errors, 0, "not made yet is not a problem on the steps");
+  const g = plain(F.guidance(config, "pick"));
+  assert.deepEqual([g.next, g.ready, g.make, g.nextStep], [F.TEXT.make, true, true, "wire"]);
+  assert.equal(F.currentStep(config), "pick");
+  // Made: every step opens.
+  const pins = ["GPIO14", "GPIO27", "GPIO26", "GPIO25", "GPIO33", "GPIO32", "GPIO16", "GPIO17", "GPIO19", "GPIO23", "GPIO18", "GPIO13"];
+  let k = 0;
+  R.use(config, R.PRESETS.passing, ({ sensors, turnouts, masts }) => {
+    config.blocks.push(...sensors.map((name) => ({ name, topic: M.topicFor("block", name), topicCustom: false, gpio: pins[k++], inverted: true, debounce: "500ms" })));
+    config.points.push(...turnouts.map((name, i) => ({ name, topic: M.topicFor("point", name), channel: i })));
+    config.signals.masts.push(...masts.map((m) => ({ ...m, topic: M.topicFor("signal", m.name), topicCustom: false, pin: pins[k++] })));
+  }, { style: "strip" });
+  s = steps(config);
   assert.ok(Object.values(s).every((step) => step.open));
-  assert.equal(s.pick.done, true);
-  assert.equal(s.wire.done, true);
-  assert.equal(s.signals.done, false, "no signals on the Signal Masts page yet");
-  assert.equal(s.signals.errors > 0, true, "each missing signal is a Signals problem");
-  assert.equal(s.wire.errors, 0);
-  assert.equal(F.currentStep(config), "signals");
+  assert.deepEqual([s.pick.done, s.wire.done, s.signals.done], [true, true, true]);
+  assert.equal(plain(F.guidance(config, "pick")).next, F.TEXT.next.pick);
   // The parts each step lights on the picture.
   assert.deepEqual([...F.litFor(config, "wire")], ["Block 1 current", "Block 2 current", "Siding 1 current", "Block 3 current", "IR 1", "IR 2", "Points 1", "Points 2"]);
   assert.deepEqual([...F.litFor(config, "signals")].length, 6);
-  // A sensor taken off its page: Wire it is not done, and says why.
+  // A part taken off its page: the module is made again before configuring goes on.
   config.blocks = config.blocks.filter((b) => b.name !== "IR 2");
   s = steps(config);
-  assert.equal(s.wire.done, false);
-  assert.ok(s.wire.errors > 0);
+  assert.equal(s.wire.open, false);
+  assert.equal(plain(F.guidance(config, "pick")).make, true);
   assert.equal(plain(F.partsOf(config)).find((p) => p.name === "IR 2").there, false);
 });
 
 test("Wire it: every block, then IR sensors, points and the ends' pins; a missing or shared pin is a problem", () => {
   const config = emptyBoard();
   const pins = ["GPIO14", "GPIO27", "GPIO26", "GPIO25", "GPIO33", "GPIO32"];
-  R.use(config, R.PRESETS.passing, ({ sensors, turnouts }) => {
+  const mastPins = ["GPIO16", "GPIO17", "GPIO19", "GPIO23", "GPIO18", "GPIO13"];
+  R.use(config, R.PRESETS.passing, ({ sensors, turnouts, masts }) => {
     config.blocks.push(...sensors.map((name, i) => ({ name, topic: M.topicFor("block", name), topicCustom: false, gpio: pins[i], inverted: true, debounce: "500ms" })));
     config.points.push(...turnouts.map((name, i) => ({ name, topic: M.topicFor("point", name), pcaBoard: 0, channel: i })));
-  });
+    config.signals.masts.push(...masts.map((m, i) => ({ ...m, pin: mastPins[i] })));
+  }, { style: "strip" });
   const wire = () => plain(F.wireList(config));
   assert.deepEqual(wire().map((w) => [w.key, w.role]), [
     ["Block 1 current", "block"], ["Block 2 current", "block"], ["Siding 1 current", "block"], ["Block 3 current", "block"],

@@ -38,14 +38,14 @@
       pair: "Pair",
     }),
     done: "done",
-    closed: "not yet: pick your module first",
+    closed: "not yet: pick your module, and make it, first",
     problems: (errors, warnings) => [
       errors ? `${errors} problem${errors === 1 ? "" : "s"}` : "",
       warnings ? `${warnings} warning${warnings === 1 ? "" : "s"}` : "",
     ].filter(Boolean).join(", "),
     doing: Object.freeze({
       pickEmpty: "Build your module from the three MSS boards, as Iowa Scaled Engineering makes them: start with one, then stitch more onto it. Or start from a sample.",
-      pick: "This is your module: its MSS boards, stitched left to right. Stitch another onto the right, flip a Complex cascade, or remove a board.",
+      pick: "This is your module: its MSS boards, stitched left to right. Drag boards in, move them, flip a Complex cascade or take one out. When it is right, make the module, then wire it.",
       wire: "Wire each part in turn: it is lit on the picture, with how to wire it and its pin. Click a part on the picture to go to it.",
       signals: "Each signal in turn, lit on the picture: its lamps and their pins. What it shows is the MSS pattern's: point at one to see it.",
       try: "Put trains in blocks, throw the points and watch the signals.",
@@ -68,7 +68,9 @@
       download: "Flashed the board? Then pair it at the meet.",
       pair: "The Download page has the board's file and the module card.",
     }),
-    stillToDo: "Pick your module first.",
+    stillToDo: "Pick your module, and make it, first.",
+    make: "Make the module",
+    makeNote: "Happy with the boards? Make the module: its sensors, turnouts and signals are added with free pins, and then you wire it.",
     // Pick your module.
     boardsHeading: "MSS boards",
     paletteHint: "Drag a board into your module, into any gap that lights up green. Or click one to add it on the right. A Complex cascade turns the way it fits.",
@@ -78,7 +80,7 @@
     doesNotFit: (title) => `A ${title} does not fit on the right of the module: drag it into a gap that lights up green.`,
     sampleAsk: (title) => `Replace your module with the ${title} sample?`,
     sampleYes: "Yes, replace it",
-    onNext: "Going on to Wire it adds these to the board:",
+    onNext: "Make the module adds these to the board:",
     adds: "This adds:",
     sensors: (names) => `Sensors: ${names}.`,
     turnouts: (names) => `Turnouts: ${names}.`,
@@ -210,11 +212,12 @@
     const parts = partsOf(config);
     const wired = parts.filter((p) => p.kind !== "mast").every((p) => p.there) && wireList(config).every((w) => w.done);
     const signalled = parts.filter((p) => p.kind === "mast").every((p) => p.there) && signalList(config).every((x) => x.done);
-    // Picked once its parts are made (going on from Pick your module makes them).
-    const made = !problems.some((p) => p.where?.notMade);
-    const has = { pick: rowOk && made, wire: rowOk && wired, signals: rowOk && signalled, try: rowOk && wired && signalled, download: false, pair: false };
+    // Plot, then make, then configure: the steps after Pick your module open
+    // once every part of the module is made (Make the module).
+    const made = rowOk && parts.every((p) => p.there);
+    const has = { pick: made, wire: rowOk && wired, signals: rowOk && signalled, try: rowOk && wired && signalled, download: false, pair: false };
     return ORDER.map((id) => {
-      const open = id === "pick" || rowOk;
+      const open = id === "pick" || made;
       const errors = ["pick", "wire", "signals"].includes(id) ? count(id, "error") : 0;
       const warnings = ["pick", "wire", "signals"].includes(id) ? count(id, "warning") : 0;
       return { id, label: TEXT.steps[id], open, done: open && has[id] && !errors, errors, warnings };
@@ -236,6 +239,11 @@
     const at = ORDER.indexOf(step);
     const next = steps[at + 1];
     const empty = !rowOf(config);
+    // A module plotted and not made yet: its button makes it.
+    const row = rowOf(config);
+    if (step === "pick" && row && R() && !R().problems(row).length && !next?.open) {
+      return { doing: TEXT.doing.pick, note: TEXT.makeNote, next: TEXT.make, nextStep: "wire", ready: true, waiting: "", make: true };
+    }
     return {
       doing: step === "pick" && empty ? TEXT.doing.pickEmpty : TEXT.doing[step],
       note: TEXT.nextNote[step],
@@ -379,8 +387,6 @@
   }
 
   function go(ctx, step) {
-    // Leaving Pick your module: the module's parts are made now.
-    if (state.step === "pick" && step !== "pick") makeParts(ctx.config, ctx);
     state.step = step;
     ctx.render();
     document.querySelector(`#logic-step-${step}`)?.focus({ preventScroll: true });
@@ -390,7 +396,11 @@
     const g = guidance(config, step);
     const box = el("div", "plan-next");
     box.append(el("span", "hint", g.ready ? g.note : g.waiting || g.note));
-    const b = button(g.next, () => (step === "pair" ? ctx.showView("yaml") : go(ctx, g.nextStep)), "primary");
+    const b = button(g.next, () => {
+      if (step === "pair") return ctx.showView("yaml");
+      if (g.make) makeParts(config, ctx);
+      go(ctx, g.nextStep);
+    }, "primary");
     b.id = "logic-mss-next";
     b.disabled = !g.ready;
     box.append(b);
