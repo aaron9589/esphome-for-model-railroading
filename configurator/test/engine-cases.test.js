@@ -412,7 +412,7 @@ function mssBullets() {
 
 test("every MSS behaviour, Junctions and Across modules bullet in the MSS spec has an MSS case", () => {
   const bullets = mssBullets();
-  assert.equal(bullets.length, 11, bullets.join("\n"));
+  assert.equal(bullets.length, 12, bullets.join("\n"));
   for (const { file, data } of mssCases) {
     assert.deepEqual(Object.keys(data).filter((k) => !["name", "covers", "about", "module", "modules", "start", "steps"].includes(k)), [], file);
     assert.ok(("module" in data) !== ("modules" in data), `${file}: module or modules`);

@@ -16,6 +16,7 @@
   const TEXT = Object.freeze({
     label: "Picture of the module",
     end: (name) => `End ${name}`,
+    endTrack: (name, track) => `End ${name} ${track}`,
     node: (n, title, turned) => `${n}. ${title}${turned ? " (flipped)" : ""}`,
     noSensor: "(no sensor)",
   });
@@ -36,67 +37,81 @@
   function layout(row) {
     const nodes = list(row);
     if (!R() || R().problems(nodes).length) return null;
-    const out = { width: nodes.length * W, rows: 1, nodes: [], blocks: [], irs: [], points: [], signals: [], ends: [] };
-    const open = {};
-    const begin = (road, path, name) => { open[road] = { path, name }; };
-    const close = (road, more) => {
-      const o = open[road];
-      out.blocks.push({ name: o.name || "", road, path: [...o.path, ...more] });
-      delete open[road];
+    const w = R().walk(nodes);
+    // Each line at its own height: the bottom line lowest, a diverging line
+    // just above the line it left.
+    const levels = w.order.length;
+    const rank = new Map(w.order.map((lane, k) => [lane, k]));
+    const yOf = (lane) => (levels === 1 ? 1 : levels - 1 - rank.get(lane));
+    const out = { width: nodes.length * W, rows: levels, nodes: [], blocks: [], irs: [], points: [], signals: [], crossovers: [], ends: [] };
+    const open = new Map(); // lane -> { path, name }
+    w.left.forEach((lane) => open.set(lane, { path: [[0, yOf(lane)]], name: "" }));
+    const close = (lane, more) => {
+      const o = open.get(lane);
+      out.blocks.push({ name: o.name || "", road: w.lanes.get(lane)?.road || "main", path: [...o.path, ...more] });
+      open.delete(lane);
     };
     // A signal stands on the right of the trains it faces: below a line for
     // trains heading right, above for trains heading left.
     const signal = (node, key, name, at, facing, heads) => {
       if (name) out.signals.push({ name, node, key, at, facing, heads, side: facing === "right" ? "below" : "above" });
     };
-    nodes.forEach((node, i) => {
+    for (const step of w.steps) {
+      const i = step.index;
+      const node = step.node;
       const x = i * W;
-      const n = isObject(node.names) ? node.names : {};
-      out.nodes.push({ index: i, x, title: R().TEXT.nodes[node.node].title, turned: node.turned === true });
-      const [leftCount] = R().sidesOf(node);
-      if (i === 0) {
-        if (node.node === "crossover") begin("main", [[0, Y.main]], n.block);
-        else {
-          begin("main", [[0, Y.main]], list(n.left)[0]);
-          if (leftCount === 2) begin("siding", [[0, Y.siding]], list(n.left)[1]);
-        }
-      }
-      if (node.node === "crossover") return;
       const mid = x + W / 2;
+      const n = isObject(node.names) ? node.names : {};
+      out.nodes.push({ index: i, x, title: R().TEXT.nodes[node.node].title, turned: node.turned === true, line: step.line });
+      // A line's first block takes the name the first board on it gives it.
+      step.inputs.forEach((input, k) => {
+        if (input.fresh) open.get(input.lane).name = node.node === "crossover" ? n.block : list(n.left)[k];
+      });
+      const lane = step.inputs[0].lane;
+      const y = yOf(lane);
+      if (node.node === "crossover") {
+        if (n.block) out.crossovers.push({ name: n.block, node: i, at: [mid, y] });
+        continue;
+      }
       if (node.node === "cascade") {
-        close("main", [[mid, Y.main]]);
-        out.irs.push({ name: n.ir, node: i, at: [mid, Y.main] });
-        signal(i, "toB", n.signals?.toB, [mid - OFF, Y.main], "right", 1);
-        signal(i, "toA", n.signals?.toA, [mid + OFF, Y.main], "left", 1);
-        begin("main", [[mid, Y.main]], list(n.right)[0]);
-        return;
+        close(lane, [[mid, y]]);
+        out.irs.push({ name: n.ir, node: i, at: [mid, y] });
+        signal(i, "toB", n.signals?.toB, [mid - OFF, y], "right", 1);
+        signal(i, "toA", n.signals?.toA, [mid + OFF, y], "left", 1);
+        open.set(lane, { path: [[mid, y]], name: list(n.right)[0] });
+        continue;
       }
-      out.rows = 2;
-      out.irs.push({ name: n.ir, node: i, at: [mid, Y.main] });
-      out.points.push({ name: n.points, node: i, at: [mid, Y.main] });
-      if (node.turned === true) {
-        // Main and siding come in from the left; the single track goes on.
-        close("main", [[mid, Y.main]]);
-        close("siding", [[mid - D, Y.siding], [mid, Y.main]]);
-        signal(i, "single", n.signals?.single, [mid + OFF, Y.main], "left", 2);
-        signal(i, "main", n.signals?.main, [mid - D - OFF, Y.main], "right", 1);
-        signal(i, "siding", n.signals?.siding, [mid - D - OFF, Y.siding], "right", 1);
-        begin("main", [[mid, Y.main]], list(n.right)[0]);
+      out.irs.push({ name: n.ir, node: i, at: [mid, y] });
+      out.points.push({ name: n.points, node: i, at: [mid, y] });
+      if (R().isJoin(node)) {
+        // The main and diverging lines come in from the left; one line goes on.
+        const branch = step.inputs[1].lane;
+        const yb = yOf(branch);
+        close(lane, [[mid, y]]);
+        close(branch, [[mid - D, yb], [mid, y]]);
+        signal(i, "single", n.signals?.single, [mid + OFF, y], "left", 2);
+        signal(i, "main", n.signals?.main, [mid - D - OFF, y], "right", 1);
+        signal(i, "siding", n.signals?.siding, [mid - D - OFF, yb], "right", 1);
+        open.set(lane, { path: [[mid, y]], name: list(n.right)[0] });
       } else {
-        close("main", [[mid, Y.main]]);
-        signal(i, "single", n.signals?.single, [mid - OFF, Y.main], "right", 2);
-        signal(i, "main", n.signals?.main, [mid + D + OFF, Y.main], "left", 1);
-        signal(i, "siding", n.signals?.siding, [mid + D + OFF, Y.siding], "left", 1);
-        begin("main", [[mid, Y.main]], list(n.right)[0]);
-        begin("siding", [[mid, Y.main], [mid + D, Y.siding]], list(n.right)[1]);
+        const branch = step.out[1];
+        const yb = yOf(branch);
+        close(lane, [[mid, y]]);
+        signal(i, "single", n.signals?.single, [mid - OFF, y], "right", 2);
+        signal(i, "main", n.signals?.main, [mid + D + OFF, y], "left", 1);
+        signal(i, "siding", n.signals?.siding, [mid + D + OFF, yb], "left", 1);
+        open.set(lane, { path: [[mid, y]], name: list(n.right)[0] });
+        open.set(branch, { path: [[mid, y], [mid + D, yb]], name: list(n.right)[1] });
       }
-    });
+    }
     const end = out.width;
-    if (open.siding) out.rows = 2;
-    for (const road of ["main", "siding"]) if (open[road]) close(road, [[end, Y[road]]]);
-    const leftRoads = R().sidesOf(nodes[0])[0];
-    const rightRoads = R().sidesOf(nodes[nodes.length - 1])[1];
-    out.ends.push({ name: "A", at: [0, Y.main], roads: leftRoads }, { name: "B", at: [end, Y.main], roads: rightRoads });
+    for (const lane of w.right) close(lane, [[end, yOf(lane)]]);
+    // End A's tracks from the bottom line, end B's from the top (looking out of each).
+    out.ends.push(
+      { name: "A", tracks: w.left.map((lane, k) => ({ track: k + 1, at: [0, yOf(lane)] })) },
+      { name: "B", tracks: w.right.map((lane, k) => ({ track: w.right.length - k, at: [end, yOf(lane)] })) },
+    );
+    for (const e of out.ends) e.at = e.tracks[0].at;
     return out;
   }
 
@@ -123,8 +138,8 @@
     // Bands, from the top: node titles; the siding's signals and its block's
     // name; the main line's signals facing left; the main line; its blocks'
     // names, its IR sensors, and its signals facing right.
-    const top = shape.rows === 2 ? -1.35 : -0.45;
-    const height = 2.1 - top;
+    const top = shape.rows > 1 ? -1.35 : -0.45;
+    const height = (shape.rows > 1 ? shape.rows - 1 : 1) + 1.1 - top;
     const left = -1.4;
     const width = shape.width + 2.8;
     // Drawn at its own size, never larger: smaller where the page is narrow.
@@ -168,6 +183,14 @@
       badge(g, block.name, [mx, b[1]], block.road === "siding" ? [0, 16] : [0, -14]);
       root.append(g);
     }
+    // A Crossover: its detector on the line, in the block it stands in.
+    for (const c of shape.crossovers) {
+      const g = part(svg("g", { class: "mss-row-crossover" }), c.name);
+      g.append(svg("rect", { x: px(c.at[0]) - 6, y: px(c.at[1]) - 6, width: 12, height: 12, rx: 2 }));
+      g.append(svg("text", { class: "mss-row-label is-small", x: px(c.at[0]), y: px(c.at[1]) - 10, "text-anchor": "middle" }, c.name));
+      badge(g, c.name, c.at, [0, 16]);
+      root.append(g);
+    }
     for (const p of shape.points) {
       const g = part(svg("g", { class: "mss-row-points" }), p.name);
       g.append(svg("circle", { cx: px(p.at[0]), cy: px(p.at[1]), r: 5 }));
@@ -204,8 +227,7 @@
         const key = `end:${e.name}:${which}`;
         if (lit.has(key)) g.classList.add("is-lit");
       }
-      g.append(svg("text", { class: "mss-row-end", x, y: px(e.at[1]) + 4, "text-anchor": anchor }, TEXT.end(e.name)));
-      if (e.roads === 2) g.append(svg("text", { class: "mss-row-end", x, y: px(0) + 4, "text-anchor": anchor }, TEXT.end(e.name)));
+      for (const t of e.tracks) g.append(svg("text", { class: "mss-row-end", x, y: px(t.at[1]) + 4, "text-anchor": anchor }, e.tracks.length > 1 ? TEXT.endTrack(e.name, t.track) : TEXT.end(e.name)));
       ["pair", "led"].forEach((which, k) => {
         const key = `end:${e.name}:${which}`;
         if (badges[key] === undefined) return;

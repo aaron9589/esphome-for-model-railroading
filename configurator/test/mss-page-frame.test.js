@@ -129,7 +129,7 @@ test("Signals: each signal with its lamps' pins; what it shows follows the two t
 
 test("a row's own problem counts on Pick your module, and closes the steps after it", () => {
   const config = emptyBoard();
-  config.logic.mss.row = [{ node: "complex" }, { node: "cascade" }];
+  config.logic.mss.row = [{ node: "cascade" }, { node: "cascade", line: 1 }];
   const s = steps(config);
   assert.equal(s.pick.errors, 1);
   assert.equal(s.pick.done, false);
@@ -172,7 +172,7 @@ test("the picture of a passing siding: the main along the bottom, the siding abo
     ["Signal 2 to B main", [7.25, 1], "right", "below", 1],
     ["Signal 2 to B siding", [7.25, 0], "right", "below", 1],
   ]);
-  assert.deepEqual(shape.ends.map((e) => [e.name, e.at, e.roads]), [["A", [0, 1], 1], ["B", [12, 1], 1]]);
+  assert.deepEqual(shape.ends.map((e) => [e.name, e.at, e.tracks.length]), [["A", [0, 1], 1], ["B", [12, 1], 1]]);
 });
 
 test("the picture of a Cascade is one line; a lone Complex cascade runs both roads to end B; a row with problems has none", () => {
@@ -181,10 +181,23 @@ test("the picture of a Cascade is one line; a lone Complex cascade runs both roa
   assert.deepEqual(cascade.blocks.map((b) => b.path), [[[0, 1], [3, 1]], [[3, 1], [6, 1]]]);
   assert.deepEqual(cascade.signals.map((x) => [x.name, x.at, x.side]), [["Signal 1 to B", [2.25, 1], "below"], ["Signal 1 to A", [3.75, 1], "above"]]);
   const lone = plain(P.layout(R.preset("complex")));
-  assert.deepEqual(lone.ends.map((e) => e.roads), [1, 2]);
+  assert.deepEqual(lone.ends.map((e) => e.tracks.map((t) => t.track)), [[1], [2, 1]]);
   assert.deepEqual(lone.blocks.find((b) => b.road === "siding").path, [[3, 1], [4, 0], [6, 0]]);
-  assert.equal(P.layout([{ node: "complex" }, { node: "cascade" }]), null);
+  assert.equal(P.layout([{ node: "cascade" }, { node: "cascade", line: 1 }]), null);
   assert.equal(P.layout([]), null);
+});
+
+test("the picture of lines: a Cascade on the loop, a Crossover's detector, a line split again", () => {
+  const loop = plain(P.layout(R.named([{ node: "complex" }, { node: "cascade", line: 1 }, { node: "complex", turned: true }])));
+  assert.equal(loop.rows, 2);
+  assert.deepEqual(loop.irs.map((x) => [x.name, x.at]), [["IR 1", [3, 1]], ["IR 2", [9, 0]], ["IR 3", [15, 1]]]);
+  assert.deepEqual(loop.blocks.filter((b) => b.road === "siding").map((b) => [b.name, b.path]), [["Siding 1 current", [[3, 1], [4, 0], [9, 0]]], ["Siding 2 current", [[9, 0], [14, 0], [15, 1]]]]);
+  assert.deepEqual(loop.signals.filter((x) => x.node === 1).map((x) => [x.name, x.at, x.side]), [["Signal 2 to B", [8.25, 0], "below"], ["Signal 2 to A", [9.75, 0], "above"]]);
+  const crossing = plain(P.layout(R.named([{ node: "complex" }, { node: "crossover" }, { node: "complex", turned: true }])));
+  assert.deepEqual(crossing.crossovers, [{ name: "Block 3 current", node: 1, at: [9, 1] }]);
+  const three = plain(P.layout(R.named([{ node: "complex" }, { node: "complex", line: 1 }])));
+  assert.equal(three.rows, 3);
+  assert.deepEqual(three.ends.map((e) => e.tracks.map((t) => [t.track, t.at[1]])), [[[1, 2]], [[3, 2], [2, 1], [1, 0]]]);
 });
 
 test("the old MSS cards are off the page: the frame, Try it and the views are what MSS Logic shows", () => {

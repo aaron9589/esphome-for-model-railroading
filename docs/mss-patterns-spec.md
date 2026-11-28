@@ -18,14 +18,14 @@ The page is rebuilt around the **MSS node types**, as the MSS standard (an open 
 
 A Complex cascade can be **flipped** (2 \| 1), so its points face the other way.
 
-## A module is a row of nodes
+## A module is MSS boards on lines
 
-A module is one or more nodes in a row, left to right. One ESP32 runs the whole row.
+A module is one or more MSS boards, placed left to right on its **lines** (amended 2026-11-28: lines, in place of one strip whose sides had to match). One ESP32 runs the whole module.
 
-- **Joining.** Two nodes join where the right side of one meets the left side of the next, and the two sides must have the same number of tracks (1 meets 1, 2 meets 2). The page offers only nodes that fit. A **Crossover** is a whole module on its own: in a row it would add nothing, so it is never joined.
-- **A joint is not a boundary.** The blocks either side of a joint between two nodes are one block, with one current detector, as a block reaches across a joint between two modules. A block belongs to the node it starts in. So Cascade + Cascade is three blocks with two signal pairs, and Complex cascade + Complex cascade flipped is a passing siding with one block on the main line and one on the siding between the points.
-- **Two-track ends.** A side with two tracks is a main line and a siding, the siding drawn on the far side. An end's tracks are numbered from the left looking out of it (engine rule 25: track *k* meets the neighbour's *N* + 1 − *k*), so end A is 1 main, 2 siding, and end B is 1 siding, 2 main. A lone Complex cascade then pairs main to main with a lone Complex cascade flipped on the next module.
-- **The module's ends** are the two ends of the row: **A** on the left, **B** on the right, each with as many tracks as that side has. A two-track end (main line and siding) pairs with a two-track end on the next module.
+- **Lines.** The module starts with one line at its left edge (two when the first board joins two). Each board sits on one line; the other lines carry straight past it. A **Complex cascade** dropped on a line splits it in two: the main line carries on, and a diverging line starts just above it. Flipped, a Complex cascade **joins** a line and the one above it into one. So a Crossover, Cascade or another Complex cascade can go on either line after a split: a Cascade on the loop of a passing siding, a Crossover on its main line, a junction split again. A board cannot go on a line that is not there at that point.
+- **A Crossover** on a line adds its current detector to the block it stands in (a block reaches across it, as across a joint between modules). On its own it is a block from end to end.
+- **A joint is not a boundary.** The blocks either side of where two boards meet on a line are one block, with one current detector. A line's first block is named by the first board on it; each board names the blocks it starts. So Cascade + Cascade is three blocks with two signal pairs, and Complex cascade + Complex cascade flipped is a passing siding with one block on the main line and one on the siding between the points.
+- **The module's ends.** Every line at the left edge is a track of end **A**, every line at the right edge a track of end **B**. An end's tracks are numbered from the left looking out of it (engine rule 25: track *k* meets the neighbour's *N* + 1 − *k*): end A from the bottom line up, end B from the top line down. A lone Complex cascade (end B: 1 the diverging line, 2 the main) then pairs main to main with a lone Complex cascade flipped on the next module. A line ending at its own end letter (a branch to end C), and a line that stops on the module (a stub siding), are not in this version.
 - **Starting points.** Each of the three boards starts a module on its own, and **samples** start it as boards already stitched: **Passing siding** (Complex cascade + Complex cascade flipped) and **Two cascades**.
 
 ```
@@ -99,6 +99,7 @@ A file with a hand-written description and no row (made on `feature/logic` befor
 - **Row cases** (hand-worked, in `test/cases/mss/`, replayed in both engines; the existing MSS cases stay):
   - a row of nodes: two Cascades, the block across the joint one block with one detector
   - a row of nodes: a passing siding from a Complex cascade and a Complex cascade flipped
+  - a row of nodes: a Cascade on the loop of a passing siding, between the two Complex cascades
 - **Page:** the steps' pure parts (`stepsOf`, what each step has left) in Node; a browser check from an empty page to Download for a passing siding; the guide's pictures from the screenshot script.
 
 ## Work items

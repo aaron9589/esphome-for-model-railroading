@@ -271,6 +271,7 @@ Built items have the builder's names: a block is `<track> block <n>`, where a tr
 | Across modules: three modules, the middle one turned round | `mss-three-modules` |
 | Row cases: two Cascades, the block across the joint | `mss-row-cascades` |
 | Row cases: a passing siding from two Complex cascades | `mss-row-passing-siding` |
+| Row cases: a Cascade on the loop of a passing siding | `mss-row-loop-cascade` |
 
 **Appendix B** is taken as the MSS Design Standard's table of occupancy ahead to indication: the next block occupied gives Stop; the one after it, Approach; the third, Advance Approach (Clear without it); all three clear, Clear.
 
