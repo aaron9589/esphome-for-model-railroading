@@ -24,6 +24,8 @@ const {
   lockTopic,
   lockedTopic,
   topicFor,
+  partTopic,
+  isDefaultTopic,
   validateConfig,
   DEFAULT_MQTT_BROKER,
   SIGNAL_COLORS,
@@ -279,7 +281,7 @@ function addSensor(pin) {
   const name = `Sensor ${state.blocks.length + 1}`;
   state.blocks.push({
     name,
-    topic: topicFor("block", name),
+    topic: partTopic(state, "block", name),
     topicCustom: false,
     ...pin,
     inverted: true,
@@ -305,7 +307,7 @@ function addPoint(pcaBoard = 0) {
   const name = `Turnout ${state.points.length + 1}`;
   state.points.push({
     name,
-    topic: topicFor("point", name),
+    topic: partTopic(state, "point", name),
     topicCustom: false,
     pcaBoard,
     channel: nextChannel(pcaBoard),
@@ -323,7 +325,7 @@ document.getElementById("btn-add-mast").addEventListener("click", () => {
   const name = `Mast ${state.signals.masts.length + 1}`;
   state.signals.masts.push({
     name,
-    topic: topicFor("signal", name),
+    topic: partTopic(state, "signal", name),
     topicCustom: false,
     lamps: [],
     aspects: [],
@@ -476,17 +478,17 @@ pasteDialog.addEventListener("close", () => {
 function normalizeTopics(config) {
   for (const block of config.blocks || []) {
     if (typeof block.topicCustom !== "boolean") {
-      block.topicCustom = block.topic !== topicFor("block", block.name);
+      block.topicCustom = !isDefaultTopic(config, "block", block);
     }
   }
   for (const point of config.points || []) {
     if (typeof point.topicCustom !== "boolean") {
-      point.topicCustom = point.topic !== topicFor("point", point.name);
+      point.topicCustom = !isDefaultTopic(config, "point", point);
     }
   }
   for (const mast of config.signals?.masts || []) {
     if (typeof mast.topicCustom !== "boolean") {
-      mast.topicCustom = mast.topic !== topicFor("signal", mast.name);
+      mast.topicCustom = !isDefaultTopic(config, "signal", mast);
     }
   }
 }
@@ -544,7 +546,7 @@ function followRename(nameField, kind, item, list) {
 
 function followName(item, kind, card) {
   if (!item.topicCustom) {
-    item.topic = topicFor(kind, item.name);
+    item.topic = partTopic(state, kind, item.name);
     const topicInput = card.querySelector("[data-role=topic]");
     if (topicInput) topicInput.value = item.topic;
   }
@@ -1107,7 +1109,7 @@ function renderSensorCard(block, index) {
   fields.className = "fields";
   const topicField = field("MQTT topic", block.topic, (v) => {
     block.topic = v;
-    block.topicCustom = v !== topicFor("block", block.name);
+    block.topicCustom = v !== partTopic(state, "block", block.name);
     persist();
     updatePreview();
   }, {
@@ -1624,7 +1626,7 @@ function renderPointCard(point, index) {
   fields.className = "fields";
   const topicField = field("MQTT topic", point.topic, (v) => {
     point.topic = v;
-    point.topicCustom = v !== topicFor("point", point.name);
+    point.topicCustom = v !== partTopic(state, "point", point.name);
     const stateInput = card.querySelector("[data-role=state-topic]");
     if (stateInput) stateInput.value = thrownTopic(point.topic);
     const lockInput = card.querySelector("[data-role=lock-topic]");
@@ -2217,7 +2219,7 @@ function renderSignals() {
     fields.className = "fields";
     const topicField = field("MQTT topic", mast.topic, (v) => {
       mast.topic = v;
-      mast.topicCustom = v !== topicFor("signal", mast.name);
+      mast.topicCustom = v !== partTopic(state, "signal", mast.name);
       persist();
       updatePreview();
     }, {
@@ -2643,17 +2645,17 @@ function renderJmriSummary() {
 // button would give it. The caller saves and draws.
 function addItems({ sensors = [], turnouts = [], masts = [] } = {}) {
   for (const name of sensors) {
-    state.blocks.push({ name, topic: topicFor("block", name), topicCustom: false, ...nextSensorPin(), inverted: true, debounce: "500ms" });
+    state.blocks.push({ name, topic: partTopic(state, "block", name), topicCustom: false, ...nextSensorPin(), inverted: true, debounce: "500ms" });
   }
   for (const name of turnouts) {
     state.points.push({
-      name, topic: topicFor("point", name), topicCustom: false, pcaBoard: 0, channel: nextChannel(0),
+      name, topic: partTopic(state, "point", name), topicCustom: false, pcaBoard: 0, channel: nextChannel(0),
       servoPin: usesPca() ? "" : nextServoPin(), travelTime: "10s", controls: [],
     });
   }
   for (const mast of masts) {
     const leds = mast.lamps.reduce((n, lamp) => n + (Number(lamp.count) || 1), 0);
-    const entry = { ...mast, topic: topicFor("signal", mast.name), topicCustom: false, mode: mast.mode || "addressable", pin: "", numLeds: leds };
+    const entry = { ...mast, topic: partTopic(state, "signal", mast.name), topicCustom: false, mode: mast.mode || "addressable", pin: "", numLeds: leds };
     state.signals.masts.push(entry);
     // Individual LEDs get a pin each, one at a time so each sees the last as used.
     if (entry.mode === "gpio") for (const lamp of entry.lamps) lamp.pin = nextServoPin();

@@ -192,7 +192,7 @@ Click **Download module card**, then open the file it saves (`<board>-module-car
 
 Download the YAML for each board as in the first board guide. **Download JMRI XML** gives JMRI the board's sensors, turnouts and signal masts.
 
-**Names at a meet.** Every module made from the same MSS boards gets the same names (**Block 1 current**, **Signal 1 to B** and so on), and so the same MQTT topics. The board's own signals are not affected: each board reads its own sensors, and hears its neighbours only through its ends. But JMRI or CATS watching the whole meet would see two modules on one topic. If they will, rename the parts on the **Sensors**, **Turnouts** and **Signal Masts** pages before you download, such as **West Block 1 current**. A part renamed there is renamed in the module too.
+**Names at a meet.** Every module made from the same MSS boards has the same part names (**Block 1 current**, **Signal 1 to B** and so on). So that two modules never share an MQTT topic, an MSS Logic board puts its own name in each part's topic, after the type: `trains/track/sensor/kiama-east-xnjwjs/Block 1 current`, `trains/track/turnout/kiama-east-xnjwjs/Points 1`, `trains/track/signalmast/kiama-east-xnjwjs/Signal 1 to B`. In JMRI the sensor is `MSkiama-east-xnjwjs/Block 1 current`, and the JMRI file has them all. Rename the board and the topics follow it; a topic you type on a part's page stays as you typed it.
 
 ---
 
@@ -205,7 +205,7 @@ Download the YAML for each board as in the first board guide. **Download JMRI XM
 Success looks like:
 - Each board is **Online** in ESPHome.
 - `trains/track/sensor/board/<board>/Online` is `ACTIVE`.
-- Covering **IR 1** with a hand shows `ACTIVE` on its own topic. Uncovering it shows `INACTIVE` after about half a second (the Debounce).
+- Covering **IR 1** with a hand shows `ACTIVE` on its topic, `trains/track/sensor/<board>/IR 1`. Uncovering it shows `INACTIVE` after about half a second (the Debounce).
 - The board's signals show something. A joint that is not paired yet shows Stop (see Step 8), so expect the signals facing out of the module to show Stop for now.
 - Each end's two values are published, retained, as `trains/track/end/<board>/<end>/<track>/Block` and `.../Mast`.
 

@@ -309,6 +309,45 @@ function topicFor(kind, name) {
   return prefix + trimmed;
 }
 
+// A part's topic on this board. On an MSS Logic board it carries the board's
+// name after the type (trains/track/sensor/<board>/<name>): modules made from
+// the same MSS boards share part names, and meet on one broker. Elsewhere it
+// is topicFor's. `kind`: block, point or signal.
+function partTopic(config, kind, name) {
+  const topic = topicFor(kind, name);
+  const board = logicMode(config) === "mss" ? String(config?.board?.name || "").trim() : "";
+  if (!topic || !board) return topic;
+  const trimmed = String(name).trim();
+  return `${topic.slice(0, topic.length - trimmed.length)}${board}/${trimmed}`;
+}
+
+// Is this a topic the part would have by default: the plain one, this
+// board's, or one made under an earlier name of this board (the name's
+// suffix stays when the board is renamed)?
+function isDefaultTopic(config, kind, item) {
+  const plain = topicFor(kind, item?.name);
+  if (!plain || typeof item?.topic !== "string") return false;
+  if (item.topic === plain || item.topic === partTopic(config, kind, item.name)) return true;
+  const suffix = config?.board?.nameSuffix;
+  const name = String(item.name).trim();
+  const prefix = plain.slice(0, plain.length - name.length);
+  if (!suffix || !item.topic.startsWith(prefix) || !item.topic.endsWith(`/${name}`)) return false;
+  const board = item.topic.slice(prefix.length, item.topic.length - name.length - 1);
+  return !board.includes("/") && board.endsWith(suffix);
+}
+
+// A topic that follows its part's name follows the board too: on an MSS
+// Logic board it carries the board's name, and a rename or a change of mode
+// moves it. A topic of the person's own is never touched.
+function followBoardTopics(config) {
+  for (const [kind, items] of [["block", config.blocks], ["point", config.points], ["signal", config.signals?.masts]]) {
+    for (const item of Array.isArray(items) ? items : []) {
+      if (!item || typeof item !== "object" || item.topicCustom !== false || !item.name) continue;
+      if (isDefaultTopic(config, kind, item)) item.topic = partTopic(config, kind, item.name);
+    }
+  }
+}
+
 function signalDefaults() {
   return { masts: [] };
 }
@@ -525,7 +564,7 @@ function normalizeConfig(config) {
     delete mast.start;
     mast.mode = mast.mode === "gpio" || mast.mode === "addressable" ? mast.mode : legacyMode;
     mast.pin = String(mast.pin || legacyPin).toUpperCase();
-    if (typeof mast.topicCustom !== "boolean") mast.topicCustom = false;
+    if (typeof mast.topicCustom !== "boolean") mast.topicCustom = !!mast.topic && !isDefaultTopic(config, "signal", mast);
     if (!mast.topic) mast.topic = topicFor("signal", mast.name);
     if (!Array.isArray(mast.lamps)) mast.lamps = [];
     for (const lamp of mast.lamps) {
@@ -560,6 +599,7 @@ function normalizeConfig(config) {
     }
   }
   normalizeLogic(config);
+  followBoardTopics(config);
   return config;
 }
 
@@ -2643,6 +2683,8 @@ function generateYaml(config) {
     addNameSuffix,
     newNameSuffix,
     topicFor,
+    partTopic,
+    isDefaultTopic,
     thrownTopic,
     lockTopic,
     lockedTopic,

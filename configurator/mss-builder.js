@@ -343,7 +343,7 @@
       if (INDICATION[key].diverging && !diverging.includes(aspect)) diverging.push(aspect);
     }
     if (signal.virtual) {
-      const entry = { virtual: true, name: signal.name, topic: M().topicFor("signal", signal.name), aspects: Object.keys(tags), tags };
+      const entry = { virtual: true, name: signal.name, topic: M().partTopic(config, "signal", signal.name), aspects: Object.keys(tags), tags };
       if (diverging.length) entry.diverging = diverging;
       return entry;
     }
@@ -403,7 +403,7 @@
         const where = { view: "logic", part: PARTS.tracks, track: track.index, block: i };
         const words = TEXT.block(track.words, i + 1);
         origin("block", name, where, words);
-        blocks.push({ name, topic: M().topicFor("block", name), sensors: unique(sensors) });
+        blocks.push({ name, topic: M().partTopic(config, "block", name), sensors: unique(sensors) });
         return { name, own: unique(own), turnouts: block.turnouts.filter(isObject) };
       });
       trackBlocks.set(track, built);

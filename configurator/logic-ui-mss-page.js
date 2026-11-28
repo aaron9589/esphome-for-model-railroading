@@ -486,7 +486,7 @@
       const mast = list(config.signals?.masts).find((m) => m?.name === from);
       if (!mast) continue;
       mast.name = to;
-      if (!mast.topicCustom) mast.topic = global.EsphomeMr.topicFor("signal", to);
+      if (!mast.topicCustom) mast.topic = global.EsphomeMr.partTopic(config, "signal", to);
     }
     setRow(config, ctx, out.row);
   }

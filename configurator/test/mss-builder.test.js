@@ -71,9 +71,10 @@ const twoBlocks = () => moduleBoard("two-blocks", {
 
 test("a two-block track builds two blocks with the boundary sensor in both, a group each way, and a signal with no lights for none", () => {
   const built = B.build(twoBlocks());
+  // On an MSS Logic board a topic carries the board's name, so modules at a meet never share one.
   same(built.blocks, [
-    { name: "A1 to B1 block 1", topic: "trains/track/sensor/A1 to B1 block 1", sensors: ["S1", "O12", { end: "A", track: 1 }] },
-    { name: "A1 to B1 block 2", topic: "trains/track/sensor/A1 to B1 block 2", sensors: ["S2", "O12", { end: "B", track: 1 }] },
+    { name: "A1 to B1 block 1", topic: "trains/track/sensor/two-blocks/A1 to B1 block 1", sensors: ["S1", "O12", { end: "A", track: 1 }] },
+    { name: "A1 to B1 block 2", topic: "trains/track/sensor/two-blocks/A1 to B1 block 2", sensors: ["S2", "O12", { end: "B", track: 1 }] },
   ]);
   same(built.layers.map((g) => [g.name, g.starter, g.rules.map((r) => [r.trigger.while.block, r.then.mast, r.then.aspect])]), [
     ["A1 to B1 towards B1", "block-signals", [
@@ -92,7 +93,7 @@ test("a two-block track builds two blocks with the boundary sensor in both, a gr
   same(built.masts, [
     { mast: "West", tags: { R292: "stop", R285: "approach", R281: "clear" }, stopAspect: "R292" },
     {
-      virtual: true, name: "A1 to B1 boundary 1 towards B1", topic: "trains/track/signalmast/A1 to B1 boundary 1 towards B1",
+      virtual: true, name: "A1 to B1 boundary 1 towards B1", topic: "trains/track/signalmast/two-blocks/A1 to B1 boundary 1 towards B1",
       aspects: ["Stop", "Approach", "Clear"], tags: { Stop: "stop", Approach: "approach", Clear: "clear" },
     },
   ]);
