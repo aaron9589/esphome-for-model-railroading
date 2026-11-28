@@ -59,6 +59,7 @@
     empty: "Pick your module: it has no MSS boards yet.",
     unknown: (n, node) => `Board ${n} is "${node}", which is not an MSS board. Remove it and add a Crossover, Cascade or Complex cascade.`,
     crossoverAlone: "A Crossover is a whole module on its own: stitched to other MSS boards it adds nothing. Remove it, or make the module a Crossover only.",
+    notMade: "The module's sensors, turnouts and signals are not made yet: go on from Pick your module, and they are made with free pins.",
     notThere: Object.freeze({
       sensor: (name) => `Sensor "${name}" is not on the Sensors page. Add it there with that name, or start the module again.`,
       turnout: (name) => `Turnout "${name}" is not on the Turnouts page. Add it there with that name, or start the module again.`,
@@ -233,7 +234,10 @@
       turnout: new Set(list(config?.points).map((p) => p?.name)),
       mast: new Set(list(config?.signals?.masts).map((m) => m?.name)),
     };
-    return parts(row).filter((p) => !have[p.kind].has(p.name)).map((p) => ({
+    const all = parts(row);
+    // None of them there: the module is not made yet, one problem for it.
+    if (all.length && all.every((p) => !have[p.kind].has(p.name))) return [{ level: "error", text: TEXT.notMade, where: { row: true, notMade: true } }];
+    return all.filter((p) => !have[p.kind].has(p.name)).map((p) => ({
       level: "error",
       text: TEXT.notThere[p.kind](p.name),
       where: { node: p.node, name: p.name, kind: p.kind, ...(p.kind === "mast" ? { mast: p.name } : {}) },
@@ -416,6 +420,53 @@
     return named(nodes);
   }
 
+  /**
+   * The board `id` the way round that fits at index `at` (inserted there):
+   * { node, turned? }, as it is if that fits, else flipped, else null.
+   */
+  function orientFor(row, at, id) {
+    for (const node of [{ node: id }, { node: id, turned: true }]) {
+      if (node.turned && id !== "complex") continue;
+      if (fits(row, at, node)) return node;
+    }
+    return null;
+  }
+
+  /**
+   * The row with `node` inserted at index `at`, named. Put first, it takes
+   * the old first node's left blocks as its right ones (a joint is one
+   * block); put between two, the block it stands in keeps its name on the
+   * left, and the right part is a new block.
+   */
+  function insertNode(row, at, node) {
+    const nodes = copy(row);
+    const fresh = { node: node.node, ...(node.turned === true ? { turned: true } : {}) };
+    if (at === 0 && nodes.length && isObject(nodes[0].names) && Array.isArray(nodes[0].names.left)) {
+      fresh.names = { right: nodes[0].names.left };
+      delete nodes[0].names.left;
+    }
+    nodes.splice(Math.max(0, Math.min(at, nodes.length)), 0, fresh);
+    return named(nodes);
+  }
+
+  /** The row with node `from` moved to index `to` (counted in the row without it), named. */
+  function moveNode(row, from, to) {
+    const nodes = copy(row);
+    const [node] = nodes.splice(from, 1);
+    if (!node) return named(nodes);
+    if (from === 0 && nodes.length && node.names) {
+      nodes[0].names = isObject(nodes[0].names) ? nodes[0].names : {};
+      nodes[0].names.left = list(node.names.right);
+    }
+    const moved = { ...node, names: isObject(node.names) ? { ...node.names } : {} };
+    delete moved.names.left;
+    delete moved.names.right;
+    return insertNode(nodes, to, moved);
+  }
+
+  /** Can node `from` move to index `to` (in the row without it)? */
+  const canMove = (row, from, to) => problems(moveNode(row, from, to)).length === 0;
+
   /** Can node `i` be removed: what is left has no problems of its own? */
   function canRemove(row, i) {
     const nodes = list(row);
@@ -511,6 +562,6 @@
 
   global.EsphomeMrMssRow = {
     TEXT, NODE_IDS, BOARD_IDS, SAMPLE_IDS, PRESETS, sidesOf, endTrack, partsOf, named, preset, fits, problems, missing, describe, descriptionOf, parts, needs, use, rename,
-    canAdd, addNode, canRemove, removeNode, canTurn, turnNode,
+    canAdd, addNode, canRemove, removeNode, canTurn, turnNode, orientFor, insertNode, moveNode, canMove,
   };
 })(typeof globalThis !== "undefined" ? globalThis : window);

@@ -70,9 +70,15 @@
     }),
     stillToDo: "Pick your module first.",
     // Pick your module.
-    boardsHeading: "Start with an MSS board",
-    samplesHeading: "Or start from a sample",
-    confirm: (title) => `Start this module as a ${title}?`,
+    boardsHeading: "MSS boards",
+    paletteHint: "Drag a board into your module, into any gap that lights up green. Or click one to add it on the right. A Complex cascade turns the way it fits.",
+    samplesHeading: "Samples",
+    dropHere: "Drag an MSS board or a sample here",
+    dropToRemove: "Drop a board here to take it out of the module",
+    doesNotFit: (title) => `A ${title} does not fit on the right of the module: drag it into a gap that lights up green.`,
+    sampleAsk: (title) => `Replace your module with the ${title} sample?`,
+    sampleYes: "Yes, replace it",
+    onNext: "Going on to Wire it adds these to the board:",
     adds: "This adds:",
     sensors: (names) => `Sensors: ${names}.`,
     turnouts: (names) => `Turnouts: ${names}.`,
@@ -81,9 +87,7 @@
     kept: (names) => `Already on this board, and used as they are: ${names}.`,
     useStrip: "Use one WS2812B LED for each head instead (one data pin for each signal)",
     shortOfPins: (need, safe) => `This board has ${safe} free pin${safe === 1 ? "" : "s"} that ${safe === 1 ? "is" : "are"} safe for an LED once the sensors are on theirs, and these signals need ${need}. Use WS2812B LEDs, or remove what this board does not need first.`,
-    apply: "Add it",
     cancel: "Cancel",
-    started: (title) => `Started a ${title}. Wire it next.`,
     yourModule: "Your module",
     nodeWords: (n, title, turned) => `${n}. ${title}${turned ? ", flipped" : ""}`,
     startAgain: "Start again",
@@ -92,22 +96,9 @@
     // Changing the row.
     turn: "Flip",
     remove: "Remove",
-    addHeading: "Stitch on another MSS board",
-    addHint: "Only the boards whose tracks meet the right-hand end of the module are offered.",
-    addNode: (title, turned) => (turned ? `${title}, flipped` : title),
-    nothingFits: "Nothing stitches onto a Crossover: it is a whole module. Start again to pick another.",
     cannotRemove: "Removing it would leave boards whose tracks do not meet: remove the boards beside it first.",
     cannotTurn: "Flipped, its tracks would not meet the boards beside it.",
-    addAsk: (title) => `Stitch a ${title} onto the right of the module?`,
-    removeAsk: (n, title) => `Remove board ${n}, the ${title}?`,
-    turnAsk: (n) => `Flip board ${n}, the Complex cascade?`,
     left: (names) => `These stay on their pages, no longer used by the module: ${names}. Remove them there if this board no longer has them.`,
-    renamed: (pairs) => `Its signals are renamed for the way they now face: ${pairs}.`,
-    renamePair: (from, to) => `${from} to ${to}`,
-    notRenamed: (name) => `${name} keeps its name: a signal already has the new one.`,
-    sameNames: "Its sensors keep their names: they are wired already.",
-    change: "Do it",
-    changed: "The module is changed. Check Wire it and Signals for anything new.",
     // A module described by hand.
     handWritten: "This module was described by hand, which MSS Logic no longer does. It still runs as described. Start from a pattern to make it one of the standard MSS modules.",
     fromPattern: "Start from a pattern",
@@ -176,7 +167,7 @@
   const ORDER = Object.freeze(["pick", "wire", "signals", "try", "download", "pair"]);
 
   // What the person is looking at: kept while the page is drawn again.
-  const state = { board: null, step: null, settings: false, views: false, pending: "", style: null, ask: "", change: null, wireAt: "", signalAt: "" };
+  const state = { board: null, step: null, settings: false, views: false, style: null, ask: "", wireAt: "", signalAt: "" };
 
   const rowOf = (config) => (Array.isArray(config?.logic?.mss?.row) ? config.logic.mss.row : null);
 
@@ -214,11 +205,14 @@
     const row = rowOf(config);
     const rowOk = !!row && !!R() && R().problems(row).length === 0;
     const problems = (row || handWritten(config)) && B() ? list(B().problems(config)) : [];
-    const count = (step, level) => problems.filter((p) => stepOfProblem(p) === step && p.level === level).length;
+    // A module not made yet (going on makes it) is not counted as a problem on the steps.
+    const count = (step, level) => problems.filter((p) => !p.where?.notMade && stepOfProblem(p) === step && p.level === level).length;
     const parts = partsOf(config);
     const wired = parts.filter((p) => p.kind !== "mast").every((p) => p.there) && wireList(config).every((w) => w.done);
     const signalled = parts.filter((p) => p.kind === "mast").every((p) => p.there) && signalList(config).every((x) => x.done);
-    const has = { pick: rowOk, wire: rowOk && wired, signals: rowOk && signalled, try: rowOk && wired && signalled, download: false, pair: false };
+    // Picked once its parts are made (going on from Pick your module makes them).
+    const made = !problems.some((p) => p.where?.notMade);
+    const has = { pick: rowOk && made, wire: rowOk && wired, signals: rowOk && signalled, try: rowOk && wired && signalled, download: false, pair: false };
     return ORDER.map((id) => {
       const open = id === "pick" || rowOk;
       const errors = ["pick", "wire", "signals"].includes(id) ? count(id, "error") : 0;
@@ -385,6 +379,8 @@
   }
 
   function go(ctx, step) {
+    // Leaving Pick your module: the module's parts are made now.
+    if (state.step === "pick" && step !== "pick") makeParts(ctx.config, ctx);
     state.step = step;
     ctx.render();
     document.querySelector(`#logic-step-${step}`)?.focus({ preventScroll: true });
@@ -420,39 +416,15 @@
     return leds.pins > safe ? "strip" : "leds";
   }
 
-  // A card with a small picture of its boards: a button.
-  function boardCard(row, title, about, className, onClick) {
-    const card = button("", onClick, `mss-preset ${className}`.trim());
+  // A card with a small picture of its boards.
+  function boardCard(row, title, about, className) {
+    const card = el("div", `mss-preset ${className}`.trim());
     card.append(el("strong", "", title));
     // Named, so its signals are drawn too (the names are left off).
     const picture = P().draw(R().named(row), { bare: true });
     if (picture) card.append(picture);
-    if (about) card.append(el("span", "hint", about));
+    if (about) card.title = about;
     return card;
-  }
-
-  // An empty module: a card for each MSS board, then the samples.
-  function renderPresets(panel, config, ctx) {
-    const section = (heading, ids, className) => {
-      panel.append(el("h4", "", heading));
-      const cards = el("div", `mss-presets ${className}`);
-      for (const id of ids) {
-        const words = R().TEXT.presets[id];
-        const board = R().TEXT.nodes[id];
-        const card = boardCard(R().preset(id), words.title, board ? `${board.board}. ${words.about}` : words.about, state.pending === id ? "is-open" : "", () => {
-          state.pending = state.pending === id ? "" : id;
-          state.style = null;
-          ctx.render();
-        });
-        card.id = `logic-mss-preset-${id}`;
-        card.setAttribute("aria-expanded", String(state.pending === id));
-        cards.append(card);
-      }
-      panel.append(cards);
-    };
-    section(TEXT.boardsHeading, R().BOARD_IDS, "is-boards");
-    section(TEXT.samplesHeading, R().SAMPLE_IDS, "is-samples");
-    if (state.pending) panel.append(presetConfirm(config, ctx, state.pending));
   }
 
   // What a row adds to the board's pages, with the LEDs or WS2812B choice
@@ -465,7 +437,7 @@
     if (want.masts.length) items.append(el("li", "", (style === "strip" ? TEXT.mastsStrip : TEXT.masts)(want.masts.map((m) => m.name).join(", "), want.pins)));
     if (kept && want.kept.length) items.append(el("li", "", TEXT.kept(want.kept.join(", "))));
     if (!items.childNodes.length) return want;
-    box.append(el("p", "hint", TEXT.adds), items);
+    box.append(items);
     if (want.masts.length) {
       const strip = ctx.field(TEXT.useStrip, style === "strip", (checked) => {
         state.style = checked ? "strip" : "leds";
@@ -479,82 +451,78 @@
     return want;
   }
 
-  function presetConfirm(config, ctx, id) {
-    const row = R().preset(id);
-    const title = R().TEXT.presets[id].title;
-    const style = styleFor(config, ctx, row);
-    const box = el("div", "mss-confirm");
-    box.append(el("strong", "", TEXT.confirm(title)));
-    addsList(box, config, ctx, row, style);
-    const actions = el("div", "dialog-actions");
-    const yes = button(TEXT.apply, () => {
-      R().use(config, row, ctx.addItems, { style });
-      Object.assign(state, { pending: "", style: null, step: "wire" });
-      ctx.persist();
-      ctx.render();
-      ctx.flash?.("ok", TEXT.started(title));
-    }, "primary");
-    yes.id = "logic-mss-add";
-    actions.append(button(TEXT.cancel, () => { state.pending = ""; ctx.render(); }), yes);
-    box.append(actions);
-    return box;
+  // What goes into the module while it is being built: kept on the page,
+  // not saved; the board's parts are made when the person goes on.
+  let drag = null; // { kind: "board", id } | { kind: "move", from } | { kind: "sample", id }
+
+  function setRow(config, ctx, row) {
+    if (!isObject(config.logic.mss)) config.logic.mss = {};
+    config.logic.mss.row = row;
+    ctx.persist();
+    ctx.render();
   }
 
-  // Ask first, saying what the change adds, renames and leaves behind.
-  function changeConfirm(config, ctx, row) {
-    const c = state.change;
-    const titleOf = (node) => R().TEXT.nodes[node?.node]?.title || "";
-    let next;
-    let renames = [];
-    let question;
-    if (c.kind === "add") {
-      next = R().addNode(row, c.node);
-      question = TEXT.addAsk(TEXT.addNode(titleOf(c.node), c.node.turned === true));
-    } else if (c.kind === "remove") {
-      next = R().removeNode(row, c.index);
-      question = TEXT.removeAsk(c.index + 1, TEXT.addNode(titleOf(row[c.index]), row[c.index]?.turned === true));
-    } else {
-      ({ row: next, renames } = R().turnNode(row, c.index));
-      question = TEXT.turnAsk(c.index + 1);
-    }
-    // A rename to a name a signal already has is not made.
+  // Flip: the signals still named as the pattern names them are renamed, on their page too.
+  function flip(config, ctx, row, i) {
+    const out = R().turnNode(row, i);
     const taken = new Set(list(config?.signals?.masts).map((m) => m?.name));
-    const blocked = renames.filter(([, to]) => taken.has(to));
-    for (const [from, to] of blocked) R().rename(next, to, from, "mast");
-    renames = renames.filter(([, to]) => !taken.has(to));
-    const box = el("div", "mss-confirm");
-    box.append(el("strong", "", question));
-    const style = styleFor(config, ctx, next);
-    // What the board would add: the new row's parts, less the renamed ones.
-    const renamedTo = new Set(renames.map(([, to]) => to));
-    const shown = el("div");
-    const want = addsList(shown, config, ctx, next, style, { kept: false });
-    if (want.sensors.length || want.turnouts.length || want.masts.some((m) => !renamedTo.has(m.name))) box.append(...shown.childNodes);
-    if (renames.length) box.append(el("p", "", TEXT.renamed(renames.map(([a, b]) => TEXT.renamePair(a, b)).join(", "))));
-    for (const [from] of blocked) box.append(el("p", "hint", TEXT.notRenamed(from)));
-    if (c.kind === "turn") box.append(el("p", "hint", TEXT.sameNames));
-    const stillUsed = new Set(R().parts(next).map((p) => p.name));
-    const left = R().parts(row).map((p) => p.name).filter((name) => !stillUsed.has(name) && !renames.some(([from]) => from === name));
-    if (left.length) box.append(el("p", "hint", TEXT.left(left.join(", "))));
-    const actions = el("div", "dialog-actions");
-    const yes = button(TEXT.change, () => {
-      // Renamed signals keep their lamps and pins: renamed on their page.
-      for (const [from, to] of renames) {
-        const mast = list(config.signals?.masts).find((m) => m?.name === from);
-        if (!mast) continue;
-        mast.name = to;
-        if (!mast.topicCustom) mast.topic = global.EsphomeMr.topicFor("signal", to);
+    for (const [from, to] of out.renames) {
+      if (taken.has(to)) {
+        R().rename(out.row, to, from, "mast");
+        continue;
       }
-      R().use(config, next, ctx.addItems, { style });
-      Object.assign(state, { change: null, style: null });
-      ctx.persist();
-      ctx.render();
-      ctx.flash?.("ok", TEXT.changed);
-    }, "primary");
-    yes.id = "logic-mss-change";
-    actions.append(button(TEXT.cancel, () => { state.change = null; ctx.render(); }), yes);
-    box.append(actions);
-    return box;
+      const mast = list(config.signals?.masts).find((m) => m?.name === from);
+      if (!mast) continue;
+      mast.name = to;
+      if (!mast.topicCustom) mast.topic = global.EsphomeMr.topicFor("signal", to);
+    }
+    setRow(config, ctx, out.row);
+  }
+
+  // Remove a board: its parts on the pages stay, and the page says which.
+  function removeAt(config, ctx, row, i) {
+    const next = R().removeNode(row, i);
+    const still = new Set(R().parts(next).map((p) => p.name));
+    const onPages = new Set([...list(config.blocks), ...list(config.points), ...list(config.signals?.masts)].map((x) => x?.name));
+    const left = R().parts(row).map((p) => p.name).filter((name) => !still.has(name) && onPages.has(name));
+    setRow(config, ctx, next);
+    if (left.length) ctx.flash?.("ok", TEXT.left(left.join(", ")));
+  }
+
+  /** Going on from Pick your module: the board's parts are made, with free pins. */
+  function makeParts(config, ctx) {
+    const row = rowOf(config);
+    if (!row || !R() || R().problems(row).length) return;
+    const want = R().needs(config, row, { style: styleFor(config, ctx, row) });
+    if (!want.sensors.length && !want.turnouts.length && !want.masts.length) return;
+    R().use(config, row, ctx.addItems, { style: styleFor(config, ctx, row) });
+    state.style = null;
+    ctx.persist();
+  }
+
+  // Each gap in the module lights up while a board is dragged: green where
+  // it fits, grey where it does not.
+  function lightZones(root, row) {
+    for (const zone of root.querySelectorAll(".mss-drop")) {
+      const at = Number(zone.dataset.at);
+      let ok = false;
+      if (drag?.kind === "board") ok = !!R().orientFor(row, at, drag.id);
+      else if (drag?.kind === "sample") ok = row.length === 0;
+      else if (drag?.kind === "move") ok = at !== drag.from && at !== drag.from + 1 && R().canMove(row, drag.from, at > drag.from ? at - 1 : at);
+      zone.classList.toggle("is-valid", ok);
+      zone.classList.toggle("is-invalid", !ok);
+    }
+    root.classList.toggle("is-dragging", !!drag);
+    root.classList.toggle("is-moving", drag?.kind === "move");
+  }
+
+  function dropAt(config, ctx, row, at) {
+    if (drag?.kind === "board") {
+      const node = R().orientFor(row, at, drag.id);
+      if (node) setRow(config, ctx, R().insertNode(row, at, node));
+    } else if (drag?.kind === "sample" && !row.length) setRow(config, ctx, R().preset(drag.id));
+    else if (drag?.kind === "move") setRow(config, ctx, R().moveNode(row, drag.from, at > drag.from ? at - 1 : at));
+    drag = null;
   }
 
   function renderPick(panel, config, ctx) {
@@ -574,64 +542,176 @@
       }
       return;
     }
-    const row = rowOf(config);
-    if (!row) return renderPresets(panel, config, ctx);
-    panel.append(el("h4", "", TEXT.yourModule));
+    const row = rowOf(config) || [];
+    const rowOk = row.length > 0 && R().problems(row).length === 0;
+    const builder = el("div", "mss-builder");
+    builder.id = "logic-mss-builder";
+    const start = (event, what) => {
+      drag = what;
+      event.dataTransfer.effectAllowed = "move";
+      event.dataTransfer.setData("text/plain", JSON.stringify(what));
+      lightZones(builder, row);
+    };
+    const stop = () => {
+      drag = null;
+      lightZones(builder, row);
+      for (const z of builder.querySelectorAll(".is-over")) z.classList.remove("is-over");
+    };
+
+    // The palette: the three MSS boards, then the samples.
+    const palette = el("div", "mss-palette");
+    palette.append(el("p", "hint", TEXT.paletteHint));
+    const boardsGroup = el("div", "mss-palette-group");
+    boardsGroup.append(el("h5", "", TEXT.boardsHeading));
+    const boards = el("div", "mss-presets is-boards");
+    for (const id of R().BOARD_IDS) {
+      const words = R().TEXT.presets[id];
+      const card = boardCard(R().preset(id), words.title, `${R().TEXT.nodes[id].board}. ${words.about}`, "is-palette");
+      card.id = `logic-mss-preset-${id}`;
+      card.draggable = true;
+      card.tabIndex = 0;
+      card.setAttribute("role", "button");
+      card.addEventListener("dragstart", (event) => start(event, { kind: "board", id }));
+      card.addEventListener("dragend", stop);
+      // Without a mouse: click (or Enter) adds it on the right, the way round that fits.
+      const add = () => {
+        const node = R().orientFor(row, row.length, id);
+        if (!node) return ctx.flash?.("err", TEXT.doesNotFit(words.title));
+        setRow(config, ctx, R().insertNode(row, row.length, node));
+      };
+      card.addEventListener("click", add);
+      card.addEventListener("keydown", (event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); add(); } });
+      boards.append(card);
+    }
+    boardsGroup.append(boards);
+    const samplesGroup = el("div", "mss-palette-group is-samples");
+    samplesGroup.append(el("h5", "", TEXT.samplesHeading));
+    const samples = el("div", "mss-presets is-samples");
+    for (const id of R().SAMPLE_IDS) {
+      const words = R().TEXT.presets[id];
+      const card = boardCard(R().preset(id), words.title, words.about, "is-palette");
+      card.id = `logic-mss-preset-${id}`;
+      card.draggable = true;
+      card.tabIndex = 0;
+      card.setAttribute("role", "button");
+      card.addEventListener("dragstart", (event) => start(event, { kind: "sample", id }));
+      card.addEventListener("dragend", stop);
+      const load = () => {
+        if (row.length) {
+          state.ask = `sample:${id}`;
+          return ctx.render();
+        }
+        setRow(config, ctx, R().preset(id));
+      };
+      card.addEventListener("click", load);
+      card.addEventListener("keydown", (event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); load(); } });
+      samples.append(card);
+    }
+    samplesGroup.append(samples);
+    const groups = el("div", "mss-palette-groups");
+    groups.append(boardsGroup, samplesGroup);
+    palette.append(groups);
+
+    // The module: its cards, with a gap before, between and after them to drop into.
+    const canvas = el("div", "mss-canvas");
+    canvas.append(el("h4", "", TEXT.yourModule));
+    const lane = el("div", "mss-row-cards");
+    lane.id = "logic-mss-lane";
+    const zone = (at, big = false) => {
+      const z = el("div", `mss-drop${big ? " is-empty" : ""}`, big ? TEXT.dropHere : "");
+      z.dataset.at = String(at);
+      z.addEventListener("dragover", (event) => {
+        if (!z.classList.contains("is-valid")) return;
+        event.preventDefault();
+        z.classList.add("is-over");
+      });
+      z.addEventListener("dragleave", () => z.classList.remove("is-over"));
+      z.addEventListener("drop", (event) => {
+        event.preventDefault();
+        dropAt(config, ctx, row, at);
+      });
+      return z;
+    };
     const titleOf = (node) => R().TEXT.nodes[node?.node]?.title || String(node?.node ?? "");
-    const rowOk = R().problems(row).length === 0;
-    const choices = rowOk ? [{ node: "cascade" }, { node: "complex" }, { node: "complex", turned: true }].filter((node) => R().canAdd(row, node)) : [];
-    const cards = el("div", "mss-row-cards");
+    if (!row.length) lane.append(zone(0, true));
     row.forEach((node, i) => {
+      lane.append(zone(i));
       const card = el("div", "mss-board-card");
       card.dataset.board = String(i);
+      card.draggable = true;
+      card.addEventListener("dragstart", (event) => start(event, { kind: "move", from: i }));
+      card.addEventListener("dragend", stop);
       card.append(el("strong", "", TEXT.nodeWords(i + 1, titleOf(node), node?.turned === true)));
       const picture = R().NODE_IDS.includes(node?.node) ? P().draw(R().named([{ node: node.node, ...(node.turned ? { turned: true } : {}) }]), { bare: true }) : null;
       if (picture) card.append(picture);
       const actions = el("div", "mss-board-actions");
-      if (rowOk && node?.node === "complex") {
-        const turn = button(TEXT.turn, () => { state.change = { kind: "turn", index: i }; state.style = null; ctx.render(); });
+      if (node?.node === "complex") {
+        const turn = button(TEXT.turn, () => flip(config, ctx, row, i));
         turn.id = `logic-mss-flip-${i}`;
         turn.disabled = !R().canTurn(row, i);
         if (turn.disabled) turn.title = TEXT.cannotTurn;
         actions.append(turn);
       }
-      if (rowOk && row.length > 1) {
-        const remove = button(TEXT.remove, () => { state.change = { kind: "remove", index: i }; state.style = null; ctx.render(); });
-        remove.id = `logic-mss-remove-${i}`;
-        remove.disabled = !R().canRemove(row, i);
-        if (remove.disabled) remove.title = TEXT.cannotRemove;
-        actions.append(remove);
-      }
-      if (actions.childNodes.length) card.append(actions);
-      cards.append(card);
+      const remove = button(TEXT.remove, () => removeAt(config, ctx, row, i));
+      remove.id = `logic-mss-remove-${i}`;
+      remove.disabled = row.length > 1 && !R().canRemove(row, i);
+      if (remove.disabled) remove.title = TEXT.cannotRemove;
+      actions.append(remove);
+      card.append(actions);
+      lane.append(card);
     });
-    // The boards that stitch on at the right, as cards too.
-    {
-      for (const node of choices) {
-        const card = boardCard([node], `+ ${TEXT.addNode(R().TEXT.nodes[node.node].title, node.turned === true)}`, "", "is-add", () => { state.change = { kind: "add", node }; state.style = null; ctx.render(); });
-        card.id = `logic-mss-add-${node.node}${node.turned ? "-flipped" : ""}`;
-        card.title = TEXT.addHeading;
-        cards.append(card);
+    if (row.length) lane.append(zone(row.length));
+    canvas.append(lane);
+    // Drop a card of the module here to take it off.
+    const bin = el("div", "mss-bin", TEXT.dropToRemove);
+    bin.id = "logic-mss-bin";
+    bin.addEventListener("dragover", (event) => {
+      if (drag?.kind !== "move" || (row.length > 1 && !R().canRemove(row, drag.from))) return;
+      event.preventDefault();
+      bin.classList.add("is-over");
+    });
+    bin.addEventListener("dragleave", () => bin.classList.remove("is-over"));
+    bin.addEventListener("drop", (event) => {
+      event.preventDefault();
+      const from = drag?.from;
+      drag = null;
+      if (from !== undefined) removeAt(config, ctx, row, from);
+    });
+    canvas.append(bin);
+    for (const p of row.length ? R().problems(row) : []) canvas.append(el("p", "mss-warning", p.text));
+    if (state.ask?.startsWith("sample:")) {
+      const id = state.ask.slice(7);
+      canvas.append(asking(ctx, TEXT.sampleAsk(R().TEXT.presets[id]?.title || id), TEXT.sampleYes, () => setRow(config, ctx, R().preset(id))));
+    }
+    // What going on will add to the pages, with the LEDs or WS2812B choice.
+    if (rowOk) {
+      const adds = el("div", "mss-adds");
+      const shown = el("div");
+      const want = addsList(shown, config, ctx, row, styleFor(config, ctx, row), { kept: false });
+      if (want.sensors.length || want.turnouts.length || want.masts.length) {
+        adds.append(el("strong", "", TEXT.onNext), ...shown.childNodes);
+        canvas.append(adds);
       }
     }
-    panel.append(cards);
-    if (rowOk) panel.append(el("p", "hint", choices.length ? TEXT.addHint : TEXT.nothingFits));
-    for (const p of R().problems(row)) panel.append(el("p", "mss-warning", p.text));
-    if (state.change) panel.append(changeConfirm(config, ctx, row));
-    if (state.ask === "again") {
-      panel.append(asking(ctx, TEXT.startAgainAsk, TEXT.yes, () => {
-        delete config.logic.mss.row;
-        state.step = "pick";
-        ctx.persist();
-        ctx.render();
-      }));
-    } else {
-      const b = button(TEXT.startAgain, () => { state.ask = "again"; ctx.render(); });
-      b.id = "logic-mss-start-again";
-      const again = el("p", "mss-start-again");
-      again.append(b);
-      panel.append(again);
+    if (row.length) {
+      if (state.ask === "again") {
+        canvas.append(asking(ctx, TEXT.startAgainAsk, TEXT.yes, () => {
+          delete config.logic.mss.row;
+          state.step = "pick";
+          ctx.persist();
+          ctx.render();
+        }));
+      } else {
+        const b = button(TEXT.startAgain, () => { state.ask = "again"; ctx.render(); });
+        b.id = "logic-mss-start-again";
+        const again = el("p", "mss-start-again");
+        again.append(b);
+        canvas.append(again);
+      }
     }
+    // The module on top, the palette under it: both in view while dragging.
+    builder.append(canvas, palette);
+    panel.append(builder);
   }
 
   // The part being wired: the one picked, else the first not done.
@@ -847,7 +927,7 @@
   }
 
   function renderPage(root, config, ctx) {
-    if (state.board !== config) Object.assign(state, { board: config, step: null, settings: false, views: false, pending: "", style: null, ask: "", change: null, wireAt: "", signalAt: "" });
+    if (state.board !== config) Object.assign(state, { board: config, step: null, settings: false, views: false, style: null, ask: "", wireAt: "", signalAt: "" });
     const line = el("div", "logic-field-line");
     line.id = PART;
     const mode = el("span");

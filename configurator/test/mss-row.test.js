@@ -184,6 +184,28 @@ test("turning a Complex cascade round swaps its sides and renames the signals na
   assert.equal(R.canTurn(R.preset("cascade"), 0), false, "a Cascade is the same either way round");
 });
 
+test("dropped into a gap: a board turns the way it fits, takes the block it shares, and can move", () => {
+  const complex = R.preset("complex");
+  same(R.orientFor([], 0, "complex"), { node: "complex" });
+  same(R.orientFor(complex, 1, "complex"), { node: "complex", turned: true }, "two tracks meet two: flipped");
+  same(R.orientFor(complex, 0, "complex"), { node: "complex", turned: true }, "on the left, flipped too");
+  assert.equal(R.orientFor(complex, 1, "cascade"), null);
+  assert.equal(R.orientFor(complex, 0, "crossover"), null);
+  same(R.insertNode(complex, 1, { node: "complex", turned: true }), R.preset("passing"));
+  // Put first, a board takes the old first one's left block as its right one.
+  const two = R.insertNode(R.preset("cascade"), 0, { node: "cascade" });
+  same(two[0].names.right, ["Block 1 current"]);
+  assert.equal(two[1].names.left, undefined);
+  same(R.describe(two).tracks[0].blocks.map((b) => b.sensors[0]), ["Block 3 current", "Block 1 current", "Block 2 current"]);
+  // Moving: the passing siding's halves swapped make a module with two tracks at each end.
+  const passing = R.preset("passing");
+  assert.equal(R.canMove(passing, 1, 0), true);
+  const swapped = R.moveNode(passing, 1, 0);
+  same(swapped.map((n) => [n.node, n.turned === true]), [["complex", true], ["complex", false]]);
+  same(R.describe(swapped).ends.map((e) => e.tracks), [2, 2]);
+  assert.equal(R.canMove(R.addNode(R.preset("cascade"), { node: "complex" }), 1, 0), false, "two tracks would meet one");
+});
+
 test("a sensor, turnout or signal renamed on its page is renamed in the row", () => {
   const config = M.myFirstBoardPreset();
   config.logic = { mode: "mss", mss: { row: R.preset("passing") } };

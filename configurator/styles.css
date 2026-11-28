@@ -3585,3 +3585,123 @@ button.clear-page {
 .mss-row-picture.is-bare {
   width: 100%;
 }
+
+/* Pick your module: drag MSS boards from the palette into the module. */
+.mss-builder {
+  display: grid;
+  gap: 1rem;
+}
+
+.mss-palette .mss-preset {
+  cursor: grab;
+}
+
+.mss-palette-groups {
+  display: grid;
+  grid-template-columns: 3fr 2fr;
+  gap: 1rem;
+}
+
+.mss-palette-group h5 {
+  margin: 0 0 0.35rem;
+}
+
+.mss-palette-group.is-samples {
+  border-left: 1px solid var(--line);
+  padding-left: 1rem;
+}
+
+.mss-palette .mss-presets {
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  margin: 0;
+}
+
+.mss-palette .mss-preset {
+  padding: 0.45rem;
+  gap: 0.2rem;
+}
+
+.mss-palette .mss-preset strong {
+  font-size: 0.85rem;
+}
+
+
+
+.mss-canvas {
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  padding: 0.75rem;
+  background: var(--bg);
+}
+
+.mss-canvas .mss-row-cards {
+  align-items: stretch;
+  gap: 0;
+  min-height: 140px;
+}
+
+.mss-canvas .mss-board-card {
+  cursor: grab;
+}
+
+.mss-drop {
+  width: 14px;
+  border-radius: 6px;
+  margin: 0 2px;
+  transition: width 0.1s;
+}
+
+.mss-drop.is-empty {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 120px;
+  border: 2px dashed var(--line-strong);
+  color: var(--muted);
+}
+
+.is-dragging .mss-drop.is-valid {
+  width: 44px;
+  background: var(--ok-bg);
+  border: 2px dashed var(--ok-ink);
+}
+
+.is-dragging .mss-drop.is-empty.is-valid {
+  width: auto;
+}
+
+.is-dragging .mss-drop.is-over {
+  width: 72px;
+  background: #bbf7d0;
+}
+
+.is-dragging .mss-drop.is-invalid:not(.is-empty) {
+  opacity: 0.3;
+}
+
+.mss-bin {
+  display: none;
+  margin-top: 0.5rem;
+  padding: 0.75rem;
+  border: 2px dashed var(--danger);
+  border-radius: 8px;
+  color: var(--danger);
+  text-align: center;
+}
+
+.is-moving .mss-bin {
+  display: block;
+}
+
+.mss-bin.is-over {
+  background: var(--err-bg);
+}
+
+.mss-adds {
+  margin-top: 0.75rem;
+  padding: 0.75rem;
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  background: var(--accent-soft);
+}

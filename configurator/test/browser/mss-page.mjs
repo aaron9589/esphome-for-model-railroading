@@ -69,18 +69,24 @@ assert.equal(await page.locator("#logic-mode").count(), 0, "the mode card is fol
 assert.equal(await page.locator("#logic-layers-view").count(), 0);
 await shot("1-pick");
 
-// ===== A passing siding =====================================================
+// ===== A passing siding, dragged in ========================================
 
-await page.click("#logic-mss-preset-passing");
-const confirm = page.locator(".mss-confirm");
-assert.match(await confirm.innerText(), /Start this module as a Passing siding\?/);
-assert.match(await confirm.innerText(), /Points 1, Points 2/);
+// While a sample is dragged, the empty module lights up to take it.
+await page.dragAndDrop("#logic-mss-preset-passing", ".mss-drop.is-empty");
+const passing = await page.evaluate(() => EsphomeMrMssRow.preset("passing"));
+assert.deepEqual(await page.evaluate(() => state.logic.mss.row), passing);
+assert.deepEqual(await page.locator(".mss-board-card strong").allInnerTexts(), ["1. Complex cascade", "2. Complex cascade, flipped"]);
+assert.equal(await page.evaluate(() => state.blocks.length), 0, "nothing is made while the module is built");
+const adds = page.locator(".mss-adds");
+assert.match(await adds.innerText(), /Going on to Wire it adds/);
+assert.match(await adds.innerText(), /Points 1, Points 2/);
 // Six signals, two of them two-head: WS2812B LEDs, since LEDs would not fit.
 assert.equal(await page.locator("#logic-mss-strip").isChecked(), true);
-await shot("2-confirm");
-await page.click("#logic-mss-add");
+await shot("2-built");
+await page.click("#logic-mss-next");
 
 assert.equal(await current(), "logic-step-wire");
+assert.equal(await page.evaluate(() => state.blocks.length), 6, "going on made the parts");
 assert.deepEqual(await openSteps(), ["✓ Pick your module", "✓ Wire it", "✓ Signals", "✓ Try it", "5 Download", "6 Pair"]);
 assert.deepEqual(await mssProblems(), []);
 const picture = page.locator("#logic-mss-picture");
@@ -176,32 +182,36 @@ assert.deepEqual(await openSteps(), ["1 Pick your module"]);
 assert.equal(await page.locator(".mss-preset").count(), 5);
 assert.equal(await page.evaluate(() => state.blocks.length), 6, "the parts stay on their pages");
 
-// ===== Building the row: add, remove, turn round ===========================
+// ===== Building the module by hand: drag, flip, move, remove ===============
 
-await page.click("#logic-mss-preset-complex");
-await page.click("#logic-mss-add");
-await page.click("#logic-step-pick");
-// Only a board whose tracks meet the Complex cascade's two is offered: one flipped.
-assert.equal(await page.locator("#logic-mss-add-cascade").count(), 0);
-assert.equal(await page.locator("#logic-mss-add-complex").count(), 0);
-await page.click("#logic-mss-add-complex-flipped");
-assert.match(await page.locator(".mss-confirm").innerText(), /Stitch a Complex cascade, flipped onto the right of the module\?/);
-await page.click("#logic-mss-change");
-const passing = await page.evaluate(() => EsphomeMrMssRow.preset("passing"));
-assert.deepEqual(await page.evaluate(() => state.logic.mss.row), passing, "the same as the Passing siding preset");
+await page.dragAndDrop("#logic-mss-preset-complex", ".mss-drop.is-empty");
+// Dragging a Cascade: its one track meets the Complex cascade's single track on the left, not its two on the right.
+await page.locator("#logic-mss-preset-cascade").dispatchEvent("dragstart", { dataTransfer: await page.evaluateHandle(() => new DataTransfer()) });
+assert.equal(await page.locator('.mss-drop[data-at="0"]').getAttribute("class"), "mss-drop is-valid");
+assert.equal(await page.locator('.mss-drop[data-at="1"]').getAttribute("class"), "mss-drop is-invalid");
+await shot("2b-dragging");
+await page.locator("#logic-mss-preset-cascade").dispatchEvent("dragend");
+// A second Complex cascade dropped on the right turns the way it fits: the passing siding.
+await page.dragAndDrop("#logic-mss-preset-complex", '.mss-drop[data-at="1"]');
+assert.deepEqual(await page.evaluate(() => state.logic.mss.row), passing, "the same as the Passing siding sample");
 assert.equal(await page.locator("#logic-mss-picture .mss-row-block").count(), 4);
 assert.equal(await page.locator("#logic-mss-flip-1").isDisabled(), true, "flipped, it would not join");
 assert.deepEqual(await mssProblems(), []);
 await shot("6-added");
-// Remove the first: the second takes the block they shared.
-await page.click("#logic-mss-remove-0");
-assert.match(await page.locator(".mss-confirm").innerText(), /stay on their pages, no longer used by the module: Block 1 current, IR 1, Points 1, Signal 1 to B, Signal 1 to A main, Signal 1 to A siding/);
-await page.click("#logic-mss-change");
+// Drag the second card before the first: two tracks at each end of the module.
+await page.dragAndDrop('.mss-board-card[data-board="1"]', '.mss-drop[data-at="0"]');
+assert.deepEqual(await page.evaluate(() => state.logic.mss.row.map((n) => n.turned === true)), [true, false]);
+await page.dragAndDrop('.mss-board-card[data-board="0"]', '.mss-drop[data-at="2"]');
+assert.deepEqual(await page.evaluate(() => state.logic.mss.row.map((n) => n.turned === true)), [false, true]);
+// Drag the first onto the remove area: the second takes the block they shared.
+await page.locator('.mss-board-card[data-board="0"]').dispatchEvent("dragstart", { dataTransfer: await page.evaluateHandle(() => new DataTransfer()) });
+assert.equal(await page.locator("#logic-mss-bin").isVisible(), true, "the remove area shows while a card is dragged");
+await page.locator("#logic-mss-bin").dispatchEvent("dragover", { dataTransfer: await page.evaluateHandle(() => new DataTransfer()) });
+await page.locator("#logic-mss-bin").dispatchEvent("drop", { dataTransfer: await page.evaluateHandle(() => new DataTransfer()) });
+assert.equal(await page.evaluate(() => state.logic.mss.row.length), 1);
 assert.deepEqual(await page.evaluate(() => state.logic.mss.row[0].names.left), ["Block 2 current", "Siding 1 current"]);
-// Turn it round: its signals are renamed for the way they now face, on their page too.
+// Flip it: its signals are renamed for the way they now face, on their page too.
 await page.click("#logic-mss-flip-0");
-assert.match(await page.locator(".mss-confirm").innerText(), /Signal 2 to A to Signal 2 to B, Signal 2 to B main to Signal 2 to A main, Signal 2 to B siding to Signal 2 to A siding/);
-await page.click("#logic-mss-change");
 const masts = await page.evaluate(() => state.signals.masts.map((m) => m.name));
 assert.ok(masts.includes("Signal 2 to B") && !masts.includes("Signal 2 to A"), masts.join());
 assert.equal(await page.evaluate(() => state.signals.masts.find((m) => m.name === "Signal 2 to B").topic), "trains/track/signalmast/Signal 2 to B");
@@ -218,6 +228,10 @@ await shot("5-hand-written");
 await page.click("#logic-mss-from-pattern");
 await page.click(".mss-confirm button.primary");
 assert.equal(await page.locator(".mss-preset").count(), 5);
+// Without a mouse: clicking a board adds it on the right.
+await page.click("#logic-mss-preset-cascade");
+await page.click("#logic-mss-preset-cascade");
+assert.deepEqual(await page.evaluate(() => state.logic.mss.row), await page.evaluate(() => EsphomeMrMssRow.preset("cascades")));
 assert.equal(await page.evaluate(() => Object.keys(state.logic.mss).includes("tracks")), false);
 
 await browser.close();
