@@ -31,7 +31,7 @@ try {
 }
 
 const browser = await chromium.launch(process.env.CHROMIUM ? { executablePath: process.env.CHROMIUM } : {});
-const page = await browser.newPage({ viewport: { width: 1280, height: 1000 } });
+const page = await browser.newPage({ viewport: { width: 1280, height: 1600 } });
 const errors = [];
 page.on("pageerror", (error) => errors.push(error.message));
 page.on("console", (message) => { if (message.type() === "error") errors.push(message.text()); });
@@ -186,27 +186,63 @@ assert.deepEqual(await openSteps(), ["1 Pick your module"]);
 assert.equal(await page.locator(".mss-preset").count(), 5);
 assert.equal(await page.evaluate(() => state.blocks.length), 6, "the parts stay on their pages");
 
-// ===== Building the module by hand: drag, flip, move, remove ===============
+// ===== Building the module by hand: lines, drag, flip, move, remove ========
 
-await page.dragAndDrop("#logic-mss-preset-complex", ".mss-drop.is-empty");
-// Dragging a Cascade: its one track meets the Complex cascade's single track on the left, not its two on the right.
-await page.locator("#logic-mss-preset-cascade").dispatchEvent("dragstart", { dataTransfer: await page.evaluateHandle(() => new DataTransfer()) });
-assert.equal(await page.locator('.mss-drop[data-at="0"]').getAttribute("class"), "mss-drop is-valid");
-assert.equal(await page.locator('.mss-drop[data-at="1"]').getAttribute("class"), "mss-drop is-invalid");
+// Drag by hand with the mouse: the join gaps show only once a drag has begun.
+async function dragTo(source, target) {
+  const a = await page.locator(source).first().boundingBox();
+  await page.mouse.move(a.x + 10, a.y + 10);
+  await page.mouse.down();
+  await page.mouse.move(a.x + 30, a.y + 30, { steps: 4 });
+  const t = page.locator(target);
+  await t.waitFor({ state: "visible" });
+  const b = await t.boundingBox();
+  await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2, { steps: 8 });
+  await page.mouse.up();
+}
+const row = () => page.evaluate(() => state.logic.mss.row.map((n) => `${n.node}${n.turned ? "-joins" : ""}@${n.line || 0}`));
+
+await dragTo("#logic-mss-preset-complex", ".mss-drop.is-empty");
+assert.deepEqual(await row(), ["complex@0"]);
+// After the split there are two lines: a gap on each, and none at the left for the diverging line.
+assert.equal(await page.locator('.mss-drop[data-at="1"][data-line]').count(), 2);
+assert.equal(await page.locator('.mss-drop[data-at="0"][data-line]').count(), 1);
+// A Cascade on the loop (line 2), then a Complex cascade dropped between the lines joins them.
+await dragTo("#logic-mss-preset-cascade", '.mss-drop[data-at="1"][data-line="1"]');
+assert.deepEqual(await row(), ["complex@0", "cascade@1"]);
+await page.locator("#logic-mss-preset-complex").dispatchEvent("dragstart", { dataTransfer: await page.evaluateHandle(() => new DataTransfer()) });
+assert.equal(await page.locator('.mss-drop[data-at="2"][data-join="0"]').getAttribute("class"), "mss-drop is-join is-valid");
+assert.equal(await page.locator('.mss-drop[data-at="1"][data-join="0"]').getAttribute("class"), "mss-drop is-join is-invalid", "not before the Cascade: it would lose its loop");
 await shot("2b-dragging");
-await page.locator("#logic-mss-preset-cascade").dispatchEvent("dragend");
-// A second Complex cascade dropped on the right turns the way it fits: the passing siding.
-await page.dragAndDrop("#logic-mss-preset-complex", '.mss-drop[data-at="1"]');
-assert.deepEqual(await page.evaluate(() => state.logic.mss.row), passing, "the same as the Passing siding sample");
-assert.equal(await page.locator("#logic-mss-picture .mss-row-block").count(), 4);
-assert.equal(await page.locator("#logic-mss-flip-1").isDisabled(), true, "flipped, it would not join");
-assert.deepEqual(await mssProblems(), []);
+await page.locator("#logic-mss-preset-complex").dispatchEvent("dragend");
+await dragTo("#logic-mss-preset-complex", '.mss-drop[data-at="2"][data-join="0"]');
+assert.deepEqual(await row(), ["complex@0", "cascade@1", "complex-joins@0"]);
+// Plotting adds nothing: the new boards' parts wait for Make the module, as one problem.
+assert.match((await mssProblems()).join(), /^Not made yet: Siding 2 current, IR 3, Points 3, Signal 2 to B, Signal 3 to A, Signal 3 to B main, Signal 3 to B siding\./);
+assert.equal(await page.locator("#logic-mss-next").innerText(), "Make the module");
+// The picture: the loop split in two by the Cascade's IR sensor.
+assert.equal(await page.locator("#logic-mss-picture .mss-row-block").count(), 5);
 await shot("6-added");
-// Drag the second card before the first: two tracks at each end of the module.
-await page.dragAndDrop('.mss-board-card[data-board="1"]', '.mss-drop[data-at="0"]');
-assert.deepEqual(await page.evaluate(() => state.logic.mss.row.map((n) => n.turned === true)), [true, false]);
-await page.dragAndDrop('.mss-board-card[data-board="0"]', '.mss-drop[data-at="2"]');
-assert.deepEqual(await page.evaluate(() => state.logic.mss.row.map((n) => n.turned === true)), [false, true]);
+// Move the Cascade from the loop to the main line.
+await dragTo('.mss-board-card[data-board="1"]', '.mss-drop[data-at="1"][data-line="0"]');
+assert.deepEqual(await row(), ["complex@0", "cascade@0", "complex-joins@0"]);
+// Take the Cascade out: a passing siding, the same as the sample.
+await page.locator('.mss-board-card[data-board="1"]').dispatchEvent("dragstart", { dataTransfer: await page.evaluateHandle(() => new DataTransfer()) });
+await page.locator("#logic-mss-bin").dispatchEvent("dragover", { dataTransfer: await page.evaluateHandle(() => new DataTransfer()) });
+await page.locator("#logic-mss-bin").dispatchEvent("drop", { dataTransfer: await page.evaluateHandle(() => new DataTransfer()) });
+assert.deepEqual(await row(), ["complex@0", "complex-joins@0"]);
+assert.equal((await page.evaluate(() => state.logic.mss.row))[1].names.right[0], passing[1].names.right[0]);
+// Flip the join: it splits instead, three lines at end B; and back.
+await page.click("#logic-mss-flip-1");
+assert.deepEqual(await row(), ["complex@0", "complex@0"]);
+assert.equal(await page.locator("#logic-mss-picture .mss-row-end").count(), 4, "end A, and end B's three tracks");
+await page.click("#logic-mss-flip-1");
+assert.deepEqual(await row(), ["complex@0", "complex-joins@0"]);
+// Start again from the Passing siding sample, whose parts are on their pages already.
+await page.click("#logic-mss-start-again");
+await page.click(".mss-confirm button.primary");
+await page.click("#logic-mss-preset-passing");
+assert.deepEqual(await mssProblems(), []);
 // Drag the first onto the remove area: the second takes the block they shared.
 await page.locator('.mss-board-card[data-board="0"]').dispatchEvent("dragstart", { dataTransfer: await page.evaluateHandle(() => new DataTransfer()) });
 assert.equal(await page.locator("#logic-mss-bin").isVisible(), true, "the remove area shows while a card is dragged");

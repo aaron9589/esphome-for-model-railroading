@@ -58,14 +58,14 @@
     // Problems.
     empty: "Pick your module: it has no MSS boards yet.",
     unknown: (n, node) => `Board ${n} is "${node}", which is not an MSS board. Remove it and add a Crossover, Cascade or Complex cascade.`,
-    crossoverAlone: "A Crossover is a whole module on its own: stitched to other MSS boards it adds nothing. Remove it, or make the module a Crossover only.",
     notMade: "The module's sensors, turnouts and signals are not made yet: click Make the module on Pick your module, and they are made with free pins.",
+    notAllMade: (names) => `Not made yet: ${names}. Click Make the module on Pick your module to add them with free pins, or add them on their pages with these names.`,
     notThere: Object.freeze({
       sensor: (name) => `Sensor "${name}" is not on the Sensors page. Add it there with that name, or start the module again.`,
       turnout: (name) => `Turnout "${name}" is not on the Turnouts page. Add it there with that name, or start the module again.`,
       mast: (name) => `Signal "${name}" is not on the Signal Masts page. Add it there with that name, or start the module again.`,
     }),
-    sides: (n, left, right) => `Board ${n} has ${left} track${left === 1 ? "" : "s"} on its right side, and board ${n + 1} has ${right} on its left. Stitched boards need the same number: flip one, or put another board between them.`,
+    noLine: (n, line) => `Board ${n} is on line ${line}, which is not there at that point of the module. Drag it onto a line, or put a Complex cascade before it to split one.`,
   });
 
   // Each node's sides: how many tracks on the left and on the right, and
@@ -98,12 +98,77 @@
   const BOARD_IDS = Object.freeze(["crossover", "cascade", "complex"]);
   const SAMPLE_IDS = Object.freeze(["passing", "cascades"]);
 
+  // ===== Lines ===============================================================
+
+  // A board's line (`line`, from 0, the bottom line at that point).
+  const lineOf = (node) => (Number.isInteger(node?.line) && node.line >= 0 ? node.line : 0);
+  const isJoin = (node) => node?.node === "complex" && node.turned === true;
+
+  /**
+   * The module walked board by board, left to right, as lines: each line is
+   * a lane (`id`), carried past the boards not on it. The left edge has one
+   * line, or two when the first board joins two. A Complex cascade splits
+   * its line (its main line carries on, the diverging line is new, just
+   * above it) or, flipped, joins its line and the one above. Returns
+   * { steps: [{ index, node, line, inputs: [{ lane, fresh }], out }],
+   *   lanes: Map(id -> { road, fromLeft }), order (every lane, bottom to
+   *   top, for drawing), left, right (the lanes at each edge, bottom to
+   *   top), missing (indexes of boards on a line that is not there) }.
+   * `fresh`: no board has touched that lane yet (its first block is the
+   * board's to name). `out`: the lanes the board hands on (a split's main
+   * and new lane; a join's one).
+   */
+  function walk(row) {
+    const nodes = list(row);
+    const lanes = new Map();
+    const order = [];
+    let active = [];
+    let nextId = 0;
+    const touched = new Set();
+    const add = (road, fromLeft, after) => {
+      const id = nextId++;
+      lanes.set(id, { road, fromLeft });
+      if (after === undefined) order.push(id);
+      else order.splice(order.indexOf(after) + 1, 0, id);
+      return id;
+    };
+    active.push(add("main", true));
+    if (isJoin(nodes[0])) active.push(add("siding", true));
+    const left = [...active];
+    const steps = [];
+    const missing = [];
+    nodes.forEach((node, index) => {
+      if (!SIDES[node?.node]) return;
+      const line = lineOf(node);
+      const top = isJoin(node) ? line + 1 : line;
+      if (top >= active.length) {
+        missing.push(index);
+        return;
+      }
+      const ins = isJoin(node) ? [active[line], active[line + 1]] : [active[line]];
+      const inputs = ins.map((lane) => ({ lane, fresh: !touched.has(lane) }));
+      for (const lane of ins) touched.add(lane);
+      let out = [active[line]];
+      if (node.node === "complex" && !isJoin(node)) {
+        const branch = add("siding", false, active[line]);
+        active.splice(line + 1, 0, branch);
+        touched.add(branch);
+        out = [active[line], branch];
+      } else if (isJoin(node)) {
+        active.splice(line + 1, 1);
+      }
+      steps.push({ index, node, line, inputs, out });
+    });
+    return { steps, lanes, order, left, right: [...active], missing };
+  }
+
   // ===== Names ===============================================================
 
-  // Every part name a node gives, in wiring order: [{ key, kind, name, role }].
+  // Every part name a board gives, in wiring order: [{ key, kind, name, role }].
   // kind: sensor | turnout | mast. role: block | ir | points | signal (and for
-  // a signal, `heads`: plain | twoHeads | diverging).
-  function partsOf(node, first) {
+  // a signal, `heads`: plain | twoHeads | diverging). `fresh`: for each of its
+  // lines, whether its block there is this board's to name (`left`).
+  function partsOf(node, fresh = []) {
     const n = isObject(node?.names) ? node.names : {};
     const out = [];
     const add = (key, kind, name, role, extra = {}) => { if (typeof name === "string" && name) out.push({ key, kind, name, role, ...extra }); };
@@ -111,7 +176,7 @@
       add("block", "sensor", n.block, "block");
       return out;
     }
-    if (first) list(n.left).forEach((name, i) => add(`left.${i}`, "sensor", name, "block"));
+    fresh.forEach((isFresh, i) => { if (isFresh) add(`left.${i}`, "sensor", list(n.left)[i], "block"); });
     list(n.right).forEach((name, i) => add(`right.${i}`, "sensor", name, "block"));
     add("ir", "sensor", n.ir, "ir");
     if (node?.node === "cascade") {
@@ -128,15 +193,18 @@
   }
 
   /**
-   * The row with every part named: names a node already has are kept, the
-   * rest are numbered along the row (blocks along the main line, sidings,
-   * IR sensors, points and signals by the IR sensor they stand at), skipping
-   * a number another part of the row already uses. A node no longer first
-   * loses its left-side names. Returns a new row.
+   * The row with every part named: names a board already has are kept, the
+   * rest are numbered along the module (blocks on main lines, blocks on
+   * diverging lines, IR sensors, points and signals by the IR sensor they
+   * stand at), skipping a number another part already uses. A board names a
+   * line's first block (`left`) only where no board before it is on that
+   * line. Returns a new row.
    */
   function named(row) {
     const nodes = list(row).map((node) => (isObject(node) ? JSON.parse(JSON.stringify(node)) : node));
-    const used = new Set(nodes.flatMap((node, i) => partsOf(node, i === 0).map((p) => p.name)));
+    const w = walk(nodes);
+    const freshOf = new Map(w.steps.map((step) => [step.index, step.inputs.map((x) => x.fresh)]));
+    const used = new Set(nodes.flatMap((node, i) => partsOf(node, freshOf.get(i) || []).map((p) => p.name)));
     const counters = { block: 0, siding: 0, ir: 0 };
     const next = (kind, make) => {
       let name;
@@ -145,23 +213,23 @@
       return name;
     };
     const keep = (value, make) => (typeof value === "string" && value ? value : make());
-    nodes.forEach((node, i) => {
-      if (!isObject(node) || !SIDES[node.node]) return;
+    const blockFor = (road) => (road === "siding" ? next("siding", TEXT.sidingBlock) : next("block", TEXT.block));
+    const roadOf = (lane) => w.lanes.get(lane)?.road || "main";
+    for (const step of w.steps) {
+      const node = nodes[step.index];
       const n = isObject(node.names) ? node.names : {};
       node.names = n;
       if (node.node === "crossover") {
-        n.block = keep(n.block, () => next("block", TEXT.block));
-        return;
+        n.block = keep(n.block, () => blockFor(roadOf(step.inputs[0].lane)));
+        continue;
       }
-      const [leftCount, rightCount] = sidesOf(node);
-      const blockFor = (road) => (road === "siding" ? next("siding", TEXT.sidingBlock) : next("block", TEXT.block));
-      if (i === 0) n.left = roads(leftCount).map((road, k) => keep(list(n.left)[k], () => blockFor(road)));
+      if (step.inputs.some((x) => x.fresh)) n.left = step.inputs.map((x, k) => (x.fresh ? keep(list(n.left)[k], () => blockFor(roadOf(x.lane))) : null));
       else delete n.left;
-      // The IR sensor's number is the node's: its signals and points share it.
+      // The IR sensor's number is the board's: its signals and points share it.
       const irName = keep(n.ir, () => next("ir", TEXT.ir));
       n.ir = irName;
       const number = /(\d+)$/.exec(irName)?.[1] || String(counters.ir);
-      n.right = roads(rightCount).map((road, k) => keep(list(n.right)[k], () => blockFor(road)));
+      n.right = step.out.map((lane, k) => keep(list(n.right)[k], () => blockFor(roadOf(lane))));
       n.signals = isObject(n.signals) ? n.signals : {};
       const unused = (make) => {
         const name = make();
@@ -183,7 +251,7 @@
         n.signals.main = keep(n.signals.main, () => unused(() => TEXT.signalOn(number, back, TEXT.main)));
         n.signals.siding = keep(n.signals.siding, () => unused(() => TEXT.signalOn(number, back, TEXT.siding)));
       }
-    });
+    }
     return nodes;
   }
 
@@ -192,19 +260,7 @@
     return PRESETS[id] ? named(PRESETS[id]) : null;
   }
 
-  // ===== Joining and problems ================================================
-
-  /** Can `node` go at index `at` of the row (inserted there)? */
-  function fits(row, at, node) {
-    const nodes = list(row);
-    const sides = sidesOf(node);
-    if (!sides) return false;
-    if (node.node === "crossover") return nodes.length === 0;
-    if (nodes.some((n) => n?.node === "crossover")) return false;
-    const before = at > 0 ? sidesOf(nodes[at - 1]) : null;
-    const after = at < nodes.length ? sidesOf(nodes[at]) : null;
-    return (!before || before[1] === sides[0]) && (!after || after[0] === sides[1]);
-  }
+  // ===== Problems =============================================================
 
   /** The row's own problems: [{ level, text, where: { node } }]. */
   function problems(row) {
@@ -214,13 +270,24 @@
     if (!nodes.length) error(null, TEXT.empty);
     nodes.forEach((node, i) => { if (!SIDES[node?.node]) error(i, TEXT.unknown(i + 1, isObject(node) ? String(node.node ?? "") : "")); });
     if (out.length) return out;
-    if (nodes.length > 1 && nodes.some((n) => n.node === "crossover")) error(nodes.findIndex((n) => n.node === "crossover"), TEXT.crossoverAlone);
-    for (let i = 0; i + 1 < nodes.length; i += 1) {
-      const left = sidesOf(nodes[i])[1];
-      const right = sidesOf(nodes[i + 1])[0];
-      if (left !== right) error(i + 1, TEXT.sides(i + 1, left, right));
-    }
+    for (const i of walk(nodes).missing) error(i, TEXT.noLine(i + 1, lineOf(nodes[i]) + 1));
     return out;
+  }
+
+  /** Can `node` (with its `line`) go at index `at` of the row (inserted there)? */
+  function fits(row, at, node) {
+    if (!SIDES[node?.node]) return false;
+    const nodes = copy(row);
+    nodes.splice(Math.max(0, Math.min(at, nodes.length)), 0, { node: node.node, ...(node.turned === true ? { turned: true } : {}), line: lineOf(node) });
+    return problems(nodes).length === 0;
+  }
+
+  /** The lines at index `at` of the row (before the board there): how many. */
+  function linesAt(row, at) {
+    const nodes = list(row).slice(0, Math.max(0, at));
+    const w = walk(nodes);
+    // An empty row starts with one line.
+    return w.right.length;
   }
 
   /**
@@ -237,11 +304,10 @@
     const all = parts(row);
     // None of them there: the module is not made yet, one problem for it.
     if (all.length && all.every((p) => !have[p.kind].has(p.name))) return [{ level: "error", text: TEXT.notMade, where: { row: true, notMade: true } }];
-    return all.filter((p) => !have[p.kind].has(p.name)).map((p) => ({
-      level: "error",
-      text: TEXT.notThere[p.kind](p.name),
-      where: { node: p.node, name: p.name, kind: p.kind, ...(p.kind === "mast" ? { mast: p.name } : {}) },
-    }));
+    // Some missing (boards added since it was made, or a part deleted): one problem naming them.
+    const absent = all.filter((p) => !have[p.kind].has(p.name));
+    if (!absent.length) return [];
+    return [{ level: "error", text: TEXT.notAllMade(absent.map((p) => p.name).join(", ")), where: { row: true, notMade: true, names: absent.map((p) => p.name) } }];
   }
 
   // ===== The description =====================================================
@@ -249,65 +315,68 @@
   /**
    * The MSS description a row builds: { ends, tracks, junctions } as the
    * builder reads them (docs/mss-emulation-spec.md, Stored format), with
-   * `pins` (each end's pairPin and ledPin, by end name) kept. Each track,
-   * junction and end says which node it came from (`node`), for the page.
-   * A row with problems describes nothing.
+   * `pins` (each end's pairPin and ledPin, by end name) kept. Each junction
+   * says which board it came from (`node`), for the page. A row with
+   * problems describes nothing. The lines at the left edge are end A's
+   * tracks, those at the right edge end B's, numbered from the left looking
+   * out (end A from the bottom line, end B from the top).
    */
   function describe(row, pins = []) {
     const nodes = list(row);
     if (problems(nodes).length) return { ends: [], tracks: [], junctions: [] };
     const pinsOf = new Map(list(pins).filter(isObject).map((e) => [e.name, e]));
-    const leftCount = sidesOf(nodes[0])[0];
-    const rightCount = sidesOf(nodes[nodes.length - 1])[1];
+    const w = walk(nodes);
     const endDef = (name, tracks) => {
       const p = pinsOf.get(name) || {};
       return { name, tracks, ...(p.pairPin ? { pairPin: p.pairPin } : {}), ...(p.ledPin ? { ledPin: p.ledPin } : {}) };
     };
-    const ends = [endDef("A", leftCount), endDef("B", rightCount)];
+    const ends = [endDef("A", w.left.length), endDef("B", w.right.length)];
     const tracks = [];
     const junctions = [];
-    let open = {};
+    const open = new Map(); // lane -> the track being built along it
+    w.left.forEach((lane, k) => open.set(lane, { from: { end: "A", track: k + 1 }, blocks: [], boundaries: [] }));
     const block = (sensor) => ({ sensors: sensor ? [sensor] : [], turnouts: [] });
-    const close = (road, to) => {
-      const t = open[road];
+    const close = (lane, to) => {
+      const t = open.get(lane);
       tracks.push({ from: t.from, to, blocks: t.blocks, boundaries: t.boundaries });
-      delete open[road];
+      open.delete(lane);
     };
-    nodes.forEach((node, i) => {
+    for (const step of w.steps) {
+      const node = step.node;
       const n = node.names || {};
-      const [leftN] = sidesOf(node);
-      if (i === 0) {
-        roads(leftN).forEach((road, k) => {
-          const sensor = node.node === "crossover" ? n.block : list(n.left)[k];
-          open[road] = { from: { end: "A", track: endTrack("A", road, leftN) }, blocks: [block(sensor)], boundaries: [] };
-        });
+      // A line's first block is the first board's on it to name.
+      step.inputs.forEach((x, k) => {
+        const t = open.get(x.lane);
+        if (x.fresh && node.node !== "crossover") t.blocks.push(block(list(n.left)[k]));
+      });
+      if (node.node === "crossover") {
+        const t = open.get(step.inputs[0].lane);
+        if (!t.blocks.length) t.blocks.push(block(n.block));
+        else if (n.block && !t.blocks[t.blocks.length - 1].sensors.includes(n.block)) t.blocks[t.blocks.length - 1].sensors.push(n.block);
+        continue;
       }
-      if (node.node === "crossover") return;
       if (node.node === "cascade") {
-        const t = open.main;
+        const t = open.get(step.inputs[0].lane);
         t.boundaries.push({ sensors: n.ir ? [n.ir] : [], towardsFrom: n.signals?.toA || null, towardsTo: n.signals?.toB || null });
         t.blocks.push(block(list(n.right)[0]));
-        return;
+        continue;
       }
       // A Complex cascade: leg 1 the single track, leg 2 the main, leg 3 the diverging track.
       const name = TEXT.junction(junctions.length + 1);
-      const leg = { single: 1, main: 2, siding: 3 };
-      const at = (l) => ({ junction: name, leg: l });
-      if (node.turned === true) {
-        close("main", at(leg.main));
-        close("siding", at(leg.siding));
-        open = { main: { from: at(leg.single), blocks: [block(list(n.right)[0])], boundaries: [] } };
+      const at = (leg) => ({ junction: name, leg });
+      if (isJoin(node)) {
+        close(step.inputs[0].lane, at(2));
+        close(step.inputs[1].lane, at(3));
+        open.set(step.out[0], { from: at(1), blocks: [block(list(n.right)[0])], boundaries: [] });
       } else {
-        close("main", at(leg.single));
-        open = {
-          main: { from: at(leg.main), blocks: [block(list(n.right)[0])], boundaries: [] },
-          siding: { from: at(leg.siding), blocks: [block(list(n.right)[1])], boundaries: [] },
-        };
+        close(step.inputs[0].lane, at(1));
+        open.set(step.out[0], { from: at(2), blocks: [block(list(n.right)[0])], boundaries: [] });
+        open.set(step.out[1], { from: at(3), blocks: [block(list(n.right)[1])], boundaries: [] });
       }
       junctions.push({
         name,
-        node: i,
-        shape: node.turned === true ? "turnout-left" : "turnout-right",
+        node: step.index,
+        shape: isJoin(node) ? "turnout-left" : "turnout-right",
         sensors: n.ir ? [n.ir] : [],
         masts: { 1: n.signals?.single || null, 2: n.signals?.main || null, 3: n.signals?.siding || null },
         routes: [
@@ -315,8 +384,9 @@
           { legs: [1, 3], turnouts: n.points ? [{ turnout: n.points, position: "thrown" }] : [], diverging: true },
         ],
       });
-    });
-    for (const road of roads(rightCount)) if (open[road]) close(road, { end: "B", track: endTrack("B", road, rightCount) });
+    }
+    const count = w.right.length;
+    w.right.forEach((lane, k) => close(lane, { end: "B", track: count - k }));
     return { ends, tracks, junctions };
   }
 
@@ -341,7 +411,8 @@
    */
   const ROLE_ORDER = ["block", "ir", "points", "signal"];
   function parts(row) {
-    const all = list(row).flatMap((node, i) => partsOf(node, i === 0).map((p) => ({ node: i, ...p })));
+    const w = walk(row);
+    const all = w.steps.flatMap((step) => partsOf(step.node, step.inputs.map((x) => x.fresh)).map((p) => ({ node: step.index, ...p })));
     return ROLE_ORDER.flatMap((role) => all.filter((p) => p.role === role));
   }
 
@@ -406,66 +477,55 @@
 
   const copy = (row) => JSON.parse(JSON.stringify(list(row)));
 
-  /** Can `node` be added on the right of the row? */
+  /** Can `node` (with its `line`) be added on the right of the row? */
   const canAdd = (row, node) => fits(row, list(row).length, node);
 
-  /**
-   * The row with `node` added on the right, named: its left block is the
-   * last node's right one (a joint is one block), and its parts are numbered
-   * on from the row's.
-   */
+  /** The row with `node` added on the right, named. */
   function addNode(row, node) {
-    const nodes = copy(row);
-    nodes.push({ node: node.node, ...(node.turned === true ? { turned: true } : {}) });
-    return named(nodes);
+    return insertNode(row, list(row).length, node);
+  }
+
+  // The board as stored: its type, flipped, and its line when not the bottom one.
+  const placed = (node) => ({ node: node.node, ...(node.turned === true ? { turned: true } : {}), ...(lineOf(node) ? { line: lineOf(node) } : {}) });
+
+  // The block names a board hands on, by the line they run on: { line: name }.
+  function handedOn(step) {
+    const right = list(step.node.names?.right);
+    const out = {};
+    step.out.forEach((lane, k) => { out[k === 0 ? step.line : step.line + 1] = right[k]; });
+    if (step.node.node === "crossover") out[step.line] = step.node.names?.block;
+    return out;
   }
 
   /**
-   * The board `id` the way round that fits at index `at` (inserted there):
-   * { node, turned? }, as it is if that fits, else flipped, else null.
-   */
-  function orientFor(row, at, id) {
-    for (const node of [{ node: id }, { node: id, turned: true }]) {
-      if (node.turned && id !== "complex") continue;
-      if (fits(row, at, node)) return node;
-    }
-    return null;
-  }
-
-  /**
-   * The row with `node` inserted at index `at`, named. Put first, it takes
-   * the old first node's left blocks as its right ones (a joint is one
-   * block); put between two, the block it stands in keeps its name on the
-   * left, and the right part is a new block.
+   * The row with `node` (on its `line`) inserted at index `at`, named. Put
+   * first, it hands the old first board the blocks that board named (a
+   * joint is one block, and its detector keeps its name).
    */
   function insertNode(row, at, node) {
     const nodes = copy(row);
-    const fresh = { node: node.node, ...(node.turned === true ? { turned: true } : {}) };
-    if (at === 0 && nodes.length && isObject(nodes[0].names) && Array.isArray(nodes[0].names.left)) {
-      fresh.names = { right: nodes[0].names.left };
-      delete nodes[0].names.left;
+    const fresh = placed(node);
+    if (isObject(node.names)) fresh.names = JSON.parse(JSON.stringify(node.names));
+    const where = Math.max(0, Math.min(at, nodes.length));
+    nodes.splice(where, 0, fresh);
+    if (where === 0 && nodes.length > 1 && fresh.node !== "crossover") {
+      const old = nodes[1];
+      const oldLeft = list(old.names?.left);
+      const w = walk(nodes);
+      const first = w.steps.find((s) => s.index === 0);
+      if (first && oldLeft.length) {
+        fresh.names = isObject(fresh.names) ? fresh.names : {};
+        fresh.names.right = list(fresh.names.right);
+        const lines = isJoin(old) ? [lineOf(old), lineOf(old) + 1] : [lineOf(old)];
+        lines.forEach((line, k) => {
+          const outIndex = line === first.line ? 0 : line === first.line + 1 && first.out.length > 1 ? 1 : -1;
+          if (outIndex >= 0 && oldLeft[k]) fresh.names.right[outIndex] = oldLeft[k];
+        });
+        delete old.names.left;
+      }
     }
-    nodes.splice(Math.max(0, Math.min(at, nodes.length)), 0, fresh);
     return named(nodes);
   }
-
-  /** The row with node `from` moved to index `to` (counted in the row without it), named. */
-  function moveNode(row, from, to) {
-    const nodes = copy(row);
-    const [node] = nodes.splice(from, 1);
-    if (!node) return named(nodes);
-    if (from === 0 && nodes.length && node.names) {
-      nodes[0].names = isObject(nodes[0].names) ? nodes[0].names : {};
-      nodes[0].names.left = list(node.names.right);
-    }
-    const moved = { ...node, names: isObject(node.names) ? { ...node.names } : {} };
-    delete moved.names.left;
-    delete moved.names.right;
-    return insertNode(nodes, to, moved);
-  }
-
-  /** Can node `from` move to index `to` (in the row without it)? */
-  const canMove = (row, from, to) => problems(moveNode(row, from, to)).length === 0;
 
   /** Can node `i` be removed: what is left has no problems of its own? */
   function canRemove(row, i) {
@@ -475,20 +535,42 @@
   }
 
   /**
-   * The row without node `i`, named. The first node gone, the block it
-   * shared with the next becomes the next one's left block, keeping its name.
+   * The row without node `i`, named. The first board gone, the blocks it
+   * handed on become the next board's first blocks, keeping their names.
    */
   function removeNode(row, i) {
     const nodes = copy(row);
+    const w = walk(nodes);
+    const step = w.steps.find((s) => s.index === i);
     const [gone] = nodes.splice(i, 1);
-    if (i === 0 && nodes.length && gone?.names) {
-      nodes[0].names = isObject(nodes[0].names) ? nodes[0].names : {};
-      nodes[0].names.left = list(gone.names.right);
+    if (i === 0 && nodes.length && gone && step) {
+      const given = handedOn(step);
+      const next = nodes[0];
+      next.names = isObject(next.names) ? next.names : {};
+      const lines = isJoin(next) ? [lineOf(next), lineOf(next) + 1] : [lineOf(next)];
+      const left = lines.map((line) => given[line] || null);
+      if (left.some(Boolean)) next.names.left = left;
     }
     return named(nodes);
   }
 
-  /** Can node `i` be flipped: a Complex cascade, still fitting beside its neighbours? */
+  /** The row with node `from` moved to index `to` (counted in the row without it), on line `line` (else its own), named. */
+  function moveNode(row, from, to, line) {
+    const nodes = copy(row);
+    const node = nodes[from];
+    if (!node) return named(nodes);
+    const rest = removeNode(nodes, from);
+    const moved = { ...placed(node), ...(line !== undefined ? { line } : {}), names: isObject(node.names) ? { ...node.names } : {} };
+    if (!moved.line) delete moved.line;
+    delete moved.names.left;
+    delete moved.names.right;
+    return insertNode(rest, to, moved);
+  }
+
+  /** Can node `from` move to index `to` (in the row without it), on line `line`? */
+  const canMove = (row, from, to, line) => problems(moveNode(row, from, to, line)).length === 0;
+
+  /** Can node `i` be flipped: a Complex cascade, splitting where it joined or joining where it split, with the lines there? */
   function canTurn(row, i) {
     const nodes = list(row);
     if (nodes[i]?.node !== "complex") return false;
@@ -497,24 +579,29 @@
   }
 
   /**
-   * The row with node `i` flipped: { row, renames: [[from, to]] }. Its
-   * blocks keep their names and swap sides (the single track's block, the
-   * main's and the siding's). Each signal named as the pattern names it is
+   * The row with node `i` flipped: { row, renames: [[from, to]] }. First on
+   * its lines, its blocks keep their names and swap sides (the single
+   * track's block, the main's and the diverging track's); elsewhere its own
+   * blocks are named again. Each signal named as the pattern names it is
    * renamed for the way it now faces; one named otherwise keeps its name.
    */
   function turnNode(row, i) {
     const nodes = copy(row);
     const node = nodes[i];
     const n = isObject(node.names) ? node.names : {};
+    node.names = n;
     const wasTurned = node.turned === true;
     node.turned = !wasTurned;
     if (!node.turned) delete node.turned;
     // Not turned: left [single], right [main, siding]; turned: left [main, siding], right [single].
     const single = wasTurned ? list(n.right)[0] : list(n.left)[0];
-    const roads = wasTurned ? list(n.left) : list(n.right);
-    if (i === 0) {
-      n.left = wasTurned ? [single] : roads;
-      n.right = wasTurned ? roads : [single];
+    const roadsOf = wasTurned ? list(n.left) : list(n.right);
+    if (i === 0 && single && roadsOf.every(Boolean)) {
+      n.left = wasTurned ? [single] : roadsOf;
+      n.right = wasTurned ? roadsOf : [single];
+    } else {
+      delete n.left;
+      delete n.right;
     }
     const number = /(\d+)$/.exec(n.ir || "")?.[1] || String(i + 1);
     const [was, now] = wasTurned ? ["A", "B"] : ["B", "A"];
@@ -561,7 +648,7 @@
   }
 
   global.EsphomeMrMssRow = {
-    TEXT, NODE_IDS, BOARD_IDS, SAMPLE_IDS, PRESETS, sidesOf, endTrack, partsOf, named, preset, fits, problems, missing, describe, descriptionOf, parts, needs, use, rename,
-    canAdd, addNode, canRemove, removeNode, canTurn, turnNode, orientFor, insertNode, moveNode, canMove,
+    TEXT, NODE_IDS, BOARD_IDS, SAMPLE_IDS, PRESETS, sidesOf, endTrack, lineOf, isJoin, walk, linesAt, partsOf, named, preset, fits, problems, missing, describe, descriptionOf, parts, needs, use, rename,
+    canAdd, addNode, canRemove, removeNode, canTurn, turnNode, insertNode, moveNode, canMove,
   };
 })(typeof globalThis !== "undefined" ? globalThis : window);

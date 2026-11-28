@@ -27,34 +27,6 @@ test("names a node has are kept; new ones skip numbers in use; a node no longer 
   same(row[1].names.ir, "IR 2");
 });
 
-test("nodes join where their sides have the same number of tracks; a Crossover only on its own", () => {
-  const siding = { node: "complex" };
-  const turned = { node: "complex", turned: true };
-  const cascade = { node: "cascade" };
-  same(R.sidesOf(siding), [1, 2]);
-  same(R.sidesOf(turned), [2, 1]);
-  assert.equal(R.fits([], 0, { node: "crossover" }), true);
-  assert.equal(R.fits([cascade], 1, { node: "crossover" }), false);
-  assert.equal(R.fits([{ node: "crossover" }], 1, cascade), false);
-  assert.equal(R.fits([cascade], 1, siding), true);
-  assert.equal(R.fits([siding], 1, cascade), false, "two tracks meet one");
-  assert.equal(R.fits([siding], 1, turned), true);
-  assert.equal(R.fits([siding, turned], 1, cascade), false);
-  assert.equal(R.fits([cascade, turned], 1, siding), true, "between: 1 meets 1, 2 meets 2");
-});
-
-test("a row's own problems: empty, an unknown node, a Crossover with others, sides that do not meet", () => {
-  same(R.problems([]).map((p) => p.text), [R.TEXT.empty]);
-  same(R.problems([{ node: "wye" }]).map((p) => p.where), [{ node: 0 }]);
-  same(R.problems([{ node: "crossover" }, { node: "cascade" }]).map((p) => p.text), [R.TEXT.crossoverAlone]);
-  same(R.problems([{ node: "complex" }, { node: "cascade" }]).map((p) => [p.text, p.where]), [[R.TEXT.sides(1, 2, 1), { node: 1 }]]);
-  same(R.problems(R.preset("passing")), []);
-  // The builder reports them against the row, and nothing else.
-  const config = M.myFirstBoardPreset();
-  config.logic = { mode: "mss", mss: { row: [{ node: "complex" }, { node: "cascade" }] } };
-  same(B.problems(config).map((p) => [p.level, p.where]), [["error", { view: "logic", part: B.PARTS.row, row: true, node: 1 }]]);
-});
-
 test("the passing siding's description: two ends, the main and the siding between two junctions", () => {
   const d = R.describe(R.preset("passing"));
   same(d.ends, [{ name: "A", tracks: 1 }, { name: "B", tracks: 1 }]);
@@ -142,16 +114,6 @@ test("renaming a part renames it in the row", () => {
   same(row[0].names.left, ["West current"]);
 });
 
-test("adding a Complex cascade flipped to a Complex cascade makes the Passing siding, names and all", () => {
-  const siding = R.preset("complex");
-  assert.equal(R.canAdd(siding, { node: "cascade" }), false, "two tracks meet one");
-  assert.equal(R.canAdd(siding, { node: "complex", turned: true }), true);
-  same(R.addNode(siding, { node: "complex", turned: true }), R.preset("passing"));
-  // Cascade on Cascade: the new node's left block is the old one's right block.
-  same(R.addNode(R.preset("cascade"), { node: "cascade" }), readMssCase("mss-row-cascades.json").module.mss.row);
-  assert.equal(R.canAdd(R.preset("crossover"), { node: "cascade" }), false);
-});
-
 test("removing a node: what is left must join; the first gone, the next takes the block it shared", () => {
   const passing = R.preset("passing");
   assert.equal(R.canRemove(passing, 0), true);
@@ -166,44 +128,113 @@ test("removing a node: what is left must join; the first gone, the next takes th
   same(R.removeNode(passing, 1), R.preset("complex"));
 });
 
-test("turning a Complex cascade round swaps its sides and renames the signals named as the pattern names them", () => {
+test("lines: a board goes on a line; a Complex cascade splits one, or flipped joins two; a line must be there", () => {
+  const complex = R.preset("complex");
+  assert.equal(R.fits([], 0, { node: "crossover" }), true);
+  assert.equal(R.fits(complex, 1, { node: "cascade", line: 0 }), true, "on the main line");
+  assert.equal(R.fits(complex, 1, { node: "cascade", line: 1 }), true, "on the diverging line");
+  assert.equal(R.fits(complex, 1, { node: "crossover", line: 1 }), true);
+  assert.equal(R.fits(complex, 1, { node: "cascade", line: 2 }), false, "no third line there");
+  assert.equal(R.fits(complex, 1, { node: "complex", turned: true, line: 0 }), true, "joins the two");
+  assert.equal(R.fits(complex, 1, { node: "complex", turned: true, line: 1 }), false, "no line above the diverging one");
+  assert.equal(R.fits(complex, 1, { node: "complex", line: 1 }), true, "splits the diverging line again");
+  same([0, 1, 2].map((at) => R.linesAt(R.preset("passing"), at)), [1, 2, 1]);
+  same(R.linesAt([], 0), 1);
+});
+
+test("a row's own problems: empty, an unknown board, a board on a line that is not there", () => {
+  same(R.problems([]).map((p) => p.text), [R.TEXT.empty]);
+  same(R.problems([{ node: "wye" }]).map((p) => p.where), [{ node: 0 }]);
+  same(R.problems([{ node: "cascade" }, { node: "cascade", line: 1 }]).map((p) => [p.text, p.where]), [[R.TEXT.noLine(2, 2), { node: 1 }]]);
+  same(R.problems([{ node: "complex", turned: true, line: 1 }]).map((p) => p.where), [{ node: 0 }]);
+  same(R.problems([{ node: "crossover" }, { node: "cascade" }, { node: "crossover" }]), [], "a Crossover anywhere on a line");
+  same(R.problems(R.preset("passing")), []);
+  // The builder reports them against the row, and nothing else.
+  const config = M.myFirstBoardPreset();
+  config.logic = { mode: "mss", mss: { row: [{ node: "cascade" }, { node: "cascade", line: 1 }] } };
+  same(B.problems(config).map((p) => [p.level, p.where]), [["error", { view: "logic", part: B.PARTS.row, row: true, node: 1 }]]);
+});
+
+test("a Cascade on the loop of a passing siding: the loop is two blocks, with a signal each way between them", () => {
+  const row = R.named([{ node: "complex" }, { node: "cascade", line: 1 }, { node: "complex", turned: true }]);
+  same(row[1].names, { ir: "IR 2", right: ["Siding 2 current"], signals: { toA: "Signal 2 to A", toB: "Signal 2 to B" } });
+  same(row[2].names.right, ["Block 3 current"]);
+  const d = R.describe(row);
+  same(d.ends.map((e) => e.tracks), [1, 1]);
+  same(d.tracks.map((t) => [t.from, t.to, t.blocks.map((b) => b.sensors), t.boundaries.map((b) => [b.sensors, b.towardsFrom, b.towardsTo])]), [
+    [{ end: "A", track: 1 }, { junction: "J1", leg: 1 }, [["Block 1 current"]], []],
+    [{ junction: "J1", leg: 2 }, { junction: "J2", leg: 2 }, [["Block 2 current"]], []],
+    [{ junction: "J1", leg: 3 }, { junction: "J2", leg: 3 }, [["Siding 1 current"], ["Siding 2 current"]], [[["IR 2"], "Signal 2 to A", "Signal 2 to B"]]],
+    [{ junction: "J2", leg: 1 }, { end: "B", track: 1 }, [["Block 3 current"]], []],
+  ]);
+  same(d.junctions.map((j) => [j.name, j.node]), [["J1", 0], ["J2", 2]]);
+});
+
+test("a Crossover on a line adds its detector to the block it stands in", () => {
+  const row = R.named([{ node: "complex" }, { node: "crossover" }, { node: "complex", turned: true }]);
+  same(row[1].names, { block: "Block 3 current" });
+  same(R.describe(row).tracks[1].blocks, [{ sensors: ["Block 2 current", "Block 3 current"], turnouts: [] }]);
+  // On its own, a Crossover is a block from end to end.
+  same(R.describe(R.preset("crossover")).tracks, [{ from: { end: "A", track: 1 }, to: { end: "B", track: 1 }, blocks: [{ sensors: ["Block 1 current"], turnouts: [] }], boundaries: [] }]);
+});
+
+test("a diverging line split again: three lines at end B, numbered from the top", () => {
+  const row = R.named([{ node: "complex" }, { node: "complex", line: 1 }]);
+  same(row[1].names.right, ["Siding 2 current", "Siding 3 current"]);
+  const d = R.describe(row);
+  same(d.ends.map((e) => e.tracks), [1, 3]);
+  same(d.tracks.filter((t) => t.to?.end === "B").map((t) => [t.blocks[0].sensors[0], t.to.track]), [["Block 2 current", 3], ["Siding 2 current", 2], ["Siding 3 current", 1]]);
+});
+
+test("adding, inserting and moving on lines; the first board's blocks are handed on", () => {
+  const complex = R.preset("complex");
+  same(R.addNode(complex, { node: "complex", turned: true }), R.preset("passing"));
+  same(R.insertNode(complex, 1, { node: "complex", turned: true }), R.preset("passing"));
+  same(R.addNode(R.preset("cascade"), { node: "cascade" }), readMssCase("mss-row-cascades.json").module.mss.row);
+  // Put first, a board takes the old first one's first block as the block it hands on.
+  const two = R.insertNode(R.preset("cascade"), 0, { node: "cascade" });
+  same(two[0].names.right, ["Block 1 current"]);
+  assert.equal(two[1].names.left, undefined);
+  same(R.describe(two).tracks[0].blocks.map((b) => b.sensors[0]), ["Block 3 current", "Block 1 current", "Block 2 current"]);
+  // Moving the Cascade of a passing siding from the loop to the main line.
+  const loop = R.named([{ node: "complex" }, { node: "cascade", line: 1 }, { node: "complex", turned: true }]);
+  assert.equal(R.canMove(loop, 1, 1, 0), true);
+  const onMain = R.moveNode(loop, 1, 1, 0);
+  same(onMain.map((n) => [n.node, R.lineOf(n)]), [["complex", 0], ["cascade", 0], ["complex", 0]]);
+  same(R.problems(onMain), []);
+  assert.equal(R.canMove(loop, 1, 0, 1), false, "before the split there is no loop");
+});
+
+test("removing a board: what is left must have its lines; the first gone, the next takes the blocks it handed on", () => {
+  const passing = R.preset("passing");
+  assert.equal(R.canRemove(passing, 0), true);
+  assert.equal(R.canRemove(R.preset("cascade"), 0), false, "a module keeps one board");
+  const loop = R.named([{ node: "complex" }, { node: "cascade", line: 1 }, { node: "complex", turned: true }]);
+  assert.equal(R.canRemove(loop, 0), false, "the Cascade on the loop would have no line");
+  assert.equal(R.canRemove(loop, 1), true);
+  same(R.removeNode(passing, 0), [{ node: "complex", turned: true, names: { ir: "IR 2", right: ["Block 3 current"], points: "Points 2",
+    signals: { single: "Signal 2 to A", main: "Signal 2 to B main", siding: "Signal 2 to B siding" }, left: ["Block 2 current", "Siding 1 current"] } }]);
+  same(R.removeNode(passing, 1), R.preset("complex"));
+});
+
+test("flipping a Complex cascade: a split joins, a join splits, where the lines are there; first in the module its blocks swap sides", () => {
   const { row, renames } = R.turnNode(R.preset("complex"), 0);
   same(renames, [["Signal 1 to B", "Signal 1 to A"], ["Signal 1 to A main", "Signal 1 to B main"], ["Signal 1 to A siding", "Signal 1 to B siding"]]);
   same(row[0].names.left, ["Block 2 current", "Siding 1 current"]);
   same(row[0].names.right, ["Block 1 current"]);
   assert.equal(row[0].turned, true);
   same(R.describe(row).ends.map((e) => e.tracks), [2, 1]);
-  // And back again, as it was.
-  same(R.turnNode(row, 0).row, R.preset("complex"));
+  same(R.turnNode(row, 0).row, R.preset("complex"), "and back again");
   // A signal with a name of its own keeps it.
   const own = R.preset("complex");
   own[0].names.signals.single = "West Home";
   same(R.turnNode(own, 0).renames.map(([from]) => from), ["Signal 1 to A main", "Signal 1 to A siding"]);
-  // Only where it still joins: not the turned end of a passing siding.
-  assert.equal(R.canTurn(R.preset("passing"), 1), false);
+  // The join of a passing siding can split instead: three lines at end B.
+  assert.equal(R.canTurn(R.preset("passing"), 1), true);
+  same(R.describe(R.turnNode(R.preset("passing"), 1).row).ends.map((e) => e.tracks), [1, 3]);
+  // A split with no line above it to join cannot flip there.
+  assert.equal(R.canTurn(R.named([{ node: "cascade" }, { node: "complex" }]), 1), false);
   assert.equal(R.canTurn(R.preset("cascade"), 0), false, "a Cascade is the same either way round");
-});
-
-test("dropped into a gap: a board turns the way it fits, takes the block it shares, and can move", () => {
-  const complex = R.preset("complex");
-  same(R.orientFor([], 0, "complex"), { node: "complex" });
-  same(R.orientFor(complex, 1, "complex"), { node: "complex", turned: true }, "two tracks meet two: flipped");
-  same(R.orientFor(complex, 0, "complex"), { node: "complex", turned: true }, "on the left, flipped too");
-  assert.equal(R.orientFor(complex, 1, "cascade"), null);
-  assert.equal(R.orientFor(complex, 0, "crossover"), null);
-  same(R.insertNode(complex, 1, { node: "complex", turned: true }), R.preset("passing"));
-  // Put first, a board takes the old first one's left block as its right one.
-  const two = R.insertNode(R.preset("cascade"), 0, { node: "cascade" });
-  same(two[0].names.right, ["Block 1 current"]);
-  assert.equal(two[1].names.left, undefined);
-  same(R.describe(two).tracks[0].blocks.map((b) => b.sensors[0]), ["Block 3 current", "Block 1 current", "Block 2 current"]);
-  // Moving: the passing siding's halves swapped make a module with two tracks at each end.
-  const passing = R.preset("passing");
-  assert.equal(R.canMove(passing, 1, 0), true);
-  const swapped = R.moveNode(passing, 1, 0);
-  same(swapped.map((n) => [n.node, n.turned === true]), [["complex", true], ["complex", false]]);
-  same(R.describe(swapped).ends.map((e) => e.tracks), [2, 2]);
-  assert.equal(R.canMove(R.addNode(R.preset("cascade"), { node: "complex" }), 1, 0), false, "two tracks would meet one");
 });
 
 test("a sensor, turnout or signal renamed on its page is renamed in the row", () => {

@@ -15,7 +15,7 @@ export const MSS_FILES = ["generator.js", "logic-yaml.js", "logic.js", "logic-ch
 
 const CATS = ["R292", "R285", "ADV_NORM", "R281", "R282", "R283", "R286"];
 const SENSOR_PINS = ["GPIO14", "GPIO27", "GPIO26", "GPIO25", "GPIO33", "GPIO32", "GPIO35", "GPIO34", "GPIO39"];
-const MAST_PINS = ["GPIO16", "GPIO17", "GPIO19", "GPIO23", "GPIO18", "GPIO13", "GPIO4"];
+const MAST_PINS = ["GPIO16", "GPIO17", "GPIO19", "GPIO23", "GPIO18", "GPIO13", "GPIO4", "GPIO5", "GPIO15"];
 const plain = (value) => JSON.parse(JSON.stringify(value));
 
 /** The configurator board for a case's module, in `context`'s generator. */

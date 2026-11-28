@@ -73,10 +73,11 @@
     makeNote: "Happy with the boards? Make the module: its sensors, turnouts and signals are added with free pins, and then you wire it.",
     // Pick your module.
     boardsHeading: "MSS boards",
-    paletteHint: "Drag a board into your module, into any gap that lights up green. Or click one to add it on the right. A Complex cascade turns the way it fits.",
+    paletteHint: "Drag a board onto a line of your module, into any gap that lights up green. A Complex cascade splits the line it is dropped on in two, or, dropped between two lines, joins them. Or click a board to add it on the right of the bottom line.",
     samplesHeading: "Samples",
     dropHere: "Drag an MSS board or a sample here",
     dropToRemove: "Drop a board here to take it out of the module",
+    joinHere: "Drop a Complex cascade here to join these two lines",
     doesNotFit: (title) => `A ${title} does not fit on the right of the module: drag it into a gap that lights up green.`,
     sampleAsk: (title) => `Replace your module with the ${title} sample?`,
     sampleYes: "Yes, replace it",
@@ -98,8 +99,8 @@
     // Changing the row.
     turn: "Flip",
     remove: "Remove",
-    cannotRemove: "Removing it would leave boards whose tracks do not meet: remove the boards beside it first.",
-    cannotTurn: "Flipped, its tracks would not meet the boards beside it.",
+    cannotRemove: "Removing it would leave boards on a line that is no longer there: remove those first.",
+    cannotTurn: "Flipped, it would join its line with the one above, and there is no line above it there.",
     left: (names) => `These stay on their pages, no longer used by the module: ${names}. Remove them there if this board no longer has them.`,
     // A module described by hand.
     handWritten: "This module was described by hand, which MSS Logic no longer does. It still runs as described. Start from a pattern to make it one of the standard MSS modules.",
@@ -510,29 +511,47 @@
     ctx.persist();
   }
 
+  // What a drop does at a gap: `at` (before board `at`), on `line` (from
+  // the bottom line there), or joining lines `join` and `join + 1`. Returns
+  // the new row, or null where it does not fit.
+  function dropped(row, at, line, join) {
+    if (drag?.kind === "sample") return row.length === 0 ? R().preset(drag.id) : null;
+    if (drag?.kind === "board") {
+      const node = join !== undefined ? { node: "complex", turned: true, line: join } : { node: drag.id, line };
+      if (join !== undefined && drag.id !== "complex") return null;
+      return R().fits(row, at, node) ? R().insertNode(row, at, node) : null;
+    }
+    if (drag?.kind === "move") {
+      const moving = row[drag.from];
+      // A join goes onto two lines, a board onto one.
+      if ((join !== undefined) !== R().isJoin(moving)) return null;
+      const to = at > drag.from ? at - 1 : at;
+      const onto = join !== undefined ? join : line;
+      if (to === drag.from && onto === R().lineOf(moving)) return null;
+      return R().canMove(row, drag.from, to, onto) ? R().moveNode(row, drag.from, to, onto) : null;
+    }
+    return null;
+  }
+
+  const zoneArgs = (zone) => [Number(zone.dataset.at), zone.dataset.line === undefined ? undefined : Number(zone.dataset.line), zone.dataset.join === undefined ? undefined : Number(zone.dataset.join)];
+
   // Each gap in the module lights up while a board is dragged: green where
-  // it fits, grey where it does not.
+  // it fits, grey where it does not; joins only for a Complex cascade.
   function lightZones(root, row) {
     for (const zone of root.querySelectorAll(".mss-drop")) {
-      const at = Number(zone.dataset.at);
-      let ok = false;
-      if (drag?.kind === "board") ok = !!R().orientFor(row, at, drag.id);
-      else if (drag?.kind === "sample") ok = row.length === 0;
-      else if (drag?.kind === "move") ok = at !== drag.from && at !== drag.from + 1 && R().canMove(row, drag.from, at > drag.from ? at - 1 : at);
+      const ok = !!drag && !!dropped(row, ...zoneArgs(zone));
       zone.classList.toggle("is-valid", ok);
       zone.classList.toggle("is-invalid", !ok);
     }
     root.classList.toggle("is-dragging", !!drag);
     root.classList.toggle("is-moving", drag?.kind === "move");
+    root.classList.toggle("is-joining", (drag?.kind === "board" && drag.id === "complex") || (drag?.kind === "move" && R().isJoin(row[drag.from])));
   }
 
-  function dropAt(config, ctx, row, at) {
-    if (drag?.kind === "board") {
-      const node = R().orientFor(row, at, drag.id);
-      if (node) setRow(config, ctx, R().insertNode(row, at, node));
-    } else if (drag?.kind === "sample" && !row.length) setRow(config, ctx, R().preset(drag.id));
-    else if (drag?.kind === "move") setRow(config, ctx, R().moveNode(row, drag.from, at > drag.from ? at - 1 : at));
+  function dropAt(config, ctx, row, zone) {
+    const next = dropped(row, ...zoneArgs(zone));
     drag = null;
+    if (next) setRow(config, ctx, next);
   }
 
   function renderPick(panel, config, ctx) {
@@ -585,8 +604,8 @@
       card.addEventListener("dragend", stop);
       // Without a mouse: click (or Enter) adds it on the right, the way round that fits.
       const add = () => {
-        const node = R().orientFor(row, row.length, id);
-        if (!node) return ctx.flash?.("err", TEXT.doesNotFit(words.title));
+        const node = { node: id, line: 0 };
+        if (!R().fits(row, row.length, node)) return ctx.flash?.("err", TEXT.doesNotFit(words.title));
         setRow(config, ctx, R().insertNode(row, row.length, node));
       };
       card.addEventListener("click", add);
@@ -622,14 +641,34 @@
     groups.append(boardsGroup, samplesGroup);
     palette.append(groups);
 
-    // The module: its cards, with a gap before, between and after them to drop into.
+    // The module as a grid: a row for each line (the bottom line lowest), a
+    // column for each board, and a gap column before, between and after them
+    // to drop into. A board sits on its line; a Complex cascade spans the two
+    // lines it splits into or joins; a line carries past the boards not on it.
     const canvas = el("div", "mss-canvas");
     canvas.append(el("h4", "", TEXT.yourModule));
-    const lane = el("div", "mss-row-cards");
+    const lane = el("div", "mss-row-cards is-grid");
     lane.id = "logic-mss-lane";
-    const zone = (at, big = false) => {
-      const z = el("div", `mss-drop${big ? " is-empty" : ""}`, big ? TEXT.dropHere : "");
+    const w = R().walk(row);
+    const levels = Math.max(1, w.order.length);
+    const rank = new Map(w.order.map((id, k) => [id, k]));
+    // Grid rows: a line, then a thin row under it where two lines can be joined.
+    const lineRow = (laneId) => 2 * (levels - 1 - (rank.get(laneId) ?? 0)) + 1;
+    lane.style.gridTemplateColumns = Array.from({ length: 2 * row.length + 1 }, (_, k) => (k % 2 ? "minmax(170px, 210px)" : "auto")).join(" ");
+    lane.style.gridTemplateRows = Array.from({ length: 2 * levels - 1 }, (_, k) => (k % 2 ? "22px" : "minmax(96px, auto)")).join(" ");
+    const place = (node, column, rowFrom, rowTo = rowFrom) => {
+      node.style.gridColumn = String(column);
+      node.style.gridRow = `${Math.min(rowFrom, rowTo)} / ${Math.max(rowFrom, rowTo) + 1}`;
+      lane.append(node);
+    };
+    const zone = (at, attrs, big = false) => {
+      const z = el("div", `mss-drop${big ? " is-empty" : ""}${attrs.join !== undefined ? " is-join" : ""}`, big ? TEXT.dropHere : "");
       z.dataset.at = String(at);
+      if (attrs.line !== undefined) z.dataset.line = String(attrs.line);
+      if (attrs.join !== undefined) {
+        z.dataset.join = String(attrs.join);
+        z.title = TEXT.joinHere;
+      }
       z.addEventListener("dragover", (event) => {
         if (!z.classList.contains("is-valid")) return;
         event.preventDefault();
@@ -638,14 +677,30 @@
       z.addEventListener("dragleave", () => z.classList.remove("is-over"));
       z.addEventListener("drop", (event) => {
         event.preventDefault();
-        dropAt(config, ctx, row, at);
+        dropAt(config, ctx, row, z);
       });
       return z;
     };
+    // The gaps: each line there, and each pair of neighbouring lines to join.
+    for (let at = 0; at <= row.length; at += 1) {
+      const lanesHere = R().walk(row.slice(0, at)).right;
+      if (!row.length) {
+        place(zone(0, { line: 0 }, true), 1, 1);
+        break;
+      }
+      lanesHere.forEach((laneId, k) => place(zone(at, { line: k }), 2 * at + 1, lineRow(laneId)));
+      for (let k = 0; k + 1 < lanesHere.length; k += 1) place(zone(at, { join: k }), 2 * at + 1, lineRow(lanesHere[k + 1]) + 1);
+    }
     const titleOf = (node) => R().TEXT.nodes[node?.node]?.title || String(node?.node ?? "");
-    if (!row.length) lane.append(zone(0, true));
-    row.forEach((node, i) => {
-      lane.append(zone(i));
+    for (const step of w.steps) {
+      const i = step.index;
+      const node = step.node;
+      const column = 2 * i + 2;
+      // The lines it is on: its own, and for a Complex cascade the other it splits into or joins.
+      const mine = [...step.inputs.map((x) => x.lane), ...step.out];
+      const rows = mine.map(lineRow);
+      // The lines carrying past it.
+      for (const laneId of R().walk(row.slice(0, i)).right) if (!mine.includes(laneId)) place(el("div", "mss-pass"), column, lineRow(laneId));
       const card = el("div", "mss-board-card");
       card.dataset.board = String(i);
       card.draggable = true;
@@ -668,9 +723,8 @@
       if (remove.disabled) remove.title = TEXT.cannotRemove;
       actions.append(remove);
       card.append(actions);
-      lane.append(card);
-    });
-    if (row.length) lane.append(zone(row.length));
+      place(card, column, Math.min(...rows), Math.max(...rows));
+    }
     canvas.append(lane);
     // Drop a card of the module here to take it off.
     const bin = el("div", "mss-bin", TEXT.dropToRemove);

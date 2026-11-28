@@ -1,0 +1,136 @@
+{
+  "name": "MSS row: a Cascade on the loop of a passing siding",
+  "covers": [
+    "a row of nodes: a Cascade on the loop of a passing siding, between the two Complex cascades"
+  ],
+  "about": "Three MSS boards on one board: a Complex cascade, a Cascade on the diverging line (the loop), and a Complex cascade flipped to join the lines (docs/mss-patterns-spec.md, lines). The loop is two blocks with a signal each way at IR 2. Both points thrown to the loop, both ends the end of the line, Advance Approach and Approach Diverging not used. Eastbound: Signal 3 to B siding, on a diverging route to the end of the line, shows Diverging Approach; Signal 2 to B, reading a diverging aspect, Approach; Signal 1 to B, on a diverging route reading Approach, Diverging Clear. Westbound the same: Signal 1 to A siding Diverging Approach, Signal 2 to A Approach, Signal 3 to A Diverging Clear. The main line signals, their points thrown, Stop. A train in the second half of the loop: Signal 2 to B Stop, so Signal 1 to B Diverging Approach; Signal 3 to A, its route's first block occupied, Stop; Signal 2 to A, protecting the first half, still Approach.",
+  "module": {
+    "sensors": [
+      "Block 1 current",
+      "IR 1",
+      "Block 2 current",
+      "Siding 1 current",
+      "IR 2",
+      "Siding 2 current",
+      "IR 3",
+      "Block 3 current"
+    ],
+    "turnouts": [
+      "Points 1",
+      "Points 3"
+    ],
+    "masts": [
+      "Signal 1 to B",
+      "Signal 1 to A main",
+      "Signal 1 to A siding",
+      "Signal 2 to A",
+      "Signal 2 to B",
+      "Signal 3 to A",
+      "Signal 3 to B main",
+      "Signal 3 to B siding"
+    ],
+    "mss": {
+      "row": [
+        {
+          "node": "complex",
+          "names": {
+            "left": [
+              "Block 1 current"
+            ],
+            "ir": "IR 1",
+            "right": [
+              "Block 2 current",
+              "Siding 1 current"
+            ],
+            "points": "Points 1",
+            "signals": {
+              "single": "Signal 1 to B",
+              "main": "Signal 1 to A main",
+              "siding": "Signal 1 to A siding"
+            }
+          }
+        },
+        {
+          "node": "cascade",
+          "line": 1,
+          "names": {
+            "ir": "IR 2",
+            "right": [
+              "Siding 2 current"
+            ],
+            "signals": {
+              "toA": "Signal 2 to A",
+              "toB": "Signal 2 to B"
+            }
+          }
+        },
+        {
+          "node": "complex",
+          "turned": true,
+          "names": {
+            "ir": "IR 3",
+            "right": [
+              "Block 3 current"
+            ],
+            "points": "Points 3",
+            "signals": {
+              "single": "Signal 3 to A",
+              "main": "Signal 3 to B main",
+              "siding": "Signal 3 to B siding"
+            }
+          }
+        }
+      ]
+    }
+  },
+  "start": {
+    "board": "loop",
+    "links": {
+      "A": "end",
+      "B": "end"
+    },
+    "turnouts": {
+      "Points 1": "thrown",
+      "Points 3": "thrown"
+    }
+  },
+  "steps": [
+    {
+      "at": 8,
+      "expect": {
+        "masts": {
+          "Signal 3 to B siding": "R286",
+          "Signal 2 to B": "R285",
+          "Signal 1 to B": "R283",
+          "Signal 1 to A siding": "R286",
+          "Signal 2 to A": "R285",
+          "Signal 3 to A": "R283",
+          "Signal 1 to A main": "R292",
+          "Signal 3 to B main": "R292"
+        }
+      }
+    },
+    {
+      "at": 10,
+      "do": [
+        {
+          "sensor": "Siding 2 current",
+          "is": "occupied"
+        }
+      ]
+    },
+    {
+      "at": 16,
+      "expect": {
+        "masts": {
+          "Signal 2 to B": "R292",
+          "Signal 1 to B": "R286",
+          "Signal 3 to A": "R292",
+          "Signal 2 to A": "R285",
+          "Signal 1 to A siding": "R286",
+          "Signal 3 to B siding": "R286"
+        }
+      }
+    }
+  ]
+}

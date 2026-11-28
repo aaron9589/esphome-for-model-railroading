@@ -3705,3 +3705,48 @@ button.clear-page {
   border-radius: 8px;
   background: var(--accent-soft);
 }
+
+/* The module as a grid of lines (logic-ui-mss-page.js). */
+.mss-row-cards.is-grid {
+  display: grid;
+  gap: 0;
+  align-items: stretch;
+}
+
+.mss-row-cards.is-grid .mss-board-card {
+  width: auto;
+  margin: 4px 0;
+}
+
+.mss-row-cards.is-grid .mss-drop {
+  width: 14px;
+  margin: 4px 2px;
+}
+
+.mss-row-cards.is-grid .mss-drop.is-empty {
+  width: auto;
+  min-width: 320px;
+}
+
+.mss-pass {
+  align-self: center;
+  height: 4px;
+  background: #374151;
+  border-radius: 2px;
+}
+
+.mss-drop.is-join {
+  display: none;
+  margin: 0 2px;
+}
+
+.is-joining .mss-drop.is-join {
+  display: block;
+  background: transparent;
+}
+
+.is-joining .mss-drop.is-join.is-valid {
+  width: 44px;
+  background: var(--ok-bg);
+  border: 2px dashed var(--ok-ink);
+}
