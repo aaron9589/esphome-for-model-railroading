@@ -83,7 +83,7 @@ test("skipping scans until the next timer runs out is the same as scanning throu
 // Exploring every state of the larger cases takes too long here with the
 // switch and holds (the diamond is 141,341 states, about 40 s): the bench
 // and the comparison while building covered them.
-const SLOW = ["passing-siding", "scissors", "diamond", "detector-dropout", "merge"];
+const SLOW = ["passing-siding", "manual-try-once", "scissors", "diamond", "detector-dropout", "merge"];
 const fromRules = (board) => [...new Set(["on", "off"].flatMap((mode) => plain(C.routeProblems(board, mode)).map((p) => `deadlock:${p.rule}`)))].sort();
 const waits = (problems) => plain(problems).filter((p) => p.kind === "deadlock" || p.kind === "starvation").map((p) => `${p.kind}:${p.rule}`).sort();
 function mutants(count, seed) {

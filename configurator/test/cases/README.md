@@ -62,7 +62,7 @@ As in the spec's Stored format, with these shapes:
 - **Trigger:** `{ "while": <condition>, "for": "0.5s" }`, or `{ "when": <moment>, "then": [<moment>, …] }`. `for` is optional. (The leaving guard went in TP 9: a track plan's routes are asked for, set and released instead.)
 - **Checks:** a list of conditions, all of which must hold.
 - **Then:** `{ "mast": "Left Bridge", "aspect": "R281", "reserve": "Bridge", "lock": ["P1"] }`. Each part is optional. `reserve` is a resource or a list of them, taken all at once (a track plan's move and its pieces). A name with no resource is left out, and each is taken once. A lock is a turnout, held while the rule holds anything, or `{ "turnout": "P1", "with": "Bridge" }`, held only while the rule holds that resource (one it does not take makes it the rule's). `next` gives, for each resource, the blocks its train must be seen going into before it is freed: `{ "Bridge": ["Right"] }` (sequential release, rule 9). A lock `{ "turnout": "P1", "own": true }` lets only the turnout's own buttons move it (rule 37). `"lamp": "Panel", "light": "on" | "flash"` lights a lamp (rule 36).
-- **Cancel** (a *when* trigger only): `{ "when": <moment> }`. **Withdraw** (likewise): `{ "when": <moment> }`, which takes back a request still waiting but leaves a granted rule alone.
+- **Cancel** (a *when* trigger only): `{ "when": <moment> }`. **Withdraw** (likewise): `{ "when": <moment> }`, which takes back a request still waiting but leaves a granted rule alone. **Tried once** (likewise): `"tryOnce": true`, or `{ "if": <condition>, "waitWhile": <condition> }`, each part optional: a request asked for while `if` holds is tried once, and waits only while `waitWhile` holds (rule 39).
 - **Approach locking of its own** (a rule): `"approachLock": { "block": "Left", "for": "10s" }`, in place of its resources' `approachLock` (rule 10).
 - **Resource:** `{ "name": "Bridge", "blocks": ["Bridge"], "release": <trigger>, "approachLock": "10s" }`. `approachLock` is optional (off).
 
@@ -146,6 +146,7 @@ Each step is `{ "at": n, "do": [ … ], "expect": { … } }`, with `at` going up
 - `{ "ignored": "release", "resource": "<resource>" }`: an MQTT release in the first 5 seconds after connecting; `{ "ignored": "releaseGroup", "group": "<group>" }` likewise
 - `{ "releaseGroup": "<group>" }`: Release pressed for a group (`WARN`), before what it frees
 - `{ "resync": "<turnout>" }`: the turnout went from locked (either flag) to unlocked.
+- `{ "dropped": "<layer>/<n>" }`: a request tried once could not be set, so it was dropped (rule 39); the rule is the first that shares the request.
 - `{ "pairing": "<end>", "result": "paired", "with": "<board>/<end>" }`, or `"result": "crowded" | "tracks" | "alone"` (rule 28). `paired` is logged at `INFO`, the others at `WARN`
 - `{ "disagrees": "<end>", "link": "<board>/<end>", "theirs": "<their link>" }`: the end's state became `disagrees` (`WARN`).
 
@@ -197,6 +198,7 @@ These rule numbers follow on from the plant ends' (23-29) below.
 32. **Any, if and for.** `any` happens when one of its moments does. `if` reads its condition at the scan of the moment. A moment with `for` starts a run in the scan its moment happens (a repeat restarts it), and happens once, at the first scan *n* with (*n* − *r*) × 100 ms ≥ the time, if its state (the moment read as a condition) has held at every scan since.
 33. **Release for a group.** In the next scan, after the resources' manual releases: `releaseGroup` is logged, then each resource held by a rule of that group is released by hand (rule 16), in resource order. An MQTT press in the first 5 seconds after connecting is ignored instead. Either way `CLOSED` is published for the group. A name that is no group does nothing.
 34. **The Auto/Manual switch** changes at the event, and is read at the scan.
+39. **Tried once** (decided 2026-11-28: in Manual a route is set when asked, or not at all). A request that was not already waiting is tried once when a moment asks for it in a scan where one of its rules' `tryOnce` is `true`, or its `if` holds. If no rule sharing it is granted in that scan (step 6.3), it is dropped right after the grants, `dropped` is logged and its rules are idle; the next request needs asking again. It is kept instead in any scan where one of its rules' `waitWhile` holds (a turnout on its way still moving), and tried again in the next. A request kept so reads `idle`, not `waiting`, while its rules' checks fail. The checker explores a board without `tryOnce`, so a request that would wait for ever still shows a route that can never be set again.
 
 #### Pieces (track plan, TP 7)
 

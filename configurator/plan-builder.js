@@ -896,6 +896,16 @@
       if (!asks.length) continue;
       const one = (list) => (list.length === 1 ? list[0] : { any: list });
       const hold = behind && regionBlock.get(signal.behind)?.approachLock;
+      // A request in Manual is tried once: set now, or dropped (decided
+      // 2026-11-28). It waits only while a turnout on the signal's routes is
+      // still moving, then is tried once more. In Auto a train waits for its
+      // route, so its request is kept until it can be set.
+      const ownTurnouts = [...new Set(moves.filter((m) => m.signal === signal).flatMap((m) => m.route.turnouts.map((t) => t.turnout)))];
+      const moving = ownTurnouts.map((turnout) => ({ turnout, is: "moving" }));
+      const tryOnce = {
+        ...(inManual ? { if: inManual } : {}),
+        ...(moving.length ? { waitWhile: one(moving) } : {}),
+      };
       const rules = [];
       for (const move of moves.filter((m) => m.signal === signal)) {
         const route = move.route;
@@ -934,6 +944,7 @@
           checks: [...route.turnouts.map(turnoutIs), ...route.clear.map(clearOf)],
           then: { mast: signal.mast, aspect, reserve: reserve.map((res) => res.name), next, ...(lock.length ? { lock } : {}) },
         };
+        rule.tryOnce = Object.keys(tryOnce).length ? tryOnce : true;
         if (!manualOnly) rule.withdraw = { when: { any: [{ auto: "on" }, { auto: "off" }] } };
         if (hold) rule.approachLock = { block: behind, for: hold };
         rules.push(rule);

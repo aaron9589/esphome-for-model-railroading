@@ -1,0 +1,570 @@
+{
+  "name": "track plan: a request in Manual is tried once",
+  "covers": [
+    "Track plan: a request in Manual is tried once, and waits only while a turnout on its way is moving"
+  ],
+  "about": "In Manual, a signal's button asks for a route once (decided 2026-11-28). With a train standing on the main loop and the west points closed for it, West Home's request cannot be set, so it is dropped: it does not wait for the main loop to clear. Asked again while the west points are moving, the request waits for them, and once they are thrown it is tried again and the route into the siding is set. East Home, asked while the east points are moving, waits too; they come to rest closed, for the occupied main loop, so its request is dropped. (A request kept while a turnout moves reads idle, not waiting: its rules' checks need the turnout in position.)",
+  "module": {
+    "sensors": [
+      "West line current",
+      "West points current",
+      "Main loop current",
+      "Siding current",
+      "East points current",
+      "Single current",
+      "Far current"
+    ],
+    "turnouts": [
+      "PW",
+      "PE"
+    ],
+    "masts": [
+      "West Home",
+      "Main West",
+      "Siding West",
+      "Main East",
+      "Siding East",
+      "East Home",
+      "East Advance"
+    ],
+    "plan": {
+      "track": [
+        [
+          [
+            0,
+            1
+          ],
+          [
+            4,
+            1
+          ]
+        ],
+        [
+          [
+            4,
+            1
+          ],
+          [
+            12,
+            1
+          ]
+        ],
+        [
+          [
+            12,
+            1
+          ],
+          [
+            20,
+            1
+          ]
+        ],
+        [
+          [
+            4,
+            1
+          ],
+          [
+            5,
+            0
+          ]
+        ],
+        [
+          [
+            5,
+            0
+          ],
+          [
+            11,
+            0
+          ]
+        ],
+        [
+          [
+            11,
+            0
+          ],
+          [
+            12,
+            1
+          ]
+        ]
+      ],
+      "points": [
+        {
+          "at": [
+            4,
+            1
+          ],
+          "turnout": "PW"
+        },
+        {
+          "at": [
+            12,
+            1
+          ],
+          "turnout": "PE"
+        }
+      ],
+      "breaks": [
+        {
+          "at": [
+            2,
+            1
+          ],
+          "sensors": [],
+          "signals": [
+            {
+              "mast": "West Home",
+              "facing": [
+                3,
+                1
+              ],
+              "button": "GPIO5"
+            }
+          ]
+        },
+        {
+          "at": [
+            6,
+            1
+          ],
+          "sensors": [],
+          "signals": [
+            {
+              "mast": "Main West",
+              "facing": [
+                5,
+                1
+              ]
+            }
+          ]
+        },
+        {
+          "at": [
+            6,
+            0
+          ],
+          "sensors": [],
+          "signals": [
+            {
+              "mast": "Siding West",
+              "facing": [
+                5,
+                0
+              ],
+              "button": "GPIO0"
+            }
+          ]
+        },
+        {
+          "at": [
+            10,
+            1
+          ],
+          "sensors": [],
+          "signals": [
+            {
+              "mast": "Main East",
+              "facing": [
+                11,
+                1
+              ],
+              "button": "GPIO2"
+            }
+          ]
+        },
+        {
+          "at": [
+            10,
+            0
+          ],
+          "sensors": [],
+          "signals": [
+            {
+              "mast": "Siding East",
+              "facing": [
+                11,
+                0
+              ]
+            }
+          ]
+        },
+        {
+          "at": [
+            14,
+            1
+          ],
+          "sensors": [],
+          "signals": []
+        },
+        {
+          "at": [
+            18,
+            1
+          ],
+          "sensors": [],
+          "signals": [
+            {
+              "mast": "East Home",
+              "facing": [
+                17,
+                1
+              ],
+              "button": "GPIO15"
+            },
+            {
+              "mast": "East Advance",
+              "facing": [
+                19,
+                1
+              ]
+            }
+          ]
+        }
+      ],
+      "blocks": [
+        {
+          "name": "West line",
+          "at": [
+            [
+              0,
+              1
+            ],
+            [
+              2,
+              1
+            ]
+          ],
+          "sensors": [
+            "West line current"
+          ]
+        },
+        {
+          "name": "West points",
+          "at": [
+            [
+              3,
+              1
+            ],
+            [
+              4,
+              1
+            ]
+          ],
+          "sensors": [
+            "West points current"
+          ]
+        },
+        {
+          "name": "Main loop",
+          "at": [
+            [
+              6,
+              1
+            ],
+            [
+              10,
+              1
+            ]
+          ],
+          "sensors": [
+            "Main loop current"
+          ]
+        },
+        {
+          "name": "Siding",
+          "at": [
+            [
+              6,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ],
+          "sensors": [
+            "Siding current"
+          ]
+        },
+        {
+          "name": "East points",
+          "at": [
+            [
+              12,
+              1
+            ],
+            [
+              13,
+              1
+            ]
+          ],
+          "sensors": [
+            "East points current"
+          ]
+        },
+        {
+          "name": "Single",
+          "at": [
+            [
+              14,
+              1
+            ],
+            [
+              18,
+              1
+            ]
+          ],
+          "sensors": [
+            "Single current"
+          ]
+        },
+        {
+          "name": "Far",
+          "at": [
+            [
+              18,
+              1
+            ],
+            [
+              20,
+              1
+            ]
+          ],
+          "sensors": [
+            "Far current"
+          ]
+        }
+      ]
+    }
+  },
+  "start": {
+    "auto": "off",
+    "sensors": {
+      "West line current": "occupied"
+    }
+  },
+  "steps": [
+    {
+      "at": 0,
+      "expect": {
+        "events": [
+          {
+            "startup": true
+          },
+          {
+            "pass": "West line",
+            "rule": null
+          }
+        ],
+        "masts": {
+          "West Home": "R292",
+          "East Home": "R292"
+        },
+        "locks": {
+          "PW": false,
+          "PE": false
+        }
+      }
+    },
+    {
+      "at": 2,
+      "do": [
+        {
+          "sensor": "Main loop current",
+          "is": "occupied"
+        }
+      ],
+      "expect": {
+        "events": []
+      }
+    },
+    {
+      "at": 5,
+      "do": [
+        {
+          "button": "West Home button",
+          "is": "pressed"
+        },
+        {
+          "button": "West Home button",
+          "is": "released"
+        }
+      ],
+      "expect": {
+        "events": [
+          {
+            "dropped": "West Home moves/1"
+          }
+        ],
+        "writes": [],
+        "masts": {
+          "West Home": "R292"
+        },
+        "rules": {
+          "West Home moves/1": "idle",
+          "West Home moves/2": "idle"
+        }
+      }
+    },
+    {
+      "at": 8,
+      "expect": {
+        "events": [],
+        "rules": {
+          "West Home moves/1": "idle"
+        }
+      }
+    },
+    {
+      "at": 10,
+      "do": [
+        {
+          "turnout": "PW",
+          "is": "moving"
+        }
+      ],
+      "expect": {
+        "events": []
+      }
+    },
+    {
+      "at": 12,
+      "do": [
+        {
+          "button": "West Home button",
+          "is": "pressed"
+        },
+        {
+          "button": "West Home button",
+          "is": "released"
+        }
+      ],
+      "expect": {
+        "events": [],
+        "masts": {
+          "West Home": "R292"
+        },
+        "rules": {
+          "West Home moves/1": "idle",
+          "West Home moves/2": "idle"
+        }
+      }
+    },
+    {
+      "at": 19,
+      "expect": {
+        "events": [],
+        "rules": {
+          "West Home moves/2": "idle"
+        }
+      }
+    },
+    {
+      "at": 20,
+      "do": [
+        {
+          "turnout": "PW",
+          "is": "thrown"
+        }
+      ],
+      "expect": {
+        "events": [
+          {
+            "grant": "West points",
+            "rule": "West Home moves/2"
+          },
+          {
+            "grant": "Siding",
+            "rule": "West Home moves/2"
+          }
+        ],
+        "writes": [
+          {
+            "mast": "West Home",
+            "aspect": "R286"
+          },
+          {
+            "lock": "PW",
+            "on": true
+          }
+        ],
+        "masts": {
+          "West Home": "R286"
+        },
+        "locks": {
+          "PW": true,
+          "PE": false
+        },
+        "holders": {
+          "West points": "West Home moves/2",
+          "Siding": "West Home moves/2"
+        }
+      }
+    },
+    {
+      "at": 25,
+      "do": [
+        {
+          "turnout": "PE",
+          "is": "moving"
+        }
+      ],
+      "expect": {
+        "events": []
+      }
+    },
+    {
+      "at": 26,
+      "do": [
+        {
+          "button": "East Home button",
+          "is": "pressed"
+        },
+        {
+          "button": "East Home button",
+          "is": "released"
+        }
+      ],
+      "expect": {
+        "events": [],
+        "masts": {
+          "East Home": "R292"
+        },
+        "rules": {
+          "East Home moves/1": "idle",
+          "East Home moves/2": "idle"
+        }
+      }
+    },
+    {
+      "at": 30,
+      "do": [
+        {
+          "turnout": "PE",
+          "is": "closed"
+        }
+      ],
+      "expect": {
+        "events": [
+          {
+            "dropped": "East Home moves/1"
+          }
+        ],
+        "writes": [],
+        "masts": {
+          "East Home": "R292"
+        },
+        "rules": {
+          "East Home moves/1": "idle",
+          "East Home moves/2": "idle"
+        },
+        "locks": {
+          "PW": true,
+          "PE": false
+        }
+      }
+    }
+  ]
+}

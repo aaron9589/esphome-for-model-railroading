@@ -3,7 +3,7 @@
   "covers": [
     "Track plan: CATS holding a signal as its train passes"
   ],
-  "about": "CATS holds a signal as soon as it sees its train go by. Held in the same scan as the train enters the bridge, the hold frees nothing: the bridge is released behind the train as usual. A hold before the train has entered does cancel: the bridge is freed at once and the route waiting for it is set.",
+  "about": "CATS holds a signal as soon as it sees its train go by. Held in the same scan as the train enters the bridge, the hold frees nothing: the bridge is released behind the train as usual. A hold before the train has entered does cancel: the bridge is freed at once. Left Bridge, cleared while the bridge was Right Bridge's, was tried once and dropped (a request in Manual is not kept, decided 2026-11-28), so the bridge stays free until CATS holds Left Bridge and clears it again.",
   "module": {
     "sensors": [
       "Left current",
@@ -441,12 +441,16 @@
         }
       ],
       "expect": {
-        "events": [],
+        "events": [
+          {
+            "dropped": "Left Bridge moves/1"
+          }
+        ],
         "masts": {
           "Left Bridge": "R292"
         },
         "rules": {
-          "Left Bridge moves/1": "waiting"
+          "Left Bridge moves/1": "idle"
         }
       }
     },
@@ -467,24 +471,62 @@
           {
             "release": "Bridge",
             "by": "cancel"
-          },
+          }
+        ],
+        "masts": {
+          "Left Bridge": "R292",
+          "Right Bridge": "R292"
+        },
+        "resources": {
+          "Bridge": "IDLE"
+        },
+        "holders": {
+          "Bridge": null
+        },
+        "rules": {
+          "Right Bridge moves/1": "idle",
+          "Left Bridge moves/1": "idle"
+        }
+      }
+    },
+    {
+      "at": 64,
+      "do": [
+        {
+          "jmri": "Left Bridge",
+          "message": "R292; Lit; Held"
+        }
+      ],
+      "expect": {
+        "events": [],
+        "masts": {
+          "Left Bridge": "R292"
+        }
+      }
+    },
+    {
+      "at": 65,
+      "do": [
+        {
+          "jmri": "Left Bridge",
+          "message": "R281; Lit; Unheld"
+        }
+      ],
+      "expect": {
+        "events": [
           {
             "grant": "Bridge",
             "rule": "Left Bridge moves/1"
           }
         ],
         "masts": {
-          "Left Bridge": "R281",
-          "Right Bridge": "R292"
+          "Left Bridge": "R281"
         },
         "resources": {
           "Bridge": "ACTIVE"
         },
         "holders": {
           "Bridge": "Left Bridge moves/1"
-        },
-        "rules": {
-          "Right Bridge moves/1": "idle"
         }
       }
     }

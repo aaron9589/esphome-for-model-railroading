@@ -199,8 +199,8 @@ A signal whose routes can never clash with another's is a **block signal**. It d
 
 The board has an **Auto** switch (on its web page, and as a light in JMRI). It decides who asks for a controlled signal's route:
 
-- **Auto** (the usual): the board asks, when a train arrives at the signal. If the train never comes, the request is dropped once the block behind has been clear for its time.
-- **Manual**: a person asks. CATS or JMRI asks by clearing (unholding) the signal, or someone presses the signal's **Button**. Holding the signal again, or pressing its button again, cancels the request.
+- **Auto** (the usual): the board asks, when a train arrives at the signal. If the route can't be set yet (another train has the track), the request waits, and the route is set as soon as the track is free. If the train never comes, the request is dropped once the block behind has been clear for its time.
+- **Manual**: a person asks. CATS or JMRI asks by clearing (unholding) the signal, or someone presses the signal's **Button**. The board tries the route once, there and then. If it can't be set (the track is taken or occupied, or the turnouts are set for no route), nothing happens: ask again when the way is clear. The one exception is a turnout on the way that is still moving: the request waits for it to stop, then is tried once more. Holding the signal again, or pressing its button again, cancels a route that is set.
 
 ---
 
@@ -247,7 +247,7 @@ Success looks like:
 
 - Click a **block** to put a train in it, and again to take it out.
 - Click a **turnout** to throw it (unless it is locked), a **button** to press it, a **switch** to flip it.
-- Click a **signal** to see what it shows and why. **Ask for a route** and **Cancel its route** do what its button, or CATS, would.
+- Click a **signal** to see what it shows and why. **Ask for a route** and **Cancel its route** do what its button, or CATS, would. In Manual, a route that can't be set when you ask is not kept: **What happened** says the request was dropped.
 - Time runs as it does on the board, in real time: the clock beside the Auto line counts the seconds. **Pause** stops it, and **Carry on** starts it again. **Start again** clears everything.
 - **Switch to Manual** flips the Auto switch.
 
@@ -364,7 +364,7 @@ CATS can use `MSBridge` as the block's detector.
 CATS has a **Hold Only** option on a signal template. With it, CATS does not set the aspect. It only holds the signal at Stop, and lets go.
 
 - A held signal shows Stop, whatever the drawing says.
-- In **Manual**, letting go of the hold asks for the signal's route, and holding it again cancels the request.
+- In **Manual**, letting go of the hold asks for the signal's route, and holding it again cancels it. The route is tried once: if CATS lets go while the track is still taken (say, in the few seconds after a train has left the bridge), nothing is set, and CATS must hold the signal and let go again.
 - A hold left on the broker when JMRI closed keeps the signal at Stop. That is on purpose. Unhold the signal in CATS or JMRI to clear it.
 
 ---
@@ -480,7 +480,7 @@ Check one thing at a time, in this order.
 1. In Try it, put a train in the block behind it and skip ahead. Click the signal and read **Why**. If it clears there, the drawing is fine and the fault is in the wiring or the board.
 2. Is its route set? In Try it, set track is green. If not, another route holds some of its track: **What happened** says which.
 3. Is one of your rules holding it? **Why** lists each rule that sets it.
-4. On the board: check the **Auto** switch. In Manual, nothing asks for the route until CATS, JMRI or its button does.
+4. On the board: check the **Auto** switch. In Manual, nothing asks for the route until CATS, JMRI or its button does, and a request that can't be set at that moment is dropped: ask again once the way is clear. **What happened** in Try it, and the board's log, say when a request was dropped.
 5. Check the signal is not held by CATS or JMRI (see [CATS hold](#cats-hold)).
 
 **A route never frees.**
