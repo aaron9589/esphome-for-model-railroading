@@ -89,6 +89,33 @@ test("Wire it: every block, then IR sensors, points and the ends' pins; a missin
   assert.deepEqual(wire().find((w) => w.key === "Points 1"), { key: "Points 1", name: "Points 1", role: "points", kind: "turnout", pin: "", place: null, done: false, problem: "missing" });
 });
 
+test("Signals: each signal with its lamps' pins; what it shows follows the two ticks", () => {
+  const config = emptyBoard();
+  const pins = ["GPIO14", "GPIO27", "GPIO26", "GPIO16", "GPIO17"];
+  let k = 0;
+  R.use(config, R.PRESETS.cascade, ({ sensors, masts }) => {
+    config.blocks.push(...sensors.map((name) => ({ name, gpio: pins[k++] })));
+    config.signals.masts.push(...masts.map((m) => ({ ...m, pin: pins[k++] })));
+  }, { style: "strip" });
+  assert.deepEqual(plain(F.signalList(config)).map((x) => [x.name, x.style, x.pins.map((p) => p.pin), x.done]), [
+    ["Signal 1 to A", "strip", ["GPIO16"], true], ["Signal 1 to B", "strip", ["GPIO17"], true],
+  ]);
+  assert.equal(steps(config).signals.done, true);
+  config.signals.masts[1].pin = "GPIO16";
+  assert.deepEqual(plain(F.signalList(config)).map((x) => x.problem), ["shared", "shared"]);
+  assert.equal(steps(config).signals.done, false);
+  const keys = () => plain(F.indicationsFor(config, "twoHeads")).map((x) => x.key);
+  assert.deepEqual(keys(), ["stop", "approach", "clear", "divergingClear", "divergingApproach"]);
+  config.logic.mss.advanceApproach = true;
+  config.logic.mss.approachDiverging = true;
+  assert.deepEqual(keys(), ["stop", "approach", "advance", "clear", "approachDiverging", "divergingClear", "divergingApproach"]);
+  // Upper head first: Advance Approach is flashing yellow over red; Approach Diverging yellow over yellow.
+  const two = Object.fromEntries(plain(F.indicationsFor(config, "twoHeads")).map((x) => [x.key, x.heads]));
+  assert.deepEqual(two.advance, [{ color: "amber", blink: true }, { color: "red", blink: false }]);
+  assert.deepEqual(two.approachDiverging, [{ color: "amber", blink: false }, { color: "amber", blink: false }]);
+  assert.deepEqual(plain(F.indicationsFor(config, "plain")).find((x) => x.key === "approachDiverging").heads, [{ color: "amber", blink: true }]);
+});
+
 test("a row's own problem counts on Pick your module, and closes the steps after it", () => {
   const config = emptyBoard();
   config.logic.mss.row = [{ node: "siding" }, { node: "cascade" }];

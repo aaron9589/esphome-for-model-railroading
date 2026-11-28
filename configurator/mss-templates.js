@@ -56,6 +56,7 @@
     // Aspect labels, and lamp names.
     aspects: Object.freeze({
       stop: "Stop", approach: "Approach", clear: "Clear",
+      advance: "Advance Approach", approachDiverging: "Approach Diverging",
       divergingClear: "Diverging Clear", divergingApproach: "Diverging Approach",
     }),
     head: "Head",
@@ -92,6 +93,34 @@
 
   const LED_COLOURS = ["red", "amber", "green"];
 
+  // MSS Logic's patterns (mss-row.js) add the two indications MSS leaves off
+  // by default, shown only when they are ticked (decided 2026-11-28): one
+  // head, Advance Approach and Approach Diverging flashing yellow; two heads,
+  // Advance Approach flashing yellow over red, Approach Diverging yellow over
+  // yellow. "amber*" is a flashing lamp.
+  const withExtras = (rows, extras) => {
+    const out = [];
+    for (const row of rows) {
+      out.push(row);
+      for (const extra of extras) if (extra.after === row[0]) out.push(extra.row);
+    }
+    return out;
+  };
+  const ONE_EXTRAS = [
+    { after: "approach", row: ["advance", "ADV_NORM", ["amber*"]] },
+    { after: "clear", row: ["approachDiverging", "R282", ["amber*"]] },
+  ];
+  const MSS_ROWS = Object.freeze({
+    plain: withExtras(ONE_HEAD, ONE_EXTRAS),
+    diverging: withExtras(ONE_HEAD_DIVERGING, ONE_EXTRAS),
+    twoHeads: withExtras(TWO_HEADS, [
+      { after: "approach", row: ["advance", "ADV_NORM", ["red", "amber*"]] },
+      { after: "clear", row: ["approachDiverging", "R282", ["amber", "amber"]] },
+    ]),
+  });
+  // A colour in a row: "amber*" is amber, flashing.
+  const lampOf = (shown) => ({ color: String(shown).replace(/\*$/, ""), mode: String(shown).endsWith("*") ? "blink" : "steady" });
+
   // A signal mast for the Signal Masts page, without its pins, lowest head
   // first. `heads` names them ([""] for one head); each aspect row gives a
   // colour per head. Individual LEDs (the default) are three to a head (red,
@@ -106,7 +135,7 @@
           label: TEXT.aspects[key],
           states: [`${cats}; Lit; Unheld`],
           ...(i === 0 ? { startup: true } : {}),
-          lamps: colours.map((color) => ({ color, mode: "steady" })),
+          lamps: colours.map(lampOf),
         })),
       };
     }
@@ -121,7 +150,7 @@
         label: TEXT.aspects[key],
         states: [`${cats}; Lit; Unheld`],
         ...(i === 0 ? { startup: true } : {}),
-        lamps: colours.flatMap((shown) => LED_COLOURS.map((colour) => ({ color: colour === shown ? colour : "off", mode: "steady" }))),
+        lamps: colours.flatMap((shown) => LED_COLOURS.map((colour) => (lampOf(shown).color === colour ? lampOf(shown) : { color: "off", mode: "steady" }))),
       })),
     };
   }
@@ -251,5 +280,5 @@
   const ROWS = Object.freeze({ oneHead: ONE_HEAD_DIVERGING, twoHeads: TWO_HEADS, plain: ONE_HEAD });
   const HEADS = Object.freeze({ oneHead: [""], twoHeads: [TEXT.lower, TEXT.upper] });
 
-  global.EsphomeMrMssTemplates = { TEXT, IDS, design, plan, apply, described, mast, ROWS, HEADS };
+  global.EsphomeMrMssTemplates = { TEXT, IDS, design, plan, apply, described, mast, ROWS, HEADS, MSS_ROWS, lampOf };
 })(typeof globalThis !== "undefined" ? globalThis : window);

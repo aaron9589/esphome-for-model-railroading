@@ -237,8 +237,8 @@ test("validation: each problem points at the part of the description that caused
     ["warning", "logic-mss-row", "Track 1 (A1 to J1 leg 1), block boundary 2 has no sensor, so the signals there can clear while cars that draw no power are still on it. Add its optical sensor."],
     ["error", "logic-mss-row", "Track 3 (J1 leg 3 to C2): To is end C track 2, but end C has fewer tracks. Pick another, or add the track under Ends."],
     ["error", "logic-mss-row", "End C track 1 has no track. Describe the track through it under Tracks, or give end C fewer tracks."],
-    ["error", "logic-mss-row", 'Pick what signal "Outer" shows for Approach under Signals.'],
-    ["error", "logic-mss-row", 'Signal "Home" has no aspect called "R999". Pick another for Approach under Signals.'],
+    ["error", "logic-mss-row", 'Signal "Outer" has no aspect for Approach. Add one on the Signal Masts page, or start the module again.'],
+    ["error", "logic-mss-row", 'Signal "Home" has no aspect called "R999" for Approach. Add it on the Signal Masts page, or start the module again.'],
   ]);
   same(found.find((p) => p.text.includes("block 2 has no sensor")).where, { view: "logic", part: "logic-mss-row", track: 0, block: 1 });
   same(found.find((p) => p.text.includes("Nowhere")).where, { view: "logic", part: "logic-mss-row", track: 0, boundary: 0 });

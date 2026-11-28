@@ -47,7 +47,7 @@
       pickEmpty: "Pick the MSS module this board runs. Each is the standard MSS node, as Iowa Scaled Engineering's boards build it.",
       pick: "This is your module. Add a node on the right, turn a Siding end round, or remove a node, or start again from the standard modules.",
       wire: "Wire each part in turn: it is lit on the picture, with how to wire it and its pin. Click a part on the picture to go to it.",
-      signals: "Each signal, lit on the picture. Its lamps and pins are on the Signal Masts page; what it shows is the MSS pattern's.",
+      signals: "Each signal in turn, lit on the picture: its lamps and their pins. What it shows is the MSS pattern's: point at one to see it.",
       try: "Put trains in blocks, throw the points and watch the signals.",
       download: "Download the board's file, the JMRI file and the module card from the Download page.",
       pair: "At a meet, pair each end of this module with the module beside it.",
@@ -139,6 +139,27 @@
     notOnPage: "Not on its page: start the module again, or add it there.",
     previous: "Previous",
     nextPart: "Next part",
+    // Signals: each signal in turn.
+    ticks: Object.freeze({
+      advance: "Advance Approach",
+      advanceHint: "The signal two before a Stop shows Advance Approach (flashing yellow) instead of Clear. Off in MSS unless every module at the meet uses it.",
+      approachDiverging: "Approach Diverging",
+      approachDivergingHint: "The signal before one set for the siding shows Approach Diverging (flashing yellow; yellow over yellow on two heads) instead of Approach.",
+    }),
+    signalOf: (n, total) => `${n} of ${total}`,
+    heads: Object.freeze({ plain: "one head", diverging: "one head, for the siding", twoHeads: "two heads: upper the main line, lower the siding" }),
+    style: "Its lamps",
+    styles: Object.freeze({
+      leds: "Individual LEDs: a red, a yellow and a green for each head, each on its own pin",
+      strip: "WS2812B: one LED for each head, all on one data pin",
+    }),
+    restyled: "Its lamps are made again for this choice, with free pins.",
+    dataPin: "Data pin",
+    lampPin: (lamp) => `${lamp} pin`,
+    shows: "What it shows (point at one to see it on the picture)",
+    notOnPageSignal: "Not on the Signal Masts page: start the module again, or add it there.",
+    nextSignal: "Next signal",
+    strapping: (pins) => `${pins} ${pins.includes(",") ? "are start-up pins" : "is a start-up pin"}: an LED on one can stop the board starting. Use WS2812B LEDs, or free a pin that is not a start-up pin.`,
     // Pair.
     pairSteps: Object.freeze([
       "Press Pair on this module's end and on the end of the module beside it, within 30 seconds of each other. The board's web page has a Pair button for each end too.",
@@ -153,7 +174,7 @@
   const ORDER = Object.freeze(["pick", "wire", "signals", "try", "download", "pair"]);
 
   // What the person is looking at: kept while the page is drawn again.
-  const state = { board: null, step: null, settings: false, views: false, pending: "", style: null, ask: "", change: null, wireAt: "" };
+  const state = { board: null, step: null, settings: false, views: false, pending: "", style: null, ask: "", change: null, wireAt: "", signalAt: "" };
 
   const rowOf = (config) => (Array.isArray(config?.logic?.mss?.row) ? config.logic.mss.row : null);
 
@@ -194,7 +215,7 @@
     const count = (step, level) => problems.filter((p) => stepOfProblem(p) === step && p.level === level).length;
     const parts = partsOf(config);
     const wired = parts.filter((p) => p.kind !== "mast").every((p) => p.there) && wireList(config).every((w) => w.done);
-    const signalled = parts.filter((p) => p.kind === "mast").every((p) => p.there);
+    const signalled = parts.filter((p) => p.kind === "mast").every((p) => p.there) && signalList(config).every((x) => x.done);
     const has = { pick: rowOk, wire: rowOk && wired, signals: rowOk && signalled, try: rowOk && wired && signalled, download: false, pair: false };
     return ORDER.map((id) => {
       const open = id === "pick" || rowOk;
@@ -293,6 +314,52 @@
       }
     }
     return out;
+  }
+
+  const MT = () => global.EsphomeMrMssTemplates;
+  const INDICATION_ORDER = ["stop", "approach", "advance", "clear", "approachDiverging", "divergingClear", "divergingApproach"];
+
+  /**
+   * What a pattern signal shows, in order, with the ticks: [{ key, label,
+   * heads: [{ color, blink }] }], the upper head first.
+   */
+  function indicationsFor(config, heads) {
+    const mss = config?.logic?.mss || {};
+    const rows = list(MT()?.MSS_ROWS?.[heads]);
+    return rows
+      .filter(([key]) => (key === "advance" ? mss.advanceApproach === true : key === "approachDiverging" ? mss.approachDiverging === true : true))
+      .sort((a, b) => INDICATION_ORDER.indexOf(a[0]) - INDICATION_ORDER.indexOf(b[0]))
+      .map(([key, , colours]) => ({
+        key,
+        label: MT().TEXT.aspects[key],
+        heads: [...colours].reverse().map((c) => ({ color: String(c).replace(/\*$/, ""), blink: String(c).endsWith("*") })),
+      }));
+  }
+
+  /**
+   * Signals, in order: [{ name, heads, there, style ("leds" | "strip"),
+   * pins: [{ key, label, pin }], done, problem }]: `pins` the data pin, or a
+   * pin for each LED; `problem` notThere, missing or shared.
+   */
+  function signalList(config) {
+    const row = rowOf(config);
+    if (!row || !R() || R().problems(row).length) return [];
+    const uses = pinUses(config);
+    return R().parts(row).filter((p) => p.kind === "mast").map((part) => {
+      const m = list(config?.signals?.masts).find((x) => x?.name === part.name);
+      const item = { name: part.name, heads: part.heads, there: !!m, style: m?.mode === "gpio" ? "leds" : "strip", pins: [], done: false, problem: "" };
+      if (!m) {
+        item.problem = "notThere";
+        return item;
+      }
+      item.pins = m.mode === "gpio"
+        ? list(m.lamps).map((lamp, i) => ({ key: `lamp:${i}`, label: TEXT.lampPin(lamp?.name || String(i + 1)), pin: String(lamp?.pin || "") }))
+        : [{ key: "data", label: TEXT.dataPin, pin: String(m.pin || "") }];
+      if (item.pins.some((p) => !p.pin)) item.problem = "missing";
+      else if (item.pins.some((p) => (uses.get(p.pin.toUpperCase()) || 0) > 1)) item.problem = "shared";
+      item.done = !item.problem;
+      return item;
+    });
   }
 
   /** The views of what MSS Logic made are shown only when unfolded. */
@@ -633,6 +700,124 @@
     panel.append(ol);
   }
 
+  // The signal being set up: the one picked, else the first not done.
+  function signalAt(items) {
+    return items.find((x) => x.name === state.signalAt) || items.find((x) => !x.done) || items[0];
+  }
+
+  // A free pin for a new LED or data pin: not a start-up pin, if one is free.
+  function freePin(ctx) {
+    const choices = ctx.freePinChoices("");
+    return (choices.find((c) => !/strapping/.test(c.label)) || choices[0])?.value || "";
+  }
+
+  // Light a signal's heads on the picture as an indication shows them (null: as drawn).
+  const COLOURS = Object.freeze({ red: "#dc2626", amber: "#f59e0b", green: "#16a34a", white: "#f9fafb", off: "#1f2937" });
+  function preview(name, indication) {
+    const heads = [...document.querySelectorAll(`#logic-mss-picture [data-part="${CSS.escape(name)}"] .mss-row-head`)];
+    heads.forEach((head, h) => {
+      const look = indication?.heads[h];
+      head.style.fill = look ? COLOURS[look.color] || COLOURS.off : "";
+      head.classList.toggle("is-blink", !!look?.blink && look.color !== "off");
+    });
+  }
+
+  function renderSignals(panel, config, ctx) {
+    const mss = config.logic.mss;
+    const changed = (focus = "#logic-mss-signal-style") => { ctx.persist(); ctx.render(); document.querySelector(focus)?.focus({ preventScroll: true }); };
+    // The two ticks, for the whole module.
+    const ticks = el("div", "mss-ticks");
+    for (const [key, field] of [["advance", "advanceApproach"], ["approachDiverging", "approachDiverging"]]) {
+      const f = ctx.field(TEXT.ticks[key], mss[field] === true, (checked) => {
+        if (checked) mss[field] = true;
+        else delete mss[field];
+        changed(`#logic-mss-tick-${key}`);
+      }, { checkbox: true, hint: TEXT.ticks[`${key}Hint`] });
+      f.querySelector("input")?.setAttribute("id", `logic-mss-tick-${key}`);
+      ticks.append(f);
+    }
+    panel.append(ticks);
+    const items = signalList(config);
+    if (!items.length) return;
+    const at = signalAt(items);
+    const index = items.indexOf(at);
+    const pick = (name) => {
+      state.signalAt = name;
+      ctx.render();
+      document.querySelector("#logic-mss-signal-style")?.focus({ preventScroll: true });
+    };
+    const box = el("div", "mss-wire");
+    box.id = "logic-mss-signal";
+    box.append(el("span", "mss-wire-count", TEXT.signalOf(index + 1, items.length)));
+    box.append(el("h4", "", `${at.name} (${TEXT.heads[at.heads] || at.heads})`));
+    if (!at.there) box.append(el("p", "mss-warning", TEXT.notOnPageSignal));
+    else {
+      const m = config.signals.masts.find((x) => x?.name === at.name);
+      const style = ctx.field(TEXT.style, at.style, (v) => {
+        if (v === at.style) return;
+        // Made again for the choice: the pattern's lamps and aspects, with free pins.
+        const part = R().parts(rowOf(config)).find((p) => p.name === at.name);
+        const fresh = MT().mast(at.name, MT().MSS_ROWS[part.heads], part.heads === "twoHeads" ? MT().HEADS.twoHeads : MT().HEADS.oneHead, v);
+        const i = config.signals.masts.indexOf(m);
+        const next = { ...fresh, topic: m.topic, topicCustom: m.topicCustom, pin: "", numLeds: fresh.lamps.reduce((n, lamp) => n + (Number(lamp.count) || 1), 0) };
+        config.signals.masts[i] = next;
+        if (next.mode === "gpio") for (const lamp of next.lamps) lamp.pin = freePin(ctx);
+        else next.pin = freePin(ctx);
+        ctx.flash?.("ok", TEXT.restyled);
+        changed();
+      }, { select: [{ value: "leds", label: TEXT.styles.leds }, { value: "strip", label: TEXT.styles.strip }] });
+      style.querySelector("select").id = "logic-mss-signal-style";
+      box.append(style);
+      const pins = el("div", "mss-signal-pins");
+      for (const p of at.pins) {
+        const f = ctx.field(p.label, p.pin, (v) => {
+          if (p.key === "data") m.pin = v;
+          else m.lamps[Number(p.key.split(":")[1])].pin = v;
+          changed(`[data-signal-pin="${p.key}"]`);
+        }, { select: [{ value: "", label: TEXT.pickPin }, ...ctx.freePinChoices(p.pin)] });
+        f.querySelector("select").dataset.signalPin = p.key;
+        pins.append(f);
+      }
+      box.append(pins);
+      const strapping = at.pins.map((p) => p.pin).filter((pin) => /^GPIO(0|2|5|12|15)$/i.test(pin));
+      if (strapping.length) box.append(el("p", "mss-warning", TEXT.strapping(strapping.join(", "))));
+      if (at.problem === "missing") box.append(el("p", "mss-warning", TEXT.pinMissing));
+      if (at.problem === "shared") box.append(el("p", "mss-warning", TEXT.pinShared(at.pins.find((p) => (pinUses(config).get(p.pin.toUpperCase()) || 0) > 1)?.pin || "")));
+      // What it shows: point at one, and the picture shows it.
+      box.append(el("p", "hint", TEXT.shows));
+      const chips = el("div", "mss-indications");
+      for (const ind of indicationsFor(config, at.heads)) {
+        const chip = button("", () => preview(at.name, ind), "mss-indication");
+        chip.dataset.indication = ind.key;
+        for (const head of ind.heads) chip.append(el("span", `mss-lamp is-${head.color}${head.blink ? " is-blink" : ""}`));
+        chip.append(` ${ind.label}`);
+        for (const on of ["mouseenter", "focus"]) chip.addEventListener(on, () => preview(at.name, ind));
+        for (const off of ["mouseleave", "blur"]) chip.addEventListener(off, () => preview(at.name, null));
+        chips.append(chip);
+      }
+      box.append(chips);
+    }
+    const nav = el("div", "dialog-actions");
+    const prev = button(TEXT.previous, () => pick(items[index - 1].name));
+    prev.disabled = index === 0;
+    prev.id = "logic-mss-signal-previous";
+    const next = button(TEXT.nextSignal, () => pick(items[index + 1].name));
+    next.disabled = index === items.length - 1;
+    next.id = "logic-mss-signal-next";
+    nav.append(prev, next);
+    box.append(nav);
+    panel.append(box);
+    const ol = el("ol", "mss-wire-list");
+    items.forEach((x, i) => {
+      const li = el("li", x.name === at.name ? "is-current" : "");
+      const b = button(`${x.done ? "✓" : x.problem ? "!" : String(i + 1)} ${x.name}`, () => pick(x.name), `link-button${x.problem ? " is-problem" : ""}`);
+      b.dataset.signal = x.name;
+      li.append(b);
+      ol.append(li);
+    });
+    panel.append(ol);
+  }
+
   function renderParts(panel, config, kinds) {
     const ul = el("ul", "mss-parts");
     for (const p of partsOf(config).filter((x) => kinds.includes(x.kind))) {
@@ -642,7 +827,7 @@
   }
 
   function renderPage(root, config, ctx) {
-    if (state.board !== config) Object.assign(state, { board: config, step: null, settings: false, views: false, pending: "", style: null, ask: "", change: null, wireAt: "" });
+    if (state.board !== config) Object.assign(state, { board: config, step: null, settings: false, views: false, pending: "", style: null, ask: "", change: null, wireAt: "", signalAt: "" });
     const line = el("div", "logic-field-line");
     line.id = PART;
     const mode = el("span");
@@ -691,10 +876,29 @@
           marks: Object.fromEntries(items.map((w) => [w.key, w.problem ? "error" : w.done ? "done" : ""]).filter(([, m]) => m)),
         };
       }
+      if (current === "signals") {
+        const items = signalList(config);
+        const at = items.length ? signalAt(items) : null;
+        options = {
+          lit: new Set(at ? [at.name] : []),
+          badges: Object.fromEntries(items.map((x, i) => [x.name, x.done ? "✓" : String(i + 1)])),
+          marks: Object.fromEntries(items.map((x) => [x.name, x.problem ? "error" : x.done ? "done" : ""]).filter(([, m]) => m)),
+        };
+      }
       const picture = P().draw(row, options);
       if (picture) {
         picture.id = "logic-mss-picture";
         // Click a part to wire it.
+        if (current === "signals") {
+          picture.classList.add("is-pickable");
+          picture.addEventListener("click", (event) => {
+            const name = event.target.closest?.(".mss-row-signal")?.dataset.part;
+            if (!name) return;
+            state.signalAt = name;
+            ctx.render();
+            document.querySelector("#logic-mss-signal-style")?.focus({ preventScroll: true });
+          });
+        }
         if (current === "wire") {
           picture.classList.add("is-pickable");
           picture.addEventListener("click", (event) => {
@@ -715,7 +919,7 @@
     panel.append(el("p", "card-copy", g.doing));
     if (current === "pick") renderPick(panel, config, ctx);
     else if (current === "wire") renderWire(panel, config, ctx);
-    else if (current === "signals") renderParts(panel, config, ["mast"]);
+    else if (current === "signals") renderSignals(panel, config, ctx);
     else if (current === "pair") {
       const ol = el("ol", "mss-pair");
       for (const words of TEXT.pairSteps) ol.append(el("li", "", words));
@@ -736,7 +940,7 @@
     root.append(card);
   }
 
-  global.EsphomeMrLogicUiMss = { TEXT, PART, ORDER, stepsOf, currentStep, guidance, handWritten, partsOf, litFor, wireList, viewsOpen, settingsOpen };
+  global.EsphomeMrLogicUiMss = { TEXT, PART, ORDER, stepsOf, currentStep, guidance, handWritten, partsOf, litFor, wireList, signalList, indicationsFor, viewsOpen, settingsOpen };
 
   if (global.EsphomeMrLogicUi) {
     global.EsphomeMrLogicUi.registerPart({ id: PART, order: 5, modes: ["mss"], text: TEXT, render: renderPage });

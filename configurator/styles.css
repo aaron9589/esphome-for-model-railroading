@@ -3511,3 +3511,42 @@ button.clear-page {
 .mss-wire-list .is-problem {
   color: var(--danger);
 }
+
+.mss-ticks {
+  display: grid;
+  gap: 0.25rem;
+  margin-bottom: 0.5rem;
+}
+
+.mss-signal-pins {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 0.25rem 0.75rem;
+}
+
+.mss-indications {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.mss-indication {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.mss-lamp {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #1f2937;
+}
+
+.mss-lamp.is-red { background: #dc2626; }
+.mss-lamp.is-amber { background: #f59e0b; }
+.mss-lamp.is-green { background: #16a34a; }
+
+@keyframes mss-blink { 50% { opacity: 0.2; } }
+.mss-lamp.is-blink, .mss-row-head.is-blink { animation: mss-blink 0.9s steps(1) infinite; }
