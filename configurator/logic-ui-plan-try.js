@@ -2,8 +2,9 @@
 // Try it; work item TP 8): the same picture, live. Click a block to put a
 // train in or take it out, a turnout to throw it, a button to press it, a
 // switch to flip it, a signal to pick it (then ask for its route or cancel
-// it, as its button or CATS would), and flip Auto/Manual. Run a train from a
-// signal along the routes its turnouts are set for. Taken track is shaded, a
+// it, as its button or CATS would), and flip Auto/Manual. Time runs as it
+// does on the board, in real time (Pause stops it). Run a train from a
+// signal along the routes its turnouts are set for, a block every few seconds. Taken track is shaded, a
 // set route is green, locked turnouts show a lock; a list says what
 // happened, and the panel why the picked signal shows what it does.
 // The session is logic-try.js; the picture is logic-ui-plan.js. Pure parts
@@ -26,9 +27,9 @@
     manual: "Manual",
     autoIs: (on) => (on ? "The board is in Auto: it asks for a route when a train arrives at a signal." : "The board is in Manual: a route is asked for by its signal's button, or by CATS or JMRI clearing it."),
     flipAuto: (on) => (on ? "Switch to Manual" : "Switch to Auto"),
-    step: "Step",
-    skip1: "Skip ahead 1 second",
-    skip10: "Skip ahead 10 seconds",
+    pause: "Pause",
+    resume: "Carry on",
+    paused: "Paused.",
     again: "Start again",
     time: (s) => `${(Number(s) || 0).toFixed(1)} s`,
     runFrom: "Run a train from",
@@ -47,6 +48,9 @@
     nothingYet: "Nothing yet.",
     legend: Object.freeze({ train: "A train", taken: "Track taken by a route", route: "A route set, waiting for its train", locked: "Locked" }),
   });
+
+  // Run a train: a block every few seconds, in real time.
+  const TRAIN_MS = 3000;
 
   const COLOURS = Object.freeze({ stop: "#dc2626", restricting: "#dc2626", approach: "#f59e0b", advance: "#84cc16", clear: "#16a34a", dark: "#4b5563" });
 
@@ -93,7 +97,56 @@
 
   // ===== The page ============================================================
 
-  const state = { config: null, session: null, selected: null, from: "", running: false };
+  const state = { config: null, session: null, selected: null, from: "", running: false, paused: false };
+
+  // The clock: time runs in real time while the drawing is on the page, a
+  // scan each tenth of a second, and the page is drawn again only when what
+  // it shows has changed (not while a list is open, which a redraw would
+  // close, nor while a mouse button is down). A tab in the background catches up at most a second at a time.
+  const TICK_MS = 100;
+  const clock = { timer: null, last: 0, seen: "", redraw: null, down: false, listening: false };
+  const nowMs = () => (global.performance?.now ? global.performance.now() : Date.now());
+  const looksOf = (view) => JSON.stringify([view.masts.map((m) => m.aspect), view.sections.map((s) => s.state),
+    view.turnouts.map((t) => [t.position, t.locked]), view.rules.map((r) => r.phase), view.auto, view.lamps, view.panel, view.log.length]);
+
+  function tick() {
+    const grid = global.document?.getElementById?.("logic-try-grid");
+    if (!grid || !state.session) {
+      clearInterval(clock.timer);
+      clock.timer = null;
+      return;
+    }
+    const now = nowMs();
+    const scans = Math.floor((now - clock.last) / TICK_MS);
+    if (state.paused || scans < 1) {
+      if (state.paused) clock.last = now;
+      return;
+    }
+    clock.last = scans > 10 ? now : clock.last + scans * TICK_MS;
+    for (let i = 0; i < Math.min(scans, 10); i += 1) state.session.step();
+    const view = state.session.view();
+    const time = global.document.getElementById("logic-try-time");
+    if (time) time.textContent = TEXT.time(view.time / 1000);
+    const looks = looksOf(view);
+    const open = global.document.activeElement;
+    // Not mid-click either: a redraw between press and release loses the click.
+    if (looks === clock.seen || clock.down || (open?.tagName === "SELECT" && open.closest?.(`#${PART}`))) return;
+    clock.seen = looks;
+    clock.redraw?.();
+  }
+
+  function startClock(redraw) {
+    clock.redraw = redraw;
+    clock.seen = looksOf(state.session.view());
+    if (clock.timer || typeof setInterval !== "function" || !global.document) return;
+    if (!clock.listening) {
+      clock.listening = true;
+      global.document.addEventListener("pointerdown", () => { clock.down = true; }, true);
+      for (const name of ["pointerup", "pointercancel"]) global.document.addEventListener(name, () => { clock.down = false; }, true);
+    }
+    clock.last = nowMs();
+    clock.timer = setInterval(tick, TICK_MS);
+  }
   const SVG = "http://www.w3.org/2000/svg";
   const svg = (tag, attrs = {}, text) => {
     const node = document.createElementNS(SVG, tag);
@@ -117,7 +170,7 @@
   function sessionOf(config) {
     const table = JSON.stringify(global.EsphomeMrLogicYaml.logicTable(config));
     if (state.config !== config || state.table !== table || !state.session) {
-      Object.assign(state, { config, table, session: T().createSession(config), selected: null, running: false });
+      Object.assign(state, { config, table, session: T().createSession(config), selected: null, running: false, paused: false });
       state.session?.advance(1000);
     }
     return state.session;
@@ -148,11 +201,12 @@
     const view = session.view();
     const engineState = { auto: view.auto, lamps: view.lamps || {}, panel: view.panel || {} };
     const redraw = (focus) => {
+      const had = focus || (document.activeElement?.id ? `#${document.activeElement.id}` : "");
       ctx.render();
-      if (focus) document.querySelector(focus)?.focus({ preventScroll: true });
+      if (had) document.querySelector(had)?.focus({ preventScroll: true });
     };
 
-    // Controls: Auto/Manual, step and skip, start again, run a train.
+    // Controls: Auto/Manual, pause, start again, run a train.
     const bar = el("div", "plan-tools");
     const autoOn = engineState.auto !== "off";
     const flip = button(TEXT.flipAuto(autoOn), () => {
@@ -160,12 +214,19 @@
       redraw("#logic-try-auto");
     });
     flip.id = "logic-try-auto";
-    bar.append(flip,
-      button(TEXT.step, () => { session.step(); redraw(); }),
-      button(TEXT.skip1, () => { session.advance(1000); redraw(); }),
-      button(TEXT.skip10, () => { session.advance(10000); redraw(); }),
-      button(TEXT.again, () => { session.reset(); session.advance(1000); state.selected = null; redraw(); }));
-    card.append(bar, ui.paragraph(`${TEXT.autoIs(autoOn)} ${TEXT.time(view.time / 1000)}`, "hint"));
+    const pause = button(state.paused ? TEXT.resume : TEXT.pause, () => {
+      state.paused = !state.paused;
+      clock.last = nowMs();
+      redraw("#logic-try-pause");
+    });
+    pause.id = "logic-try-pause";
+    bar.append(flip, pause,
+      button(TEXT.again, () => { session.reset(); session.advance(1000); state.selected = null; state.paused = false; redraw(); }));
+    const said = ui.paragraph(`${TEXT.autoIs(autoOn)} `, "hint");
+    const time = el("span", "", TEXT.time(view.time / 1000));
+    time.id = "logic-try-time";
+    said.append(time, state.paused ? ` ${TEXT.paused}` : "");
+    card.append(bar, said);
 
     const signals = list(config.logic.plan?.breaks).flatMap((b) => list(b?.signals).map((s) => s?.mast)).filter(Boolean);
     const run = el("div", "plan-run");
@@ -192,10 +253,11 @@
           state.running = false;
           return redraw();
         }
+        // Paused: the train waits too.
+        if (state.paused) return setTimeout(next, 250);
         move();
-        session.advance(4000);
         redraw();
-        setTimeout(next, 700);
+        setTimeout(next, TRAIN_MS);
       };
       next();
     }, "primary");
@@ -304,6 +366,7 @@
     body.append(panel);
     card.append(body);
     root.append(card);
+    startClock(() => redraw());
   }
 
   global.EsphomeMrLogicUiPlanTry = { TEXT, PART, pathFrom, overlay };

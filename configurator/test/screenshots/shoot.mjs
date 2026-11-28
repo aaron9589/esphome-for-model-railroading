@@ -41,6 +41,9 @@ export async function openConfigurator(guide, { width = 1100, height = 900 } = {
   const errors = [];
   page.on("pageerror", (error) => errors.push(error.message));
   page.on("console", (message) => { if (message.type() === "error") errors.push(message.text()); });
+  // A clock the script can stop and move on (page.clock.pauseAt, runFor):
+  // Try it on a track plan runs in real time.
+  await page.clock.install();
   await page.goto(`file://${path.join(configuratorDir, "index.html")}`);
   const saved = [];
   async function shot(target, name, options = {}) {

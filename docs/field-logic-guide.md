@@ -248,28 +248,28 @@ Success looks like:
 - Click a **block** to put a train in it, and again to take it out.
 - Click a **turnout** to throw it (unless it is locked), a **button** to press it, a **switch** to flip it.
 - Click a **signal** to see what it shows and why. **Ask for a route** and **Cancel its route** do what its button, or CATS, would.
-- **Step** moves time on a tenth of a second. **Skip ahead 1 second** and **Skip ahead 10 seconds** move it further. **Start again** clears everything.
+- Time runs as it does on the board, in real time: the clock beside the Auto line counts the seconds. **Pause** stops it, and **Carry on** starts it again. **Start again** clears everything.
 - **Switch to Manual** flips the Auto switch.
 
 Train in red, a route set and waiting for its train in green, track taken by a route in grey, and a locked turnout with a black square.
 
-1. **Put a train in Left.** Click the Left block, then **Skip ahead 1 second**.
+1. **Put a train in Left.** Click the Left block.
 
-The board has asked for Left Bridge's route and set it: the whole route over the bridge is green. But Left Bridge still shows **Stop**, because nobody has pressed the go button.
+Within a moment the board has asked for Left Bridge's route and set it: the whole route over the bridge is green. But Left Bridge still shows **Stop**, because nobody has pressed the go button.
 
 ![Try it with a train in Left: the route from Left over the bridge and out at the top right drawn in green, Left Bridge red, and the panel for Signal Left Bridge saying Shows Stop, with its Why sentences and What happened](img/field-logic/11-try-route.png)
 
-2. **Press the button.** Click the **B**, then **Step**. Left Bridge shows **Clear**.
-3. **Put a train in Right**, then **Skip ahead 1 second**. Click Right Bridge: it shows **Stop**. The bridge is Left Bridge's, so this train waits.
+2. **Press the button.** Click the **B**. Left Bridge shows **Clear**.
+3. **Put a train in Right**. Click Right Bridge: it shows **Stop**. The bridge is Left Bridge's, so this train waits.
 
 ![Left Bridge green after the button was pressed, and a second train waiting in Right with Right Bridge at Stop; the panel for Right Bridge says Shows Stop](img/field-logic/12-try-clear.png)
 
-4. **Let the first train cross.** Click Bridge (the train is on it), then Left (it has left Left), and **Skip ahead 1 second** after each. Then click Bridge again (it has left), and **Skip ahead 10 seconds** twice.
-5. Click Right Bridge. It now shows **Clear**: the bridge was given back 3 seconds after the train left it, and the waiting train's route was set.
+4. **Let the first train cross.** Click Bridge (the train is on it), then Left (it has left Left). Then click Bridge again (it has left).
+5. Watch Right Bridge. About 3 seconds after the train left the bridge, the bridge is given back, the waiting train's route is set, and Right Bridge shows **Clear**.
 
 **Why** under a signal says what it shows in each case, one sentence for each part that sets it: the drawing's own (named after the signal, and *<signal> moves* for its routes) and each of your rules (*Left Bridge rule 1*). **What happened** lists what the board did, newest first.
 
-**Run a train.** Pick a signal under **Run a train from** and click **Run a train**. A train runs from the block behind it along the route its turnouts are set for, block by block.
+**Run a train.** Pick a signal under **Run a train from** and click **Run a train**. A train runs from the block behind it along the route its turnouts are set for, a block every 3 seconds. It does not stop at a red signal: watch what the signals do as it goes.
 
 ---
 
@@ -426,7 +426,7 @@ Two turnouts that make a crossover are found on the drawing and move together. *
 
 **Behaviour.** Every route here can clash with another, so all six are controlled signals. Each route from a signal takes everything to the next signal at once: the turnout's block, the turnout set and locked, and the loop or main line. Nothing to add.
 
-**Try it: a meet.** Click **East turnout** to throw it to the loop. Put a train in **West** and one in **East**, and **Skip ahead 1 second**. Both routes are set: West Home's along the main line, East Home's into the loop. They share no track, so both trains can come in.
+**Try it: a meet.** Click **East turnout** to throw it to the loop. Put a train in **West** and one in **East**. Both routes are set: West Home's along the main line, East Home's into the loop. They share no track, so both trains can come in.
 
 ![Try it on the crossing loop: trains in West and East, East turnout thrown, the route from West Home along the main line and the route from East Home into the loop both set in green, and West Home and East Home showing Approach](img/field-logic/16-loop-meet.png)
 
@@ -459,7 +459,7 @@ Click the switch and the lamp on the drawing and give each a pin. A dotted line 
 
 So the person at the panel turns the switch on. Both signals go to Stop at once. Thirty seconds later, so that a train already given a signal has had time to stop, the turnout is the panel's, and the lamp lights. They work the siding with the turnout's own buttons. To hand back, they close the turnout and turn the switch off.
 
-**Try it.** Flip the switch, then **Skip ahead 10 seconds** three times. Both signals show Stop, the lamp is lit, and the turnout shows the black square: JMRI and CATS cannot move it.
+**Try it.** Flip the switch. Both signals show Stop at once. After 30 seconds the lamp is lit, and the turnout shows the black square: JMRI and CATS cannot move it.
 
 ![Try it on the siding after the switch was turned on: both signals red, the S switch and the L lamp lit, and the turnout marked with the black locked square](img/field-logic/18-local-try.png)
 
