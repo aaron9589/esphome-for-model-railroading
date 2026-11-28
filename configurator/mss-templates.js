@@ -1,21 +1,20 @@
 // MSS Logic: start a module from one of the standard MSS module types (the
-// node types of the MSS standard, as Iowa Scaled Engineering's boards build
-// them). Each template is a module description (`logic.mss`) plus the
+// node types of the MSS standard, an open standard). Each template is a module description (`logic.mss`) plus the
 // sensors, turnouts and signal masts it names, so one click gives a module
 // that works, waiting only for its pins to be checked.
 //
-//   crossover  MSS Crossover Node (ISE MSS-CROSSOVER): one block across the
+//   crossover  MSS Crossover Node: one block across the
 //              module, one current detector, no signals.
-//   cascade    MSS Cascade Node (ISE Block Signal): two blocks, an IR sensor at
+//   cascade    MSS Cascade Node: two blocks, an IR sensor at
 //              the block boundary between them, and a signal facing each way.
-//   switch     MSS Complex Cascade Node (ISE Switch Signal): Block A to a
+//   switch     MSS Complex Cascade Node: Block A to a
 //              turnout, then Block B on the main line and Block C on the
 //              branch; an IR sensor at the turnout; Signal A (two heads)
 //              facing the turnout, Signals B and C facing back.
 //
-// Signals are named for the end trains come in at, as on the ISE boards:
+// Signals are named for the end trains come in at:
 // Signal A faces trains coming in at end A. Each head is three LEDs (red,
-// yellow, green), each on its own pin, as the ISE boards wire them, with the
+// yellow, green), each on its own pin, with the
 // CATS aspects for the MSS indications it shows, so the Signals grid fills
 // itself in. Signal A on the switch has two heads, upper and lower: the lower
 // head shows the diverging route.
@@ -31,9 +30,9 @@
     heading: "Or start from a standard MSS module",
     hint: "Fills in the ends, tracks and signals for one of the MSS module types, and adds the sensors and signals it needs. Check their pins afterwards.",
     templates: Object.freeze({
-      crossover: Object.freeze({ title: "Crossover", about: "One block right across the module, with one current detector and no signals. Like the ISE MSS-CROSSOVER board." }),
-      cascade: Object.freeze({ title: "Cascade", about: "Two blocks with an IR sensor between them, and a signal facing each way. Like the ISE Block Signal board." }),
-      switch: Object.freeze({ title: "Complex cascade (turnout)", about: "Block A runs to a turnout, then Block B on the main line and Block C on the branch, with a signal facing the turnout from each. Like the ISE Switch Signal board." }),
+      crossover: Object.freeze({ title: "Crossover", about: "One block right across the module, with one current detector and no signals." }),
+      cascade: Object.freeze({ title: "Cascade", about: "Two blocks with an IR sensor between them, and a signal facing each way." }),
+      switch: Object.freeze({ title: "Complex cascade (turnout)", about: "Block A runs to a turnout, then Block B on the main line and Block C on the branch, with a signal facing the turnout from each." }),
     }),
     confirm: (title) => `Start this module as a ${title}?`,
     adds: "This adds:",
@@ -48,7 +47,7 @@
     apply: "Add it",
     cancel: "Cancel",
     done: (title) => `Started a ${title}. Check the pins on the Sensors, Turnouts and Signal Masts pages.`,
-    // Names, as the ISE boards label them.
+    // Names, by the end trains come in at.
     blockSensor: (block) => `Block ${block} current`,
     irSensor: "IR sensor",
     signal: (end) => `Signal ${end}`,

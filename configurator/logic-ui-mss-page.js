@@ -44,7 +44,7 @@
       warnings ? `${warnings} warning${warnings === 1 ? "" : "s"}` : "",
     ].filter(Boolean).join(", "),
     doing: Object.freeze({
-      pickEmpty: "Build your module from the three MSS boards, as Iowa Scaled Engineering makes them: start with one, then stitch more onto it. Or start from a sample.",
+      pickEmpty: "Build your module from the three node types of MSS, the open Modular Signal System standard: start with one, then stitch more onto it. Or start from a sample.",
       pick: "This is your module: its MSS boards, stitched left to right. Drag boards in, move them, flip a Complex cascade or take one out. When it is right, make the module, then wire it.",
       wire: "Wire each part in turn: it is lit on the picture, with how to wire it and its pin. Click a part on the picture to go to it.",
       signals: "Each signal in turn, lit on the picture: its lamps and their pins. What it shows is the MSS pattern's: point at one to see it.",
@@ -576,7 +576,7 @@
     const boards = el("div", "mss-presets is-boards");
     for (const id of R().BOARD_IDS) {
       const words = R().TEXT.presets[id];
-      const card = boardCard(R().preset(id), words.title, `${R().TEXT.nodes[id].board}. ${words.about}`, "is-palette");
+      const card = boardCard(R().preset(id), words.title, R().TEXT.nodes[id].about, "is-palette");
       card.id = `logic-mss-preset-${id}`;
       card.draggable = true;
       card.tabIndex = 0;

@@ -72,19 +72,19 @@ Success looks like:
 
 ## A shortcut: start from a standard MSS module
 
-Under the steps, while the module is still empty, **Or start from a standard MSS module** offers the three MSS module types, as Iowa Scaled Engineering's boards build them:
+Under the steps, while the module is still empty, **Or start from a standard MSS module** offers the three MSS module types, as the MSS standard defines them:
 
-- **Crossover**: one block right across the module, one current detector, no signals (the ISE MSS-CROSSOVER board).
-- **Cascade**: two blocks with an IR sensor between them, and a signal facing each way (the ISE Block Signal board).
-- **Complex cascade (turnout)**: Block A runs to a turnout, then Block B on the main line and Block C on the branch, with a signal facing the turnout from each (the ISE Switch Signal board). Signal A has two heads: the upper head is the main line, the lower the branch.
+- **Crossover**: one block right across the module, one current detector, no signals.
+- **Cascade**: two blocks with an IR sensor between them, and a signal facing each way.
+- **Complex cascade (turnout)**: Block A runs to a turnout, then Block B on the main line and Block C on the branch, with a signal facing the turnout from each. Signal A has two heads: the upper head is the main line, the lower the branch.
 
-Click one. A panel lists what it will add: the sensors, the turnout and the signals, with the CATS aspects so the Signals grid fills itself in. Each signal head is a red, a yellow and a green LED, each on its own free pin, as the ISE boards wire them. Anything with the same name already on the board is used as it is. Click **Add it**, then check the pins on the Sensors, Turnouts and Signal Masts pages against your wiring.
+Click one. A panel lists what it will add: the sensors, the turnout and the signals, with the CATS aspects so the Signals grid fills itself in. Each signal head is a red, a yellow and a green LED, each on its own free pin. Anything with the same name already on the board is used as it is. Click **Add it**, then check the pins on the Sensors, Turnouts and Signal Masts pages against your wiring.
 
 **Pins.** The Complex cascade's signals need 12 LED pins, and an ESP32 has only so many. If the board has too few free pins that are safe at start-up, the panel says so: an LED on GPIO0, 2, 5, 12 or 15 can stop the board starting. Tick **Use one WS2812B LED for each head instead** to need one data pin per signal, or remove what the board does not need first (a new board's example sensor and turnout, for instance).
 
 ![The three standard modules under the steps, with Cascade picked: its panel lists the sensors Block A current, IR sensor and Block B current, and the signals Signal A and Signal B with their six LED pins, and the WS2812B tick box](img/mss-logic/23-template-confirm.png)
 
-The signals are named for the end their trains come in at, as on the ISE boards: **Signal A** faces trains coming in at end A. Here is the Complex cascade, one click later:
+The signals are named for the end their trains come in at: **Signal A** faces trains coming in at end A. Here is the Complex cascade, one click later:
 
 ![The module picture after Complex cascade: End A, Block A current, Signal A ▶ facing junction J1, the main line to Block B current and End B with ◀ Signal B, and the branch down to Block C current and End C with ◀ Signal C](img/mss-logic/24-template-switch.png)
 
