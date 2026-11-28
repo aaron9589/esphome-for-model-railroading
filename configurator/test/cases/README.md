@@ -245,7 +245,7 @@ The harness is the broker between them:
 
 ## MSS Logic cases
 
-`mss/` holds the cases for [MSS Logic](../../../docs/mss-emulation-spec.md) (work item 4.1). An MSS board's rule table is built from its description by `mss-builder.js`, so these cases give the **description**, not the rules: `test/mss-builder.test.js` turns each module into a configurator board, builds its rule table the way the YAML does (`logicTable`), and replays the timeline in the JS engine. The engines themselves are cross-checked by the cases above, so these are not replayed by the C++ core. As above, the expected values are worked out by hand from the spec, never from a build or a run.
+`mss/` holds the cases for [MSS Logic](../../../docs/mss-emulation-spec.md) (work item 4.1). An MSS board's rule table is built from its description by `mss-builder.js`, so these cases give the **description**, not the rules: `test/mss-builder.test.js` turns each module into a configurator board, builds its rule table the way the YAML does (`logicTable`), and replays the timeline in the JS engine; `test/engine-diff.test.js` builds them the same way (`test/mss-cases.js`) and replays them in the C++ core too. As above, the expected values are worked out by hand from the spec, never from a build or a run.
 
 A case has `module` in place of `board` (or `modules`, by board name, in place of `boards`), with `name`, `covers` (a bullet of the MSS spec's Tests, word for word), `about`, `start` and `steps` as above:
 
@@ -253,7 +253,7 @@ A case has `module` in place of `board` (or `modules`, by board name, in place o
 |---|---|
 | `sensors`, `turnouts` | the board's sensors and turnouts, by name |
 | `masts` | the board's masts by name, each with the CATS aspects R292, R285, ADV_NORM, R281, R282, R283 and R286 |
-| `mss` | `logic.mss`, in the spec's [Stored format](../../../docs/mss-emulation-spec.md#stored-format) |
+| `mss` | `logic.mss`, in the spec's [Stored format](../../../docs/mss-emulation-spec.md#stored-format), or a row of standard nodes (`row`, [MSS patterns spec](../../../docs/mss-patterns-spec.md#stored-format)), which `mss-row.js` turns into that description |
 
 Built items have the builder's names: a block is `<track> block <n>`, where a track is `<From> to <To>` and a place is `A1` (end A, track 1), `J1 leg 2`, or `dead end`; a signal with no lights at a boundary is `<track> boundary <n> towards <place>`, and at a junction leg `<junction> leg <n> signal`. Their aspects are named for the indications (`Stop`, `Approach`, ...).
 
@@ -269,6 +269,8 @@ Built items have the builder's names: a block is `<track> block <n>`, where a tr
 | Junctions: a double-track crossover | `mss-crossover` |
 | Junctions: validation rejects two routes from one leg | a builder test in `test/mss-builder.test.js` |
 | Across modules: three modules, the middle one turned round | `mss-three-modules` |
+| Row cases: two Cascades, the block across the joint | `mss-row-cascades` |
+| Row cases: a passing siding from two Siding ends | `mss-row-passing-siding` |
 
 **Appendix B** is taken as the MSS Design Standard's table of occupancy ahead to indication: the next block occupied gives Stop; the one after it, Approach; the third, Advance Approach (Clear without it); all three clear, Clear.
 

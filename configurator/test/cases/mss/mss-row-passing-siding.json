@@ -1,0 +1,173 @@
+{
+  "name": "MSS row: a passing siding, two Siding ends",
+  "covers": [
+    "a row of nodes: a passing siding from a Siding end and a Siding end turned round"
+  ],
+  "about": "A passing siding on one board: a Siding end, then a Siding end turned round (docs/mss-patterns-spec.md). The main line and the siding between the points are one block each. Both ends are the end of the line; Advance Approach and Approach Diverging are not used. Both points closed: the main ladder each way, the siding signals at Stop. Points 1 thrown: Signal 1 to B shows Diverging Approach (Signal 2 to B siding, at points 2 closed, is at Stop), Signal 1 to A siding shows Diverging Approach to the end of the line, Signal 1 to A main has no route and shows Stop, and Signal 2 to A, reading it, shows Approach. Both thrown: Signal 2 to B siding shows Diverging Approach, and Signal 1 to B, on a diverging route reading a diverging aspect, shows Diverging Approach too (a diverging aspect makes the signal behind show Approach Diverging, or Approach without it; on a diverging route that is Diverging Approach); likewise Signal 2 to A, reading Signal 1 to A siding. Both closed again with a train on the main line: the two signals onto it show Stop.",
+  "module": {
+    "sensors": [
+      "Block 1 current",
+      "IR 1",
+      "Block 2 current",
+      "Siding 1 current",
+      "IR 2",
+      "Block 3 current"
+    ],
+    "turnouts": [
+      "Points 1",
+      "Points 2"
+    ],
+    "masts": [
+      "Signal 1 to B",
+      "Signal 1 to A main",
+      "Signal 1 to A siding",
+      "Signal 2 to A",
+      "Signal 2 to B main",
+      "Signal 2 to B siding"
+    ],
+    "mss": {
+      "row": [
+        {
+          "node": "siding",
+          "names": {
+            "left": [
+              "Block 1 current"
+            ],
+            "ir": "IR 1",
+            "right": [
+              "Block 2 current",
+              "Siding 1 current"
+            ],
+            "points": "Points 1",
+            "signals": {
+              "single": "Signal 1 to B",
+              "main": "Signal 1 to A main",
+              "siding": "Signal 1 to A siding"
+            }
+          }
+        },
+        {
+          "node": "siding",
+          "turned": true,
+          "names": {
+            "ir": "IR 2",
+            "right": [
+              "Block 3 current"
+            ],
+            "points": "Points 2",
+            "signals": {
+              "single": "Signal 2 to A",
+              "main": "Signal 2 to B main",
+              "siding": "Signal 2 to B siding"
+            }
+          }
+        }
+      ]
+    }
+  },
+  "start": {
+    "board": "passing",
+    "links": {
+      "A": "end",
+      "B": "end"
+    },
+    "turnouts": {
+      "Points 1": "closed",
+      "Points 2": "closed"
+    }
+  },
+  "steps": [
+    {
+      "at": 8,
+      "expect": {
+        "masts": {
+          "Signal 1 to B": "R281",
+          "Signal 2 to B main": "R285",
+          "Signal 2 to B siding": "R292",
+          "Signal 2 to A": "R281",
+          "Signal 1 to A main": "R285",
+          "Signal 1 to A siding": "R292"
+        }
+      }
+    },
+    {
+      "at": 10,
+      "do": [
+        {
+          "turnout": "Points 1",
+          "is": "thrown"
+        }
+      ]
+    },
+    {
+      "at": 16,
+      "expect": {
+        "masts": {
+          "Signal 1 to B": "R286",
+          "Signal 1 to A siding": "R286",
+          "Signal 1 to A main": "R292",
+          "Signal 2 to A": "R285",
+          "Signal 2 to B siding": "R292",
+          "Signal 2 to B main": "R285"
+        }
+      }
+    },
+    {
+      "at": 20,
+      "do": [
+        {
+          "turnout": "Points 2",
+          "is": "thrown"
+        }
+      ]
+    },
+    {
+      "at": 26,
+      "expect": {
+        "masts": {
+          "Signal 2 to B siding": "R286",
+          "Signal 1 to B": "R286",
+          "Signal 2 to B main": "R292",
+          "Signal 2 to A": "R286",
+          "Signal 1 to A siding": "R286",
+          "Signal 1 to A main": "R292"
+        }
+      }
+    },
+    {
+      "at": 30,
+      "do": [
+        {
+          "turnout": "Points 1",
+          "is": "closed"
+        },
+        {
+          "turnout": "Points 2",
+          "is": "closed"
+        }
+      ]
+    },
+    {
+      "at": 31,
+      "do": [
+        {
+          "sensor": "Block 2 current",
+          "is": "occupied"
+        }
+      ]
+    },
+    {
+      "at": 37,
+      "expect": {
+        "masts": {
+          "Signal 1 to B": "R292",
+          "Signal 2 to A": "R292",
+          "Signal 2 to B main": "R285",
+          "Signal 1 to A main": "R285",
+          "Signal 1 to A siding": "R292",
+          "Signal 2 to B siding": "R292"
+        }
+      }
+    }
+  ]
+}

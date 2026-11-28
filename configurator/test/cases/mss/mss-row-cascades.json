@@ -1,0 +1,143 @@
+{
+  "name": "MSS row: two Cascades",
+  "covers": [
+    "a row of nodes: two Cascades, the block across the joint one block with one detector"
+  ],
+  "about": "A module built from two Cascade nodes on one board (docs/mss-patterns-spec.md). The joint between them is not a boundary: the second Cascade's left block is the first one's right block, Block 2, with one detector. Both ends are the end of the line, and Advance Approach is not used. All clear, each signal facing an end shows Approach and the one behind it Clear. A train in Block 2 stops the signal of each node that faces it, one each way; one in Block 3 stops Signal 2 to B, and Signal 1 to B shows Approach.",
+  "module": {
+    "sensors": [
+      "Block 1 current",
+      "IR 1",
+      "Block 2 current",
+      "IR 2",
+      "Block 3 current"
+    ],
+    "masts": [
+      "Signal 1 to A",
+      "Signal 1 to B",
+      "Signal 2 to A",
+      "Signal 2 to B"
+    ],
+    "mss": {
+      "row": [
+        {
+          "node": "cascade",
+          "names": {
+            "left": [
+              "Block 1 current"
+            ],
+            "ir": "IR 1",
+            "right": [
+              "Block 2 current"
+            ],
+            "signals": {
+              "toA": "Signal 1 to A",
+              "toB": "Signal 1 to B"
+            }
+          }
+        },
+        {
+          "node": "cascade",
+          "names": {
+            "ir": "IR 2",
+            "right": [
+              "Block 3 current"
+            ],
+            "signals": {
+              "toA": "Signal 2 to A",
+              "toB": "Signal 2 to B"
+            }
+          }
+        }
+      ]
+    }
+  },
+  "start": {
+    "board": "row",
+    "links": {
+      "A": "end",
+      "B": "end"
+    }
+  },
+  "steps": [
+    {
+      "at": 5,
+      "expect": {
+        "masts": {
+          "Signal 1 to B": "R281",
+          "Signal 2 to B": "R285",
+          "Signal 2 to A": "R281",
+          "Signal 1 to A": "R285"
+        }
+      }
+    },
+    {
+      "at": 6,
+      "do": [
+        {
+          "sensor": "Block 2 current",
+          "is": "occupied"
+        }
+      ]
+    },
+    {
+      "at": 10,
+      "expect": {
+        "masts": {
+          "Signal 1 to B": "R292",
+          "Signal 2 to A": "R292",
+          "Signal 2 to B": "R285",
+          "Signal 1 to A": "R285"
+        }
+      }
+    },
+    {
+      "at": 11,
+      "do": [
+        {
+          "sensor": "Block 2 current",
+          "is": "clear"
+        },
+        {
+          "sensor": "Block 3 current",
+          "is": "occupied"
+        }
+      ]
+    },
+    {
+      "at": 15,
+      "expect": {
+        "masts": {
+          "Signal 2 to B": "R292",
+          "Signal 1 to B": "R285",
+          "Signal 2 to A": "R281",
+          "Signal 1 to A": "R285"
+        }
+      }
+    },
+    {
+      "at": 16,
+      "do": [
+        {
+          "sensor": "Block 3 current",
+          "is": "clear"
+        },
+        {
+          "sensor": "IR 2",
+          "is": "occupied"
+        }
+      ]
+    },
+    {
+      "at": 20,
+      "expect": {
+        "masts": {
+          "Signal 1 to B": "R292",
+          "Signal 2 to B": "R292",
+          "Signal 2 to A": "R292",
+          "Signal 1 to A": "R285"
+        }
+      }
+    }
+  ]
+}

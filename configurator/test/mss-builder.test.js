@@ -6,12 +6,11 @@
 // JS engine replays the timeline. Then the builder's own checks: shapes,
 // plant ends, validation mapped back to the description, generation, import.
 import assert from "node:assert/strict";
-import fs from "node:fs";
-import path from "node:path";
-import { configuratorDir, loadModules, test } from "./harness.js";
+import { loadModules, test } from "./harness.js";
 import { runCase } from "./engine-runner.js";
+import { engineMssCase, mssBoard, mssCaseFiles, readMssCase } from "./mss-cases.js";
 // Every Logic page file, in index.html's order (as in logic-page.test.js).
-const LOGIC_UI_FILES = ["generator.js", "logic-yaml.js", "logic.js", "logic-checker.js", "logic-try.js", "logic-ui.js", "logic-ui-masts.js", "logic-ui-views.js", "logic-ui-start.js", "logic-ui-try.js", "logic-starters.js", "logic-starters-sections.js", "logic-starters-signals.js", "mss-builder.js", "plan-builder.js", "plan-edit.js", "logic-summary.js"];
+const LOGIC_UI_FILES = ["generator.js", "logic-yaml.js", "logic.js", "logic-checker.js", "logic-try.js", "logic-ui.js", "logic-ui-masts.js", "logic-ui-views.js", "logic-ui-start.js", "logic-ui-try.js", "logic-starters.js", "logic-starters-sections.js", "logic-starters-signals.js", "mss-builder.js", "mss-templates.js", "mss-row.js", "plan-builder.js", "plan-edit.js", "logic-summary.js"];
 
 const context = loadModules(...LOGIC_UI_FILES);
 const { EsphomeMr, EsphomeMrLogicYaml: L, EsphomeMrMssBuilder: B } = context;
@@ -20,15 +19,12 @@ const { generateYaml, myFirstBoardPreset, normalizeConfig, parseConfigFromYaml, 
 const plain = (value) => JSON.parse(JSON.stringify(value));
 const same = (actual, expected, ...message) => assert.deepEqual(plain(actual), plain(expected), ...message);
 
-const casesDir = path.join(configuratorDir, "test", "cases", "mss");
-const caseFiles = fs.readdirSync(casesDir).filter((file) => file.endsWith(".json")).sort();
-const readCase = (file) => JSON.parse(fs.readFileSync(path.join(casesDir, file), "utf8"));
+const caseFiles = mssCaseFiles();
+const readCase = readMssCase;
 
 // ===== A configurator board for a case's module ==============================
 
 const CATS = ["R292", "R285", "ADV_NORM", "R281", "R282", "R283", "R286"];
-const SENSOR_PINS = ["GPIO14", "GPIO27", "GPIO26", "GPIO25", "GPIO33", "GPIO32", "GPIO35", "GPIO34", "GPIO39"];
-const MAST_PINS = ["GPIO16", "GPIO17", "GPIO19", "GPIO23", "GPIO18", "GPIO13"];
 
 function mast(name, aspects = CATS, pin = "GPIO16") {
   return {
@@ -38,24 +34,8 @@ function mast(name, aspects = CATS, pin = "GPIO16") {
   };
 }
 
-function moduleBoard(name, module) {
-  const config = myFirstBoardPreset();
-  config.board.name = name;
-  config.blocks = (module.sensors || []).map((s, i) => ({ name: s, topic: topicFor("block", s), topicCustom: false, gpio: SENSOR_PINS[i], inverted: true, debounce: "500ms" }));
-  config.points = (module.turnouts || []).map((t, i) => ({ name: t, topic: topicFor("point", t), channel: i }));
-  config.signals = { mode: "addressable", masts: (module.masts || []).map((m, i) => mast(m, CATS, MAST_PINS[i])) };
-  config.logic = { mode: "mss", mss: plain(module.mss) };
-  return config;
-}
-
-// The case as the engine runs it: each module's rule table in place of the module.
-function engineCase(data) {
-  if (data.modules) {
-    const boards = Object.fromEntries(Object.entries(data.modules).map(([name, module]) => [name, plain(L.logicTable(moduleBoard(name, module)))]));
-    return { ...data, modules: undefined, boards };
-  }
-  return { ...data, module: undefined, board: plain(L.logicTable(moduleBoard(data.start?.board || "module", data.module))) };
-}
+const moduleBoard = (name, module) => mssBoard(context, name, module);
+const engineCase = (data) => engineMssCase(context, data);
 
 // ===== 1. The MSS behaviour cases ===========================================
 

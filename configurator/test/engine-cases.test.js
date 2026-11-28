@@ -399,13 +399,20 @@ function mssBullets() {
       if (section === "Across modules" && rest) bullets.push(rest.replace(/ The plant end tests themselves are in the core spec\.$/, ""));
     } else if (["MSS behaviour", "Junctions"].includes(section) && line.startsWith("  - ") && !line.startsWith("  - validation")) bullets.push(line.slice(4));
   }
+  // The rows of nodes (docs/mss-patterns-spec.md, Tests): its Row cases.
+  const patterns = fs.readFileSync(path.join(configuratorDir, "..", "docs", "mss-patterns-spec.md"), "utf8");
+  let rows = false;
+  for (const line of patterns.slice(patterns.indexOf("\n## Tests")).split(/\r?\n/)) {
+    if (line.startsWith("- ")) rows = line.startsWith("- **Row cases**");
+    else if (rows && line.startsWith("  - ")) bullets.push(line.slice(4));
+  }
   // A bullet's closing full stop is not part of what a case covers.
   return bullets.map((bullet) => bullet.replace(/\.$/, ""));
 }
 
 test("every MSS behaviour, Junctions and Across modules bullet in the MSS spec has an MSS case", () => {
   const bullets = mssBullets();
-  assert.equal(bullets.length, 9, bullets.join("\n"));
+  assert.equal(bullets.length, 11, bullets.join("\n"));
   for (const { file, data } of mssCases) {
     assert.deepEqual(Object.keys(data).filter((k) => !["name", "covers", "about", "module", "modules", "start", "steps"].includes(k)), [], file);
     assert.ok(("module" in data) !== ("modules" in data), `${file}: module or modules`);
