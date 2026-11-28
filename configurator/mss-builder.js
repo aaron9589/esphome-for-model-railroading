@@ -32,6 +32,9 @@
   const S = () => global.EsphomeMrLogicStarters;
   const M = () => global.EsphomeMr;
   const Y = () => global.EsphomeMrLogicYaml;
+  // A row of standard nodes (mss-row.js, MP 1) builds the description.
+  const R = () => global.EsphomeMrMssRow;
+  const descriptionOf = (mss) => (Array.isArray(mss?.row) ? (R() ? R().descriptionOf(mss) : { ...mss, ends: [], tracks: [], junctions: [] }) : mss);
 
   // The page's parts for MSS Logic (work item 4.2 draws them). Each problem
   // links to one.
@@ -40,6 +43,7 @@
     tracks: "logic-mss-tracks",
     junctions: "logic-mss-junctions",
     signals: "logic-mss-signals",
+    row: "logic-mss-row",
   });
 
   // MSS names indications, not aspects (spec, Masts): each gives its aspect a
@@ -159,7 +163,7 @@
    * shape is empty, and indices stay as stored so problems can name them.
    */
   function readModel(config) {
-    const mss = isObject(config?.logic?.mss) ? config.logic.mss : {};
+    const mss = isObject(config?.logic?.mss) ? descriptionOf(config.logic.mss) : {};
     const ends = list(mss.ends).map((def, index) => {
       const e = isObject(def) ? def : {};
       return { index, def: e, name: String(e.name ?? "").trim(), tracks: wholeNumber(e.tracks) };
@@ -577,6 +581,12 @@
     const out = [];
     const error = (where, text) => out.push({ level: "error", text, where });
     const warn = (where, text) => out.push({ level: "warning", text, where });
+    // A row's own problems come first; a row with any describes nothing.
+    const row = config?.logic?.mss?.row;
+    if (Array.isArray(row) && R()) {
+      const own = R().problems(row).map((p) => ({ ...p, where: { view: "logic", part: PARTS.row, ...p.where } }));
+      if (own.length) return own;
+    }
     const sensorNames = new Set(list(config?.blocks).map((b) => b.name));
     const turnoutNames = new Set(list(config?.points).map((p) => p.name));
     const mastNames = new Set(list(config?.signals?.masts).map((m) => m.name));

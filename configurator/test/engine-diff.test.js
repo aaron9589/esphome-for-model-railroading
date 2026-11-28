@@ -11,6 +11,7 @@ import os from "node:os";
 import path from "node:path";
 import { configuratorDir, loadModules, test } from "./harness.js";
 import { builtPlanCases } from "./plan-cases.js";
+import { builtMssCases } from "./mss-cases.js";
 
 const bin = process.env.ENGINE_TESTS_BIN;
 const { EsphomeMrLogic: L } = loadModules("logic.js");
@@ -365,6 +366,21 @@ if (!bin) {
     }
   });
   for (const { name, data } of plans) boards.push([`plan/${name}`, { board: data.board, start: data.start }]);
+  // MSS Logic's cases (descriptions and rows of nodes), built the same way:
+  // mss-builder.test.js replays them in JS.
+  const mss = builtMssCases();
+  test(`the C++ core passes every MSS case (${mss.length})`, () => {
+    const mssDir = fs.mkdtempSync(path.join(os.tmpdir(), "mss-cases-"));
+    for (const { file, data } of mss) fs.writeFileSync(path.join(mssDir, file), JSON.stringify(data));
+    try {
+      execFileSync(bin, [mssDir], { encoding: "utf8", stdio: "pipe" });
+    } catch (err) {
+      assert.fail(`${err.stdout}${err.stderr}`);
+    } finally {
+      fs.rmSync(mssDir, { recursive: true, force: true });
+    }
+  });
+  for (const { file, data } of mss) if (data.board) boards.push([`mss/${file}`, { board: data.board, start: data.start }]);
   for (const [file, { board, start = {} }] of boards) {
     const runs = file in EXTRA_BOARDS ? TRACES * 10 : TRACES;
     test(`JS and C++ agree on ${file}'s board, ${runs} random runs of ${SCANS} scans`, () => {
