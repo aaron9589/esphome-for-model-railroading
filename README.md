@@ -95,7 +95,7 @@ Wiring, detector tuning, how points remember their positions, and the layout thi
 The configurator's **Logic** page lets a board work out its own signals, so they keep working when JMRI is closed. It is on the `feature/logic` branch and reaches the live configurator when that branch merges to `main`. Until then, run the configurator from the branch (`configurator/index.html`). It has two modes:
 
 - **Field Logic**: you draw your track, cut it into blocks and stand signals on it, and the board keeps trains apart from the drawing. Your own buttons, switches, lamps and rules go on top. Pick it when you want control of how signals and locks behave. Guide: [field-logic-guide.md](docs/field-logic-guide.md).
-- **MSS Logic**: you describe a module (its ends, tracks and junctions), drawn as one picture of the module as you go, and the board signals it like an MSS module, with no rules to write. Pick it for modules that pair at a meet. Guide: [mss-logic-guide.md](docs/mss-logic-guide.md).
+- **MSS Logic**: you build a module from the three standard MSS boards (Crossover, Cascade and Complex cascade) by dragging them into place, and the board signals it like an MSS module, with no rules to write. Pick it for modules that pair at a meet. Guide: [mss-logic-guide.md](docs/mss-logic-guide.md).
 
 Do the first board first. Read the Field Logic guide before the MSS one. The MSS guide leans on it.
 
