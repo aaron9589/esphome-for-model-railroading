@@ -64,7 +64,7 @@ th, td { text-align: left; padding: 1mm 4mm 1mm 0; border-bottom: 1px solid #bbb
       if (!map.has(name)) map.set(name, []);
       map.get(name).push(text);
     };
-    const mss = isObject(config.logic?.mss) ? config.logic.mss : {};
+    const mss = isObject(config.logic?.mss) ? (global.EsphomeMrMssBuilder?.descriptionOf(config.logic.mss) || config.logic.mss) : {};
     const place = (ref) => {
       if (isObject(ref) && ref.end !== undefined) return `end ${ref.end} track ${ref.track}`;
       if (isObject(ref) && ref.junction !== undefined) return `junction ${ref.junction} leg ${ref.leg}`;

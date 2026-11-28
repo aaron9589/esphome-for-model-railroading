@@ -1,5 +1,6 @@
 // The MSS page's shared parts: built items shown read-only, red-dot matching,
-// the MSS plain-words lint, the checklist and the Download version.
+// the MSS plain-words lint and the Download version. The page's frame is
+// test/mss-page-frame.test.js.
 // Work item 4.2d.
 import assert from "node:assert/strict";
 import fs from "node:fs";
@@ -81,7 +82,8 @@ test("the MSS terms stay off the page: the builder's words and every MSS part's 
     ["EsphomeMrMssBuilder.TEXT", B.TEXT],
     ["EsphomeMrLogicUiMssMarks.TEXT", Marks.TEXT],
     ["EsphomeMrLogicUiViews.TEXT", Views.TEXT],
-    ...["Steps", "Tracks", "Junctions"].map((name) => [`EsphomeMrLogicUiMss${name}.TEXT`, context[`EsphomeMrLogicUiMss${name}`].TEXT]),
+    ...["", "Row", "Tracks", "Junctions"].map((name) => [`EsphomeMrLogicUiMss${name}.TEXT`, context[`EsphomeMrLogicUiMss${name}`].TEXT]),
+    ["EsphomeMrMssRow.TEXT", context.EsphomeMrMssRow.TEXT],
     ...Ui.allText().filter(([id]) => Object.values(B.PARTS).includes(id)),
   ];
   const found = texts
@@ -129,25 +131,6 @@ test("Field Logic's views read config.logic exactly as before", () => {
   assert.deepEqual(plain(Views.controlTable(config)), []);
 });
 
-test("red dots: a problem marks its part, its item, and nothing else", () => {
-  const config = board();
-  config.logic.mss.tracks[0].blocks[1].sensors = [];
-  config.logic.mss.tracks[0].boundaries[0].sensors = [];
-  const problems = plain(B.problems(config));
-  assert.equal(problems.length, 2);
-  const status = (marks) => Marks.statusOf(problems, marks).status;
-  assert.equal(status({ part: B.PARTS.tracks }), "error", "the part");
-  assert.equal(status({ part: B.PARTS.tracks, track: "0" }), "error");
-  assert.equal(status({ part: B.PARTS.tracks, track: "0", block: "1" }), "error");
-  assert.equal(status({ part: B.PARTS.tracks, track: "0", block: "0" }), "");
-  assert.equal(status({ part: B.PARTS.tracks, track: "1" }), "");
-  assert.equal(status({ part: B.PARTS.tracks, track: "0", boundary: "0" }), "warning", "a warning alone is amber");
-  assert.equal(status({ part: B.PARTS.junctions }), "");
-  assert.equal(status({ part: B.PARTS.ends }), "");
-  assert.deepEqual(Marks.statusOf(problems, { part: B.PARTS.tracks }).texts.length, 2);
-  assert.equal(Marks.statusOf([], { part: B.PARTS.tracks }).status, "");
-});
-
 test("marks: an element's data attributes read back as the keys it was marked with", () => {
   const dataset = {};
   const el = { dataset };
@@ -165,16 +148,6 @@ test("every problem the builder can report names a part the page has", () => {
   const found = B.problems(config);
   assert.ok(found.length > 3);
   for (const problem of found) assert.ok(parts.has(problem.where.part), problem.text);
-});
-
-test("the checklist walks an MSS description, and links each step to its part", () => {
-  const config = board();
-  const steps = (parts = { tryIt: false }) => plain(Ui.checklistSteps(config, parts)).map((s) => `${s.key}${s.done ? "+" : ""}`);
-  assert.deepEqual(steps(), ["mode+", "ends+", "tracks+", "junctions", "signals", "download"]);
-  assert.deepEqual(steps({ tryIt: true }), ["mode+", "ends+", "tracks+", "junctions", "signals", "tryIt", "download"]);
-  const targets = plain(Ui.checklistSteps(config, { tryIt: false })).map((s) => s.target || s.view);
-  assert.deepEqual(targets, ["logic-mode", ...Object.values(B.PARTS).slice(0, 4), "yaml"]);
-  for (const key of ["ends", "tracks", "junctions", "signals"]) assert.ok(Ui.TEXT.steps[key]);
 });
 
 test("MSS Logic is in the mode list, and its Download page shows the Logic version", () => {

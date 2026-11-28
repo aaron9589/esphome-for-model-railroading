@@ -437,8 +437,10 @@
 
   const api = global.EsphomeMrLogicUi;
   if (api) {
-    api.registerPart({ id: "logic-layers-view", order: 90, modes: ["mss"], text: TEXT, render: renderWhoUses });
-    api.registerPart({ id: "logic-control-table", order: 95, modes: ["mss"], text: TEXT, render: renderControlTable });
+    // Folded under the MSS page's steps (Show what MSS Logic made, MP 2).
+    const shown = (config) => !!global.EsphomeMrLogicUiMss?.viewsOpen(config);
+    api.registerPart({ id: "logic-layers-view", order: 90, modes: ["mss"], show: shown, text: TEXT, render: renderWhoUses });
+    api.registerPart({ id: "logic-control-table", order: 95, modes: ["mss"], show: shown, text: TEXT, render: renderControlTable });
   }
 
   global.EsphomeMrLogicUiViews = { TEXT, whoUses, controlTable };

@@ -638,7 +638,7 @@
     root.append(section);
   }
 
-  global.EsphomeMrLogicUi.registerPart({ id: global.EsphomeMrMssBuilder.PARTS.junctions, order: 50, modes: ["mss"], text: TEXT, render: renderJunctions });
+  // MP 2: no longer a card on the page (logic-ui-mss-page.js); the picture Try it draws still uses its helpers until MP 6.
 
   global.EsphomeMrLogicUiMssJunctions = {
     TEXT,

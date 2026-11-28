@@ -79,7 +79,7 @@
   function layout(config, sizes = {}) {
     const S = { ...SIZES, ...sizes };
     const T = Tracks();
-    const mss = isObject(config?.logic?.mss) ? config.logic.mss : {};
+    const mss = isObject(config?.logic?.mss) ? B().descriptionOf(config.logic.mss) : {};
     const ends = list(mss.ends).map((end, index) => ({ end, index })).filter(({ end }) => isObject(end) && String(end.name ?? "").trim());
     const endInfo = new Map(ends.map(({ end, index }) => [String(end.name).trim(), { index, tracks: Math.max(1, Number(end.tracks) || 1) }]));
     const junctions = new Map();
@@ -384,7 +384,7 @@
    */
   function trainRoute(config, start, positionOf = () => "closed") {
     const B0 = B();
-    const mss = isObject(config?.logic?.mss) ? config.logic.mss : {};
+    const mss = isObject(config?.logic?.mss) ? B().descriptionOf(config.logic.mss) : {};
     const names = B0.namesOf(config);
     const tracks = list(mss.tracks);
     const junctions = list(mss.junctions);
@@ -442,7 +442,7 @@
 
   /** Every end track a train can start from: [{ end, track, label }]. */
   function trainStarts(config) {
-    const mss = isObject(config?.logic?.mss) ? config.logic.mss : {};
+    const mss = isObject(config?.logic?.mss) ? B().descriptionOf(config.logic.mss) : {};
     const used = list(mss.tracks).flatMap((t) => (isObject(t) ? [t.from, t.to] : [])).filter((p) => isObject(p) && p.end !== undefined);
     const out = [];
     for (const end of list(mss.ends).filter(isObject)) {
@@ -530,7 +530,7 @@
         ? svg("g", { class: "mss-module-junction is-live" })
         : clickable({ class: `mss-module-junction${flag ? ` is-${flag}` : ""}` }, TEXT.junctionAria(j.label), () => goTo(`${B().PARTS.junctions}-${j.index}`));
       g.append(svg("rect", { class: "mss-hit", x: j.x - 6, y: j.y - 24, width: j.w + 12, height: j.h + 48, rx: 8 }));
-      const routes = list(list(isObject(config?.logic?.mss) ? config.logic.mss.junctions : [])[j.index]?.routes);
+      const routes = list(list(isObject(config?.logic?.mss) ? B().descriptionOf(config.logic.mss).junctions : [])[j.index]?.routes);
       const isSet = (route) => list(route?.turnouts).every((t) => !isObject(t) || !t.turnout || live.position(t.turnout) === (t.position === "thrown" ? "thrown" : "closed"));
       for (const path of j.paths) {
         if (!path.d) continue;
@@ -707,7 +707,5 @@
 
   global.EsphomeMrLogicUiMssModule = { TEXT, PART, SIZES, layout, junctionShape, trainRoute, trainStarts, livePicture };
 
-  if (global.EsphomeMrLogicUi) {
-    global.EsphomeMrLogicUi.registerPart({ id: PART, order: 30, modes: ["mss"], text: TEXT, render: renderModule });
-  }
+  // MP 2: no longer a card on the page; Try it still draws with this file until MP 6.
 })(typeof globalThis !== "undefined" ? globalThis : window);

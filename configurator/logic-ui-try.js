@@ -723,7 +723,7 @@
   }
 
   const api = global.EsphomeMrLogicUi;
-  if (api) api.registerPart({ id: "logic-try", order: 88, modes: ["field", "mss"], show: (config) => global.EsphomeMr.logicMode(config) !== "field", text: { page: TEXT, core: global.EsphomeMrLogicTry?.TEXT || {} }, render: renderTry });
+  if (api) api.registerPart({ id: "logic-try", order: 88, modes: ["field", "mss"], show: (config) => global.EsphomeMr.logicMode(config) !== "field" && global.EsphomeMrLogicUiMss?.currentStep(config) === "try", text: { page: TEXT, core: global.EsphomeMrLogicTry?.TEXT || {} }, render: renderTry });
 
   global.EsphomeMrLogicUiTry = { TEXT, showMe, stop: stopRunning };
   global.addEventListener?.("pagehide", stopRunning);

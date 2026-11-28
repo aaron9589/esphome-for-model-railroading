@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { loadModules, test } from "./harness.js";
 
 // Every Logic page file, in index.html's order (as in logic-page.test.js).
-const LOGIC_UI_FILES = ["generator.js", "logic-yaml.js", "logic.js", "logic-checker.js", "logic-try.js", "logic-ui.js", "logic-ui-masts.js", "logic-ui-ends.js", "logic-ui-views.js", "logic-ui-start.js", "logic-ui-try.js", "logic-starters.js", "logic-starters-sections.js", "logic-starters-signals.js", "mss-builder.js", "plan-builder.js", "plan-edit.js", "logic-ui-mss-steps.js", "logic-ui-mss-tracks.js", "logic-ui-mss-junctions.js", "logic-summary.js"];
+const LOGIC_UI_FILES = ["generator.js", "logic-yaml.js", "logic.js", "logic-checker.js", "logic-try.js", "logic-ui.js", "logic-ui-masts.js", "logic-ui-ends.js", "logic-ui-views.js", "logic-ui-start.js", "logic-ui-try.js", "logic-starters.js", "logic-starters-sections.js", "logic-starters-signals.js", "mss-builder.js", "plan-builder.js", "plan-edit.js", "logic-ui-mss-tracks.js", "logic-ui-mss-junctions.js", "logic-summary.js"];
 const context = loadModules(...LOGIC_UI_FILES);
 const { EsphomeMr, EsphomeMrMssBuilder: B, EsphomeMrLogicUiMssTracks: T } = context;
 const { myFirstBoardPreset, topicFor } = EsphomeMr;
@@ -145,7 +145,7 @@ test("the selection stays inside the track", () => {
   same(T.fixSelection(track, undefined), { kind: "block", index: 0 });
 });
 
-test("the part is registered for MSS mode only", () => {
+test("the Tracks card is off the page since MP 2: the module is a row of nodes", () => {
   const parts = context.EsphomeMrLogicUi.allText().map(([id]) => id);
-  assert.ok(parts.includes(B.PARTS.tracks));
+  assert.ok(!parts.includes("logic-mss-tracks"));
 });

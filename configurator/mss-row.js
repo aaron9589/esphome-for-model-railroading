@@ -54,6 +54,11 @@
     empty: "Pick your module: the row has no nodes yet.",
     unknown: (n, node) => `Node ${n} is "${node}", which is not an MSS node. Remove it and add a Crossover, Cascade or Siding end.`,
     crossoverAlone: "A Crossover is a whole module on its own: on one board with other nodes it adds nothing. Remove it, or make the board a Crossover only.",
+    notThere: Object.freeze({
+      sensor: (name) => `Sensor "${name}" is not on the Sensors page. Add it there with that name, or start the module again.`,
+      turnout: (name) => `Turnout "${name}" is not on the Turnouts page. Add it there with that name, or start the module again.`,
+      mast: (name) => `Signal "${name}" is not on the Signal Masts page. Add it there with that name, or start the module again.`,
+    }),
     sides: (n, left, right) => `Node ${n} has ${left} track${left === 1 ? "" : "s"} on its right side, and node ${n + 1} has ${right} on its left. Joined nodes need the same number: turn one round, or put another node between them.`,
   });
 
@@ -209,6 +214,24 @@
     return out;
   }
 
+  /**
+   * Each part the row names that is not on its page: [{ level, text, where:
+   * { node, name, kind, mast? } }] (`mast` for a signal, so it counts as a
+   * Signals problem).
+   */
+  function missing(config, row) {
+    const have = {
+      sensor: new Set(list(config?.blocks).map((b) => b?.name)),
+      turnout: new Set(list(config?.points).map((p) => p?.name)),
+      mast: new Set(list(config?.signals?.masts).map((m) => m?.name)),
+    };
+    return parts(row).filter((p) => !have[p.kind].has(p.name)).map((p) => ({
+      level: "error",
+      text: TEXT.notThere[p.kind](p.name),
+      where: { node: p.node, name: p.name, kind: p.kind, ...(p.kind === "mast" ? { mast: p.name } : {}) },
+    }));
+  }
+
   // ===== The description =====================================================
 
   /**
@@ -301,11 +324,13 @@
 
   /**
    * Everything the row names, in wiring order: [{ node, key, kind, name,
-   * role, heads? }]. Blocks, IR sensors and points first, then signals.
+   * role, heads? }]. Every block left to right, then the IR sensors, the
+   * points, and the signals.
    */
+  const ROLE_ORDER = ["block", "ir", "points", "signal"];
   function parts(row) {
     const all = list(row).flatMap((node, i) => partsOf(node, i === 0).map((p) => ({ node: i, ...p })));
-    return [...all.filter((p) => p.kind !== "mast"), ...all.filter((p) => p.kind === "mast")];
+    return ROLE_ORDER.flatMap((role) => all.filter((p) => p.role === role));
   }
 
   // A signal's Signal Masts entry, without pins, as the templates make it.
@@ -379,6 +404,6 @@
   }
 
   global.EsphomeMrMssRow = {
-    TEXT, NODE_IDS, PRESET_IDS, PRESETS, sidesOf, endTrack, partsOf, named, preset, fits, problems, describe, descriptionOf, parts, needs, use, rename,
+    TEXT, NODE_IDS, PRESET_IDS, PRESETS, sidesOf, endTrack, partsOf, named, preset, fits, problems, missing, describe, descriptionOf, parts, needs, use, rename,
   };
 })(typeof globalThis !== "undefined" ? globalThis : window);
