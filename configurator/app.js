@@ -2534,13 +2534,12 @@ function messageEl(kind, text, link) {
       event.preventDefault();
       // A checker problem carries the steps that cause it: Try it plays them.
       const mss = globalThis.EsphomeMr.logicMode(state) === "mss";
-      if (link.sequence) {
-        if (mss) globalThis.EsphomeMrLogicUiMssTry?.showMe(link.sequence);
-        else globalThis.EsphomeMrLogicUiTry?.showMe(link.sequence);
+      if (link.sequence && mss) {
+        globalThis.EsphomeMrLogicUiMssTry?.showMe(link.sequence);
         render();
       }
       showView(link.view);
-      const part = link.sequence ? (mss ? "logic-mss-try" : "logic-try") : link.part;
+      const part = link.sequence && mss ? "logic-mss-try" : link.part;
       if (part) document.getElementById(part)?.scrollIntoView({ block: "start" });
     });
     div.append(" ", show);

@@ -1363,7 +1363,7 @@
     if (state.step !== step) Object.assign(state, { step, tool: null, start: null, selected: null });
     const card = ui.card(PART, step === "try" || step === "download" ? F().TEXT.steps[step] : TEXT.trackCard);
     const guide = F()?.guidance(config, step);
-    // Try it is its own part (logic-ui-try.js), with the way on after it.
+    // Try it is its own part (logic-ui-plan-try.js), with the way on after it.
     if (step === "try") return;
     if (step === "download") {
       card.append(ui.paragraph(guide.doing), F().nextButton(config, ctx, step));

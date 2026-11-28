@@ -8,7 +8,6 @@
   // Hidden parts are not shown and their settings are not offered.
   const FEATURES = Object.freeze({
     startsOn: false, // Release 2: logic starts on / off
-    tryIt: true, // Release 2: the Try it part and the checklist's Try it step
     mss: true, // Release 4: MSS Logic in the mode list
   });
 
@@ -44,7 +43,6 @@
       tracks: "Draw the tracks",
       junctions: "Add the junctions, if there are any",
       signals: "Pick each signal's aspects",
-      tryIt: "Try it",
       download: "Download",
     }),
     stepDone: "Done",
@@ -105,7 +103,6 @@
       const done = drawn || ((config.logic?.blocks || []).length > 0 && (config.logic?.layers || []).length > 0);
       steps.push({ key: "blocks", done, target: "logic-blocks" });
     }
-    if (FEATURES.tryIt && parts.blocks) steps.push({ key: "tryIt", done: false, target: "logic-try" });
     steps.push({ key: "download", done: false, view: "yaml" });
     return steps;
   }
@@ -589,7 +586,6 @@
   };
   registerPart({ id: "logic-steps", order: 0, modes: ["none"], render: (root, config, ctx) => renderChecklist(root, config, ctx, {
     blocks: global.EsphomeMr.logicMode(config) === "field",
-    tryIt: parts.some((part) => part.id === "logic-try" && part.modes.includes(global.EsphomeMr.logicMode(config))),
   }) });
   registerPart({ id: "logic-mode", order: 10, modes: ["none", "field", "mss"], show: folded, render: renderMode });
   registerPart({ id: "logic-settings", order: 20, modes: ["none", "field", "mss"], show: folded, render: renderSettings });

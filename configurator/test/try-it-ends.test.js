@@ -6,7 +6,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { configuratorDir, loadModules, test } from "./harness.js";
 
-const LOGIC_UI_FILES = ["generator.js", "logic-yaml.js", "logic.js", "logic-checker.js", "logic-try.js", "logic-ui.js", "logic-ui-masts.js", "logic-ui-ends.js", "logic-ui-views.js", "logic-ui-start.js", "logic-ui-try.js"];
+const LOGIC_UI_FILES = ["generator.js", "logic-yaml.js", "logic.js", "logic-checker.js", "logic-try.js", "logic-ui.js", "logic-ui-masts.js", "logic-ui-ends.js", "logic-ui-views.js", "logic-ui-start.js"];
 const context = loadModules(...LOGIC_UI_FILES);
 const { EsphomeMrLogicTry: Try, EsphomeMrLogicChecker: Checker } = context;
 
@@ -231,6 +231,6 @@ test("every word the page shows for ends is plain", () => {
     if (typeof value === "function") return strings(value("Sample", "Sample", 2), `${where}()`);
     return Object.entries(value).flatMap(([k, inner]) => strings(inner, `${where}.${k}`));
   };
-  const all = [...strings(Try.TEXT, "core"), ...strings(context.EsphomeMrLogicUiTry.TEXT, "page")];
+  const all = strings(Try.TEXT, "core");
   assert.deepEqual(all.filter(([, text]) => SPEC_ONLY.test(text)), []);
 });

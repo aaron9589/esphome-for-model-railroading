@@ -1,16 +1,16 @@
 // Try it (spec, Checking in the browser; Tests: "Run a train steps through the
 // Block signals worked example and shows each row of its table"). Work item
-// 2.10: the pure core (logic-try.js) without a DOM, and the page part's plain
-// words.
+// 2.10: the pure core (logic-try.js) without a DOM, and its plain words. The
+// pages that draw it are logic-ui-plan-try.js and logic-ui-mss-try.js.
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { configuratorDir, loadModules, test } from "./harness.js";
 
 // Every Logic page file, in index.html's order (as in logic-page.test.js).
-const LOGIC_UI_FILES = ["generator.js", "logic-yaml.js", "logic.js", "logic-checker.js", "logic-try.js", "logic-ui.js", "logic-ui-masts.js", "logic-ui-views.js", "logic-ui-start.js", "logic-ui-try.js", "logic-starters.js", "logic-starters-sections.js", "logic-starters-signals.js"];
+const LOGIC_UI_FILES = ["generator.js", "logic-yaml.js", "logic.js", "logic-checker.js", "logic-try.js", "logic-ui.js", "logic-ui-masts.js", "logic-ui-views.js", "logic-ui-start.js", "logic-starters.js", "logic-starters-sections.js", "logic-starters-signals.js"];
 const context = loadModules(...LOGIC_UI_FILES);
-const { EsphomeMr, EsphomeMrLogicTry: Try, EsphomeMrLogicChecker: Checker, EsphomeMrLogicStarters: Starters, EsphomeMrLogicUi: Ui } = context;
+const { EsphomeMr, EsphomeMrLogicTry: Try, EsphomeMrLogicChecker: Checker, EsphomeMrLogicStarters: Starters } = context;
 const { myFirstBoardPreset, topicFor } = EsphomeMr;
 
 const plain = (value) => JSON.parse(JSON.stringify(value));
@@ -340,35 +340,15 @@ function strings(value, where = "TEXT") {
   return Object.entries(value).flatMap(([key, inner]) => strings(inner, `${where}.${key}`));
 }
 
-test("Try it is a part at order 88, in Field Logic, with its words linted", () => {
-  const texts = Ui.allText();
-  const names = texts.map(([where]) => where);
-  const at = names.indexOf("logic-try");
-  assert.ok(at > names.indexOf("logic-starters") && at < names.indexOf("logic-layers-view"), names.join());
-  const words = texts.find(([where]) => where === "logic-try")[1];
-  assert.equal(words.page, context.EsphomeMrLogicUiTry.TEXT);
-  assert.equal(words.core, Try.TEXT);
-  assert.deepEqual(strings(words).filter(([, text]) => SPEC_ONLY.test(text)), []);
-  // The session's own sentences, as the page shows them.
+test("the words the core gives Try it are plain", () => {
+  assert.deepEqual(strings(Try.TEXT, "core").filter(([, text]) => SPEC_ONLY.test(text)), []);
+  // The session's own sentences, as Try it shows them.
   const session = Try.createSession(gauntlet());
   session.play([{ do: { sensor: "Left", is: "occupied" } }, { wait: 6 }]);
   const view = session.view();
   const said = [...view.rules.flatMap((r) => [r.words, r.text]), ...view.sections.flatMap((s) => [s.text, s.heldBy]), ...view.log.map((l) => l.text), ...view.masts.map((m) => m.meaning)];
   assert.ok(said.length > 4);
   assert.deepEqual(said.filter((text) => SPEC_ONLY.test(text)), []);
-  assert.ok(context.EsphomeMrLogicUiTry.showMe, "Show me has its hook");
-});
-
-test("Try it is switched on, and the checklist links to it", () => {
-  assert.equal(Ui.FEATURES.tryIt, true);
-  const step = Ui.checklistSteps({ logic: { mode: "field" } }, { blocks: true }).find((s) => s.key === "tryIt");
-  assert.equal(step.target, "logic-try");
-});
-
-test("a Show me link opens Try it", () => {
-  const app = fs.readFileSync(path.join(configuratorDir, "app.js"), "utf8");
-  assert.match(app, /link\.sequence[\s\S]{0,120}EsphomeMrLogicUiTry\?\.showMe\(link\.sequence\)/);
-  assert.match(app, /"logic-try"/);
 });
 
 if (!process.exitCode) console.log("\nAll Try it tests passed.");
