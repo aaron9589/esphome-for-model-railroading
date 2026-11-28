@@ -60,6 +60,35 @@ test("a module picked opens every step; wiring and signals are done once their p
   assert.equal(plain(F.partsOf(config)).find((p) => p.name === "IR 2").there, false);
 });
 
+test("Wire it: every block, then IR sensors, points and the ends' pins; a missing or shared pin is a problem", () => {
+  const config = emptyBoard();
+  const pins = ["GPIO14", "GPIO27", "GPIO26", "GPIO25", "GPIO33", "GPIO32"];
+  R.use(config, R.PRESETS.passing, ({ sensors, turnouts }) => {
+    config.blocks.push(...sensors.map((name, i) => ({ name, topic: M.topicFor("block", name), topicCustom: false, gpio: pins[i], inverted: true, debounce: "500ms" })));
+    config.points.push(...turnouts.map((name, i) => ({ name, topic: M.topicFor("point", name), pcaBoard: 0, channel: i })));
+  });
+  const wire = () => plain(F.wireList(config));
+  assert.deepEqual(wire().map((w) => [w.key, w.role]), [
+    ["Block 1 current", "block"], ["Block 2 current", "block"], ["Siding 1 current", "block"], ["Block 3 current", "block"],
+    ["IR 1", "ir"], ["IR 2", "ir"], ["Points 1", "points"], ["Points 2", "points"],
+    ["end:A:pair", "pair"], ["end:A:led", "led"], ["end:B:pair", "pair"], ["end:B:led", "led"],
+  ]);
+  assert.ok(wire().every((w) => w.done), "every sensor on its pin, the points on channels, no end pins (optional)");
+  assert.deepEqual(wire().find((w) => w.key === "Points 2").place, { board: 0, channel: 1 });
+  assert.equal(steps(config).wire.done, true);
+  // A pin taken twice, and one missing.
+  config.logic.mss.ends = [{ name: "A", pairPin: "GPIO27" }];
+  config.blocks.find((b) => b.name === "Block 3 current").gpio = "";
+  const now = Object.fromEntries(wire().map((w) => [w.key, w.problem]));
+  assert.equal(now["Block 2 current"], "shared");
+  assert.equal(now["end:A:pair"], "shared");
+  assert.equal(now["Block 3 current"], "missing");
+  assert.equal(steps(config).wire.done, false);
+  // Without a PCA9685, the points are on ESP pins.
+  config.pca9685 = false;
+  assert.deepEqual(wire().find((w) => w.key === "Points 1"), { key: "Points 1", name: "Points 1", role: "points", kind: "turnout", pin: "", place: null, done: false, problem: "missing" });
+});
+
 test("a row's own problem counts on Pick your module, and closes the steps after it", () => {
   const config = emptyBoard();
   config.logic.mss.row = [{ node: "siding" }, { node: "cascade" }];
@@ -78,6 +107,10 @@ test("a module described by hand still builds, and offers to start from a patter
   assert.ok(ctx.EsphomeMrMssBuilder.build(config).blocks.length > 0, "it is still built");
   config.logic.mss = { row: R.preset("cascade") };
   assert.equal(F.handWritten(config), false);
+  // A row started again keeps its ends' pins: that is not a module described by hand.
+  config.logic.mss = { ends: [{ name: "A", pairPin: "GPIO4" }] };
+  assert.equal(F.handWritten(config), false);
+  assert.equal(F.currentStep(config), "pick");
 });
 
 test("the picture of a passing siding: the main along the bottom, the siding above, each part named", () => {
@@ -94,12 +127,12 @@ test("the picture of a passing siding: the main along the bottom, the siding abo
   assert.deepEqual(shape.points.map((x) => [x.name, x.at]), [["Points 1", [3, 1]], ["Points 2", [9, 1]]]);
   // Each signal on the right of the trains it faces, just before the points they head for.
   assert.deepEqual(shape.signals.map((x) => [x.name, x.at, x.facing, x.side, x.heads]), [
-    ["Signal 1 to B", [2.5, 1], "right", "below", 2],
-    ["Signal 1 to A main", [4.5, 1], "left", "above", 1],
-    ["Signal 1 to A siding", [4.5, 0], "left", "above", 1],
-    ["Signal 2 to A", [9.5, 1], "left", "above", 2],
-    ["Signal 2 to B main", [7.5, 1], "right", "below", 1],
-    ["Signal 2 to B siding", [7.5, 0], "right", "below", 1],
+    ["Signal 1 to B", [2.25, 1], "right", "below", 2],
+    ["Signal 1 to A main", [4.75, 1], "left", "above", 1],
+    ["Signal 1 to A siding", [4.75, 0], "left", "above", 1],
+    ["Signal 2 to A", [9.75, 1], "left", "above", 2],
+    ["Signal 2 to B main", [7.25, 1], "right", "below", 1],
+    ["Signal 2 to B siding", [7.25, 0], "right", "below", 1],
   ]);
   assert.deepEqual(shape.ends.map((e) => [e.name, e.at, e.roads]), [["A", [0, 1], 1], ["B", [12, 1], 1]]);
 });
@@ -108,7 +141,7 @@ test("the picture of a Cascade is one line; a lone Siding end runs both roads to
   const cascade = plain(P.layout(R.preset("cascade")));
   assert.equal(cascade.rows, 1);
   assert.deepEqual(cascade.blocks.map((b) => b.path), [[[0, 1], [3, 1]], [[3, 1], [6, 1]]]);
-  assert.deepEqual(cascade.signals.map((x) => [x.name, x.at, x.side]), [["Signal 1 to B", [2.5, 1], "below"], ["Signal 1 to A", [3.5, 1], "above"]]);
+  assert.deepEqual(cascade.signals.map((x) => [x.name, x.at, x.side]), [["Signal 1 to B", [2.25, 1], "below"], ["Signal 1 to A", [3.75, 1], "above"]]);
   const lone = plain(P.layout(R.preset("siding")));
   assert.deepEqual(lone.ends.map((e) => e.roads), [1, 2]);
   assert.deepEqual(lone.blocks.find((b) => b.road === "siding").path, [[3, 1], [4, 0], [6, 0]]);

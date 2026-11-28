@@ -22,7 +22,7 @@
 
   const W = 6; // a node's width, in grid units
   const D = 1; // how far the siding's points lead run, along the track
-  const OFF = 0.5; // a signal stands this far from its IR sensor or points, on its trains' side
+  const OFF = 0.75; // a signal stands this far from its IR sensor or points, on its trains' side
   const Y = Object.freeze({ main: 1, siding: 0 });
 
   /**
@@ -135,11 +135,17 @@
       if (marks[name]) g.classList.add(`is-${marks[name]}`);
       return g;
     };
-    const badge = (g, name, at) => {
+    // A part's badge: its number, a tick when done, red with a problem;
+    // `off` moves it from the point it belongs to, in pixels.
+    const badge = (g, name, at, off = [14, -14]) => {
       if (badges[name] === undefined) return;
-      g.append(svg("circle", { class: "mss-row-badge", cx: px(at[0]) + 14, cy: px(at[1]) - 14, r: 9 }),
-        svg("text", { class: "mss-row-badge-text", x: px(at[0]) + 14, y: px(at[1]) - 10, "text-anchor": "middle" }, String(badges[name])));
+      const look = marks[name] ? ` is-${marks[name]}` : "";
+      const [x, y] = [px(at[0]) + off[0], px(at[1]) + off[1]];
+      g.append(svg("circle", { class: `mss-row-badge${look}`, cx: x, cy: y, r: 9 }),
+        svg("text", { class: "mss-row-badge-text", x, y: y + 4, "text-anchor": "middle" }, String(badges[name])));
     };
+    // Which way the siding leaves each node's points: badges and names go the other way.
+    const away = new Map(shape.nodes.map((node) => [node.index, node.turned ? 1 : -1]));
     // Node outlines and titles, under everything.
     for (const node of shape.nodes) {
       root.append(svg("rect", { class: "mss-row-node", x: px(node.x) + 3, y: px(top) + 3, width: px(W) - 6, height: px(height) - 6, rx: 8 }));
@@ -158,20 +164,22 @@
       }
       const mx = (a[0] + b[0]) / 2;
       g.append(svg("text", { class: "mss-row-label", x: px(mx), y: px(b[1]) + (block.road === "siding" ? -8 : 17), "text-anchor": "middle" }, block.name || TEXT.noSensor));
-      badge(g, block.name, [mx, b[1]]);
+      // Its badge in the middle of that stretch: above the main line, below the siding.
+      badge(g, block.name, [mx, b[1]], block.road === "siding" ? [0, 16] : [0, -14]);
       root.append(g);
     }
     for (const p of shape.points) {
       const g = part(svg("g", { class: "mss-row-points" }), p.name);
       g.append(svg("circle", { cx: px(p.at[0]), cy: px(p.at[1]), r: 5 }));
-      badge(g, p.name, p.at);
+      badge(g, p.name, p.at, [-away.get(p.node) * 16, 14]);
       root.append(g);
     }
     for (const ir of shape.irs) {
       const g = part(svg("g", { class: "mss-row-ir" }), ir.name);
       g.append(svg("line", { x1: px(ir.at[0]), y1: px(ir.at[1]) - 10, x2: px(ir.at[0]), y2: px(ir.at[1]) + 10 }));
-      g.append(svg("text", { class: "mss-row-label is-small", x: px(ir.at[0]), y: px(ir.at[1]) + 21, "text-anchor": "middle" }, ir.name));
-      badge(g, ir.name, [ir.at[0], ir.at[1]]);
+      const side = away.get(ir.node);
+      g.append(svg("text", { class: "mss-row-label is-small", x: px(ir.at[0]) + side * 4, y: px(ir.at[1]) + 21, "text-anchor": side < 0 ? "end" : "start" }, ir.name));
+      badge(g, ir.name, ir.at, [side * 14, -12]);
       root.append(g);
     }
     for (const s of shape.signals) {
@@ -186,11 +194,26 @@
       badge(g, s.name, [s.at[0], s.at[1] + dy]);
       root.append(g);
     }
+    // Each end, with its Pair button and LED (`end:A:pair`, `end:A:led`) badged beside it.
     for (const e of shape.ends) {
       const anchor = e.name === "A" ? "end" : "start";
       const x = px(e.at[0]) + (e.name === "A" ? -8 : 8);
-      root.append(svg("text", { class: "mss-row-end", x, y: px(e.at[1]) + 4, "text-anchor": anchor }, TEXT.end(e.name)));
-      if (e.roads === 2) root.append(svg("text", { class: "mss-row-end", x, y: px(0) + 4, "text-anchor": anchor }, TEXT.end(e.name)));
+      const g = part(svg("g", { class: "mss-row-end-part" }), `end:${e.name}`);
+      for (const which of ["pair", "led"]) {
+        const key = `end:${e.name}:${which}`;
+        if (lit.has(key)) g.classList.add("is-lit");
+      }
+      g.append(svg("text", { class: "mss-row-end", x, y: px(e.at[1]) + 4, "text-anchor": anchor }, TEXT.end(e.name)));
+      if (e.roads === 2) g.append(svg("text", { class: "mss-row-end", x, y: px(0) + 4, "text-anchor": anchor }, TEXT.end(e.name)));
+      ["pair", "led"].forEach((which, k) => {
+        const key = `end:${e.name}:${which}`;
+        if (badges[key] === undefined) return;
+        const bx = e.name === "A" ? e.at[0] - 0.95 + k * 0.4 : e.at[0] + 0.55 + k * 0.4;
+        const bg = part(svg("g", { class: "mss-row-end-pin" }), key);
+        badge(bg, key, [bx - 0.25, e.at[1] + 0.75]);
+        g.append(bg);
+      });
+      root.append(g);
     }
     return root;
   }
