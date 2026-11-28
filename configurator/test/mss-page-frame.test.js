@@ -118,7 +118,7 @@ test("Signals: each signal with its lamps' pins; what it shows follows the two t
 
 test("a row's own problem counts on Pick your module, and closes the steps after it", () => {
   const config = emptyBoard();
-  config.logic.mss.row = [{ node: "siding" }, { node: "cascade" }];
+  config.logic.mss.row = [{ node: "complex" }, { node: "cascade" }];
   const s = steps(config);
   assert.equal(s.pick.errors, 1);
   assert.equal(s.pick.done, false);
@@ -164,15 +164,15 @@ test("the picture of a passing siding: the main along the bottom, the siding abo
   assert.deepEqual(shape.ends.map((e) => [e.name, e.at, e.roads]), [["A", [0, 1], 1], ["B", [12, 1], 1]]);
 });
 
-test("the picture of a Cascade is one line; a lone Siding end runs both roads to end B; a row with problems has none", () => {
+test("the picture of a Cascade is one line; a lone Complex cascade runs both roads to end B; a row with problems has none", () => {
   const cascade = plain(P.layout(R.preset("cascade")));
   assert.equal(cascade.rows, 1);
   assert.deepEqual(cascade.blocks.map((b) => b.path), [[[0, 1], [3, 1]], [[3, 1], [6, 1]]]);
   assert.deepEqual(cascade.signals.map((x) => [x.name, x.at, x.side]), [["Signal 1 to B", [2.25, 1], "below"], ["Signal 1 to A", [3.75, 1], "above"]]);
-  const lone = plain(P.layout(R.preset("siding")));
+  const lone = plain(P.layout(R.preset("complex")));
   assert.deepEqual(lone.ends.map((e) => e.roads), [1, 2]);
   assert.deepEqual(lone.blocks.find((b) => b.road === "siding").path, [[3, 1], [4, 0], [6, 0]]);
-  assert.equal(P.layout([{ node: "siding" }, { node: "cascade" }]), null);
+  assert.equal(P.layout([{ node: "complex" }, { node: "cascade" }]), null);
   assert.equal(P.layout([]), null);
 });
 

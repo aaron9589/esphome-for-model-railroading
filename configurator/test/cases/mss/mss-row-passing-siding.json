@@ -1,9 +1,9 @@
 {
-  "name": "MSS row: a passing siding, two Siding ends",
+  "name": "MSS row: a passing siding, two Complex cascades",
   "covers": [
-    "a row of nodes: a passing siding from a Siding end and a Siding end turned round"
+    "a row of nodes: a passing siding from a Complex cascade and a Complex cascade flipped"
   ],
-  "about": "A passing siding on one board: a Siding end, then a Siding end turned round (docs/mss-patterns-spec.md). The main line and the siding between the points are one block each. Both ends are the end of the line; Advance Approach and Approach Diverging are not used. Both points closed: the main ladder each way, the siding signals at Stop. Points 1 thrown: Signal 1 to B shows Diverging Approach (Signal 2 to B siding, at points 2 closed, is at Stop), Signal 1 to A siding shows Diverging Approach to the end of the line, Signal 1 to A main has no route and shows Stop, and Signal 2 to A, reading it, shows Approach. Both thrown: Signal 2 to B siding shows Diverging Approach, and Signal 1 to B, on a diverging route reading a diverging aspect, shows Diverging Approach too (a diverging aspect makes the signal behind show Approach Diverging, or Approach without it; on a diverging route that is Diverging Approach); likewise Signal 2 to A, reading Signal 1 to A siding. Both closed again with a train on the main line: the two signals onto it show Stop.",
+  "about": "A passing siding on one board: a Complex cascade, then a Complex cascade flipped (docs/mss-patterns-spec.md). The main line and the siding between the points are one block each. Both ends are the end of the line; Advance Approach and Approach Diverging are not used. Both points closed: the main ladder each way, the siding signals at Stop. Points 1 thrown: Signal 1 to B shows Diverging Approach (Signal 2 to B siding, at points 2 closed, is at Stop), Signal 1 to A siding shows Diverging Approach to the end of the line, Signal 1 to A main has no route and shows Stop, and Signal 2 to A, reading it, shows Approach. Both thrown: Signal 2 to B siding shows Diverging Approach, and Signal 1 to B, on a diverging route reading a diverging aspect, shows Diverging Approach too (a diverging aspect makes the signal behind show Approach Diverging, or Approach without it; on a diverging route that is Diverging Approach); likewise Signal 2 to A, reading Signal 1 to A siding. Both closed again with a train on the main line: the two signals onto it show Stop.",
   "module": {
     "sensors": [
       "Block 1 current",
@@ -28,7 +28,7 @@
     "mss": {
       "row": [
         {
-          "node": "siding",
+          "node": "complex",
           "names": {
             "left": [
               "Block 1 current"
@@ -47,7 +47,7 @@
           }
         },
         {
-          "node": "siding",
+          "node": "complex",
           "turned": true,
           "names": {
             "ir": "IR 2",

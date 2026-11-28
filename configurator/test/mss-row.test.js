@@ -28,8 +28,8 @@ test("names a node has are kept; new ones skip numbers in use; a node no longer 
 });
 
 test("nodes join where their sides have the same number of tracks; a Crossover only on its own", () => {
-  const siding = { node: "siding" };
-  const turned = { node: "siding", turned: true };
+  const siding = { node: "complex" };
+  const turned = { node: "complex", turned: true };
   const cascade = { node: "cascade" };
   same(R.sidesOf(siding), [1, 2]);
   same(R.sidesOf(turned), [2, 1]);
@@ -47,11 +47,11 @@ test("a row's own problems: empty, an unknown node, a Crossover with others, sid
   same(R.problems([]).map((p) => p.text), [R.TEXT.empty]);
   same(R.problems([{ node: "wye" }]).map((p) => p.where), [{ node: 0 }]);
   same(R.problems([{ node: "crossover" }, { node: "cascade" }]).map((p) => p.text), [R.TEXT.crossoverAlone]);
-  same(R.problems([{ node: "siding" }, { node: "cascade" }]).map((p) => [p.text, p.where]), [[R.TEXT.sides(1, 2, 1), { node: 1 }]]);
+  same(R.problems([{ node: "complex" }, { node: "cascade" }]).map((p) => [p.text, p.where]), [[R.TEXT.sides(1, 2, 1), { node: 1 }]]);
   same(R.problems(R.preset("passing")), []);
   // The builder reports them against the row, and nothing else.
   const config = M.myFirstBoardPreset();
-  config.logic = { mode: "mss", mss: { row: [{ node: "siding" }, { node: "cascade" }] } };
+  config.logic = { mode: "mss", mss: { row: [{ node: "complex" }, { node: "cascade" }] } };
   same(B.problems(config).map((p) => [p.level, p.where]), [["error", { view: "logic", part: B.PARTS.row, row: true, node: 1 }]]);
 });
 
@@ -73,13 +73,13 @@ test("the passing siding's description: two ends, the main and the siding betwee
 });
 
 test("a two-track end is numbered from the left looking out: A is 1 main, 2 siding; B is 1 siding, 2 main", () => {
-  const lone = R.describe(R.preset("siding"));
+  const lone = R.describe(R.preset("complex"));
   same(lone.ends, [{ name: "A", tracks: 1 }, { name: "B", tracks: 2 }]);
   same(lone.tracks.slice(1).map((t) => [t.blocks[0].sensors[0], t.to]), [["Block 2 current", { end: "B", track: 2 }], ["Siding 1 current", { end: "B", track: 1 }]]);
-  const turned = R.describe(R.named([{ node: "siding", turned: true }]));
+  const turned = R.describe(R.named([{ node: "complex", turned: true }]));
   same(turned.ends.map((e) => e.tracks), [2, 1]);
   same(turned.tracks.slice(0, 2).map((t) => [t.blocks[0].sensors[0], t.from]), [["Block 1 current", { end: "A", track: 1 }], ["Siding 1 current", { end: "A", track: 2 }]]);
-  // A lone Siding end meets a lone Siding end turned round: main to main (2 meets 2 + 1 - 2 = 1).
+  // A lone Complex cascade meets a lone Complex cascade flipped: main to main (2 meets 2 + 1 - 2 = 1).
   assert.equal(R.endTrack("B", "main", 2), 2 + 1 - R.endTrack("A", "main", 2));
   // A Crossover between two ends is a pass-through.
   same(R.describe(R.preset("crossover")).tracks, [{ from: { end: "A", track: 1 }, to: { end: "B", track: 1 }, blocks: [{ sensors: ["Block 1 current"], turnouts: [] }], boundaries: [] }]);
@@ -142,11 +142,11 @@ test("renaming a part renames it in the row", () => {
   same(row[0].names.left, ["West current"]);
 });
 
-test("adding a Siding end turned round to a Siding end makes the Passing siding, names and all", () => {
-  const siding = R.preset("siding");
+test("adding a Complex cascade flipped to a Complex cascade makes the Passing siding, names and all", () => {
+  const siding = R.preset("complex");
   assert.equal(R.canAdd(siding, { node: "cascade" }), false, "two tracks meet one");
-  assert.equal(R.canAdd(siding, { node: "siding", turned: true }), true);
-  same(R.addNode(siding, { node: "siding", turned: true }), R.preset("passing"));
+  assert.equal(R.canAdd(siding, { node: "complex", turned: true }), true);
+  same(R.addNode(siding, { node: "complex", turned: true }), R.preset("passing"));
   // Cascade on Cascade: the new node's left block is the old one's right block.
   same(R.addNode(R.preset("cascade"), { node: "cascade" }), readMssCase("mss-row-cascades.json").module.mss.row);
   assert.equal(R.canAdd(R.preset("crossover"), { node: "cascade" }), false);
@@ -156,27 +156,27 @@ test("removing a node: what is left must join; the first gone, the next takes th
   const passing = R.preset("passing");
   assert.equal(R.canRemove(passing, 0), true);
   assert.equal(R.canRemove(R.preset("cascade"), 0), false, "a module keeps one node");
-  const three = R.addNode(R.preset("cascade"), { node: "siding" });
-  const four = R.addNode(three, { node: "siding", turned: true });
+  const three = R.addNode(R.preset("cascade"), { node: "complex" });
+  const four = R.addNode(three, { node: "complex", turned: true });
   assert.equal(R.canRemove(four, 1), false, "the Cascade's one track would meet the turned Siding end's two");
   assert.equal(R.canRemove(four, 0), true);
   const rest = R.removeNode(passing, 0);
-  same(rest, [{ node: "siding", turned: true, names: { ir: "IR 2", right: ["Block 3 current"], points: "Points 2",
+  same(rest, [{ node: "complex", turned: true, names: { ir: "IR 2", right: ["Block 3 current"], points: "Points 2",
     signals: { single: "Signal 2 to A", main: "Signal 2 to B main", siding: "Signal 2 to B siding" }, left: ["Block 2 current", "Siding 1 current"] } }]);
-  same(R.removeNode(passing, 1), R.preset("siding"));
+  same(R.removeNode(passing, 1), R.preset("complex"));
 });
 
-test("turning a Siding end round swaps its sides and renames the signals named as the pattern names them", () => {
-  const { row, renames } = R.turnNode(R.preset("siding"), 0);
+test("turning a Complex cascade round swaps its sides and renames the signals named as the pattern names them", () => {
+  const { row, renames } = R.turnNode(R.preset("complex"), 0);
   same(renames, [["Signal 1 to B", "Signal 1 to A"], ["Signal 1 to A main", "Signal 1 to B main"], ["Signal 1 to A siding", "Signal 1 to B siding"]]);
   same(row[0].names.left, ["Block 2 current", "Siding 1 current"]);
   same(row[0].names.right, ["Block 1 current"]);
   assert.equal(row[0].turned, true);
   same(R.describe(row).ends.map((e) => e.tracks), [2, 1]);
   // And back again, as it was.
-  same(R.turnNode(row, 0).row, R.preset("siding"));
+  same(R.turnNode(row, 0).row, R.preset("complex"));
   // A signal with a name of its own keeps it.
-  const own = R.preset("siding");
+  const own = R.preset("complex");
   own[0].names.signals.single = "West Home";
   same(R.turnNode(own, 0).renames.map(([from]) => from), ["Signal 1 to A main", "Signal 1 to A siding"]);
   // Only where it still joins: not the turned end of a passing siding.

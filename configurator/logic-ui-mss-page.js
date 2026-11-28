@@ -44,8 +44,8 @@
       warnings ? `${warnings} warning${warnings === 1 ? "" : "s"}` : "",
     ].filter(Boolean).join(", "),
     doing: Object.freeze({
-      pickEmpty: "Pick the MSS module this board runs. Each is the standard MSS node, as Iowa Scaled Engineering's boards build it.",
-      pick: "This is your module. Add a node on the right, turn a Siding end round, or remove a node, or start again from the standard modules.",
+      pickEmpty: "Build your module from the three MSS boards, as Iowa Scaled Engineering makes them: start with one, then stitch more onto it. Or start from a sample.",
+      pick: "This is your module: its MSS boards, stitched left to right. Stitch another onto the right, flip a Complex cascade, or remove a board.",
       wire: "Wire each part in turn: it is lit on the picture, with how to wire it and its pin. Click a part on the picture to go to it.",
       signals: "Each signal in turn, lit on the picture: its lamps and their pins. What it shows is the MSS pattern's: point at one to see it.",
       try: "Put trains in blocks, throw the points and watch the signals.",
@@ -70,7 +70,8 @@
     }),
     stillToDo: "Pick your module first.",
     // Pick your module.
-    presetsHeading: "Standard MSS modules",
+    boardsHeading: "Start with an MSS board",
+    samplesHeading: "Or start from a sample",
     confirm: (title) => `Start this module as a ${title}?`,
     adds: "This adds:",
     sensors: (names) => `Sensors: ${names}.`,
@@ -84,21 +85,22 @@
     cancel: "Cancel",
     started: (title) => `Started a ${title}. Wire it next.`,
     yourModule: "Your module",
-    nodeWords: (n, title, turned) => `${n}. ${title}${turned ? ", turned round" : ""}`,
+    nodeWords: (n, title, turned) => `${n}. ${title}${turned ? ", flipped" : ""}`,
     startAgain: "Start again",
-    startAgainAsk: "Start again from the standard modules? The module goes; its sensors, turnouts and signals stay on their pages.",
+    startAgainAsk: "Start again from the MSS boards? The module goes; its sensors, turnouts and signals stay on their pages.",
     yes: "Yes, start again",
     // Changing the row.
-    turn: "Turn round",
+    turn: "Flip",
     remove: "Remove",
-    addHeading: "Add a node on the right",
-    addNode: (title, turned) => (turned ? `${title}, turned round` : title),
-    nothingFits: "Nothing joins on the right of a Crossover: it is a whole module. Start again to pick another.",
-    cannotRemove: "Removing it would leave nodes that do not join: remove the nodes beside it first.",
-    cannotTurn: "Turned round, it would not join the nodes beside it.",
-    addAsk: (title) => `Add a ${title} on the right of the module?`,
-    removeAsk: (n, title) => `Remove node ${n}, the ${title}?`,
-    turnAsk: (n) => `Turn node ${n}, the Siding end, round?`,
+    addHeading: "Stitch on another MSS board",
+    addHint: "Only the boards whose tracks meet the right-hand end of the module are offered.",
+    addNode: (title, turned) => (turned ? `${title}, flipped` : title),
+    nothingFits: "Nothing stitches onto a Crossover: it is a whole module. Start again to pick another.",
+    cannotRemove: "Removing it would leave boards whose tracks do not meet: remove the boards beside it first.",
+    cannotTurn: "Flipped, its tracks would not meet the boards beside it.",
+    addAsk: (title) => `Stitch a ${title} onto the right of the module?`,
+    removeAsk: (n, title) => `Remove board ${n}, the ${title}?`,
+    turnAsk: (n) => `Flip board ${n}, the Complex cascade?`,
     left: (names) => `These stay on their pages, no longer used by the module: ${names}. Remove them there if this board no longer has them.`,
     renamed: (pairs) => `Its signals are renamed for the way they now face: ${pairs}.`,
     renamePair: (from, to) => `${from} to ${to}`,
@@ -418,25 +420,38 @@
     return leds.pins > safe ? "strip" : "leds";
   }
 
+  // A card with a small picture of its boards: a button.
+  function boardCard(row, title, about, className, onClick) {
+    const card = button("", onClick, `mss-preset ${className}`.trim());
+    card.append(el("strong", "", title));
+    // Named, so its signals are drawn too (the names are left off).
+    const picture = P().draw(R().named(row), { bare: true });
+    if (picture) card.append(picture);
+    if (about) card.append(el("span", "hint", about));
+    return card;
+  }
+
+  // An empty module: a card for each MSS board, then the samples.
   function renderPresets(panel, config, ctx) {
-    panel.append(el("h4", "", TEXT.presetsHeading));
-    const cards = el("div", "mss-presets");
-    for (const id of R().PRESET_IDS) {
-      const words = R().TEXT.presets[id];
-      const card = button("", () => {
-        state.pending = state.pending === id ? "" : id;
-        state.style = null;
-        ctx.render();
-      }, `mss-preset${state.pending === id ? " is-open" : ""}`);
-      card.id = `logic-mss-preset-${id}`;
-      card.setAttribute("aria-expanded", String(state.pending === id));
-      card.append(el("strong", "", words.title));
-      const picture = P().draw(R().preset(id));
-      if (picture) card.append(picture);
-      card.append(el("span", "hint", words.about));
-      cards.append(card);
-    }
-    panel.append(cards);
+    const section = (heading, ids, className) => {
+      panel.append(el("h4", "", heading));
+      const cards = el("div", `mss-presets ${className}`);
+      for (const id of ids) {
+        const words = R().TEXT.presets[id];
+        const board = R().TEXT.nodes[id];
+        const card = boardCard(R().preset(id), words.title, board ? `${board.board}. ${words.about}` : words.about, state.pending === id ? "is-open" : "", () => {
+          state.pending = state.pending === id ? "" : id;
+          state.style = null;
+          ctx.render();
+        });
+        card.id = `logic-mss-preset-${id}`;
+        card.setAttribute("aria-expanded", String(state.pending === id));
+        cards.append(card);
+      }
+      panel.append(cards);
+    };
+    section(TEXT.boardsHeading, R().BOARD_IDS, "is-boards");
+    section(TEXT.samplesHeading, R().SAMPLE_IDS, "is-samples");
     if (state.pending) panel.append(presetConfirm(config, ctx, state.pending));
   }
 
@@ -562,41 +577,46 @@
     const row = rowOf(config);
     if (!row) return renderPresets(panel, config, ctx);
     panel.append(el("h4", "", TEXT.yourModule));
-    const ol = el("ul", "mss-row-list");
     const titleOf = (node) => R().TEXT.nodes[node?.node]?.title || String(node?.node ?? "");
     const rowOk = R().problems(row).length === 0;
+    const choices = rowOk ? [{ node: "cascade" }, { node: "complex" }, { node: "complex", turned: true }].filter((node) => R().canAdd(row, node)) : [];
+    const cards = el("div", "mss-row-cards");
     row.forEach((node, i) => {
-      const li = el("li", "", `${TEXT.nodeWords(i + 1, titleOf(node), node?.turned === true)} `);
-      if (rowOk && node?.node === "siding") {
-        const turn = button(TEXT.turn, () => { state.change = { kind: "turn", index: i }; state.style = null; ctx.render(); }, "link-button");
-        turn.id = `logic-mss-turn-${i}`;
+      const card = el("div", "mss-board-card");
+      card.dataset.board = String(i);
+      card.append(el("strong", "", TEXT.nodeWords(i + 1, titleOf(node), node?.turned === true)));
+      const picture = R().NODE_IDS.includes(node?.node) ? P().draw(R().named([{ node: node.node, ...(node.turned ? { turned: true } : {}) }]), { bare: true }) : null;
+      if (picture) card.append(picture);
+      const actions = el("div", "mss-board-actions");
+      if (rowOk && node?.node === "complex") {
+        const turn = button(TEXT.turn, () => { state.change = { kind: "turn", index: i }; state.style = null; ctx.render(); });
+        turn.id = `logic-mss-flip-${i}`;
         turn.disabled = !R().canTurn(row, i);
         if (turn.disabled) turn.title = TEXT.cannotTurn;
-        li.append(turn, " ");
+        actions.append(turn);
       }
       if (rowOk && row.length > 1) {
-        const remove = button(TEXT.remove, () => { state.change = { kind: "remove", index: i }; state.style = null; ctx.render(); }, "link-button");
+        const remove = button(TEXT.remove, () => { state.change = { kind: "remove", index: i }; state.style = null; ctx.render(); });
         remove.id = `logic-mss-remove-${i}`;
         remove.disabled = !R().canRemove(row, i);
         if (remove.disabled) remove.title = TEXT.cannotRemove;
-        li.append(remove);
+        actions.append(remove);
       }
-      ol.append(li);
+      if (actions.childNodes.length) card.append(actions);
+      cards.append(card);
     });
-    panel.append(ol);
-    for (const p of R().problems(row)) panel.append(el("p", "mss-warning", p.text));
-    if (rowOk) {
-      panel.append(el("h4", "", TEXT.addHeading));
-      const choices = [{ node: "cascade" }, { node: "siding" }, { node: "siding", turned: true }].filter((node) => R().canAdd(row, node));
-      if (!choices.length) panel.append(el("p", "hint", TEXT.nothingFits));
-      const adds = el("div", "mss-add-nodes");
+    // The boards that stitch on at the right, as cards too.
+    {
       for (const node of choices) {
-        const b = button(TEXT.addNode(R().TEXT.nodes[node.node].title, node.turned === true), () => { state.change = { kind: "add", node }; state.style = null; ctx.render(); });
-        b.id = `logic-mss-add-${node.node}${node.turned ? "-turned" : ""}`;
-        adds.append(b);
+        const card = boardCard([node], `+ ${TEXT.addNode(R().TEXT.nodes[node.node].title, node.turned === true)}`, "", "is-add", () => { state.change = { kind: "add", node }; state.style = null; ctx.render(); });
+        card.id = `logic-mss-add-${node.node}${node.turned ? "-flipped" : ""}`;
+        card.title = TEXT.addHeading;
+        cards.append(card);
       }
-      panel.append(adds);
     }
+    panel.append(cards);
+    if (rowOk) panel.append(el("p", "hint", choices.length ? TEXT.addHint : TEXT.nothingFits));
+    for (const p of R().problems(row)) panel.append(el("p", "mss-warning", p.text));
     if (state.change) panel.append(changeConfirm(config, ctx, row));
     if (state.ask === "again") {
       panel.append(asking(ctx, TEXT.startAgainAsk, TEXT.yes, () => {

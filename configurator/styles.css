@@ -3550,3 +3550,38 @@ button.clear-page {
 
 @keyframes mss-blink { 50% { opacity: 0.2; } }
 .mss-lamp.is-blink, .mss-row-head.is-blink { animation: mss-blink 0.9s steps(1) infinite; }
+
+.mss-row-cards {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: stretch;
+  margin: 0.5rem 0;
+}
+
+.mss-board-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  width: 210px;
+  padding: 0.6rem;
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+}
+
+.mss-row-cards .mss-preset.is-add {
+  width: 170px;
+  border-style: dashed;
+  color: var(--accent);
+}
+
+.mss-board-actions {
+  display: flex;
+  gap: 0.4rem;
+  margin-top: auto;
+}
+
+.mss-row-picture.is-bare {
+  width: 100%;
+}
