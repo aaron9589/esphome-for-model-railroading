@@ -169,8 +169,17 @@ assert.match(await page.locator("#logic-mss-signal").innerText(), /1 of 6\s+Sign
 // What it shows: point at Clear and the picture's heads light red over green... upper head first.
 const chips = () => page.locator("#logic-mss-signal .mss-indication").evaluateAll((all) => all.map((c) => c.textContent.trim()));
 assert.deepEqual(await chips(), ["Stop", "Approach", "Clear", "Diverging Clear", "Diverging Approach"]);
+// Each chip's dots: the lower head first. Approach is yellow over red, Diverging Approach red over yellow.
+const dots = (key) => page.locator(`#logic-mss-signal [data-indication="${key}"] .mss-lamp`).evaluateAll((all) => all.map((d) => d.className.replace(/mss-lamp is-/, "")));
+assert.deepEqual(await dots("approach"), ["red", "amber"]);
+assert.deepEqual(await dots("divergingApproach"), ["amber", "red"]);
+assert.deepEqual(await dots("clear"), ["red", "green"]);
 await page.hover('#logic-mss-signal [data-indication="clear"]');
 assert.deepEqual(await picture.locator('[data-part="Signal 1 to B"] .mss-row-head').evaluateAll((h) => h.map((x) => x.style.fill)), ["rgb(22, 163, 74)", "rgb(220, 38, 38)"]);
+// As on a real mast, the lower head is nearest the foot: Signal 1 to B faces
+// right, its foot on the left, so its upper head (drawn first) is furthest right.
+const [upperX, lowerX] = await picture.locator('[data-part="Signal 1 to B"] .mss-row-head').evaluateAll((h) => h.map((x) => Number(x.getAttribute("cx"))));
+assert.ok(upperX > lowerX, `${upperX} > ${lowerX}`);
 // Tick Advance Approach: it is offered on every signal, flashing yellow over red here.
 await page.check("#logic-mss-tick-advance");
 assert.deepEqual(await chips(), ["Stop", "Approach", "Advance Approach", "Clear", "Diverging Clear", "Diverging Approach"]);
