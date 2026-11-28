@@ -115,12 +115,45 @@ await page.click("#logic-mss-settings");
 // ===== Start again =========================================================
 
 await page.click("#logic-step-pick");
-assert.match(await page.locator(".mss-row-list").innerText(), /1\. Siding end\s+2\. Siding end, turned round/);
+assert.match(await page.locator(".mss-row-list").innerText(), /1\. Siding end Turn round Remove\s+2\. Siding end, turned round Turn round Remove/);
 await page.click("#logic-mss-start-again");
 await page.click(".mss-confirm button.primary");
 assert.deepEqual(await openSteps(), ["1 Pick your module"]);
 assert.equal(await page.locator(".mss-preset").count(), 4);
 assert.equal(await page.evaluate(() => state.blocks.length), 6, "the parts stay on their pages");
+
+// ===== Building the row: add, remove, turn round ===========================
+
+await page.click("#logic-mss-preset-siding");
+await page.click("#logic-mss-add");
+await page.click("#logic-step-pick");
+// Only what joins the Siding end's two tracks is offered.
+assert.equal(await page.locator("#logic-mss-add-cascade").count(), 0);
+assert.equal(await page.locator("#logic-mss-add-siding").count(), 0);
+await page.click("#logic-mss-add-siding-turned");
+assert.match(await page.locator(".mss-confirm").innerText(), /Add a Siding end, turned round on the right of the module\?/);
+await page.click("#logic-mss-change");
+const passing = await page.evaluate(() => EsphomeMrMssRow.preset("passing"));
+assert.deepEqual(await page.evaluate(() => state.logic.mss.row), passing, "the same as the Passing siding preset");
+assert.equal(await page.locator("#logic-mss-picture .mss-row-block").count(), 4);
+assert.equal(await page.locator("#logic-mss-turn-1").isDisabled(), true, "turned, it would not join");
+assert.deepEqual(await mssProblems(), []);
+await shot("6-added");
+// Remove the first: the second takes the block they shared.
+await page.click("#logic-mss-remove-0");
+assert.match(await page.locator(".mss-confirm").innerText(), /stay on their pages, no longer used by the module: Block 1 current, IR 1, Points 1, Signal 1 to B, Signal 1 to A main, Signal 1 to A siding/);
+await page.click("#logic-mss-change");
+assert.deepEqual(await page.evaluate(() => state.logic.mss.row[0].names.left), ["Block 2 current", "Siding 1 current"]);
+// Turn it round: its signals are renamed for the way they now face, on their page too.
+await page.click("#logic-mss-turn-0");
+assert.match(await page.locator(".mss-confirm").innerText(), /Signal 2 to A to Signal 2 to B, Signal 2 to B main to Signal 2 to A main, Signal 2 to B siding to Signal 2 to A siding/);
+await page.click("#logic-mss-change");
+const masts = await page.evaluate(() => state.signals.masts.map((m) => m.name));
+assert.ok(masts.includes("Signal 2 to B") && !masts.includes("Signal 2 to A"), masts.join());
+assert.equal(await page.evaluate(() => state.signals.masts.find((m) => m.name === "Signal 2 to B").topic), "trains/track/signalmast/Signal 2 to B");
+assert.deepEqual(await mssProblems(), []);
+await page.click("#logic-mss-start-again");
+await page.click(".mss-confirm button.primary");
 
 // ===== A module described by hand ==========================================
 
