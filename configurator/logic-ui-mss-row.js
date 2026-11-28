@@ -191,7 +191,8 @@
       g.append(svg("line", { class: "mss-row-mast", x1: x + away * 12, y1: y, x2: x, y2: y }));
       for (let h = 0; h < s.heads; h += 1) g.append(svg("circle", { class: "mss-row-head", cx: x - away * (7 + h * 13), cy: y, r: 6 }));
       g.append(svg("text", { class: "mss-row-label is-small", x, y: y + (s.side === "below" ? 19 : -11), "text-anchor": "middle" }, s.name));
-      badge(g, s.name, [s.at[0], s.at[1] + dy]);
+      // Its badge beyond the foot of the mast, clear of its name.
+      badge(g, s.name, [s.at[0], s.at[1] + dy], [away * 26, 0]);
       root.append(g);
     }
     // Each end, with its Pair button and LED (`end:A:pair`, `end:A:led`) badged beside it.

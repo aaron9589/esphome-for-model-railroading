@@ -128,8 +128,8 @@
     // Problems: signals.
     noMast: (where, name) => `${where} is signal "${name}", which is not on the Signal Masts page. Add it there, pick another, or choose no signal.`,
     mastTwice: (name, a, b) => `Signal "${name}" is used twice: ${a}, and ${b}. A signal faces one way at one place: pick another for one of them.`,
-    needAspect: (mast, indication) => `Pick what signal "${mast}" shows for ${indication} under Signals.`,
-    notAspect: (mast, aspect, indication) => `Signal "${mast}" has no aspect called "${aspect}". Pick another for ${indication} under Signals.`,
+    needAspect: (mast, indication) => `Signal "${mast}" has no aspect for ${indication}. Add one on the Signal Masts page, or start the module again.`,
+    notAspect: (mast, aspect, indication) => `Signal "${mast}" has no aspect called "${aspect}" for ${indication}. Add it on the Signal Masts page, or start the module again.`,
     aspectTwice: (mast, aspect, a, b) => `Signal "${mast}" shows "${aspect}" for both ${a} and ${b}, which mean different things to the signal behind. Pick a different aspect for one of them under Signals.`,
   });
 

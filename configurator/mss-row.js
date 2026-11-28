@@ -337,7 +337,7 @@
   function mastFor(part, style) {
     const t = T();
     const heads = part.heads === "twoHeads" ? t.HEADS.twoHeads : t.HEADS.oneHead;
-    const rows = part.heads === "twoHeads" ? t.ROWS.twoHeads : part.heads === "diverging" ? t.ROWS.oneHead : t.ROWS.plain;
+    const rows = t.MSS_ROWS[part.heads];
     return t.mast(part.name, rows, heads, style);
   }
 

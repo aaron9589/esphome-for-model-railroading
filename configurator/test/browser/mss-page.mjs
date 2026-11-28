@@ -122,8 +122,28 @@ assert.deepEqual(await mssProblems(), []);
 assert.equal(await page.locator("#logic-step-wire .step-number").innerText(), "✓");
 await page.click("#logic-mss-next");
 assert.equal(await current(), "logic-step-signals");
-assert.equal(await picture.locator(".mss-row-signal.is-lit").count(), 6);
+// The signal being set up is lit, the others badged with a tick.
+assert.equal(await picture.locator(".mss-row-signal.is-lit").count(), 1);
 assert.equal(await picture.locator(".mss-row-block.is-lit").count(), 0);
+assert.match(await page.locator("#logic-mss-signal").innerText(), /1 of 6\s+Signal 1 to B \(two heads/);
+// What it shows: point at Clear and the picture's heads light red over green... upper head first.
+const chips = () => page.locator("#logic-mss-signal .mss-indication").evaluateAll((all) => all.map((c) => c.textContent.trim()));
+assert.deepEqual(await chips(), ["Stop", "Approach", "Clear", "Diverging Clear", "Diverging Approach"]);
+await page.hover('#logic-mss-signal [data-indication="clear"]');
+assert.deepEqual(await picture.locator('[data-part="Signal 1 to B"] .mss-row-head').evaluateAll((h) => h.map((x) => x.style.fill)), ["rgb(22, 163, 74)", "rgb(220, 38, 38)"]);
+// Tick Advance Approach: it is offered on every signal, flashing yellow over red here.
+await page.check("#logic-mss-tick-advance");
+assert.deepEqual(await chips(), ["Stop", "Approach", "Advance Approach", "Clear", "Diverging Clear", "Diverging Approach"]);
+assert.equal(await page.locator('#logic-mss-signal [data-indication="advance"] .mss-lamp.is-blink').count(), 1);
+assert.deepEqual(await mssProblems(), []);
+// Click the siding's signal on the picture, and give it individual LEDs: three pins, made free.
+await picture.locator('[data-part="Signal 1 to A siding"] .mss-row-label').click();
+assert.match(await page.locator("#logic-mss-signal").innerText(), /Signal 1 to A siding/);
+await page.selectOption("#logic-mss-signal-style", "leds");
+assert.equal(await page.locator("#logic-mss-signal [data-signal-pin]").count(), 3);
+assert.equal(await page.evaluate(() => state.signals.masts.find((m) => m.name === "Signal 1 to A siding").lamps.every((l) => l.pin)), true);
+assert.deepEqual(await mssProblems(), []);
+await shot("3c-signals");
 await page.click("#logic-mss-next");
 assert.equal(await current(), "logic-step-try");
 assert.equal(await page.locator("#logic-try").count(), 1, "Try it under its step");
