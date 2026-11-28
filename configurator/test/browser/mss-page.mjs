@@ -78,11 +78,15 @@ assert.deepEqual(await page.evaluate(() => state.logic.mss.row), passing);
 assert.deepEqual(await page.locator(".mss-board-card strong").allInnerTexts(), ["1. Complex cascade", "2. Complex cascade, flipped"]);
 assert.equal(await page.evaluate(() => state.blocks.length), 0, "nothing is made while the module is built");
 const adds = page.locator(".mss-adds");
-assert.match(await adds.innerText(), /Going on to Wire it adds/);
+assert.match(await adds.innerText(), /Make the module adds/);
 assert.match(await adds.innerText(), /Points 1, Points 2/);
 // Six signals, two of them two-head: WS2812B LEDs, since LEDs would not fit.
 assert.equal(await page.locator("#logic-mss-strip").isChecked(), true);
 await shot("2-built");
+// Plotted, not made: Pick your module stays the step, the rest wait for Make the module.
+assert.equal(await current(), "logic-step-pick");
+assert.deepEqual(await openSteps(), ["1 Pick your module"]);
+assert.equal(await page.locator("#logic-mss-next").innerText(), "Make the module");
 await page.click("#logic-mss-next");
 
 assert.equal(await current(), "logic-step-wire");

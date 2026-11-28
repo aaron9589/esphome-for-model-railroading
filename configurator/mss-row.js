@@ -59,7 +59,7 @@
     empty: "Pick your module: it has no MSS boards yet.",
     unknown: (n, node) => `Board ${n} is "${node}", which is not an MSS board. Remove it and add a Crossover, Cascade or Complex cascade.`,
     crossoverAlone: "A Crossover is a whole module on its own: stitched to other MSS boards it adds nothing. Remove it, or make the module a Crossover only.",
-    notMade: "The module's sensors, turnouts and signals are not made yet: go on from Pick your module, and they are made with free pins.",
+    notMade: "The module's sensors, turnouts and signals are not made yet: click Make the module on Pick your module, and they are made with free pins.",
     notThere: Object.freeze({
       sensor: (name) => `Sensor "${name}" is not on the Sensors page. Add it there with that name, or start the module again.`,
       turnout: (name) => `Turnout "${name}" is not on the Turnouts page. Add it there with that name, or start the module again.`,
