@@ -82,7 +82,7 @@ test("Field Logic shows the new page; the old page's cards are gone from it, the
     assert.ok(!Ui.hasPart(id, "field"), id);
   }
   // MSS Logic keeps its views, and a board with no logic its checklist.
-  for (const id of ["logic-layers-view", "logic-control-table", "logic-try"]) assert.ok(Ui.hasPart(id, "mss"), id);
+  for (const id of ["logic-layers-view", "logic-control-table", "logic-mss-try"]) assert.ok(Ui.hasPart(id, "mss"), id);
   assert.ok(Ui.hasPart("logic-steps", "none"));
   assert.equal(F.settingsOpen(board("gauntlet")), false);
 });

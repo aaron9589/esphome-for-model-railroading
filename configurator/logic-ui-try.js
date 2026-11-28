@@ -75,17 +75,6 @@
     drivenValue: (label, value) => `${label}: ${value} (set by the pretend neighbour)`,
     dark: "Dark",
     nothing: "Nothing shown yet",
-    // MSS Logic: the picture of the module, and a train through it.
-    mssTrackHint: "Click a block to put a train in it or take it out. Click a turnout under a junction, or under a block, to throw it. The route the turnouts set is drawn solid.",
-    mssTrainIntro: "A train comes in at an end and runs through the module one block at a time, along the route the turnouts set at each junction. Every signal it meets is recorded at each step. Throw the turnouts first for the route you want.",
-    mssTrainNeedTrack: "Run a train needs a track from an end.",
-    mssTrainEnter: "Comes in at",
-    mssTrainFromNeighbour: (end) => `Start in the pretend neighbour at end ${end}`,
-    mssTrainIntoNeighbour: (end) => `Carry on into the pretend neighbour at end ${end}`,
-    mssTrainWay: (blocks) => `Its way through: ${blocks}.`,
-    mssTrainOut: (end) => ` It leaves at ${end}.`,
-    mssTrainDead: " It stops at a dead end.",
-    mssTrainNoRoute: " It stops at a junction: the turnouts there set no route from this way. Throw them first.",
   });
 
   const isObject = (value) => value && typeof value === "object" && !Array.isArray(value);
@@ -180,8 +169,6 @@
 
   function renderTry(root, config, ctx, ui) {
     stopRunning();
-    const mss = global.EsphomeMr?.logicMode?.(config) === "mss";
-    const Module = global.EsphomeMrLogicUiMssModule;
     const section = ui.card("logic-try", TEXT.card);
     section.classList.add("logic-try");
     root.append(section);
@@ -199,10 +186,7 @@
 
     const isRunning = () => timer !== null;
     const parts = {};
-    // MSS Logic draws the whole module instead of a starter's strips (any
-    // Field Logic groups kept beside the description are not what runs).
-    const shapes = mss ? [] : session.shapes;
-    const names = mss ? global.EsphomeMrMssBuilder.namesOf(config) : null;
+    const shapes = session.shapes;
 
     // ----- controls -----
     const bar = el("div", "try-controls");
@@ -289,9 +273,9 @@
     section.append(ui.paragraph(TEXT.inputsHint, "hint"));
 
     // ----- the track -----
-    if (shapes.length || (mss && Object.keys(names.blocks).length)) {
+    if (shapes.length) {
       parts.track = el("div", "try-track");
-      section.append(heading(TEXT.trackHeading), ui.paragraph(mss ? TEXT.mssTrackHint : TEXT.trackHint, "hint"), parts.track);
+      section.append(heading(TEXT.trackHeading), ui.paragraph(TEXT.trackHint, "hint"), parts.track);
     }
 
     // ----- the pretend neighbours -----
@@ -304,9 +288,7 @@
     parts.signals = el("div", "try-signals");
     parts.sections = el("div", "try-sections");
     parts.turnouts = el("div", "try-turnouts");
-    // MSS Logic has no sections.
-    if (mss) section.append(heading(TEXT.signalsHeading), parts.signals, heading(TEXT.turnoutsHeading), parts.turnouts);
-    else section.append(heading(TEXT.signalsHeading), parts.signals, heading(TEXT.sectionsHeading), parts.sections, heading(TEXT.turnoutsHeading), parts.turnouts);
+    section.append(heading(TEXT.signalsHeading), parts.signals, heading(TEXT.sectionsHeading), parts.sections, heading(TEXT.turnoutsHeading), parts.turnouts);
 
     // ----- Run a train -----
     parts.train = el("div", "try-train");
@@ -330,7 +312,6 @@
       const signature = JSON.stringify([
         view.masts.map((m) => m.aspect), view.sections.map((s) => [s.state, s.holder]), view.turnouts.map((t) => [t.position, t.locked, t.byRules]),
         view.rules.map((r) => r.phase), view.waiting, view.log.length, session.inputs().map((i) => i.value), view.neighbours, shapes.length ? shapes.map((s) => s.blocks.map((b) => session.blockOccupied(blockRef(s, b)))) : 0,
-        mss ? Object.values(names.blocks).map((b) => session.blockOccupied(b)) : 0,
       ]);
       if (signature === last) return;
       last = signature;
@@ -350,9 +331,7 @@
     function drawSignals(view) {
       parts.signals.replaceChildren();
       if (!view.masts.length) return void parts.signals.append(ui.paragraph(TEXT.noSignals));
-      // MSS Logic makes signals with no lights where the module has none; they are not shown.
-      const hidden = new Set(mss ? names.signals.filter((x) => x.virtual).map((x) => x.name) : []);
-      for (const mast of view.masts) if (!hidden.has(mast.name)) parts.signals.append(mastView(ctx, mast.name, mast.aspect, mast.meaning));
+      for (const mast of view.masts) parts.signals.append(mastView(ctx, mast.name, mast.aspect, mast.meaning));
     }
 
     function drawSections(view) {
@@ -471,19 +450,6 @@
     function drawTrack(view) {
       if (!parts.track) return;
       parts.track.replaceChildren();
-      if (mss) {
-        const tags = new Map(view.masts.map((m) => [m.name, m.tag]));
-        const picture = Module.livePicture(config, ctx, {
-          names,
-          tagOf: (name) => tags.get(name) || "",
-          occupied: (name) => session.blockOccupied(name),
-          position: (name) => session.turnoutPosition(name) || "closed",
-          toggleBlock: (name) => toggleBlock(name),
-          toggleTurnout: (name) => toggleTurnout(name),
-        });
-        if (picture) parts.track.append(picture);
-        return;
-      }
       for (const shape of shapes) {
         const box = el("div", "try-shape");
         box.append(el("h5", "try-shape-name", shape.group));
@@ -574,66 +540,8 @@
       return out;
     }
 
-    // MSS Logic: in at an end, along the route the turnouts set, out at another.
-    function drawMssTrain() {
-      const starts = Module.trainStarts(config);
-      if (!starts.length) return void parts.train.append(ui.paragraph(TEXT.mssTrainNeedTrack));
-      parts.train.append(ui.paragraph(TEXT.mssTrainIntro, "hint"));
-      const key = (s) => `${s.end}${SEP}${s.track}`;
-      if (!starts.some((s) => key(s) === trainChoice.start)) trainChoice.start = key(starts[0]);
-      const start = starts.find((s) => key(s) === trainChoice.start);
-      const route = Module.trainRoute(config, start, (name) => session.turnoutPosition(name) || "closed");
-      const on = new Set(session.neighbours().filter((n) => n.on).map((n) => n.end));
-      const fields = el("div", "fields try-train-fields");
-      fields.append(ctx.field(TEXT.mssTrainEnter, trainChoice.start, (value) => {
-        trainChoice = { ...trainChoice, start: value, steps: null, from: false, into: false };
-        drawTrain();
-      }, { select: starts.map((s) => ({ value: key(s), label: s.label })) }));
-      fields.append(ctx.field(TEXT.trainLength, String(trainChoice.length), (value) => {
-        trainChoice.length = Math.max(1, Math.floor(Number(value)) || 1);
-      }, { type: "number" }));
-      if (on.has(start.end)) {
-        fields.append(ctx.field(TEXT.mssTrainFromNeighbour(start.end), trainChoice.from === true, (checked) => { trainChoice.from = checked; }, { checkbox: true }));
-      }
-      if (route.exit && on.has(route.exit.end)) {
-        fields.append(ctx.field(TEXT.mssTrainIntoNeighbour(route.exit.end), trainChoice.into === true, (checked) => { trainChoice.into = checked; }, { checkbox: true }));
-      }
-      parts.train.append(fields);
-      const ending = route.exit ? TEXT.mssTrainOut(starts.find((s) => s.end === route.exit.end && s.track === route.exit.track)?.label || route.exit.end)
-        : route.stop === "route" ? TEXT.mssTrainNoRoute : route.stop === "dead" ? TEXT.mssTrainDead : "";
-      parts.train.append(ui.paragraph(TEXT.mssTrainWay(route.blocks.join(", ") || TEXT.trainNoBlocks) + ending, "hint"));
-      parts.train.append(button(TEXT.trainGo, () => {
-        let path = [...route.blocks];
-        const across = [];
-        // A pretend neighbour's trains run the way this one does.
-        const facing = (end, track, want) => {
-          const now = session.neighbours().find((n) => n.end === end)?.tracks.find((t) => t.track === track);
-          if (now && now.direction !== want) session.turnNeighbour(end, track, { scan: false });
-        };
-        if (trainChoice.from && on.has(start.end)) {
-          facing(start.end, start.track, "into");
-          path = [...session.neighbourPath(start.end, start.track), ...path];
-          across.push({ end: start.end, track: start.track });
-        }
-        if (trainChoice.into && route.exit && on.has(route.exit.end)) {
-          facing(route.exit.end, route.exit.track, "away");
-          path = [...path, ...session.neighbourPath(route.exit.end, route.exit.track)];
-          across.push({ end: route.exit.end, track: route.exit.track });
-        }
-        const masts = [...new Set(route.masts)];
-        trainChoice.steps = T().runTrain(session, { path, length: trainChoice.length, masts, ...(across.length ? { neighbours: across } : {}) });
-        trainChoice.masts = masts;
-        draw();
-        drawInputs();
-        drawTrain();
-        drawNeighbours(session.view());
-      }, "primary"));
-      if (trainChoice.steps) parts.train.append(trainTable(trainChoice.steps, trainChoice.masts || []));
-    }
-
     function drawTrain() {
       parts.train.replaceChildren();
-      if (mss) return void drawMssTrain();
       const options = trainOptions();
       if (!options.length) return void parts.train.append(ui.paragraph(TEXT.trainNeedStarter));
       parts.train.append(ui.paragraph(TEXT.trainIntro, "hint"));
@@ -723,7 +631,7 @@
   }
 
   const api = global.EsphomeMrLogicUi;
-  if (api) api.registerPart({ id: "logic-try", order: 88, modes: ["field", "mss"], show: (config) => global.EsphomeMr.logicMode(config) !== "field" && global.EsphomeMrLogicUiMss?.currentStep(config) === "try", text: { page: TEXT, core: global.EsphomeMrLogicTry?.TEXT || {} }, render: renderTry });
+  if (api) api.registerPart({ id: "logic-try", order: 88, modes: ["field"], show: () => false, text: { page: TEXT, core: global.EsphomeMrLogicTry?.TEXT || {} }, render: renderTry });
 
   global.EsphomeMrLogicUiTry = { TEXT, showMe, stop: stopRunning };
   global.addEventListener?.("pagehide", stopRunning);

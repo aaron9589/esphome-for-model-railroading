@@ -6,7 +6,7 @@ import path from "node:path";
 import { configuratorDir, loadModules, test } from "./harness.js";
 
 // Every Logic page file, in index.html's order.
-export const LOGIC_UI_FILES = ["generator.js", "logic-yaml.js", "logic.js", "logic-checker.js", "logic-try.js", "logic-ui.js", "logic-ui-masts.js", "logic-ui-ends.js", "logic-ui-views.js", "logic-ui-start.js", "logic-ui-try.js", "logic-starters.js", "logic-starters-sections.js", "logic-starters-signals.js", "mss-builder.js", "plan-builder.js", "plan-edit.js", "logic-ui-field.js", "logic-ui-own.js", "logic-ui-plan.js", "logic-ui-plan-try.js", "mss-templates.js", "mss-row.js", "logic-ui-mss-marks.js", "logic-ui-mss-row.js", "logic-ui-mss-page.js", "logic-ui-mss-tracks.js", "logic-ui-mss-junctions.js", "logic-ui-mss-module.js", "logic-summary.js", "mss-card.js"];
+export const LOGIC_UI_FILES = ["generator.js", "logic-yaml.js", "logic.js", "logic-checker.js", "logic-try.js", "logic-ui.js", "logic-ui-masts.js", "logic-ui-ends.js", "logic-ui-views.js", "logic-ui-start.js", "logic-ui-try.js", "logic-starters.js", "logic-starters-sections.js", "logic-starters-signals.js", "mss-builder.js", "plan-builder.js", "plan-edit.js", "logic-ui-field.js", "logic-ui-own.js", "logic-ui-plan.js", "logic-ui-plan-try.js", "mss-templates.js", "mss-row.js", "logic-ui-mss-row.js", "logic-ui-mss-page.js", "logic-ui-mss-try.js", "logic-summary.js", "mss-card.js"];
 const context = loadModules(...LOGIC_UI_FILES);
 const { generateYaml, logicMode, myFirstBoardPreset, normalizeConfig, parseConfigFromYaml, sharesWithOtherBoards } =
   context.EsphomeMr;
@@ -42,9 +42,7 @@ test("no Logic page label uses a spec-only term, in any part", () => {
 
 test("every part file hands its TEXT to the lint", () => {
   const linted = new Set([...allText()].map(([, text]) => text));
-  // The old MSS cards (Tracks, Junctions, the module picture) are off the
-  // page since MP 2; Try it draws with them until MP 6.
-  for (const name of ["Ends", "Plan", "Views", "Mss"]) {
+  for (const name of ["Ends", "Plan", "Views", "Mss", "MssTry"]) {
     const { TEXT: own } = context[`EsphomeMrLogicUi${name}`];
     assert.ok(Object.keys(own).length === 0 || linted.has(own), `EsphomeMrLogicUi${name}.TEXT is not registered with a part`);
   }

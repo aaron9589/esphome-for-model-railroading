@@ -35,6 +35,8 @@ const page = await browser.newPage({ viewport: { width: 1280, height: 1600 } });
 const errors = [];
 page.on("pageerror", (error) => errors.push(error.message));
 page.on("console", (message) => { if (message.type() === "error") errors.push(message.text()); });
+// Try it runs in real time: the page's clock is stopped there and moved on by hand.
+await page.clock.install();
 await page.goto(`file://${path.join(configuratorDir, "index.html")}`);
 await page.evaluate(() => localStorage.clear());
 await page.reload();
@@ -158,10 +160,61 @@ assert.deepEqual(await mssProblems(), []);
 await shot("3c-signals");
 await page.click("#logic-mss-next");
 assert.equal(await current(), "logic-step-try");
-assert.equal(await page.locator("#logic-try").count(), 1, "Try it under its step");
+assert.equal(await page.locator("#logic-mss-try").count(), 1, "Try it under its step");
+assert.equal(await page.locator("#logic-mss-picture").count(), 0, "the picture is drawn live there, in place of the still one");
+
+// ===== Try it: run a train through the passing siding ======================
+
+await page.clock.pauseAt(await page.evaluate(() => Date.now() + 100));
+const wait = (ms) => page.clock.runFor(ms);
+const live = page.locator("#logic-mss-try-picture");
+const trains = () => live.locator(".mss-row-block.is-train").evaluateAll((all) => all.map((g) => g.dataset.part));
+const lamps = (name) => live.locator(`[data-part="${name}"] .mss-row-head`).evaluateAll((all) => all.map((h) => h.style.fill));
+const RED = "rgb(220, 38, 38)";
+// A pretend neighbour at each end, and both points thrown for the siding, from the picture.
+await page.check("#logic-mss-try-neighbour-A");
+await page.check("#logic-mss-try-neighbour-B");
+assert.equal(await page.locator(".mss-neighbour-strip").count(), 2, "a pretend neighbour at each end");
+await live.locator('[data-part="Points 1"] circle').click();
+await live.locator('[data-part="Points 2"] circle').click();
+await wait(1000);
+assert.equal(await page.evaluate(() => [...document.querySelectorAll("#logic-mss-try-picture .mss-row-points")].map((g) => g.getAttribute("aria-label")).join(" ")), "Points 1: thrown. Click to throw. Points 2: thrown. Click to throw.");
+assert.ok((await lamps("Signal 1 to B")).some((fill) => fill !== RED), "Signal 1 to B clears for the siding");
+assert.match(await page.locator("#logic-mss-try .mss-try-main").innerText(), /Its way through: Block 1 current, Siding 1 current, Block 3 current\. It leaves at End B\./);
+// Click a signal: why it shows what it does.
+await live.locator('[data-part="Signal 1 to B"] .mss-row-label').click();
+assert.match(await page.locator(".mss-try-panel").innerText(), /Signal 1 to B\s+Shows Diverging/);
+assert.match(await page.locator(".mss-try-panel").innerText(), /when Siding 1 current is clear and Points 1 is thrown/, "Why says the picture's block names");
+await page.click("#logic-mss-try-run");
+assert.deepEqual(await trains(), ["Block 1 current"]);
+await wait(3000);
+assert.deepEqual(await trains(), ["Siding 1 current"], "into the siding");
+assert.deepEqual(await lamps("Signal 1 to B"), [RED, RED], "Signal 1 to B at Stop behind it");
 await shot("4-try");
+await wait(3000);
+assert.deepEqual(await trains(), ["Block 3 current"]);
+await wait(6000);
+assert.deepEqual(await trains(), [], "out at end B and through the pretend neighbour");
+assert.equal(await page.locator("#logic-mss-try-run").innerText(), "Run a train");
+assert.ok((await lamps("Signal 1 to B")).some((fill) => fill !== RED), "and clear again behind it");
+// Pause stops the clock; Carry on runs it again.
+const time = () => page.locator("#logic-mss-try-time").innerText();
+await page.click("#logic-mss-try-pause");
+const stopped = await time();
+await wait(2000);
+assert.equal(await time(), stopped);
+await page.click("#logic-mss-try-pause");
+await wait(2000);
+assert.notEqual(await time(), stopped);
+// A block clicked on the picture: a train in it, and out again.
+await live.locator('[data-part="Block 2 current"] .mss-row-label').click();
+assert.deepEqual(await trains(), ["Block 2 current"]);
+await live.locator('[data-part="Block 2 current"] .mss-row-label').click();
+assert.deepEqual(await trains(), []);
+
 await page.click("#logic-mss-next");
-assert.equal(await page.locator("#logic-try").count(), 0, "and only there");
+assert.equal(await page.locator("#logic-mss-try").count(), 0, "and only there");
+assert.equal(await page.locator("#logic-mss-picture").count(), 1, "the still picture is back");
 await page.click("#logic-mss-next");
 assert.equal(await current(), "logic-step-pair");
 assert.match(await page.locator(".mss-pair").innerText(), /Press Pair/);

@@ -8,7 +8,8 @@
 // and asks first, listing what it adds. A module described by hand (before
 // MP 2) is still built, and offers Start from a pattern. Wire it and Signals
 // list their parts and light them on the picture (MP 4 and MP 5 give them
-// their pins); Try it is the Try it part (logic-ui-try.js) under the panel.
+// their pins); Try it is its own part (logic-ui-mss-try.js) under the panel,
+// drawing the same picture live.
 //
 // The steps are worked out by pure functions (stepsOf, currentStep,
 // guidance), checked by test/mss-page-frame.test.js.
@@ -1029,7 +1030,9 @@
     const card = el("section", "card mss-page");
     card.id = B()?.PARTS.row || "logic-mss-row";
     const row = rowOf(config);
-    if (row) {
+    // Try it draws the same picture live, in its own card under this one.
+    const live = current === "try" && !!global.EsphomeMrLogicUiMssTry;
+    if (row && !live) {
       let options = { lit: litFor(config, current) };
       if (current === "wire") {
         const items = wireList(config);
@@ -1104,7 +1107,12 @@
     root.append(card);
   }
 
-  global.EsphomeMrLogicUiMss = { TEXT, PART, ORDER, stepsOf, currentStep, guidance, handWritten, partsOf, litFor, wireList, signalList, indicationsFor, viewsOpen, settingsOpen };
+  /** Show a step the next time the page is drawn (Show me opens Try it). */
+  function show(step) {
+    if (ORDER.includes(step)) state.step = step;
+  }
+
+  global.EsphomeMrLogicUiMss = { TEXT, PART, ORDER, rowOf, stepsOf, currentStep, guidance, handWritten, partsOf, litFor, wireList, signalList, indicationsFor, viewsOpen, settingsOpen, show };
 
   if (global.EsphomeMrLogicUi) {
     global.EsphomeMrLogicUi.registerPart({ id: PART, order: 5, modes: ["mss"], text: TEXT, render: renderPage });

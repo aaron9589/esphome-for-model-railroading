@@ -1,5 +1,5 @@
-// The MSS page's shared parts: built items shown read-only, red-dot matching,
-// the MSS plain-words lint and the Download version. The page's frame is
+// The MSS page's shared parts: built items shown read-only, the MSS
+// plain-words lint and the Download version. The page's frame is
 // test/mss-page-frame.test.js.
 // Work item 4.2d.
 import assert from "node:assert/strict";
@@ -14,7 +14,7 @@ const LOGIC_UI_FILES = scripts.slice(scripts.indexOf("generator.js"), scripts.in
 
 const context = loadModules(...LOGIC_UI_FILES);
 const { myFirstBoardPreset, topicFor, validateConfig } = context.EsphomeMr;
-const { EsphomeMrMssBuilder: B, EsphomeMrLogicUiMssMarks: Marks, EsphomeMrLogicUiViews: Views, EsphomeMrLogicUiStart: Start, EsphomeMrLogicUi: Ui } = context;
+const { EsphomeMrMssBuilder: B, EsphomeMrLogicUiViews: Views, EsphomeMrLogicUiStart: Start, EsphomeMrLogicUi: Ui } = context;
 const plain = (value) => JSON.parse(JSON.stringify(value));
 
 // Spec, mss-emulation-spec.md "Plain labels for MSS terms": the left-hand
@@ -80,9 +80,8 @@ const KNOWN_IN_BUILDER = new Set([
 test("the MSS terms stay off the page: the builder's words and every MSS part's TEXT", () => {
   const texts = [
     ["EsphomeMrMssBuilder.TEXT", B.TEXT],
-    ["EsphomeMrLogicUiMssMarks.TEXT", Marks.TEXT],
     ["EsphomeMrLogicUiViews.TEXT", Views.TEXT],
-    ...["", "Row", "Tracks", "Junctions"].map((name) => [`EsphomeMrLogicUiMss${name}.TEXT`, context[`EsphomeMrLogicUiMss${name}`].TEXT]),
+    ...["", "Row", "Try"].map((name) => [`EsphomeMrLogicUiMss${name}.TEXT`, context[`EsphomeMrLogicUiMss${name}`].TEXT]),
     ["EsphomeMrMssRow.TEXT", context.EsphomeMrMssRow.TEXT],
     ...Ui.allText().filter(([id]) => Object.values(B.PARTS).includes(id)),
   ];
@@ -129,16 +128,6 @@ test("Field Logic's views read config.logic exactly as before", () => {
   config.logic = { mode: "field", mss: config.logic.mss };
   assert.deepEqual(plain(Views.whoUses(config)), []);
   assert.deepEqual(plain(Views.controlTable(config)), []);
-});
-
-test("marks: an element's data attributes read back as the keys it was marked with", () => {
-  const dataset = {};
-  const el = { dataset };
-  Marks.mark(el, { view: "logic", part: B.PARTS.junctions, junction: 1, route: 0, other: "x" });
-  assert.deepEqual(plain(Marks.marksOf(dataset)), { part: B.PARTS.junctions, junction: "1", route: "0" });
-  assert.equal(Marks.marksOf({}), null);
-  assert.equal(Marks.matches({ part: B.PARTS.junctions, junction: 1, route: 0, leg: 2 }, Marks.marksOf(dataset)), true);
-  assert.equal(Marks.matches({ part: B.PARTS.junctions, junction: 1 }, Marks.marksOf(dataset)), false, "a problem for the whole junction is not this route");
 });
 
 test("every problem the builder can report names a part the page has", () => {
