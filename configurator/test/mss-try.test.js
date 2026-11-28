@@ -147,7 +147,7 @@ test("the points know which way each position leads, on the picture", () => {
 test("Show me opens Try it on the MSS page", () => {
   assert.equal(X.showMe([{ wait: 2 }]), true);
   const app = fs.readFileSync(path.join(configuratorDir, "app.js"), "utf8");
-  assert.match(app, /if \(mss\) globalThis\.EsphomeMrLogicUiMssTry\?\.showMe\(link\.sequence\)/);
+  assert.match(app, /if \(link\.sequence && mss\) \{\s+globalThis\.EsphomeMrLogicUiMssTry\?\.showMe\(link\.sequence\)/);
   assert.match(app, /"logic-mss-try"/);
 });
 

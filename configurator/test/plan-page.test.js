@@ -77,8 +77,8 @@ test("every problem the drawing can have belongs to a step, and is marked where 
 });
 
 test("Field Logic shows the new page; the old page's cards are gone from it, the settings fold away", () => {
-  for (const id of ["logic-field", "logic-plan", "logic-try", "logic-mode", "logic-settings", "logic-linked"]) assert.ok(Ui.hasPart(id, "field"), id);
-  for (const id of ["logic-steps", "logic-blocks", "logic-masts", "logic-buttons", "logic-sections", "logic-groups", "logic-starters", "logic-layers-view", "logic-control-table"]) {
+  for (const id of ["logic-field", "logic-plan", "logic-plan-try", "logic-mode", "logic-settings", "logic-linked"]) assert.ok(Ui.hasPart(id, "field"), id);
+  for (const id of ["logic-try", "logic-steps", "logic-blocks", "logic-masts", "logic-buttons", "logic-sections", "logic-groups", "logic-starters", "logic-layers-view", "logic-control-table"]) {
     assert.ok(!Ui.hasPart(id, "field"), id);
   }
   // MSS Logic keeps its views, and a board with no logic its checklist.

@@ -1,5 +1,5 @@
 // Try it, the pure core (docs/field-logic-spec.md, Checking in the browser and
-// Show, don't describe; work item 2.10). No DOM: logic-ui-try.js draws it.
+// Show, don't describe; work item 2.10). No DOM: logic-ui-plan-try.js and logic-ui-mss-try.js draw it.
 //
 // A session runs a board's rules in the JS engine (logic.js) with the inputs
 // the person sets, and reports what the signals, sections and turnouts do. A
