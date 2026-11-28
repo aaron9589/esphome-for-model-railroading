@@ -43,5 +43,5 @@ Field Logic guide:
 
 MSS Logic guide:
 
-- [ ] Sketch of the two modules side by side. West: end A, block W1, an optical sensor, block W2, end B. East: end A, blocks E1 and E2, the junction with E P1, and its two ways out to ends B and C (*The worked example*)
-- [ ] East's web page with Pair End A, End A paired and heard, and MQTTX showing the two end topics (*Step 9*)
+- [ ] Sketch of the two modules side by side. West: end A, Block 1, IR 1 with a signal each way, Block 2, end B. East: end A, Block 1, Points 1, the main line and the siding, Points 2, Block 3, end B (*The three MSS boards*)
+- [ ] East's web page with Pair End A, End A paired and heard, and MQTTX showing the two end topics (*Step 8*)

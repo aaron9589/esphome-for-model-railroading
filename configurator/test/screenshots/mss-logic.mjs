@@ -1,12 +1,10 @@
 // Screenshots for docs/mss-logic-guide.md. Follows the guide's steps on the
-// real configurator, as a newcomer would: West (plain track) on one board,
-// then East (a turnout junction) on a fresh board in a new browser window,
-// which starts with nothing saved. See shoot.mjs for how to run it.
-//
-// Pictures are numbered in the order the guide shows them, which is not quite
-// the order they are taken: Step 2 shows West's ends and then East's, West is
-// converted (Step 12) before East starts, and Step 6's messages are East's
-// just after its junction is added.
+// real configurator, as a newcomer would, from an empty page: West (one
+// Cascade) on one board, then East (a passing siding from two Complex
+// cascades) on a fresh board in a new browser window, which starts with
+// nothing saved. It checks the page says what the guide says as it goes, and
+// stops if it does not. See shoot.mjs for how to run it.
+import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { openConfigurator, repoDir } from "./shoot.mjs";
@@ -14,7 +12,6 @@ import { openConfigurator, repoDir } from "./shoot.mjs";
 const { browser, page, shot, done } = await openConfigurator("mss-logic");
 const outDir = path.join(repoDir, "docs", "img", "mss-logic");
 const errors = [];
-const extra = [];
 
 // ===== Helpers ===============================================================
 
@@ -25,293 +22,227 @@ const fieldIn = (scope, label) => scope.locator(`label:has(.field-label:text-is(
 
 // The top bar sticks to the top of the window, so a card scrolled up to it
 // would be drawn under it. Pictures only: let it scroll away with the page.
-// The top bar and the module picture stay put while the page scrolls. In a
-// picture of one card they would be drawn over it, so they scroll here.
-const unstickTopBar = (p) => p.addStyleTag({ content: ".topbar, .mss-module { position: static !important; }" });
+const unstickTopBar = (p) => p.addStyleTag({ content: ".topbar { position: static !important; }" });
 
-// A picture of several cards in a row on the page (the first to the last),
-// cropped to them. shot() takes one element; this takes the span of two.
-async function shotSpan(p, first, last, name) {
-  await p.locator(first).scrollIntoViewIfNeeded();
-  const a = await p.locator(first).evaluate((el) => { const r = el.getBoundingClientRect(); return { x: r.left + scrollX, y: r.top + scrollY, w: r.width }; });
-  const b = await p.locator(last).evaluate((el) => { const r = el.getBoundingClientRect(); return { y: r.bottom + scrollY }; });
-  const file = path.join(outDir, `${name}.png`);
-  await p.screenshot({ path: file, fullPage: true, animations: "disabled", clip: { x: a.x, y: a.y, width: a.w, height: b.y - a.y } });
-  extra.push(path.relative(repoDir, file));
+// Drag with the mouse, as a person does: some gaps (where a Complex cascade
+// joins two lines) show only once a drag has started.
+async function drag(p, source, target) {
+  await p.locator(source).hover();
+  await p.mouse.down();
+  const from = await p.locator(source).boundingBox();
+  await p.mouse.move(from.x + from.width / 2 + 10, from.y + from.height / 2 + 10, { steps: 4 });
+  const to = await p.locator(target).boundingBox();
+  await p.mouse.move(to.x + to.width / 2, to.y + to.height / 2, { steps: 8 });
+  await p.mouse.up();
 }
-
 
 // Nothing focused, so no focus ring or selected text in a picture.
 const blur = (p) => p.evaluate(() => document.activeElement?.blur());
 
-// A second board: a new browser window with nothing saved.
+// A second board: a new browser window with nothing saved, and its own clock.
 async function freshPage() {
   const context = await browser.newContext({ viewport: { width: 1100, height: 900 }, deviceScaleFactor: 2, acceptDownloads: true });
   const p = await context.newPage();
   p.on("pageerror", (error) => errors.push(error.message));
   p.on("console", (message) => { if (message.type() === "error") errors.push(message.text()); });
+  await p.clock.install();
   await p.goto(page.url());
   await unstickTopBar(p);
   return p;
 }
 
-// ----- The foundation pages -----
-
-// Board page: the name (the page adds the suffix) and fake Wi-Fi, so the
-// Wi-Fi warnings stay out of the pictures.
-async function fillBoard(p, name) {
+// Before you start: the board's name and Wi-Fi, and the example sensor and
+// turnout cleared away (Clear this page, then yes).
+async function startBoard(p, name) {
   await nav(p, "board");
   await fieldIn(p.locator("#board-identity"), "Board name").fill(name);
   await fieldIn(p.locator("#board-network"), "Wi-Fi name").fill("LayoutWiFi");
   await fieldIn(p.locator("#board-network"), "Wi-Fi password").fill("example-password");
-}
-
-// Sensors page. A new board starts with one example sensor: rename it to the
-// first name, then Add sensor and type each other name.
-async function addSensors(p, names) {
-  await nav(p, "blocks");
-  for (const [i, name] of names.entries()) {
-    if (i > 0) await p.click("#btn-add-block");
-    await fieldIn(p.locator("#blocks-list > .row-card").last(), "Name").fill(name);
+  for (const [view, title] of [["blocks", "Sensors"], ["points", "Turnouts"]]) {
+    await nav(p, view);
+    await p.locator(`[data-panel="${view}"]`).getByRole("button", { name: "Clear this page" }).click();
+    await p.getByRole("button", { name: `Yes, clear the ${title} page` }).click();
   }
+  assert.deepEqual(await p.evaluate(() => [state.blocks.length, state.points.length, state.signals.masts.length]), [0, 0, 0], "the foundation pages are empty");
+  // The Cleared messages would sit over the pictures for a few seconds.
+  await p.evaluate(() => el.toasts.replaceChildren());
 }
 
-// Turnouts page. A new board starts with one example turnout: rename it, or
-// remove it on a board with none.
-async function setTurnout(p, name) {
-  await nav(p, "points");
-  const card = p.locator("[data-panel=points] .row-card").first(); // on ESP pins, or under a PCA9685
-  if (name) await fieldIn(card, "Name").fill(name);
-  else await card.getByRole("button", { name: "Remove", exact: true }).click();
-}
-
-// Signal Masts page: a three-lamp mast (green at the top, amber, red at the
-// base), with CATS aspects added from the list and their lamps lit.
-const LAMPS = { R292: ["red", "steady"], R285: ["amber", "steady"], R281: ["green", "steady"],
-  ADV_NORM: ["amber", "blink"], R282: ["amber", "pulse"], R283: ["green", "blink"], R286: ["amber", "blink"] };
-const LAMP_AT = { green: 0, amber: 1, red: 2 }; // the picture lists the top of the mast first
-const COLOUR = { red: "Red", amber: "Amber", green: "Green" };
-
-async function addMast(p, name, aspects) {
-  await nav(p, "signals");
-  await p.click("#btn-add-mast");
-  const card = p.locator("#signals-list > .row-card").last();
-  await fieldIn(card, "Name").fill(name);
-  for (let i = 0; i < 3; i += 1) await card.getByRole("button", { name: /^Add lamp/ }).click();
-  for (const cats of aspects) {
-    await card.getByLabel("CATS aspect").selectOption(cats);
-    await card.getByRole("button", { name: "Add CATS aspect" }).click();
-    const aspect = card.locator(".aspect-card").last();
-    const [colour, mode] = LAMPS[cats];
-    await aspect.locator(".mini-mast .mini-lamp").nth(LAMP_AT[colour]).click();
-    await aspect.locator(".swatch-btn", { hasText: COLOUR[colour] }).click();
-    if (mode !== "steady") await aspect.locator(".mode", { hasText: mode.charAt(0).toUpperCase() + mode.slice(1) }).click();
-  }
-}
-
-// ----- The Logic page -----
-
+// Step 1: Choose MSS Logic.
 async function chooseMss(p) {
   await nav(p, "logic");
   await fieldIn(p.locator("#logic-mode"), "Logic").selectOption({ label: "MSS Logic" });
 }
 
-const ends = (p) => p.locator("#logic-mss-ends");
-const tracks = (p) => p.locator("#logic-mss-tracks");
-const junctions = (p) => p.locator("#logic-mss-junctions");
-const trackCard = (p, n) => tracks(p).locator(`#logic-mss-track-${n}`);
-const form = (p, n) => trackCard(p, n).locator(".mss-form");
+const openSteps = (p) => p.locator(".logic-field-steps button:not([disabled])").evaluateAll((all) => all.map((b) => b.id.replace("logic-step-", "")));
+const current = (p) => p.evaluate(() => document.querySelector(".logic-field-steps [aria-current=step]")?.id.replace("logic-step-", ""));
+const problems = (p) => p.evaluate(() => EsphomeMrMssBuilder.problems(state).map((x) => x.text));
+const pageCard = (p) => p.locator(".mss-page");
 
-async function addEnds(p, count) {
-  for (let i = 0; i < count; i += 1) await ends(p).getByRole("button", { name: "Add an end" }).click();
+// A picture of the page from the steps line down to the end of `last`.
+async function shotFromSteps(p, last, name) {
+  await p.locator(".logic-field-steps").scrollIntoViewIfNeeded();
+  const a = await p.locator(".logic-field-steps").evaluate((el) => { const r = el.getBoundingClientRect(); return { x: r.left + scrollX, y: r.top + scrollY, w: r.width }; });
+  const b = await p.locator(last).evaluate((el) => { const r = el.getBoundingClientRect(); return { y: r.bottom + scrollY }; });
+  const file = path.join(outDir, `${name}.png`);
+  await p.screenshot({ path: file, fullPage: true, animations: "disabled", clip: { x: a.x, y: a.y, width: a.w, height: b.y - a.y } });
+  console.log(`saved ${path.relative(repoDir, file)}`);
 }
 
-// The picture of the whole module, at the top of the page.
-const picture = (p) => p.locator("#logic-mss-module");
-
-// Click a block or block boundary of track n (from 0) on the picture, by its label.
-const pickOnPicture = (p, n, label) => picture(p).locator(`g[aria-label="Track ${n + 1}, ${label}: edit it"]`).click();
-
-// Pick a sensor for the block or boundary whose form is open.
-const pickSensor = (p, n, name) => form(p, n).getByLabel("Add a sensor…").selectOption({ label: name });
-
-async function setPlace(p, n, side, text) {
-  await trackCard(p, n).getByLabel(side, { exact: true }).selectOption({ label: text });
-}
-
-// ===== West ==================================================================
+// ===== West: one Cascade ====================================================
 
 await unstickTopBar(page);
-await fillBoard(page, "kiama-west");
-await addSensors(page, ["W1 current", "W2 current", "W12 optical"]);
-await setTurnout(page, null);
-await addMast(page, "W toward A", ["R292", "R285", "R281"]);
-await addMast(page, "W toward B", ["R292", "R285", "R281"]);
-await shot(page.locator("#signals-list > .row-card").first().locator(".aspects"), "01-mast-aspects");
-
-// Step 1: Choose MSS Logic.
+await startBoard(page, "kiama-west");
 await chooseMss(page);
+assert.deepEqual(await openSteps(page), ["pick"], "only Pick your module is open");
+assert.deepEqual(await page.locator(".mss-presets.is-boards .mss-preset strong").allInnerTexts(), ["Crossover", "Cascade", "Complex cascade"]);
+assert.deepEqual(await page.locator(".mss-presets.is-samples .mss-preset strong").allInnerTexts(), ["Passing siding", "Two cascades"]);
+assert.match(await page.locator(".mss-drop.is-empty").innerText(), /Drag an MSS board or a sample here/);
+assert.match(await page.locator("#logic-mss").innerText(), /Shared with the boards beside it: always/);
 await blur(page);
-await shotSpan(page, "#logic-mode", "#logic-settings", "02-choose-mss-logic");
+await shotFromSteps(page, ".mss-palette", "01-pick-empty");
 
-// A shortcut: the standard MSS modules. Open Cascade's confirm panel, then
-// Cancel, so West is still built by hand as the guide goes on to do.
-const steps = page.locator("#logic-mss-steps");
-await steps.getByRole("button", { name: "Cascade", exact: true }).click();
+// Step 2: drag the Cascade onto the empty module.
+await page.dragAndDrop("#logic-mss-preset-cascade", ".mss-drop.is-empty");
+assert.deepEqual(await page.locator(".mss-board-card strong").allInnerTexts(), ["1. Cascade"]);
+const westAdds = await page.locator(".mss-adds").innerText();
+assert.match(westAdds, /Make the module adds these to the board:/);
+assert.match(westAdds, /Sensors: Block 1 current, Block 2 current, IR 1\./);
+assert.match(westAdds, /Signals: Signal 1 to A, Signal 1 to B, each head a red, a yellow and a green LED on its own pin/);
+assert.equal(await page.locator("#logic-mss-strip").isChecked(), false, "West's LEDs fit");
+assert.equal(await page.evaluate(() => state.blocks.length), 0, "nothing is added until Make the module");
 await blur(page);
-await shot(steps.locator(".mss-templates"), "23-template-confirm");
-await steps.getByRole("button", { name: "Cancel" }).click();
+await shot(page.locator(".mss-canvas"), "02-west-cascade");
+assert.equal(await page.locator("#logic-mss-next").innerText(), "Make the module");
+await page.click("#logic-mss-next");
+assert.equal(await current(page), "wire");
+assert.deepEqual(await openSteps(page), ["pick", "wire", "signals", "try", "download", "pair"]);
+assert.deepEqual(await problems(page), []);
 
-// Step 2: Ends. Two ends, each with one track; no tracks yet, so red dots.
-await addEnds(page, 2);
-await blur(page);
-await shotSpan(page, "#logic-mss-steps", "#logic-mss-ends", "03-west-ends");
+// Step 3 to 5 on West: every part already has a free pin, so each step is done.
+for (const step of ["wire", "signals"]) assert.equal(await page.locator(`#logic-step-${step} .step-number`).innerText(), "✓", step);
+await page.click("#logic-mss-next");
+assert.equal(await current(page), "signals");
+await page.click("#logic-mss-next");
+assert.equal(await current(page), "try");
+const westYaml = await page.evaluate(() => EsphomeMr.generateYaml(state));
+assert.match(westYaml, /mr_logic:/);
 
-// Step 3: Draw the track.
-await tracks(page).getByRole("button", { name: "Add a track" }).click();
-await blur(page);
-await shot(picture(page), "05-track-new");
-await trackCard(page, 0).getByRole("button", { name: "Add a block boundary" }).click();
-await blur(page);
-await shot(picture(page), "06-track-boundary");
-await pickOnPicture(page, 0, "Block 1");
-await pickSensor(page, 0, "W1 current");
-await pickOnPicture(page, 0, "Block 1");
-await shot(trackCard(page, 0).locator(".mss-body"), "07-track-block");
-await pickOnPicture(page, 0, "Block 2");
-await pickSensor(page, 0, "W2 current");
-await pickOnPicture(page, 0, "Block boundary 1");
-await pickSensor(page, 0, "W12 optical");
-await form(page, 0).getByLabel("Signal for trains heading towards End B, track 1").selectOption({ label: "W toward B" });
-await form(page, 0).getByLabel("Signal for trains heading towards End A, track 1").selectOption({ label: "W toward A" });
-await pickOnPicture(page, 0, "Block boundary 1");
-await blur(page);
-await shot(picture(page), "08-west-track");
-await shot("#logic-mss-steps", "09-west-steps");
-
-// ===== East: a fresh board ===================================================
+// ===== East: a passing siding from two Complex cascades =====================
 
 const east = await freshPage();
-await fillBoard(east, "kiama-east");
-await addSensors(east, ["E1 current", "E2 current", "E12 optical", "E Junction optical", "E Main current", "E Branch current"]);
-await setTurnout(east, "E P1");
-await addMast(east, "E Outer", ["R292", "R285", "ADV_NORM", "R281", "R282"]);
-await addMast(east, "E Home", ["R292", "R285", "ADV_NORM", "R281", "R282", "R283", "R286"]);
+await startBoard(east, "kiama-east");
 await chooseMss(east);
-
-// Step 2: ends A, B and C, with a Pair button and an LED on end A.
-await addEnds(east, 3);
-const endA = ends(east).locator("#logic-mss-end-0");
-await fieldIn(endA, "Pair button pin").selectOption({ label: "GPIO32" });
-await fieldIn(endA, "LED pin").selectOption({ label: "GPIO33" });
+// One Complex cascade splits the line in two ...
+await east.dragAndDrop("#logic-mss-preset-complex", ".mss-drop.is-empty");
+assert.deepEqual(await east.locator(".mss-board-card strong").allInnerTexts(), ["1. Complex cascade"]);
+// ... and a second, dropped in the gap between the two lines to its right, joins them.
+await drag(east, "#logic-mss-preset-complex", '.mss-drop[data-at="1"][data-join="0"]');
+assert.deepEqual(await east.locator(".mss-board-card strong").allInnerTexts(), ["1. Complex cascade", "2. Complex cascade, flipped"]);
+assert.deepEqual(await east.evaluate(() => EsphomeMrMssRow.describe(state.logic.mss.row)), await east.evaluate(() => EsphomeMrMssRow.describe(EsphomeMrMssRow.preset("passing"))), "the same as the Passing siding sample");
+assert.equal(await east.locator("#logic-mss-strip").isChecked(), true, "six signals: WS2812B, one data pin each");
 await blur(east);
-await shot(ends(east), "04-east-ends");
+await shot(east.locator("#logic-mss-lane"), "03-east-module");
+await east.click("#logic-mss-next");
+assert.equal(await current(east), "wire");
+assert.deepEqual(await problems(east), []);
 
-// Step 4: the junction first, so its legs can be picked for the tracks.
-await shot(junctions(east).locator(".mssj-add"), "10-junction-shapes");
-await junctions(east).getByRole("button", { name: "Add junction" }).click();
+// Step 3: Wire it. The first part, lit and numbered on the picture.
+const picture = east.locator("#logic-mss-picture");
+assert.match(await east.locator("#logic-mss-wire").innerText(), /1 of 12\s+Block 1 current \(block detector\)\s+A current detector: its output to this pin, its GND to the board's GND\./);
+assert.equal(await picture.locator(".mss-row-badge").count(), 12);
 await blur(east);
-// Step 6 (Problems): with a junction and no tracks, the messages at the top.
-await shot(east.locator("#messages"), "16-problems");
-const j1 = junctions(east).locator(".mssj-junction").first();
-await j1.getByLabel("Add a sensor…").selectOption({ label: "E Junction optical" });
-await j1.getByLabel("Leg 1", { exact: true }).selectOption({ label: "E Home" });
-
-// The tracks: Add a track fills in the first places nobody uses; set each one.
-for (let n = 0; n < 3; n += 1) await tracks(east).getByRole("button", { name: "Add a track" }).click();
-await setPlace(east, 0, "From", "End A, track 1");
-await setPlace(east, 0, "To", "Junction J1, leg 1");
-await setPlace(east, 1, "From", "Junction J1, leg 2");
-await setPlace(east, 1, "To", "End B, track 1");
-await setPlace(east, 2, "From", "Junction J1, leg 3");
-await setPlace(east, 2, "To", "End C, track 1");
-await trackCard(east, 0).getByRole("button", { name: "Add a block boundary" }).click();
-await pickOnPicture(east, 0, "Block 1");
-await pickSensor(east, 0, "E1 current");
-await pickOnPicture(east, 0, "Block 2");
-await pickSensor(east, 0, "E2 current");
-await pickOnPicture(east, 0, "Block boundary 1");
-await pickSensor(east, 0, "E12 optical");
-await form(east, 0).getByLabel("Signal for trains heading towards Junction J1, leg 1").selectOption({ label: "E Outer" });
-await pickOnPicture(east, 1, "Block 1");
-await pickSensor(east, 1, "E Main current");
-await pickOnPicture(east, 2, "Block 1");
-await pickSensor(east, 2, "E Branch current");
-await pickOnPicture(east, 0, "Block boundary 1");
-await shot(trackCard(east, 0), "11-east-track-1");
+await shotFromSteps(east, "#logic-mss-wire", "04-wire-it");
+// IR 2 on Block 1's pin: both red, with the message; then a free pin again.
+await picture.locator('[data-part="IR 2"] text').first().click();
+const irPin = await east.inputValue("#logic-mss-wire-pin");
+const block1 = await east.evaluate(() => state.blocks.find((b) => b.name === "Block 1 current").gpio);
+await east.selectOption("#logic-mss-wire-pin", block1);
+assert.match(await east.locator("#logic-mss-wire").innerText(), /is used by something else too\. A pin can do one job\./);
+assert.equal(await picture.locator(".mss-row-badge.is-error").count(), 2);
 await blur(east);
-await shot(picture(east), "11-east-module");
+await shotFromSteps(east, "#logic-mss-wire", "05-wire-shared");
+await east.selectOption("#logic-mss-wire-pin", irPin);
+assert.equal(await picture.locator(".mss-row-badge.is-error").count(), 0);
+// End A's Pair button, from the list under the panel: the one safe pin left.
+const freePin = () => east.evaluate(() => {
+  const used = new Set([...state.blocks.map((b) => b.gpio), ...state.signals.masts.map((m) => m.pin), ...(state.logic.mss.ends || []).flatMap((e) => [e.pairPin, e.ledPin])]);
+  return [...document.querySelectorAll("#logic-mss-wire-pin option")].map((o) => o.value).find((v) => v && !used.has(v) && !/GPIO(0|2|5|12|15)$/.test(v));
+});
+await east.locator('.mss-wire-list [data-wire="end:A:pair"]').click();
+assert.match(await east.locator("#logic-mss-wire").innerText(), /End A Pair button \(Pair button\)/);
+await east.selectOption("#logic-mss-wire-pin", await freePin());
+await east.click("#logic-mss-wire-next");
+assert.match(await east.locator("#logic-mss-wire").innerText(), /End A LED \(end LED\)/);
+assert.equal(await freePin(), undefined, "no safe pin left for its LED");
+assert.deepEqual(await problems(east), []);
+assert.equal(await east.locator("#logic-step-wire .step-number").innerText(), "✓");
+assert.equal(await east.locator("#logic-mss-next").innerText(), "Next: signals");
+await east.click("#logic-mss-next");
 
-// The junction, now that its legs have tracks.
+// Step 4: Signals. Point at Diverging Clear: the picture lights it.
+assert.equal(await current(east), "signals");
+assert.match(await east.locator("#logic-mss-signal").innerText(), /1 of 6\s+Signal 1 to B \(two heads: upper the main line, lower the siding\)/);
+const chips = await east.locator("#logic-mss-signal .mss-indication").evaluateAll((all) => all.map((c) => c.textContent.trim()));
+assert.deepEqual(chips, ["Stop", "Approach", "Clear", "Diverging Clear", "Diverging Approach"]);
+await east.hover('#logic-mss-signal [data-indication="divergingClear"]');
+await shotFromSteps(east, "#logic-mss-signal", "06-signals");
 await east.mouse.move(0, 0);
-await shot(j1, "12-east-junction");
-// Hover the diverging route: the drawing lights it. A taller window, so the
-// drawing and the route are both in view and nothing scrolls the mouse off it.
-await east.setViewportSize({ width: 1100, height: 2200 });
-await j1.locator(".mssj-preview").evaluate((el) => el.scrollIntoView({ block: "start" }));
-await j1.locator(".mssj-route-card").nth(1).locator(".mssj-route-head").hover();
-await shot(j1.locator(".mssj-preview"), "13-junction-route-lit");
-await east.mouse.move(0, 0);
-await east.setViewportSize({ width: 1100, height: 900 });
+await east.click("#logic-mss-next");
 
-// Step 5: the Signals grid, with both optional indications ticked. The page
-// is never wider than 920px, so the grid scrolls sideways: the second picture
-// is the grid scrolled to its right-hand end.
-const signals = east.locator("#logic-mss-signals");
-await fieldIn(signals, "Advance Approach").check();
-await fieldIn(signals, "Approach Diverging").check();
+// Step 5: Try it. Both pretend neighbours, both points thrown, a train from End A.
+assert.equal(await current(east), "try");
+await east.clock.pauseAt(await east.evaluate(() => Date.now() + 100));
+const wait = (ms) => east.clock.runFor(ms);
+const live = east.locator("#logic-mss-try-picture");
+await east.check("#logic-mss-try-neighbour-A");
+await east.check("#logic-mss-try-neighbour-B");
+await live.locator('[data-part="Points 1"] circle').click();
+await live.locator('[data-part="Points 2"] circle').click();
+await wait(1000);
+await live.locator('[data-part="Signal 1 to B"] .mss-row-label').click();
+assert.match(await east.locator(".mss-try-panel").innerText(), /Signal 1 to B\s+Shows Diverging Approach/);
+assert.match(await east.locator("#logic-mss-try .mss-try-main").innerText(), /Its way through: Block 1 current, Siding 1 current, Block 3 current\. It leaves at End B\./);
+await east.selectOption("#logic-mss-try-from", "A:1");
+await east.click("#logic-mss-try-run");
+await wait(3000);
+assert.deepEqual(await live.locator(".mss-row-block.is-train").evaluateAll((all) => all.map((g) => g.dataset.part)), ["Siding 1 current"]);
+assert.match(await east.locator(".mss-try-panel").innerText(), /Signal 1 to B\s+Shows Stop/);
 await blur(east);
-await shot(signals, "14-east-signals");
-await signals.locator(".mss-signals-wrap").evaluate((el) => { el.scrollLeft = el.scrollWidth; });
-await shot(signals.locator(".mss-signals-wrap"), "15-east-signals-right");
+await shot(east.locator("#logic-mss-try"), "07-try-it");
+await wait(12000);
+assert.match(await east.locator(".mss-try-panel").innerText(), /Signal 1 to B\s+Shows Diverging Approach/, "clear again once the train has gone");
+assert.equal(await east.locator("#logic-mss-next").innerText(), "Next: download");
+await east.click("#logic-mss-next");
+assert.match(await pageCard(east).innerText(), /Download the board's file, the JMRI file and the module card from the Download page\./);
 
-// Step 8: Try it, on the Logic page. A train in East's main line, then the
-// turnout thrown for the branch, then Run a train from End A.
-const tryCard = east.locator("#logic-try");
-const skip = () => tryCard.getByRole("button", { name: "Skip ahead 1 second" }).click();
-await tryCard.locator(".try-track g.mss-block", { hasText: "E Main current" }).click();
-await skip();
-await blur(east);
-await shot(tryCard.locator(".try-track"), "20-try-it-main");
-await tryCard.locator(".try-track g.mss-module-throw").first().click();
-await skip();
-await blur(east);
-await shot(tryCard.locator(".try-track"), "21-try-it-thrown");
-await tryCard.getByRole("button", { name: "Start again" }).click();
-await tryCard.locator(".try-train").getByRole("button", { name: "Run a train" }).click();
-await blur(east);
-await shot(tryCard.locator(".try-train"), "22-run-a-train");
-
-// Step 7: Download, and the module card it offers.
+// Step 6: Download, and the module card it offers.
 await nav(east, "yaml");
-await shot(east.locator("#logic-download"), "17-download");
+assert.match(await east.locator("#logic-download").innerText(), /Download module card/);
+await shot(east.locator("#logic-download"), "08-download");
 const [download] = await Promise.all([
   east.waitForEvent("download"),
   east.locator("#logic-download").getByRole("button", { name: "Download module card" }).click(),
 ]);
+assert.match(download.suggestedFilename(), /^kiama-east-[a-z2-9]{6}-module-card\.html$/);
 const cardFile = path.join(outDir, "module-card.tmp.html");
 await download.saveAs(cardFile);
+const cardHtml = fs.readFileSync(cardFile, "utf8");
+assert.match(cardHtml, /<li>MSS board 1, Complex cascade<\/li><li>MSS board 2, Complex cascade \(flipped\)<\/li>/);
 const cardPage = await east.context().newPage();
 await cardPage.setViewportSize({ width: 800, height: 900 });
 await cardPage.goto(`file://${cardFile}`);
-await shot(cardPage.locator("body"), "18-module-card");
+await shot(cardPage.locator("body"), "09-module-card");
 await cardPage.close();
 fs.rmSync(cardFile);
 
-await east.context().close();
+// Step 8: Pair, on the Logic page.
+await nav(east, "logic");
+await east.click("#logic-step-pair");
+assert.match(await east.locator(".mss-pair").innerText(), /Press Pair on this module's end and on the end of the module beside it, within 30 seconds of each other\./);
 
-// A third board from the Complex cascade template: one click, then the picture.
-const sw = await freshPage();
-await fillBoard(sw, "kiama-switch");
-await chooseMss(sw);
-await sw.locator("#logic-mss-steps").getByRole("button", { name: "Complex cascade (turnout)" }).click();
-await sw.locator("#logic-mss-steps").getByRole("button", { name: "Add it" }).click();
-await blur(sw);
-await shot(picture(sw), "24-template-switch");
-console.log(`template board messages: ${JSON.stringify(await sw.locator("#messages").innerText())}`);
-await sw.context().close();
+await east.context().close();
 await done();
-for (const file of extra) console.log(`saved ${file}`);
 if (errors.length) {
   console.error(`The second board's page logged errors:\n${errors.join("\n")}`);
   process.exit(1);
