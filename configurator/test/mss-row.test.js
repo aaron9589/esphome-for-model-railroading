@@ -142,4 +142,56 @@ test("renaming a part renames it in the row", () => {
   same(row[0].names.left, ["West current"]);
 });
 
+test("adding a Siding end turned round to a Siding end makes the Passing siding, names and all", () => {
+  const siding = R.preset("siding");
+  assert.equal(R.canAdd(siding, { node: "cascade" }), false, "two tracks meet one");
+  assert.equal(R.canAdd(siding, { node: "siding", turned: true }), true);
+  same(R.addNode(siding, { node: "siding", turned: true }), R.preset("passing"));
+  // Cascade on Cascade: the new node's left block is the old one's right block.
+  same(R.addNode(R.preset("cascade"), { node: "cascade" }), readMssCase("mss-row-cascades.json").module.mss.row);
+  assert.equal(R.canAdd(R.preset("crossover"), { node: "cascade" }), false);
+});
+
+test("removing a node: what is left must join; the first gone, the next takes the block it shared", () => {
+  const passing = R.preset("passing");
+  assert.equal(R.canRemove(passing, 0), true);
+  assert.equal(R.canRemove(R.preset("cascade"), 0), false, "a module keeps one node");
+  const three = R.addNode(R.preset("cascade"), { node: "siding" });
+  const four = R.addNode(three, { node: "siding", turned: true });
+  assert.equal(R.canRemove(four, 1), false, "the Cascade's one track would meet the turned Siding end's two");
+  assert.equal(R.canRemove(four, 0), true);
+  const rest = R.removeNode(passing, 0);
+  same(rest, [{ node: "siding", turned: true, names: { ir: "IR 2", right: ["Block 3 current"], points: "Points 2",
+    signals: { single: "Signal 2 to A", main: "Signal 2 to B main", siding: "Signal 2 to B siding" }, left: ["Block 2 current", "Siding 1 current"] } }]);
+  same(R.removeNode(passing, 1), R.preset("siding"));
+});
+
+test("turning a Siding end round swaps its sides and renames the signals named as the pattern names them", () => {
+  const { row, renames } = R.turnNode(R.preset("siding"), 0);
+  same(renames, [["Signal 1 to B", "Signal 1 to A"], ["Signal 1 to A main", "Signal 1 to B main"], ["Signal 1 to A siding", "Signal 1 to B siding"]]);
+  same(row[0].names.left, ["Block 2 current", "Siding 1 current"]);
+  same(row[0].names.right, ["Block 1 current"]);
+  assert.equal(row[0].turned, true);
+  same(R.describe(row).ends.map((e) => e.tracks), [2, 1]);
+  // And back again, as it was.
+  same(R.turnNode(row, 0).row, R.preset("siding"));
+  // A signal with a name of its own keeps it.
+  const own = R.preset("siding");
+  own[0].names.signals.single = "West Home";
+  same(R.turnNode(own, 0).renames.map(([from]) => from), ["Signal 1 to A main", "Signal 1 to A siding"]);
+  // Only where it still joins: not the turned end of a passing siding.
+  assert.equal(R.canTurn(R.preset("passing"), 1), false);
+  assert.equal(R.canTurn(R.preset("cascade"), 0), false, "a Cascade is the same either way round");
+});
+
+test("a sensor, turnout or signal renamed on its page is renamed in the row", () => {
+  const config = M.myFirstBoardPreset();
+  config.logic = { mode: "mss", mss: { row: R.preset("passing") } };
+  assert.equal(L.renameReferences(config, "sensor", "IR 2", "East IR"), 1);
+  assert.equal(L.renameReferences(config, "turnout", "Points 1", "West points"), 1);
+  assert.equal(L.renameReferences(config, "mast", "Signal 2 to A", "East Home"), 1);
+  same([config.logic.mss.row[1].names.ir, config.logic.mss.row[0].names.points, config.logic.mss.row[1].names.signals.single], ["East IR", "West points", "East Home"]);
+  assert.equal(L.renameReferences(config, "mast", "Block 1 current", "X"), 0, "a sensor's name is not a signal's");
+});
+
 if (!process.exitCode) console.log("\nAll MSS row tests passed.");

@@ -699,6 +699,9 @@
     walk(config.logic);
     // MSS Logic names masts at block boundaries and junction legs.
     if (kind === "mast") count += global.EsphomeMrMssBuilder?.renameMast(config, from, to) || 0;
+    // A row of MSS nodes names its parts (mss-row.js).
+    const row = config.logic.mss?.row;
+    if (Array.isArray(row) && global.EsphomeMrMssRow) count += global.EsphomeMrMssRow.rename(row, from, to, kind);
     return count;
   }
 

@@ -45,7 +45,7 @@
     ].filter(Boolean).join(", "),
     doing: Object.freeze({
       pickEmpty: "Pick the MSS module this board runs. Each is the standard MSS node, as Iowa Scaled Engineering's boards build it.",
-      pick: "This is your module. Start again to pick another.",
+      pick: "This is your module. Add a node on the right, turn a Siding end round, or remove a node, or start again from the standard modules.",
       wire: "Each sensor and turnout, lit on the picture. Give each its pin on the Sensors and Turnouts pages.",
       signals: "Each signal, lit on the picture. Its lamps and pins are on the Signal Masts page; what it shows is the MSS pattern's.",
       try: "Put trains in blocks, throw the points and watch the signals.",
@@ -88,6 +88,24 @@
     startAgain: "Start again",
     startAgainAsk: "Start again from the standard modules? The module goes; its sensors, turnouts and signals stay on their pages.",
     yes: "Yes, start again",
+    // Changing the row.
+    turn: "Turn round",
+    remove: "Remove",
+    addHeading: "Add a node on the right",
+    addNode: (title, turned) => (turned ? `${title}, turned round` : title),
+    nothingFits: "Nothing joins on the right of a Crossover: it is a whole module. Start again to pick another.",
+    cannotRemove: "Removing it would leave nodes that do not join: remove the nodes beside it first.",
+    cannotTurn: "Turned round, it would not join the nodes beside it.",
+    addAsk: (title) => `Add a ${title} on the right of the module?`,
+    removeAsk: (n, title) => `Remove node ${n}, the ${title}?`,
+    turnAsk: (n) => `Turn node ${n}, the Siding end, round?`,
+    left: (names) => `These stay on their pages, no longer used by the module: ${names}. Remove them there if this board no longer has them.`,
+    renamed: (pairs) => `Its signals are renamed for the way they now face: ${pairs}.`,
+    renamePair: (from, to) => `${from} to ${to}`,
+    notRenamed: (name) => `${name} keeps its name: a signal already has the new one.`,
+    sameNames: "Its sensors keep their names: they are wired already.",
+    change: "Do it",
+    changed: "The module is changed. Check Wire it and Signals for anything new.",
     // A module described by hand.
     handWritten: "This module was described by hand, which MSS Logic no longer does. It still runs as described. Start from a pattern to make it one of the standard MSS modules.",
     fromPattern: "Start from a pattern",
@@ -111,7 +129,7 @@
   const ORDER = Object.freeze(["pick", "wire", "signals", "try", "download", "pair"]);
 
   // What the person is looking at: kept while the page is drawn again.
-  const state = { board: null, step: null, settings: false, views: false, pending: "", style: null, ask: "" };
+  const state = { board: null, step: null, settings: false, views: false, pending: "", style: null, ask: "", change: null };
 
   const rowOf = (config) => (Array.isArray(config?.logic?.mss?.row) ? config.logic.mss.row : null);
 
@@ -268,19 +286,17 @@
     if (state.pending) panel.append(presetConfirm(config, ctx, state.pending));
   }
 
-  function presetConfirm(config, ctx, id) {
-    const row = R().preset(id);
-    const title = R().TEXT.presets[id].title;
-    const style = styleFor(config, ctx, row);
+  // What a row adds to the board's pages, with the LEDs or WS2812B choice
+  // and a warning when its signals would not fit. `kept`: list what is there.
+  function addsList(box, config, ctx, row, style, { kept = true } = {}) {
     const want = R().needs(config, row, { style });
-    const box = el("div", "mss-confirm");
-    box.append(el("strong", "", TEXT.confirm(title)), el("p", "hint", TEXT.adds));
     const items = el("ul");
     if (want.sensors.length) items.append(el("li", "", TEXT.sensors(want.sensors.join(", "))));
     if (want.turnouts.length) items.append(el("li", "", TEXT.turnouts(want.turnouts.join(", "))));
     if (want.masts.length) items.append(el("li", "", (style === "strip" ? TEXT.mastsStrip : TEXT.masts)(want.masts.map((m) => m.name).join(", "), want.pins)));
-    if (want.kept.length) items.append(el("li", "", TEXT.kept(want.kept.join(", "))));
-    box.append(items);
+    if (kept && want.kept.length) items.append(el("li", "", TEXT.kept(want.kept.join(", "))));
+    if (!items.childNodes.length) return want;
+    box.append(el("p", "hint", TEXT.adds), items);
     if (want.masts.length) {
       const strip = ctx.field(TEXT.useStrip, style === "strip", (checked) => {
         state.style = checked ? "strip" : "leds";
@@ -291,6 +307,16 @@
       const safe = Math.max(0, (ctx.safeOutputPins?.() ?? Infinity) - want.sensors.length);
       if (want.pins > safe) box.append(el("p", "mss-warning", TEXT.shortOfPins(want.pins, safe)));
     }
+    return want;
+  }
+
+  function presetConfirm(config, ctx, id) {
+    const row = R().preset(id);
+    const title = R().TEXT.presets[id].title;
+    const style = styleFor(config, ctx, row);
+    const box = el("div", "mss-confirm");
+    box.append(el("strong", "", TEXT.confirm(title)));
+    addsList(box, config, ctx, row, style);
     const actions = el("div", "dialog-actions");
     const yes = button(TEXT.apply, () => {
       R().use(config, row, ctx.addItems, { style });
@@ -301,6 +327,63 @@
     }, "primary");
     yes.id = "logic-mss-add";
     actions.append(button(TEXT.cancel, () => { state.pending = ""; ctx.render(); }), yes);
+    box.append(actions);
+    return box;
+  }
+
+  // Ask first, saying what the change adds, renames and leaves behind.
+  function changeConfirm(config, ctx, row) {
+    const c = state.change;
+    const titleOf = (node) => R().TEXT.nodes[node?.node]?.title || "";
+    let next;
+    let renames = [];
+    let question;
+    if (c.kind === "add") {
+      next = R().addNode(row, c.node);
+      question = TEXT.addAsk(TEXT.addNode(titleOf(c.node), c.node.turned === true));
+    } else if (c.kind === "remove") {
+      next = R().removeNode(row, c.index);
+      question = TEXT.removeAsk(c.index + 1, TEXT.addNode(titleOf(row[c.index]), row[c.index]?.turned === true));
+    } else {
+      ({ row: next, renames } = R().turnNode(row, c.index));
+      question = TEXT.turnAsk(c.index + 1);
+    }
+    // A rename to a name a signal already has is not made.
+    const taken = new Set(list(config?.signals?.masts).map((m) => m?.name));
+    const blocked = renames.filter(([, to]) => taken.has(to));
+    for (const [from, to] of blocked) R().rename(next, to, from, "mast");
+    renames = renames.filter(([, to]) => !taken.has(to));
+    const box = el("div", "mss-confirm");
+    box.append(el("strong", "", question));
+    const style = styleFor(config, ctx, next);
+    // What the board would add: the new row's parts, less the renamed ones.
+    const renamedTo = new Set(renames.map(([, to]) => to));
+    const shown = el("div");
+    const want = addsList(shown, config, ctx, next, style, { kept: false });
+    if (want.sensors.length || want.turnouts.length || want.masts.some((m) => !renamedTo.has(m.name))) box.append(...shown.childNodes);
+    if (renames.length) box.append(el("p", "", TEXT.renamed(renames.map(([a, b]) => TEXT.renamePair(a, b)).join(", "))));
+    for (const [from] of blocked) box.append(el("p", "hint", TEXT.notRenamed(from)));
+    if (c.kind === "turn") box.append(el("p", "hint", TEXT.sameNames));
+    const stillUsed = new Set(R().parts(next).map((p) => p.name));
+    const left = R().parts(row).map((p) => p.name).filter((name) => !stillUsed.has(name) && !renames.some(([from]) => from === name));
+    if (left.length) box.append(el("p", "hint", TEXT.left(left.join(", "))));
+    const actions = el("div", "dialog-actions");
+    const yes = button(TEXT.change, () => {
+      // Renamed signals keep their lamps and pins: renamed on their page.
+      for (const [from, to] of renames) {
+        const mast = list(config.signals?.masts).find((m) => m?.name === from);
+        if (!mast) continue;
+        mast.name = to;
+        if (!mast.topicCustom) mast.topic = global.EsphomeMr.topicFor("signal", to);
+      }
+      R().use(config, next, ctx.addItems, { style });
+      Object.assign(state, { change: null, style: null });
+      ctx.persist();
+      ctx.render();
+      ctx.flash?.("ok", TEXT.changed);
+    }, "primary");
+    yes.id = "logic-mss-change";
+    actions.append(button(TEXT.cancel, () => { state.change = null; ctx.render(); }), yes);
     box.append(actions);
     return box;
   }
@@ -325,10 +408,42 @@
     const row = rowOf(config);
     if (!row) return renderPresets(panel, config, ctx);
     panel.append(el("h4", "", TEXT.yourModule));
-    const ol = el("ol", "mss-row-list");
-    row.forEach((node, i) => ol.append(el("li", "", TEXT.nodeWords(i + 1, R().TEXT.nodes[node?.node]?.title || String(node?.node ?? ""), node?.turned === true))));
+    const ol = el("ul", "mss-row-list");
+    const titleOf = (node) => R().TEXT.nodes[node?.node]?.title || String(node?.node ?? "");
+    const rowOk = R().problems(row).length === 0;
+    row.forEach((node, i) => {
+      const li = el("li", "", `${TEXT.nodeWords(i + 1, titleOf(node), node?.turned === true)} `);
+      if (rowOk && node?.node === "siding") {
+        const turn = button(TEXT.turn, () => { state.change = { kind: "turn", index: i }; state.style = null; ctx.render(); }, "link-button");
+        turn.id = `logic-mss-turn-${i}`;
+        turn.disabled = !R().canTurn(row, i);
+        if (turn.disabled) turn.title = TEXT.cannotTurn;
+        li.append(turn, " ");
+      }
+      if (rowOk && row.length > 1) {
+        const remove = button(TEXT.remove, () => { state.change = { kind: "remove", index: i }; state.style = null; ctx.render(); }, "link-button");
+        remove.id = `logic-mss-remove-${i}`;
+        remove.disabled = !R().canRemove(row, i);
+        if (remove.disabled) remove.title = TEXT.cannotRemove;
+        li.append(remove);
+      }
+      ol.append(li);
+    });
     panel.append(ol);
     for (const p of R().problems(row)) panel.append(el("p", "mss-warning", p.text));
+    if (rowOk) {
+      panel.append(el("h4", "", TEXT.addHeading));
+      const choices = [{ node: "cascade" }, { node: "siding" }, { node: "siding", turned: true }].filter((node) => R().canAdd(row, node));
+      if (!choices.length) panel.append(el("p", "hint", TEXT.nothingFits));
+      const adds = el("div", "mss-add-nodes");
+      for (const node of choices) {
+        const b = button(TEXT.addNode(R().TEXT.nodes[node.node].title, node.turned === true), () => { state.change = { kind: "add", node }; state.style = null; ctx.render(); });
+        b.id = `logic-mss-add-${node.node}${node.turned ? "-turned" : ""}`;
+        adds.append(b);
+      }
+      panel.append(adds);
+    }
+    if (state.change) panel.append(changeConfirm(config, ctx, row));
     if (state.ask === "again") {
       panel.append(asking(ctx, TEXT.startAgainAsk, TEXT.yes, () => {
         delete config.logic.mss.row;
@@ -339,7 +454,9 @@
     } else {
       const b = button(TEXT.startAgain, () => { state.ask = "again"; ctx.render(); });
       b.id = "logic-mss-start-again";
-      panel.append(b);
+      const again = el("p", "mss-start-again");
+      again.append(b);
+      panel.append(again);
     }
   }
 
@@ -352,7 +469,7 @@
   }
 
   function renderPage(root, config, ctx) {
-    if (state.board !== config) Object.assign(state, { board: config, step: null, settings: false, views: false, pending: "", style: null, ask: "" });
+    if (state.board !== config) Object.assign(state, { board: config, step: null, settings: false, views: false, pending: "", style: null, ask: "", change: null });
     const line = el("div", "logic-field-line");
     line.id = PART;
     const mode = el("span");

@@ -3456,5 +3456,20 @@ button.clear-page {
 }
 
 .mss-row-list {
-  padding-left: 1.25rem;
+  list-style: none;
+  padding-left: 0;
+}
+
+.mss-row-list li {
+  margin: 0.25rem 0;
+}
+
+.mss-add-nodes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.mss-start-again {
+  margin-top: 1rem;
 }

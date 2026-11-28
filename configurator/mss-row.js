@@ -390,20 +390,119 @@
     return want;
   }
 
-  /** Rename a part everywhere in the row (a sensor, turnout or mast renamed on its page). */
-  function rename(row, from, to) {
-    const swap = (value) => (value === from ? to : value);
+  // ===== Changing the row ====================================================
+
+  const copy = (row) => JSON.parse(JSON.stringify(list(row)));
+
+  /** Can `node` be added on the right of the row? */
+  const canAdd = (row, node) => fits(row, list(row).length, node);
+
+  /**
+   * The row with `node` added on the right, named: its left block is the
+   * last node's right one (a joint is one block), and its parts are numbered
+   * on from the row's.
+   */
+  function addNode(row, node) {
+    const nodes = copy(row);
+    nodes.push({ node: node.node, ...(node.turned === true ? { turned: true } : {}) });
+    return named(nodes);
+  }
+
+  /** Can node `i` be removed: what is left has no problems of its own? */
+  function canRemove(row, i) {
+    const nodes = list(row);
+    if (i < 0 || i >= nodes.length || nodes.length < 2) return false;
+    return problems(nodes.filter((_, k) => k !== i)).length === 0;
+  }
+
+  /**
+   * The row without node `i`, named. The first node gone, the block it
+   * shared with the next becomes the next one's left block, keeping its name.
+   */
+  function removeNode(row, i) {
+    const nodes = copy(row);
+    const [gone] = nodes.splice(i, 1);
+    if (i === 0 && nodes.length && gone?.names) {
+      nodes[0].names = isObject(nodes[0].names) ? nodes[0].names : {};
+      nodes[0].names.left = list(gone.names.right);
+    }
+    return named(nodes);
+  }
+
+  /** Can node `i` be turned round: a Siding end, still fitting beside its neighbours? */
+  function canTurn(row, i) {
+    const nodes = list(row);
+    if (nodes[i]?.node !== "siding") return false;
+    const turned = nodes.map((n, k) => (k === i ? { ...n, turned: n.turned !== true } : n));
+    return problems(turned).length === 0;
+  }
+
+  /**
+   * The row with node `i` turned round: { row, renames: [[from, to]] }. Its
+   * blocks keep their names and swap sides (the single track's block, the
+   * main's and the siding's). Each signal named as the pattern names it is
+   * renamed for the way it now faces; one named otherwise keeps its name.
+   */
+  function turnNode(row, i) {
+    const nodes = copy(row);
+    const node = nodes[i];
+    const n = isObject(node.names) ? node.names : {};
+    const wasTurned = node.turned === true;
+    node.turned = !wasTurned;
+    if (!node.turned) delete node.turned;
+    // Not turned: left [single], right [main, siding]; turned: left [main, siding], right [single].
+    const single = wasTurned ? list(n.right)[0] : list(n.left)[0];
+    const roads = wasTurned ? list(n.left) : list(n.right);
+    if (i === 0) {
+      n.left = wasTurned ? [single] : roads;
+      n.right = wasTurned ? roads : [single];
+    }
+    const number = /(\d+)$/.exec(n.ir || "")?.[1] || String(i + 1);
+    const [was, now] = wasTurned ? ["A", "B"] : ["B", "A"];
+    const [wasBack, nowBack] = [now, was];
+    const renames = [];
+    const swap = (key, before, after) => {
+      if (n.signals?.[key] === before) {
+        renames.push([before, after]);
+        n.signals[key] = after;
+      }
+    };
+    if (isObject(n.signals)) {
+      swap("single", TEXT.signal(number, was), TEXT.signal(number, now));
+      swap("main", TEXT.signalOn(number, wasBack, TEXT.main), TEXT.signalOn(number, nowBack, TEXT.main));
+      swap("siding", TEXT.signalOn(number, wasBack, TEXT.siding), TEXT.signalOn(number, nowBack, TEXT.siding));
+    }
+    return { row: named(nodes), renames };
+  }
+
+  /**
+   * Rename a part everywhere in the row: a sensor, turnout or mast renamed on
+   * its page (`kind`: sensor | turnout | mast; any kind when left out).
+   * Returns how many names moved.
+   */
+  function rename(row, from, to, kind) {
+    let count = 0;
+    const swap = (value) => {
+      if (value !== from) return value;
+      count += 1;
+      return to;
+    };
+    const is = (k) => kind === undefined || kind === k;
     for (const node of list(row)) {
       const n = node?.names;
       if (!isObject(n)) continue;
-      for (const key of ["block", "ir", "points"]) if (n[key] !== undefined) n[key] = swap(n[key]);
-      for (const key of ["left", "right"]) if (Array.isArray(n[key])) n[key] = n[key].map(swap);
-      if (isObject(n.signals)) for (const key of Object.keys(n.signals)) n.signals[key] = swap(n.signals[key]);
+      if (is("sensor")) {
+        for (const key of ["block", "ir"]) if (n[key] !== undefined) n[key] = swap(n[key]);
+        for (const key of ["left", "right"]) if (Array.isArray(n[key])) n[key] = n[key].map(swap);
+      }
+      if (is("turnout") && n.points !== undefined) n.points = swap(n.points);
+      if (is("mast") && isObject(n.signals)) for (const key of Object.keys(n.signals)) n.signals[key] = swap(n.signals[key]);
     }
-    return row;
+    return count;
   }
 
   global.EsphomeMrMssRow = {
     TEXT, NODE_IDS, PRESET_IDS, PRESETS, sidesOf, endTrack, partsOf, named, preset, fits, problems, missing, describe, descriptionOf, parts, needs, use, rename,
+    canAdd, addNode, canRemove, removeNode, canTurn, turnNode,
   };
 })(typeof globalThis !== "undefined" ? globalThis : window);
