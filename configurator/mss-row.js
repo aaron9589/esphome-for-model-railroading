@@ -162,6 +162,60 @@
     return { steps, lanes, order, left, right: [...active], missing };
   }
 
+  // ===== Columns ===========================================================
+
+  /**
+   * Where each board stands along the module. Boards on different lines stand
+   * side by side: a board goes in the column after the last board on each of
+   * its lines (a Complex cascade on both of its). { col: [column by row
+   * index], count }, for a row with no problems.
+   */
+  function columns(row) {
+    const nodes = list(row);
+    const w = walk(nodes);
+    const next = new Map(); // line -> its next free column
+    const col = nodes.map(() => 0);
+    let count = 0;
+    for (const step of w.steps) {
+      const lanes = [...new Set([...step.inputs.map((x) => x.lane), ...step.out])];
+      const c = Math.max(0, ...lanes.map((lane) => next.get(lane) ?? 0));
+      col[step.index] = c;
+      for (const lane of lanes) next.set(lane, c + 1);
+      count = Math.max(count, c + 1);
+    }
+    return { col, count };
+  }
+
+  /**
+   * The row in column order (boards on different lines that stand side by
+   * side next to each other, the bottom line's first), with each board's line counted again for its
+   * new place. Every line keeps its boards in the same order, so the module
+   * is the same. A row with problems comes back as it is.
+   */
+  function pack(row) {
+    const nodes = list(row);
+    if (!nodes.length || problems(nodes).length) return nodes;
+    const { col } = columns(nodes);
+    const w = walk(nodes);
+    const stepOf = new Map(w.steps.map((step) => [step.index, step]));
+    // Side by side in a column: the bottom line's board first.
+    const rank = new Map(w.order.map((lane, k) => [lane, k]));
+    const lowest = (i) => rank.get(stepOf.get(i).inputs[0].lane);
+    const order = nodes.map((_, i) => i).sort((a, b) => col[a] - col[b] || lowest(a) - lowest(b) || a - b);
+    if (order.every((at, i) => at === i)) return nodes;
+    const active = [...w.left];
+    return order.map((i) => {
+      const node = JSON.parse(JSON.stringify(nodes[i]));
+      const step = stepOf.get(i);
+      const line = active.indexOf(step.inputs[0].lane);
+      if (line > 0) node.line = line;
+      else delete node.line;
+      if (isJoin(node)) active.splice(line + 1, 1);
+      else if (step.out.length > 1) active.splice(line + 1, 0, step.out[1]);
+      return node;
+    });
+  }
+
   // ===== Names ===============================================================
 
   // Every part name a board gives, in wiring order: [{ key, kind, name, role }].
@@ -648,7 +702,7 @@
   }
 
   global.EsphomeMrMssRow = {
-    TEXT, NODE_IDS, BOARD_IDS, SAMPLE_IDS, PRESETS, sidesOf, endTrack, lineOf, isJoin, walk, linesAt, partsOf, named, preset, fits, problems, missing, describe, descriptionOf, parts, needs, use, rename,
+    TEXT, NODE_IDS, BOARD_IDS, SAMPLE_IDS, PRESETS, sidesOf, endTrack, lineOf, isJoin, walk, columns, pack, linesAt, partsOf, named, preset, fits, problems, missing, describe, descriptionOf, parts, needs, use, rename,
     canAdd, addNode, canRemove, removeNode, canTurn, turnNode, insertNode, moveNode, canMove,
   };
 })(typeof globalThis !== "undefined" ? globalThis : window);
