@@ -608,7 +608,8 @@
     for (const part of parts) {
       if (part.modes.includes(mode) && (!part.show || part.show(config))) part.render(root, config, ctx, UI);
     }
-    if (mode === "mss") global.EsphomeMrLogicUiMssMarks?.apply(root, config);
+    // MSS Logic's problems show on its own picture (logic-ui-mss-page.js); the
+    // old page's red dots (logic-ui-mss-marks.js) are not applied since MP 2.
   }
 
   // The nav's one-line summary of this board's logic.
