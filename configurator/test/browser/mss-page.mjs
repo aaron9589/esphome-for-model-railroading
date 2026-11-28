@@ -79,12 +79,32 @@ const passing = await page.evaluate(() => EsphomeMrMssRow.preset("passing"));
 assert.deepEqual(await page.evaluate(() => state.logic.mss.row), passing);
 assert.deepEqual(await page.locator(".mss-board-card strong").allInnerTexts(), ["1. Complex cascade", "2. Complex cascade, flipped"]);
 assert.equal(await page.evaluate(() => state.blocks.length), 0, "nothing is made while the module is built");
+// Each line is one track behind its boards: the main end to end, the loop
+// from just after the first Complex cascade to just before the second, which
+// each fill the height of both lines.
+assert.deepEqual(await page.locator("#logic-mss-lane .mss-line").evaluateAll((all) => all.map((l) => l.style.gridColumn)), ["1 / 6", "3 / 4"]);
+assert.equal(await page.locator("#logic-mss-lane .mss-board-card.is-two-lines").count(), 2);
 const adds = page.locator(".mss-adds");
 assert.match(await adds.innerText(), /Make the module adds/);
 assert.match(await adds.innerText(), /Points 1, Points 2/);
 // Six signals, two of them two-head: WS2812B LEDs, since LEDs would not fit.
 assert.equal(await page.locator("#logic-mss-strip").isChecked(), true);
 await shot("2-built");
+// A long module scrolls sideways on its own; the page keeps its width.
+const fits = () => page.evaluate(() => {
+  const builder = document.querySelector(".mss-builder");
+  const lane = document.querySelector("#logic-mss-lane");
+  return [builder.scrollWidth <= builder.clientWidth + 1, lane.scrollWidth > lane.clientWidth];
+});
+const kept = await page.evaluate(() => JSON.stringify(state.logic.mss.row));
+await page.evaluate(() => {
+  const row = EsphomeMrMssRow.preset("passing");
+  state.logic.mss.row = EsphomeMrMssRow.named([row[0], { node: "crossover" }, { node: "crossover", line: 1 }, { node: "cascade", line: 1 }, { node: "cascade" }, { node: "crossover" }, row[1]]);
+  persist();
+  render();
+});
+assert.deepEqual(await fits(), [true, true]);
+await page.evaluate((row) => { state.logic.mss.row = JSON.parse(row); persist(); render(); }, kept);
 // Plotted, not made: Pick your module stays the step, the rest wait for Make the module.
 assert.equal(await current(), "logic-step-pick");
 assert.deepEqual(await openSteps(), ["1 Pick your module"]);

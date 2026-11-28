@@ -2779,6 +2779,7 @@ button.clear-page {
 /* Pick your module: drag MSS boards from the palette into the module. */
 .mss-builder {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 1rem;
 }
 
@@ -2894,19 +2895,44 @@ button.clear-page {
   background: var(--accent-soft);
 }
 
-/* The module as a grid of lines (logic-ui-mss-page.js). */
+/* The module as a grid of lines (logic-ui-mss-page.js). A long module
+   scrolls sideways on its own; the page stays its width. */
 .mss-row-cards.is-grid {
   display: grid;
   gap: 0;
   align-items: stretch;
+  overflow-x: auto;
+  padding-bottom: 4px;
 }
 
 .mss-row-cards.is-grid .mss-board-card {
+  position: relative;
   width: auto;
   margin: 4px 0;
+  align-self: center;
+}
+
+.mss-row-cards.is-grid .mss-board-card.is-two-lines {
+  align-self: stretch;
+  justify-content: center;
+}
+
+.mss-row-cards.is-grid .mss-board-card.is-two-lines .mss-board-actions {
+  margin-top: 0;
+}
+
+/* A line of the module: one track behind the boards on it, which sit
+   centred on it (a Complex cascade between its two lines). */
+.mss-line {
+  align-self: center;
+  height: 4px;
+  background: #374151;
+  border-radius: 2px;
+  pointer-events: none;
 }
 
 .mss-row-cards.is-grid .mss-drop {
+  position: relative;
   width: 14px;
   margin: 4px 2px;
 }
@@ -2914,13 +2940,6 @@ button.clear-page {
 .mss-row-cards.is-grid .mss-drop.is-empty {
   width: auto;
   min-width: 320px;
-}
-
-.mss-pass {
-  align-self: center;
-  height: 4px;
-  background: #374151;
-  border-radius: 2px;
 }
 
 .mss-drop.is-join {
