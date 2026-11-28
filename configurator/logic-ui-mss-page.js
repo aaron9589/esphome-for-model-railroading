@@ -987,7 +987,8 @@
       for (const ind of indicationsFor(config, at.heads)) {
         const chip = button("", () => preview(at.name, ind), "mss-indication");
         chip.dataset.indication = ind.key;
-        for (const head of ind.heads) chip.append(el("span", `mss-lamp is-${head.color}${head.blink ? " is-blink" : ""}`));
+        // The lower head's dot first, the upper head's after it.
+        for (const head of [...ind.heads].reverse()) chip.append(el("span", `mss-lamp is-${head.color}${head.blink ? " is-blink" : ""}`));
         chip.append(` ${ind.label}`);
         for (const on of ["mouseenter", "focus"]) chip.addEventListener(on, () => preview(at.name, ind));
         for (const off of ["mouseleave", "blur"]) chip.addEventListener(off, () => preview(at.name, null));

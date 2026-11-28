@@ -227,7 +227,9 @@
       const y = px(s.at[1] + dy);
       const away = s.facing === "right" ? -1 : 1; // the mast's foot, away from the way it faces
       g.append(svg("line", { class: "mss-row-mast", x1: x + away * 12, y1: y, x2: x, y2: y }));
-      for (let h = 0; h < s.heads; h += 1) g.append(svg("circle", { class: "mss-row-head", cx: x - away * (7 + h * 13), cy: y, r: 6 }));
+      // As on a real mast: the lower head nearest its foot, the upper at its
+      // top. The heads stay upper first in the drawing, as the aspects list them.
+      for (let h = 0; h < s.heads; h += 1) g.append(svg("circle", { class: "mss-row-head", cx: x - away * (7 + (s.heads - 1 - h) * 13), cy: y, r: 6 }));
       g.append(svg("text", { class: "mss-row-label is-small", x, y: y + (s.side === "below" ? 19 : -11), "text-anchor": "middle" }, s.name));
       // Its badge beyond the foot of the mast, clear of its name.
       badge(g, s.name, [s.at[0], s.at[1] + dy], [away * 26, 0]);
