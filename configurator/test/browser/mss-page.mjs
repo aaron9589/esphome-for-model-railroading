@@ -307,7 +307,8 @@ assert.deepEqual(await page.evaluate(() => state.logic.mss.row[0].names.left), [
 await page.click("#logic-mss-flip-0");
 const masts = await page.evaluate(() => state.signals.masts.map((m) => m.name));
 assert.ok(masts.includes("Signal 2 to B") && !masts.includes("Signal 2 to A"), masts.join());
-assert.equal(await page.evaluate(() => state.signals.masts.find((m) => m.name === "Signal 2 to B").topic), "trains/track/signalmast/Signal 2 to B");
+// Its topic follows the new name, with the board's name in it (an MSS board's topics do).
+assert.equal(await page.evaluate(() => state.signals.masts.find((m) => m.name === "Signal 2 to B").topic), await page.evaluate(() => `trains/track/signalmast/${state.board.name}/Signal 2 to B`));
 assert.deepEqual(await mssProblems(), []);
 await page.click("#logic-mss-start-again");
 await page.click(".mss-confirm button.primary");
