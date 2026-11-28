@@ -90,6 +90,7 @@
     mastsStrip: (names, pins) => `Signals: ${names}, each head one WS2812B LED, each signal on its own data pin (${pins} pins in all).`,
     kept: (names) => `Already on this board, and used as they are: ${names}.`,
     useStrip: "Use one WS2812B LED for each head instead (one data pin for each signal)",
+    shortOfPinsStrip: (need, safe) => `This board has ${safe} free pin${safe === 1 ? "" : "s"} that ${safe === 1 ? "is" : "are"} safe for a data pin once the sensors are on theirs, and these signals need ${need}, one for each signal. Remove what this board does not need first, or make the module smaller.`,
     shortOfPins: (need, safe) => `This board has ${safe} free pin${safe === 1 ? "" : "s"} that ${safe === 1 ? "is" : "are"} safe for an LED once the sensors are on theirs, and these signals need ${need}. Use WS2812B LEDs, or remove what this board does not need first.`,
     cancel: "Cancel",
     yourModule: "Your module",
@@ -458,7 +459,7 @@
       strip.querySelector("input")?.setAttribute("id", "logic-mss-strip");
       box.append(strip);
       const safe = Math.max(0, (ctx.safeOutputPins?.() ?? Infinity) - want.sensors.length);
-      if (want.pins > safe) box.append(el("p", "mss-warning", TEXT.shortOfPins(want.pins, safe)));
+      if (want.pins > safe) box.append(el("p", "mss-warning", (style === "strip" ? TEXT.shortOfPinsStrip : TEXT.shortOfPins)(want.pins, safe)));
     }
     return want;
   }
@@ -682,6 +683,23 @@
       });
       return z;
     };
+    // Each line as one track behind the boards, from where it starts (end A,
+    // or the Complex cascade that splits it off) to where it ends (end B, or
+    // the Complex cascade that joins it), so the boards sit on their lines.
+    if (row.length) {
+      const last = 2 * row.length + 1;
+      for (const laneId of w.order) {
+        const from = w.steps.find((st) => st.out.includes(laneId) && !st.inputs.some((x) => x.lane === laneId));
+        const to = w.steps.find((st) => st.inputs.some((x) => x.lane === laneId) && !st.out.includes(laneId));
+        // A line split off starts just after its Complex cascade, and one joined ends just before it.
+        const start = w.left.includes(laneId) || !from ? 1 : 2 * from.index + 3;
+        const end = w.right.includes(laneId) || !to ? last : 2 * to.index + 1;
+        const track = el("div", "mss-line");
+        track.style.gridColumn = `${start} / ${end + 1}`;
+        track.style.gridRow = String(lineRow(laneId));
+        lane.append(track);
+      }
+    }
     // The gaps: each line there, and each pair of neighbouring lines to join.
     for (let at = 0; at <= row.length; at += 1) {
       const lanesHere = R().walk(row.slice(0, at)).right;
@@ -700,8 +718,6 @@
       // The lines it is on: its own, and for a Complex cascade the other it splits into or joins.
       const mine = [...step.inputs.map((x) => x.lane), ...step.out];
       const rows = mine.map(lineRow);
-      // The lines carrying past it.
-      for (const laneId of R().walk(row.slice(0, i)).right) if (!mine.includes(laneId)) place(el("div", "mss-pass"), column, lineRow(laneId));
       const card = el("div", "mss-board-card");
       card.dataset.board = String(i);
       card.draggable = true;
@@ -724,6 +740,8 @@
       if (remove.disabled) remove.title = TEXT.cannotRemove;
       actions.append(remove);
       card.append(actions);
+      // A Complex cascade fills the height of both its lines, so each runs into its side.
+      if (rows.length > 1) card.classList.add("is-two-lines");
       place(card, column, Math.min(...rows), Math.max(...rows));
     }
     canvas.append(lane);
