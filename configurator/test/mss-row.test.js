@@ -52,7 +52,7 @@ test("a row's own problems: empty, an unknown node, a Crossover with others, sid
   // The builder reports them against the row, and nothing else.
   const config = M.myFirstBoardPreset();
   config.logic = { mode: "mss", mss: { row: [{ node: "siding" }, { node: "cascade" }] } };
-  same(B.problems(config).map((p) => [p.level, p.where]), [["error", { view: "logic", part: B.PARTS.row, node: 1 }]]);
+  same(B.problems(config).map((p) => [p.level, p.where]), [["error", { view: "logic", part: B.PARTS.row, row: true, node: 1 }]]);
 });
 
 test("the passing siding's description: two ends, the main and the siding between two junctions", () => {

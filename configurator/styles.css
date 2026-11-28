@@ -3312,3 +3312,149 @@ button.clear-page {
 .plan-body.is-try .plan-panel {
   flex-basis: 100%;
 }
+
+/* ===== MSS Logic: a row of standard nodes (logic-ui-mss-page.js, -row.js) ===== */
+
+.mss-page .mss-row-wrap {
+  overflow-x: auto;
+  margin-bottom: 0.75rem;
+}
+
+.mss-row-picture {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+
+.mss-row-node {
+  fill: var(--bg);
+  stroke: var(--line);
+}
+
+.mss-row-node-title {
+  fill: var(--muted);
+  font: 600 11px var(--sans);
+}
+
+.mss-row-track {
+  fill: none;
+  stroke: #374151;
+  stroke-width: 5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.mss-row-label {
+  fill: var(--ink);
+  font: 12px var(--sans);
+}
+
+.mss-row-label.is-small {
+  font-size: 10px;
+  fill: var(--muted);
+}
+
+.mss-row-ir line {
+  stroke: #7c3aed;
+  stroke-width: 3;
+}
+
+.mss-row-points circle {
+  fill: var(--surface);
+  stroke: #374151;
+  stroke-width: 2;
+}
+
+.mss-row-mast {
+  stroke: #374151;
+  stroke-width: 2;
+}
+
+.mss-row-head {
+  fill: #1f2937;
+  stroke: #1f2937;
+}
+
+.mss-row-end {
+  fill: var(--muted);
+  font: 600 11px var(--sans);
+}
+
+/* A part the step is about, lit; a part done, or with a problem. */
+.mss-row-block.is-lit .mss-row-track { stroke: var(--accent); }
+.mss-row-ir.is-lit line { stroke: var(--accent); stroke-width: 5; }
+.mss-row-points.is-lit circle { stroke: var(--accent); stroke-width: 3; }
+.mss-row-signal.is-lit .mss-row-head { fill: var(--accent); stroke: var(--accent); }
+.is-lit > .mss-row-label { fill: var(--accent); font-weight: 600; }
+.is-error .mss-row-track, .mss-row-ir.is-error line { stroke: var(--danger); }
+.is-done .mss-row-track { stroke: var(--ok-ink); }
+
+.mss-row-badge {
+  fill: var(--accent);
+}
+
+.mss-row-badge-text {
+  fill: var(--accent-ink);
+  font: 600 10px var(--sans);
+}
+
+.mss-presets {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 0.75rem;
+  margin: 0.5rem 0 1rem;
+}
+
+.mss-preset {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  text-align: left;
+  padding: 0.75rem;
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.mss-preset:hover,
+.mss-preset.is-open {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.mss-preset .mss-row-picture {
+  pointer-events: none;
+}
+
+.mss-confirm {
+  padding: 0.75rem;
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  background: var(--accent-soft);
+  margin: 0.5rem 0;
+}
+
+.mss-confirm ul {
+  margin: 0.25rem 0 0.5rem;
+  padding-left: 1.25rem;
+}
+
+.mss-warning {
+  color: var(--warn-ink);
+  background: var(--warn-bg);
+  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
+}
+
+.mss-parts {
+  padding-left: 1.25rem;
+}
+
+.mss-parts .is-missing {
+  color: var(--danger);
+}
+
+.mss-row-list {
+  padding-left: 1.25rem;
+}

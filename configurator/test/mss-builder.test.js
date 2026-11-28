@@ -231,28 +231,28 @@ test("validation: each problem points at the part of the description that caused
   config.signals.masts[0].aspects = config.signals.masts[0].aspects.filter((a) => a.label !== "R285");
   const found = B.problems(config);
   same(found.map((p) => [p.level, p.where.part, p.text]), [
-    ["warning", "logic-mss-junctions", 'Junction "J1" has no sensor, so a car standing on it is not seen. MSS asks for an optical sensor for each route: add one.'],
-    ["error", "logic-mss-tracks", "Track 1 (A1 to J1 leg 1), block 2 has no sensor. Pick the current sensor that sees a train in it."],
-    ["error", "logic-mss-tracks", 'Track 1 (A1 to J1 leg 1), block boundary 1 uses sensor "Nowhere", which is not on the Sensors page. Add it there, or pick another.'],
-    ["warning", "logic-mss-tracks", "Track 1 (A1 to J1 leg 1), block boundary 2 has no sensor, so the signals there can clear while cars that draw no power are still on it. Add its optical sensor."],
-    ["error", "logic-mss-tracks", "Track 3 (J1 leg 3 to C2): To is end C track 2, but end C has fewer tracks. Pick another, or add the track under Ends."],
-    ["error", "logic-mss-ends", "End C track 1 has no track. Describe the track through it under Tracks, or give end C fewer tracks."],
-    ["error", "logic-mss-signals", 'Pick what signal "Outer" shows for Approach under Signals.'],
-    ["error", "logic-mss-signals", 'Signal "Home" has no aspect called "R999". Pick another for Approach under Signals.'],
+    ["warning", "logic-mss-row", 'Junction "J1" has no sensor, so a car standing on it is not seen. MSS asks for an optical sensor for each route: add one.'],
+    ["error", "logic-mss-row", "Track 1 (A1 to J1 leg 1), block 2 has no sensor. Pick the current sensor that sees a train in it."],
+    ["error", "logic-mss-row", 'Track 1 (A1 to J1 leg 1), block boundary 1 uses sensor "Nowhere", which is not on the Sensors page. Add it there, or pick another.'],
+    ["warning", "logic-mss-row", "Track 1 (A1 to J1 leg 1), block boundary 2 has no sensor, so the signals there can clear while cars that draw no power are still on it. Add its optical sensor."],
+    ["error", "logic-mss-row", "Track 3 (J1 leg 3 to C2): To is end C track 2, but end C has fewer tracks. Pick another, or add the track under Ends."],
+    ["error", "logic-mss-row", "End C track 1 has no track. Describe the track through it under Tracks, or give end C fewer tracks."],
+    ["error", "logic-mss-row", 'Pick what signal "Outer" shows for Approach under Signals.'],
+    ["error", "logic-mss-row", 'Signal "Home" has no aspect called "R999". Pick another for Approach under Signals.'],
   ]);
-  same(found.find((p) => p.text.includes("block 2 has no sensor")).where, { view: "logic", part: "logic-mss-tracks", track: 0, block: 1 });
-  same(found.find((p) => p.text.includes("Nowhere")).where, { view: "logic", part: "logic-mss-tracks", track: 0, boundary: 0 });
+  same(found.find((p) => p.text.includes("block 2 has no sensor")).where, { view: "logic", part: "logic-mss-row", track: 0, block: 1 });
+  same(found.find((p) => p.text.includes("Nowhere")).where, { view: "logic", part: "logic-mss-row", track: 0, boundary: 0 });
   // validateConfig reports them, each with its link.
   const { errors, links } = validateConfig(config);
   assert.ok(errors.includes("Track 1 (A1 to J1 leg 1), block 2 has no sensor. Pick the current sensor that sees a train in it."));
-  same(links.get("End C track 1 has no track. Describe the track through it under Tracks, or give end C fewer tracks."), { view: "logic", part: "logic-mss-ends", end: 2 });
+  same(links.get("End C track 1 has no track. Describe the track through it under Tracks, or give end C fewer tracks."), { view: "logic", part: "logic-mss-row", end: 2 });
 });
 
 test("validation rejects two routes from one leg that can be active together", () => {
   const config = junctionModule();
   config.logic.mss.junctions[0].routes[1].turnouts = [{ turnout: "P1", position: "closed" }];
   same(problemTexts(config), [
-    ["error", "logic-mss-junctions", 'Routes 1 and 2 of junction "J1" both leave leg 1, and their turnouts do not tell them apart, so both could be set at once. Give one of them a turnout in the other position.'],
+    ["error", "logic-mss-row", 'Routes 1 and 2 of junction "J1" both leave leg 1, and their turnouts do not tell them apart, so both could be set at once. Give one of them a turnout in the other position.'],
   ]);
   // A route with no turnouts cannot be told apart either.
   config.logic.mss.junctions[0].routes[1].turnouts = [];
@@ -295,7 +295,7 @@ test("the checks for Field Logic run over the built items once the description i
   const { errors, links } = validateConfig(config);
   const text = 'Block "A1 to B1 block 2" has the same name as sensor "A1 to B1 block 2". Rename the block. Made by MSS Logic from Track 1 (A1 to B1), block 2.';
   assert.ok(errors.includes(text), errors.join("\n"));
-  same(links.get(text), { view: "logic", part: "logic-mss-tracks", track: 0, block: 1 });
+  same(links.get(text), { view: "logic", part: "logic-mss-row", track: 0, block: 1 });
   // While the description has an error, only that is reported.
   config.logic.mss.tracks[0].blocks[0].sensors = [];
   assert.ok(!validateConfig(config).errors.some((e) => e.includes("Made by MSS Logic")));

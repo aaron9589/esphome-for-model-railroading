@@ -11,6 +11,8 @@ This guide builds two modules from an empty Logic page and pairs them:
 
 Use it after the [First Board Setup Guide](first-board-setup-guide.md) and the [JMRI MQTT Verification Guide](jmri-mqtt-verification-guide.md). Each board should be online in ESPHome, and JMRI should have its MQTT connection set up. The [Field Logic Guide](field-logic-guide.md) covers the groundwork this guide leans on: the name suffix, sensors, expanders, flashing and MQTTX. MSS Logic and Field Logic run on the same engine, so what you learn there carries over.
 
+> **Being rebuilt:** the MSS Logic page now starts from the standard MSS modules: Pick your module, then Wire it, Signals, Try it, Download and Pair ([the spec](mss-patterns-spec.md)). This guide still describes the earlier page, where you described the ends, tracks and junctions yourself, and is rewritten for the new one in work item MP 7.
+
 > **Testers:** MSS Logic is not on the live configurator yet. Until it is, open it from the `feature/logic` branch, as the testers' note in the Field Logic Guide describes. Nothing in this guide has been tried on hardware yet. It says what should happen, from the design and from the test cases the configurator is checked against. If your board does something else, that is worth reporting.
 
 ---

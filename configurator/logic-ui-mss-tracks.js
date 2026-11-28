@@ -542,7 +542,5 @@
     setSignal, stripShape, trackProblems, problemTotal, fixSelection, samePlace, pick, picked,
   };
 
-  if (global.EsphomeMrLogicUi) {
-    global.EsphomeMrLogicUi.registerPart({ id: B().PARTS.tracks, order: 45, modes: ["mss"], text: TEXT, render: renderTracks });
-  }
+  // MP 2: no longer a card on the page (logic-ui-mss-page.js); the picture Try it draws still uses its helpers until MP 6.
 })(typeof globalThis !== "undefined" ? globalThis : window);

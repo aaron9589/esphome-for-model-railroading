@@ -36,15 +36,12 @@
   const R = () => global.EsphomeMrMssRow;
   const descriptionOf = (mss) => (Array.isArray(mss?.row) ? (R() ? R().descriptionOf(mss) : { ...mss, ends: [], tracks: [], junctions: [] }) : mss);
 
-  // The page's parts for MSS Logic (work item 4.2 draws them). Each problem
-  // links to one.
-  const PARTS = Object.freeze({
-    ends: "logic-mss-ends",
-    tracks: "logic-mss-tracks",
-    junctions: "logic-mss-junctions",
-    signals: "logic-mss-signals",
-    row: "logic-mss-row",
-  });
+  // Where each problem links. Since MP 2 the page has one place for the whole
+  // module: its picture and steps (logic-ui-mss-page.js, the card
+  // `logic-mss-row`). A problem's other keys (end, track, junction, mast,
+  // node) say where on the module it is.
+  const ROW_PART = "logic-mss-row";
+  const PARTS = Object.freeze({ ends: ROW_PART, tracks: ROW_PART, junctions: ROW_PART, signals: ROW_PART, row: ROW_PART });
 
   // MSS names indications, not aspects (spec, Masts): each gives its aspect a
   // meaning, and CATS masts are prefilled with the aspect named here.
@@ -581,11 +578,15 @@
     const out = [];
     const error = (where, text) => out.push({ level: "error", text, where });
     const warn = (where, text) => out.push({ level: "warning", text, where });
-    // A row's own problems come first; a row with any describes nothing.
+    // A row's own problems come first (a row with any describes nothing),
+    // then each part it names that is not on its page; with any of those,
+    // the description waits until they are there.
     const row = config?.logic?.mss?.row;
     if (Array.isArray(row) && R()) {
-      const own = R().problems(row).map((p) => ({ ...p, where: { view: "logic", part: PARTS.row, ...p.where } }));
+      const own = R().problems(row).map((p) => ({ ...p, where: { view: "logic", part: PARTS.row, row: true, ...p.where } }));
       if (own.length) return own;
+      const absent = R().missing(config, row).map((p) => ({ ...p, where: { view: "logic", part: PARTS.row, ...p.where } }));
+      if (absent.length) return absent;
     }
     const sensorNames = new Set(list(config?.blocks).map((b) => b.name));
     const turnoutNames = new Set(list(config?.points).map((p) => p.name));
@@ -832,6 +833,6 @@
 
   global.EsphomeMrMssBuilder = {
     TEXT, PARTS, INDICATIONS,
-    build, problems, prefill, renameMast, renameAspect, namesOf,
+    build, problems, prefill, renameMast, renameAspect, namesOf, descriptionOf,
   };
 })(typeof globalThis !== "undefined" ? globalThis : window);

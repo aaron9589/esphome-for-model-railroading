@@ -106,17 +106,6 @@
       steps.push({ key: "blocks", done, target: "logic-blocks" });
     }
     if (FEATURES.tryIt && parts.blocks) steps.push({ key: "tryIt", done: false, target: "logic-try" });
-    if (mode === "mss") {
-      // The module's description, one step for each part (spec: A guided setup).
-      const mss = global.EsphomeMrMssBuilder;
-      const described = config.logic?.mss || {};
-      const placed = (key) => Array.isArray(described[key]) && described[key].length > 0;
-      steps.push({ key: "ends", done: placed("ends"), target: mss.PARTS.ends });
-      steps.push({ key: "tracks", done: placed("tracks"), target: mss.PARTS.tracks });
-      steps.push({ key: "junctions", done: placed("junctions"), target: mss.PARTS.junctions });
-      steps.push({ key: "signals", done: placed("masts"), target: mss.PARTS.signals });
-      if (FEATURES.tryIt && parts.tryIt) steps.push({ key: "tryIt", done: false, target: "logic-try" });
-    }
     steps.push({ key: "download", done: false, view: "yaml" });
     return steps;
   }
@@ -587,12 +576,18 @@
   // What parts get as `ui`.
   const UI = Object.freeze({ TEXT, card, rerender, logicOf, newRule, newGroup, itemChoices, selectEl, rowCard, paragraph });
 
-  // MSS Logic leads with its own guided steps (logic-ui-mss-steps.js).
+  // MSS Logic leads with its own frame (logic-ui-mss-page.js).
   // Field Logic leads with its own frame (logic-ui-field.js): the mode,
   // Share and Linked boards fold behind its line, and the old page's cards
   // (Blocks and the parts after it) are no longer shown there (TP 6; their
   // code goes in TP 9).
-  const folded = (config) => global.EsphomeMr.logicMode(config) !== "field" || !!global.EsphomeMrLogicUiField?.settingsOpen(config);
+  // MSS Logic folds them behind its own line too (logic-ui-mss-page.js, MP 2).
+  const folded = (config) => {
+    const mode = global.EsphomeMr.logicMode(config);
+    if (mode === "field") return !!global.EsphomeMrLogicUiField?.settingsOpen(config);
+    if (mode === "mss") return !!global.EsphomeMrLogicUiMss?.settingsOpen(config);
+    return true;
+  };
   registerPart({ id: "logic-steps", order: 0, modes: ["none"], render: (root, config, ctx) => renderChecklist(root, config, ctx, {
     blocks: global.EsphomeMr.logicMode(config) === "field",
     tryIt: parts.some((part) => part.id === "logic-try" && part.modes.includes(global.EsphomeMr.logicMode(config))),
