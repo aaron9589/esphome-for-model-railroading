@@ -30,7 +30,7 @@
    * Where everything goes, for a row with no problems (else null):
    * { width, rows (1 or 2), nodes: [{ index, x, title, turned }],
    *   blocks: [{ name, road, path: [[x, y], ...] }],
-   *   irs: [{ name, node, at }], points: [{ name, node, at }],
+   *   irs: [{ name, node, at }], points: [{ name, node, at, legs: { closed, thrown } }],
    *   signals: [{ name, node, key, at, facing: "left" | "right", heads, side: "above" | "below" }],
    *   ends: [{ name, at: [x, y], roads }] }.
    */
@@ -82,11 +82,13 @@
         continue;
       }
       out.irs.push({ name: n.ir, node: i, at: [mid, y] });
-      out.points.push({ name: n.points, node: i, at: [mid, y] });
+      // Where the points lead, closed and thrown: the main and diverging lines' first step.
+      const side = R().isJoin(node) ? -D : D;
+      const yb = yOf(R().isJoin(node) ? step.inputs[1].lane : step.out[1]);
+      out.points.push({ name: n.points, node: i, at: [mid, y], legs: { closed: [mid + side, y], thrown: [mid + side, yb] } });
       if (R().isJoin(node)) {
         // The main and diverging lines come in from the left; one line goes on.
         const branch = step.inputs[1].lane;
-        const yb = yOf(branch);
         close(lane, [[mid, y]]);
         close(branch, [[mid - D, yb], [mid, y]]);
         signal(i, "single", n.signals?.single, [mid + OFF, y], "left", 2);
@@ -95,7 +97,6 @@
         open.set(lane, { path: [[mid, y]], name: list(n.right)[0] });
       } else {
         const branch = step.out[1];
-        const yb = yOf(branch);
         close(lane, [[mid, y]]);
         signal(i, "single", n.signals?.single, [mid - OFF, y], "right", 2);
         signal(i, "main", n.signals?.main, [mid + D + OFF, y], "left", 1);

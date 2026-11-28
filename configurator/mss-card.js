@@ -6,6 +6,9 @@
 // no scripts. Made from the same config as the YAML, so the version code is
 // the YAML's. Every name is escaped.
 //
+// A module of MSS boards (logic.mss.row, docs/mss-patterns-spec.md; MP 6)
+// lists its boards in order, and each part says which board it is on.
+//
 // Left out on purpose: the spec's drawing of the strips and junctions, and a
 // first-checks list beyond the few lines below. The sensor and signal tables
 // say where each one sits.
@@ -45,6 +48,15 @@ th, td { text-align: left; padding: 1mm 4mm 1mm 0; border-bottom: 1px solid #bbb
     ],
     ledHeading: "End LED",
     led: ["Slow blink: pairing.", "Steady: paired and the other side is heard.", "Fast blink: a problem. The other side is not heard, does not agree, or refused."],
+    moduleHeading: "The module",
+    moduleBoards: "Its MSS boards, from end A to end B:",
+    board: (n, title, turned) => `MSS board ${n}, ${title}${turned ? " (flipped)" : ""}`,
+    rowPlace: Object.freeze({
+      block: "the block it starts", left: "the block on its end A side", crossover: "its detector, in the block it stands in",
+      ir: "the IR sensor", points: "the points",
+      toA: "facing end A", toB: "facing end B",
+      single: "on the single line, at the points", main: "on the main line, at the points", siding: "on the diverging line, at the points",
+    }),
     checkHeading: "A joint shows Stop",
     check: ["Is the other module powered and on the same Wi-Fi?", "Press Pair on both sides again within 30 seconds.", "Look at the end's state on the board's web page."],
   };
@@ -55,7 +67,22 @@ th, td { text-align: left; padding: 1mm 4mm 1mm 0; border-bottom: 1px solid #bbb
     return String(pin ?? "").trim().toUpperCase();
   }
 
-  /** Where each sensor and signal sits, from the description: name -> [text]. */
+  const rowOf = (config) => (Array.isArray(config.logic?.mss?.row) && global.EsphomeMrMssRow ? config.logic.mss.row : null);
+
+  // A module of MSS boards: each part says which board it is on.
+  function rowPlaces(row, add, sensors, signals) {
+    const R = global.EsphomeMrMssRow;
+    const title = (node) => R.TEXT.nodes[node?.node]?.title || String(node?.node ?? "");
+    for (const part of R.parts(row)) {
+      const node = row[part.node];
+      const words = part.kind === "mast" ? TEXT.rowPlace[part.key] : part.key === "block" ? TEXT.rowPlace.crossover
+        : part.key.startsWith("left.") ? TEXT.rowPlace.left : part.key.startsWith("right.") ? TEXT.rowPlace.block : TEXT.rowPlace[part.key];
+      const where = `${TEXT.board(part.node + 1, title(node), node?.turned === true)}: ${words || part.key}`;
+      add(part.kind === "mast" ? signals : sensors, part.name, where);
+    }
+  }
+
+  /** Where each sensor and signal sits, from the row or the description: name -> [text]. */
   function places(config) {
     const sensors = new Map();
     const signals = new Map();
@@ -64,6 +91,11 @@ th, td { text-align: left; padding: 1mm 4mm 1mm 0; border-bottom: 1px solid #bbb
       if (!map.has(name)) map.set(name, []);
       map.get(name).push(text);
     };
+    const row = rowOf(config);
+    if (row) {
+      rowPlaces(row, add, sensors, signals);
+      return { sensors, signals };
+    }
     const mss = isObject(config.logic?.mss) ? (global.EsphomeMrMssBuilder?.descriptionOf(config.logic.mss) || config.logic.mss) : {};
     const place = (ref) => {
       if (isObject(ref) && ref.end !== undefined) return `end ${ref.end} track ${ref.track}`;
@@ -109,6 +141,14 @@ th, td { text-align: left; padding: 1mm 4mm 1mm 0; border-bottom: 1px solid #bbb
     const body = [];
     body.push(`<h1>${esc(name)}</h1>`);
     body.push(`<p class="meta">Logic version <code>${esc(Y.versionCode(config))}</code> · made ${esc(date)}</p>`);
+
+    // A module of MSS boards: the boards, in order.
+    const boards = rowOf(config);
+    if (boards) {
+      const R = global.EsphomeMrMssRow;
+      body.push(`<h2>${esc(TEXT.moduleHeading)}</h2>`, `<p>${esc(TEXT.moduleBoards)}</p>`);
+      body.push(`<ol>${boards.map((node, i) => `<li>${esc(TEXT.board(i + 1, R.TEXT.nodes[node?.node]?.title || node?.node, node?.turned === true))}</li>`).join("")}</ol>`);
+    }
 
     // Ends: the built plant ends, so the names match the YAML.
     body.push("<h2>Ends</h2>");

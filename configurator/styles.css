@@ -3750,3 +3750,107 @@ button.clear-page {
   background: var(--ok-bg);
   border: 2px dashed var(--ok-ink);
 }
+
+/* ===== MSS Logic: Try it on the module's picture (logic-ui-mss-try.js, MP 6) ===== */
+
+#logic-mss-try .mss-row-wrap {
+  overflow-x: auto;
+  margin: 0.5rem 0;
+}
+
+.mss-row-block.is-train .mss-row-track,
+.mss-neighbour-block.is-train rect {
+  stroke: #dc2626;
+  fill: #dc2626;
+  stroke-width: 8;
+}
+
+.mss-row-block.is-train .mss-row-track { fill: none; }
+
+.mss-row-crossover.is-train rect { fill: #dc2626; }
+
+.mss-live-leg {
+  stroke: #16a34a;
+  stroke-width: 6;
+  stroke-linecap: round;
+  pointer-events: none;
+}
+
+.mss-live-lock {
+  fill: var(--ink);
+  pointer-events: none;
+}
+
+.mss-live-hit {
+  fill: none;
+  stroke: transparent;
+  stroke-width: 18;
+  pointer-events: stroke;
+}
+
+/* The IR sensor stands where the points are: clicks go through it to them. */
+#logic-mss-try-picture .mss-row-ir { pointer-events: none; }
+
+.mss-row-picture.is-live [data-part]:focus-visible,
+.mss-neighbour-block:focus-visible {
+  outline: 2px solid var(--accent);
+}
+
+.plan-chip.is-mss-train { background: #dc2626; }
+.plan-chip.is-mss-locked { background: var(--ink); width: 8px; height: 8px; }
+
+.mss-try-body {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem 1.5rem;
+}
+
+.mss-try-main {
+  flex: 2 1 360px;
+  min-width: 0;
+}
+
+.mss-try-panel {
+  flex: 1 1 260px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.mss-neighbour {
+  margin: 0.5rem 0;
+}
+
+.mss-neighbour-track {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem 0.75rem;
+  margin: 0.25rem 0 0.5rem;
+}
+
+.mss-neighbour-track > .hint {
+  flex-basis: 100%;
+  margin: 0;
+}
+
+.mss-neighbour-strip {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+
+.mss-neighbour-block { cursor: pointer; }
+
+.mss-neighbour-block rect {
+  fill: var(--bg);
+  stroke: var(--muted);
+  stroke-width: 1.5;
+}
+
+.mss-neighbour-joint {
+  stroke: var(--muted);
+  stroke-width: 2;
+  stroke-dasharray: 4 3;
+}

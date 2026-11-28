@@ -9,7 +9,7 @@ import { configuratorDir, loadModules, test } from "./harness.js";
 const html = fs.readFileSync(path.join(configuratorDir, "index.html"), "utf8");
 const scripts = [...html.matchAll(/<script src="\.\/([^"]+)"><\/script>/g)].map((m) => m[1]);
 const context = loadModules(...scripts.slice(scripts.indexOf("generator.js"), scripts.indexOf("app.js")));
-const { EsphomeMr: M, EsphomeMrMssBuilder: B, EsphomeMrMssTemplates: MT, EsphomeMrLogicTry: Try, EsphomeMrLogicUiMssModule: Module } = context;
+const { EsphomeMr: M, EsphomeMrMssBuilder: B, EsphomeMrMssTemplates: MT, EsphomeMrLogicTry: Try, EsphomeMrLogicUiMssTry: MssTry } = context;
 const plain = (value) => JSON.parse(JSON.stringify(value));
 
 // A fresh board in MSS Logic, with the example sensor and turnout taken off.
@@ -96,7 +96,7 @@ test("crossover: one block across the module and no signals", () => {
 test("cascade: a train from End A drops Signal A to Stop behind it, and Signal B is not in its way", () => {
   const config = made("cascade");
   const session = Try.createSession(config);
-  const route = Module.trainRoute(config, { end: "A", track: 1 }, () => "closed");
+  const route = MssTry.trainRoute(config, { end: "A", track: 1 }, () => "closed");
   assert.deepEqual(plain(route.masts), ["Signal A"]);
   const steps = Try.runTrain(session, { path: route.blocks, masts: ["Signal A", "Signal B"] });
   const names = B.namesOf(config).blocks;
