@@ -3473,3 +3473,41 @@ button.clear-page {
 .mss-start-again {
   margin-top: 1rem;
 }
+
+.mss-row-badge.is-done { fill: var(--ok-ink); }
+.mss-row-badge.is-error { fill: var(--danger); }
+.mss-row-picture.is-pickable [data-part] { cursor: pointer; }
+.mss-row-end-part.is-lit .mss-row-end { fill: var(--accent); }
+
+.mss-wire {
+  border: 1px solid var(--accent);
+  background: var(--accent-soft);
+  border-radius: 8px;
+  padding: 0.75rem;
+  margin: 0.5rem 0;
+}
+
+.mss-wire h4 {
+  margin: 0.25rem 0;
+}
+
+.mss-wire-count {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.mss-wire-list {
+  list-style: none;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1rem;
+}
+
+.mss-wire-list .is-current button {
+  font-weight: 600;
+}
+
+.mss-wire-list .is-problem {
+  color: var(--danger);
+}

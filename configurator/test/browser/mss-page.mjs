@@ -83,12 +83,43 @@ assert.deepEqual(await openSteps(), ["✓ Pick your module", "✓ Wire it", "✓
 assert.deepEqual(await mssProblems(), []);
 const picture = page.locator("#logic-mss-picture");
 assert.equal(await picture.count(), 1, "the module's picture above the step");
-// Wire it lights the blocks, IR sensors and points; Signals the signals.
-assert.equal(await picture.locator(".mss-row-block.is-lit").count(), 4);
-assert.equal(await picture.locator(".mss-row-ir.is-lit").count(), 2);
-assert.equal(await picture.locator(".mss-row-points.is-lit").count(), 2);
-assert.equal(await picture.locator(".mss-row-signal.is-lit").count(), 0);
+// Wire it lights the part being wired, the first to start with; Signals lights the signals.
+assert.equal(await picture.locator(".is-lit").count(), 1);
+assert.equal(await picture.locator('[data-part="Block 1 current"].is-lit').count(), 1);
 await shot("3-wire");
+// Each part has its number on the picture, done ones a tick; the first is being wired.
+assert.equal(await picture.locator(".mss-row-badge").count(), 12, "8 parts and each end's Pair button and LED");
+assert.match(await page.locator("#logic-mss-wire").innerText(), /1 of 12\s+Block 1 current \(block detector\)/);
+// Click IR 2 on the picture: it is the one being wired, lit.
+await picture.locator('[data-part="IR 2"] text').first().click();
+assert.match(await page.locator("#logic-mss-wire").innerText(), /6 of 12\s+IR 2 \(IR sensor\)/);
+assert.equal(await picture.locator('[data-part="IR 2"].is-lit').count(), 1);
+// Put it on Block 1's pin: both are shared, in red, and Wire it is not done.
+const block1 = await page.evaluate(() => state.blocks.find((b) => b.name === "Block 1 current").gpio);
+await page.selectOption("#logic-mss-wire-pin", block1);
+assert.match(await page.locator("#logic-mss-wire").innerText(), /is used by something else too/);
+assert.equal(await picture.locator(".mss-row-badge.is-error").count(), 2);
+assert.equal(await page.locator("#logic-step-wire .step-number").innerText(), "2");
+await shot("3b-shared");
+// A free pin again; then End A's Pair button, from the picture.
+const unused = await page.evaluate(() => {
+  const used = new Set([...state.blocks.map((b) => b.gpio), ...state.signals.masts.map((m) => m.pin), ...state.signals.masts.flatMap((m) => (m.lamps || []).map((l) => l.pin))]);
+  return [...document.querySelectorAll("#logic-mss-wire-pin option")].map((o) => o.value).find((v) => v && !used.has(v) && !/GPIO(0|2|5|12|15)$/.test(v));
+});
+await page.selectOption("#logic-mss-wire-pin", unused);
+assert.equal(await picture.locator(".mss-row-badge.is-error").count(), 0);
+await picture.locator('[data-part="end:A:pair"] circle').dispatchEvent("click");
+assert.match(await page.locator("#logic-mss-wire").innerText(), /End A Pair button/);
+const pairPin = await page.evaluate(() => {
+  const used = new Set([...state.blocks.map((b) => b.gpio), ...state.signals.masts.map((m) => m.pin)]);
+  return [...document.querySelectorAll("#logic-mss-wire-pin option")].map((o) => o.value).find((v) => v && !used.has(v) && !/GPIO(0|2|5|12|15)$/.test(v));
+});
+await page.selectOption("#logic-mss-wire-pin", pairPin);
+assert.deepEqual(await page.evaluate(() => state.logic.mss.ends), [{ name: "A", pairPin }]);
+await page.click("#logic-mss-wire-next");
+assert.match(await page.locator("#logic-mss-wire").innerText(), /End A LED/);
+assert.deepEqual(await mssProblems(), []);
+assert.equal(await page.locator("#logic-step-wire .step-number").innerText(), "✓");
 await page.click("#logic-mss-next");
 assert.equal(await current(), "logic-step-signals");
 assert.equal(await picture.locator(".mss-row-signal.is-lit").count(), 6);

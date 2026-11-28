@@ -46,7 +46,7 @@
     doing: Object.freeze({
       pickEmpty: "Pick the MSS module this board runs. Each is the standard MSS node, as Iowa Scaled Engineering's boards build it.",
       pick: "This is your module. Add a node on the right, turn a Siding end round, or remove a node, or start again from the standard modules.",
-      wire: "Each sensor and turnout, lit on the picture. Give each its pin on the Sensors and Turnouts pages.",
+      wire: "Wire each part in turn: it is lit on the picture, with how to wire it and its pin. Click a part on the picture to go to it.",
       signals: "Each signal, lit on the picture. Its lamps and pins are on the Signal Masts page; what it shows is the MSS pattern's.",
       try: "Put trains in blocks, throw the points and watch the signals.",
       download: "Download the board's file, the JMRI file and the module card from the Download page.",
@@ -115,6 +115,30 @@
     missing: "not on its page yet",
     roles: Object.freeze({ block: "block detector", ir: "IR sensor", points: "points", signal: "signal" }),
     partLine: (name, role, status) => `${name} (${role}): ${status}`,
+    // Wire it: each part in turn.
+    wireOf: (n, total) => `${n} of ${total}`,
+    endPart: Object.freeze({ pair: (end) => `End ${end} Pair button`, led: (end) => `End ${end} LED` }),
+    wireRoles: Object.freeze({ block: "block detector", ir: "IR sensor", points: "points", pair: "Pair button", led: "end LED" }),
+    howTo: Object.freeze({
+      block: "A current detector: its output to this pin, its GND to the board's GND. It sees a train in the block by the current it draws.",
+      ir: "An IR (optical) sensor at the block boundary: its output to this pin, its GND to GND. It sees any car standing there, powered or not.",
+      pointsPca: "The points' servo, plugged into this channel of the PCA9685 board.",
+      pointsEsp: "The points' servo: its signal wire to this pin. Power the servo from 5V, not from the ESP32.",
+      pair: (end) => `A push button between this pin and GND, beside end ${end}. Optional: the board's web page has a Pair button too.`,
+      led: (end) => `An LED and a resistor (about 330 Ω) from this pin to GND, beside end ${end}. Optional: it shows whether the end is paired.`,
+    }),
+    pin: "Pin",
+    channel: "Channel",
+    pcaBoard: "PCA9685 board",
+    pcaBoardN: (n) => `Board ${n}`,
+    noPin: "No pin",
+    pickPin: "Pick a pin…",
+    onExpander: (expander, pin) => `On expander ${expander}, pin ${pin}. Change it on the Sensors page.`,
+    pinMissing: "No pin yet.",
+    pinShared: (pin) => `${pin} is used by something else too. A pin can do one job.`,
+    notOnPage: "Not on its page: start the module again, or add it there.",
+    previous: "Previous",
+    nextPart: "Next part",
     // Pair.
     pairSteps: Object.freeze([
       "Press Pair on this module's end and on the end of the module beside it, within 30 seconds of each other. The board's web page has a Pair button for each end too.",
@@ -129,14 +153,19 @@
   const ORDER = Object.freeze(["pick", "wire", "signals", "try", "download", "pair"]);
 
   // What the person is looking at: kept while the page is drawn again.
-  const state = { board: null, step: null, settings: false, views: false, pending: "", style: null, ask: "", change: null };
+  const state = { board: null, step: null, settings: false, views: false, pending: "", style: null, ask: "", change: null, wireAt: "" };
 
   const rowOf = (config) => (Array.isArray(config?.logic?.mss?.row) ? config.logic.mss.row : null);
 
-  /** A module described by hand: ends, tracks or junctions, and no row. */
+  /**
+   * A module described by hand: tracks, junctions or ends with a track
+   * count, and no row. Ends kept only for their Pair and LED pins (a row's,
+   * after Start again) are not one.
+   */
   function handWritten(config) {
     const mss = config?.logic?.mss;
-    return isObject(mss) && !Array.isArray(mss.row) && ["ends", "tracks", "junctions"].some((key) => list(mss[key]).length > 0);
+    if (!isObject(mss) || Array.isArray(mss.row)) return false;
+    return list(mss.tracks).length > 0 || list(mss.junctions).length > 0 || list(mss.ends).some((e) => isObject(e) && e.tracks !== undefined);
   }
 
   /** Each part of the row and whether it is on its page: [{ ...part, there }]. */
@@ -164,7 +193,7 @@
     const problems = (row || handWritten(config)) && B() ? list(B().problems(config)) : [];
     const count = (step, level) => problems.filter((p) => stepOfProblem(p) === step && p.level === level).length;
     const parts = partsOf(config);
-    const wired = parts.filter((p) => p.kind !== "mast").every((p) => p.there);
+    const wired = parts.filter((p) => p.kind !== "mast").every((p) => p.there) && wireList(config).every((w) => w.done);
     const signalled = parts.filter((p) => p.kind === "mast").every((p) => p.there);
     const has = { pick: rowOk, wire: rowOk && wired, signals: rowOk && signalled, try: rowOk && wired && signalled, download: false, pair: false };
     return ORDER.map((id) => {
@@ -206,6 +235,64 @@
     if (step === "wire") return new Set(parts.filter((p) => p.kind !== "mast").map((p) => p.name));
     if (step === "signals") return new Set(parts.filter((p) => p.kind === "mast").map((p) => p.name));
     return new Set();
+  }
+
+  // Every pin this board uses, and how many times, for spotting a shared one.
+  function pinUses(config) {
+    const uses = new Map();
+    const add = (pin) => { if (typeof pin === "string" && pin) uses.set(pin.toUpperCase(), (uses.get(pin.toUpperCase()) || 0) + 1); };
+    for (const b of list(config?.blocks)) if (!b?.expander) add(b?.gpio);
+    if (config?.pca9685 === false) for (const p of list(config?.points)) add(p?.servoPin);
+    for (const m of list(config?.signals?.masts)) {
+      if (m?.mode === "gpio") for (const lamp of list(m.lamps)) add(lamp?.pin);
+      else add(m?.pin);
+    }
+    for (const e of list(config?.logic?.mss?.ends)) { add(e?.pairPin); add(e?.ledPin); }
+    return uses;
+  }
+
+  /**
+   * Wire it, in order: every block, the IR sensors, the points, then each
+   * end's Pair button and LED. [{ key, name, role, kind, end?, pin, place,
+   * done, problem }]: `pin` is the ESP pin (or "" for none), `place` a
+   * PCA9685 board and channel, an expander and its pin; `problem` one of
+   * missing, shared, notThere (or "").
+   */
+  function wireList(config) {
+    const row = rowOf(config);
+    if (!row || !R() || R().problems(row).length) return [];
+    const uses = pinUses(config);
+    const pca = config?.pca9685 !== false;
+    const out = [];
+    for (const part of R().parts(row).filter((p) => p.kind !== "mast")) {
+      const item = { key: part.name, name: part.name, role: part.role, kind: part.kind, pin: "", place: null, done: false, problem: "" };
+      if (part.kind === "sensor") {
+        const b = list(config?.blocks).find((x) => x?.name === part.name);
+        if (!b) item.problem = "notThere";
+        else if (b.expander) item.place = { expander: b.expander, pin: b.pin };
+        else item.pin = String(b.gpio || "");
+      } else {
+        const p = list(config?.points).find((x) => x?.name === part.name);
+        if (!p) item.problem = "notThere";
+        else if (pca) item.place = { board: Number(p.pcaBoard) || 0, channel: p.channel };
+        else item.pin = String(p.servoPin || "");
+      }
+      if (!item.problem && !item.place && !item.pin) item.problem = "missing";
+      if (!item.problem && item.pin && (uses.get(item.pin.toUpperCase()) || 0) > 1) item.problem = "shared";
+      item.done = !item.problem;
+      out.push(item);
+    }
+    const ends = list(config?.logic?.mss?.ends);
+    for (const end of ["A", "B"]) {
+      const def = ends.find((e) => e?.name === end) || {};
+      for (const which of ["pair", "led"]) {
+        const pin = String(def[which === "pair" ? "pairPin" : "ledPin"] || "");
+        const shared = pin && (uses.get(pin.toUpperCase()) || 0) > 1;
+        // Optional: no pin is done too.
+        out.push({ key: `end:${end}:${which}`, name: TEXT.endPart[which](end), role: which, kind: "end", end, pin, place: null, done: !shared, problem: shared ? "shared" : "" });
+      }
+    }
+    return out;
   }
 
   /** The views of what MSS Logic made are shown only when unfolded. */
@@ -460,6 +547,92 @@
     }
   }
 
+  // The part being wired: the one picked, else the first not done.
+  function wireAt(list_) {
+    return list_.find((w) => w.key === state.wireAt) || list_.find((w) => !w.done) || list_[0];
+  }
+
+  function renderWire(panel, config, ctx) {
+    const items = wireList(config);
+    if (!items.length) return;
+    const at = wireAt(items);
+    const index = items.indexOf(at);
+    const pick = (key) => {
+      state.wireAt = key;
+      ctx.render();
+      document.querySelector("#logic-mss-wire-pin")?.focus({ preventScroll: true });
+    };
+    const box = el("div", "mss-wire");
+    box.id = "logic-mss-wire";
+    box.append(el("span", "mss-wire-count", TEXT.wireOf(index + 1, items.length)));
+    box.append(el("h4", "", `${at.name} (${TEXT.wireRoles[at.role] || at.role})`));
+    const pca = config?.pca9685 !== false;
+    const how = at.role === "points" ? (pca ? TEXT.howTo.pointsPca : TEXT.howTo.pointsEsp) : typeof TEXT.howTo[at.role] === "function" ? TEXT.howTo[at.role](at.end) : TEXT.howTo[at.role];
+    box.append(el("p", "card-copy", how));
+    const changed = () => { ctx.persist(); ctx.render(); document.querySelector("#logic-mss-wire-pin")?.focus({ preventScroll: true }); };
+    const select = (label, value, choices, onChange) => {
+      const field = ctx.field(label, value, onChange, { select: choices });
+      return field;
+    };
+    if (at.problem === "notThere") box.append(el("p", "mss-warning", TEXT.notOnPage));
+    else if (at.kind === "sensor" && at.place?.expander) box.append(el("p", "hint", TEXT.onExpander(at.place.expander, at.place.pin)));
+    else if (at.kind === "sensor") {
+      const b = config.blocks.find((x) => x?.name === at.name);
+      const f = select(TEXT.pin, at.pin, [{ value: "", label: TEXT.pickPin }, ...ctx.blockPinChoices(at.pin)], (v) => { b.gpio = v; changed(); });
+      f.querySelector("select").id = "logic-mss-wire-pin";
+      box.append(f);
+    } else if (at.kind === "turnout" && pca) {
+      const p = config.points.find((x) => x?.name === at.name);
+      const boards = list(config.pcaBoards).length || 1;
+      if (boards > 1) box.append(select(TEXT.pcaBoard, String(Number(p.pcaBoard) || 0), Array.from({ length: boards }, (_, i) => ({ value: String(i), label: TEXT.pcaBoardN(i + 1) })), (v) => { p.pcaBoard = Number(v); changed(); }));
+      const f = select(TEXT.channel, String(p.channel ?? ""), Array.from({ length: 16 }, (_, i) => ({ value: String(i), label: String(i) })), (v) => { p.channel = Number(v); changed(); });
+      f.querySelector("select").id = "logic-mss-wire-pin";
+      box.append(f);
+    } else if (at.kind === "turnout") {
+      const p = config.points.find((x) => x?.name === at.name);
+      const f = select(TEXT.pin, at.pin, [{ value: "", label: TEXT.pickPin }, ...ctx.freePinChoices(at.pin)], (v) => { p.servoPin = v; changed(); });
+      f.querySelector("select").id = "logic-mss-wire-pin";
+      box.append(f);
+    } else {
+      const key = at.role === "pair" ? "pairPin" : "ledPin";
+      const f = select(TEXT.pin, at.pin, [{ value: "", label: TEXT.noPin }, ...ctx.freePinChoices(at.pin)], (v) => {
+        const mss = config.logic.mss;
+        mss.ends = list(mss.ends).filter((e) => isObject(e));
+        let def = mss.ends.find((e) => e.name === at.end);
+        if (!def) mss.ends.push(def = { name: at.end });
+        if (v) def[key] = v;
+        else delete def[key];
+        if (!def.pairPin && !def.ledPin) mss.ends = mss.ends.filter((e) => e !== def);
+        if (!mss.ends.length) delete mss.ends;
+        changed();
+      });
+      f.querySelector("select").id = "logic-mss-wire-pin";
+      box.append(f);
+    }
+    if (at.problem === "missing") box.append(el("p", "mss-warning", TEXT.pinMissing));
+    if (at.problem === "shared") box.append(el("p", "mss-warning", TEXT.pinShared(at.pin)));
+    const nav = el("div", "dialog-actions");
+    const prev = button(TEXT.previous, () => pick(items[index - 1].key));
+    prev.disabled = index === 0;
+    prev.id = "logic-mss-wire-previous";
+    const next = button(TEXT.nextPart, () => pick(items[index + 1].key));
+    next.disabled = index === items.length - 1;
+    next.id = "logic-mss-wire-next";
+    nav.append(prev, next);
+    box.append(nav);
+    panel.append(box);
+    // Every part, to jump to.
+    const ol = el("ol", "mss-wire-list");
+    items.forEach((w, i) => {
+      const li = el("li", w.key === at.key ? "is-current" : "");
+      const b = button(`${w.done ? "✓" : w.problem ? "!" : String(i + 1)} ${w.name}`, () => pick(w.key), `link-button${w.problem ? " is-problem" : ""}`);
+      b.dataset.wire = w.key;
+      li.append(b);
+      ol.append(li);
+    });
+    panel.append(ol);
+  }
+
   function renderParts(panel, config, kinds) {
     const ul = el("ul", "mss-parts");
     for (const p of partsOf(config).filter((x) => kinds.includes(x.kind))) {
@@ -469,7 +642,7 @@
   }
 
   function renderPage(root, config, ctx) {
-    if (state.board !== config) Object.assign(state, { board: config, step: null, settings: false, views: false, pending: "", style: null, ask: "", change: null });
+    if (state.board !== config) Object.assign(state, { board: config, step: null, settings: false, views: false, pending: "", style: null, ask: "", change: null, wireAt: "" });
     const line = el("div", "logic-field-line");
     line.id = PART;
     const mode = el("span");
@@ -508,9 +681,30 @@
     card.id = B()?.PARTS.row || "logic-mss-row";
     const row = rowOf(config);
     if (row) {
-      const picture = P().draw(row, { lit: litFor(config, current) });
+      let options = { lit: litFor(config, current) };
+      if (current === "wire") {
+        const items = wireList(config);
+        const at = items.length ? wireAt(items) : null;
+        options = {
+          lit: new Set(at ? [at.key] : []),
+          badges: Object.fromEntries(items.map((w, i) => [w.key, w.done ? "✓" : String(i + 1)])),
+          marks: Object.fromEntries(items.map((w) => [w.key, w.problem ? "error" : w.done ? "done" : ""]).filter(([, m]) => m)),
+        };
+      }
+      const picture = P().draw(row, options);
       if (picture) {
         picture.id = "logic-mss-picture";
+        // Click a part to wire it.
+        if (current === "wire") {
+          picture.classList.add("is-pickable");
+          picture.addEventListener("click", (event) => {
+            const key = event.target.closest?.("[data-part]")?.dataset.part;
+            if (!key) return;
+            state.wireAt = key.startsWith("end:") && !key.includes(":pair") && !key.includes(":led") ? `${key}:pair` : key;
+            ctx.render();
+            document.querySelector("#logic-mss-wire-pin")?.focus({ preventScroll: true });
+          });
+        }
         const wrap = el("div", "mss-row-wrap");
         wrap.append(picture);
         card.append(wrap);
@@ -520,7 +714,7 @@
     const g = guidance(config, current);
     panel.append(el("p", "card-copy", g.doing));
     if (current === "pick") renderPick(panel, config, ctx);
-    else if (current === "wire") renderParts(panel, config, ["sensor", "turnout"]);
+    else if (current === "wire") renderWire(panel, config, ctx);
     else if (current === "signals") renderParts(panel, config, ["mast"]);
     else if (current === "pair") {
       const ol = el("ol", "mss-pair");
@@ -542,7 +736,7 @@
     root.append(card);
   }
 
-  global.EsphomeMrLogicUiMss = { TEXT, PART, ORDER, stepsOf, currentStep, guidance, handWritten, partsOf, litFor, viewsOpen, settingsOpen };
+  global.EsphomeMrLogicUiMss = { TEXT, PART, ORDER, stepsOf, currentStep, guidance, handWritten, partsOf, litFor, wireList, viewsOpen, settingsOpen };
 
   if (global.EsphomeMrLogicUi) {
     global.EsphomeMrLogicUi.registerPart({ id: PART, order: 5, modes: ["mss"], text: TEXT, render: renderPage });
