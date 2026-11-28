@@ -470,7 +470,8 @@
 
   function setRow(config, ctx, row) {
     if (!isObject(config.logic.mss)) config.logic.mss = {};
-    config.logic.mss.row = row;
+    // Kept in column order: boards side by side on different lines next to each other.
+    config.logic.mss.row = R().pack(row);
     ctx.persist();
     ctx.render();
   }
@@ -644,9 +645,10 @@
     palette.append(groups);
 
     // The module as a grid: a row for each line (the bottom line lowest), a
-    // column for each board, and a gap column before, between and after them
-    // to drop into. A board sits on its line; a Complex cascade spans the two
-    // lines it splits into or joins; a line carries past the boards not on it.
+    // column for each place along the module, and a gap column before,
+    // between and after them to drop into. Boards on different lines stand
+    // side by side in one column (columns in mss-row.js). A board sits on its
+    // line; a Complex cascade spans the two lines it splits into or joins.
     const canvas = el("div", "mss-canvas");
     canvas.append(el("h4", "", TEXT.yourModule));
     const lane = el("div", "mss-row-cards is-grid");
@@ -656,7 +658,8 @@
     const rank = new Map(w.order.map((id, k) => [id, k]));
     // Grid rows: a line, then a thin row under it where two lines can be joined.
     const lineRow = (laneId) => 2 * (levels - 1 - (rank.get(laneId) ?? 0)) + 1;
-    lane.style.gridTemplateColumns = Array.from({ length: 2 * row.length + 1 }, (_, k) => (k % 2 ? "minmax(170px, 210px)" : "auto")).join(" ");
+    const { col, count } = row.length ? R().columns(row) : { col: [], count: 0 };
+    lane.style.gridTemplateColumns = Array.from({ length: 2 * count + 1 }, (_, k) => (k % 2 ? "minmax(170px, 210px)" : "auto")).join(" ");
     lane.style.gridTemplateRows = Array.from({ length: 2 * levels - 1 }, (_, k) => (k % 2 ? "22px" : "minmax(96px, auto)")).join(" ");
     const place = (node, column, rowFrom, rowTo = rowFrom) => {
       node.style.gridColumn = String(column);
@@ -686,35 +689,47 @@
     // Each line as one track behind the boards, from where it starts (end A,
     // or the Complex cascade that splits it off) to where it ends (end B, or
     // the Complex cascade that joins it), so the boards sit on their lines.
+    const last = 2 * count + 1;
     if (row.length) {
-      const last = 2 * row.length + 1;
       for (const laneId of w.order) {
         const from = w.steps.find((st) => st.out.includes(laneId) && !st.inputs.some((x) => x.lane === laneId));
         const to = w.steps.find((st) => st.inputs.some((x) => x.lane === laneId) && !st.out.includes(laneId));
         // A line split off starts just after its Complex cascade, and one joined ends just before it.
-        const start = w.left.includes(laneId) || !from ? 1 : 2 * from.index + 3;
-        const end = w.right.includes(laneId) || !to ? last : 2 * to.index + 1;
+        const start = w.left.includes(laneId) || !from ? 1 : 2 * col[from.index] + 3;
+        const end = w.right.includes(laneId) || !to ? last : 2 * col[to.index] + 1;
         const track = el("div", "mss-line");
         track.style.gridColumn = `${start} / ${end + 1}`;
         track.style.gridRow = String(lineRow(laneId));
         lane.append(track);
       }
     }
-    // The gaps: each line there, and each pair of neighbouring lines to join.
-    for (let at = 0; at <= row.length; at += 1) {
+    // The gaps on each line: before its first board (a line from end A),
+    // after each board on it, each dropping into the row right there.
+    const lineAt = (at, laneId) => R().walk(row.slice(0, at)).right.indexOf(laneId);
+    if (!row.length) place(zone(0, { line: 0 }, true), 1, 1);
+    for (const laneId of row.length ? w.order : []) {
+      const on = w.steps.filter((st) => st.inputs.some((x) => x.lane === laneId) || st.out.includes(laneId));
+      if (w.left.includes(laneId) && on.length) place(zone(on[0].index, { line: lineAt(on[0].index, laneId) }), 2 * col[on[0].index] + 1, lineRow(laneId));
+      on.forEach((st, k) => {
+        // Not after the Complex cascade that joins this line into another.
+        if (!st.out.includes(laneId)) return;
+        if (k === on.length - 1 && !w.right.includes(laneId)) return;
+        place(zone(st.index + 1, { line: lineAt(st.index + 1, laneId) }), 2 * col[st.index] + 3, lineRow(laneId));
+      });
+    }
+    // Between two neighbouring lines, at each place along the module, a gap
+    // for a Complex cascade to join them.
+    for (let g = 0; g <= count && row.length; g += 1) {
+      const at = col.filter((c) => c < g).length;
+      if (!row.slice(0, at).every((_, i) => col[i] < g)) continue;
       const lanesHere = R().walk(row.slice(0, at)).right;
-      if (!row.length) {
-        place(zone(0, { line: 0 }, true), 1, 1);
-        break;
-      }
-      lanesHere.forEach((laneId, k) => place(zone(at, { line: k }), 2 * at + 1, lineRow(laneId)));
-      for (let k = 0; k + 1 < lanesHere.length; k += 1) place(zone(at, { join: k }), 2 * at + 1, lineRow(lanesHere[k + 1]) + 1);
+      for (let k = 0; k + 1 < lanesHere.length; k += 1) place(zone(at, { join: k }), 2 * g + 1, lineRow(lanesHere[k + 1]) + 1);
     }
     const titleOf = (node) => R().TEXT.nodes[node?.node]?.title || String(node?.node ?? "");
     for (const step of w.steps) {
       const i = step.index;
       const node = step.node;
-      const column = 2 * i + 2;
+      const column = 2 * col[i] + 2;
       // The lines it is on: its own, and for a Complex cascade the other it splits into or joins.
       const mine = [...step.inputs.map((x) => x.lane), ...step.out];
       const rows = mine.map(lineRow);

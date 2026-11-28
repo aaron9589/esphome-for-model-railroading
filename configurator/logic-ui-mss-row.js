@@ -43,7 +43,9 @@
     const levels = w.order.length;
     const rank = new Map(w.order.map((lane, k) => [lane, k]));
     const yOf = (lane) => (levels === 1 ? 1 : levels - 1 - rank.get(lane));
-    const out = { width: nodes.length * W, rows: levels, nodes: [], blocks: [], irs: [], points: [], signals: [], crossovers: [], ends: [] };
+    // Boards on different lines stand side by side, a column each place along the module.
+    const { col, count } = R().columns(nodes);
+    const out = { width: count * W, rows: levels, nodes: [], blocks: [], irs: [], points: [], signals: [], crossovers: [], ends: [] };
     const open = new Map(); // lane -> { path, name }
     w.left.forEach((lane) => open.set(lane, { path: [[0, yOf(lane)]], name: "" }));
     const close = (lane, more) => {
@@ -59,7 +61,7 @@
     for (const step of w.steps) {
       const i = step.index;
       const node = step.node;
-      const x = i * W;
+      const x = col[i] * W;
       const mid = x + W / 2;
       const n = isObject(node.names) ? node.names : {};
       out.nodes.push({ index: i, x, title: R().TEXT.nodes[node.node].title, turned: node.turned === true, line: step.line });
@@ -162,21 +164,33 @@
     };
     // Which way the siding leaves each node's points: badges and names go the other way.
     const away = new Map(shape.nodes.map((node) => [node.index, node.turned ? 1 : -1]));
-    // Node outlines and titles, under everything.
-    for (const node of shape.nodes) {
-      root.append(svg("rect", { class: "mss-row-node", x: px(node.x) + 3, y: px(top) + 3, width: px(W) - 6, height: px(height) - 6, rx: 8 }));
-      root.append(svg("text", { class: "mss-row-node-title", x: px(node.x + W / 2), y: px(top) + 16, "text-anchor": "middle" }, TEXT.node(node.index + 1, node.title, node.turned)));
+    // Outlines and titles, under everything: one for each place along the
+    // module, naming the boards standing there.
+    const places = new Map();
+    for (const node of shape.nodes) places.set(node.x, [...(places.get(node.x) || []), node]);
+    for (const [x, here] of places) {
+      root.append(svg("rect", { class: "mss-row-node", x: px(x) + 3, y: px(top) + 3, width: px(W) - 6, height: px(height) - 6, rx: 8 }));
+      const words = [...here].sort((a, b) => a.index - b.index).map((node) => TEXT.node(node.index + 1, node.title, node.turned)).join(" · ");
+      root.append(svg("text", { class: "mss-row-node-title", x: px(x + W / 2), y: px(top) + 16, "text-anchor": "middle" }, words));
     }
     for (const block of shape.blocks) {
       const g = part(svg("g", { class: "mss-row-block" }), block.name);
       const points = block.path.map(([x, y]) => `${px(x)},${px(y)}`).join(" ");
       g.append(svg("polyline", { class: "mss-row-track", points }));
-      // The name sits on the block's longest level stretch.
+      // The name sits on the block's longest level stretch clear of the
+      // Crossovers on it, whose detectors are named where they stand.
       let a = block.path[0];
       let b = block.path[1];
+      let best = -1;
       for (let k = 1; k < block.path.length; k += 1) {
         const [p, q] = [block.path[k - 1], block.path[k]];
-        if (p[1] === q[1] && Math.abs(q[0] - p[0]) > (a[1] === b[1] ? Math.abs(b[0] - a[0]) : 0)) [a, b] = [p, q];
+        if (p[1] !== q[1]) continue;
+        const [lo, hi] = [Math.min(p[0], q[0]), Math.max(p[0], q[0])];
+        const cuts = shape.crossovers.filter((c) => c.at[1] === p[1] && c.at[0] > lo && c.at[0] < hi).map((c) => c.at[0]).sort((m, n) => m - n);
+        const stops = [lo, ...cuts, hi];
+        for (let j = 1; j < stops.length; j += 1) {
+          if (stops[j] - stops[j - 1] > best) [best, a, b] = [stops[j] - stops[j - 1], [stops[j - 1], p[1]], [stops[j], p[1]]];
+        }
       }
       const mx = (a[0] + b[0]) / 2;
       g.append(svg("text", { class: "mss-row-label", x: px(mx), y: px(b[1]) + (block.road === "siding" ? -8 : 17), "text-anchor": "middle" }, block.name || TEXT.noSensor));

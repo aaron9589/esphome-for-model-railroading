@@ -99,11 +99,17 @@ const fits = () => page.evaluate(() => {
 const kept = await page.evaluate(() => JSON.stringify(state.logic.mss.row));
 await page.evaluate(() => {
   const row = EsphomeMrMssRow.preset("passing");
-  state.logic.mss.row = EsphomeMrMssRow.named([row[0], { node: "crossover" }, { node: "crossover", line: 1 }, { node: "cascade", line: 1 }, { node: "cascade" }, { node: "crossover" }, row[1]]);
+  state.logic.mss.row = EsphomeMrMssRow.pack(EsphomeMrMssRow.named([row[0], { node: "crossover" }, { node: "crossover", line: 1 }, { node: "cascade", line: 1 }, { node: "cascade" }, { node: "crossover" }, row[1]]));
   persist();
   render();
 });
 assert.deepEqual(await fits(), [true, true]);
+// Boards on different lines stand side by side: the Crossovers on the main
+// and the loop share a column, and the Cascades share the next.
+const columns = () => page.locator("#logic-mss-lane .mss-board-card").evaluateAll((all) => all.map((c) => [c.querySelector("strong").textContent, c.style.gridColumn]));
+assert.deepEqual(await columns(), [
+  ["1. Complex cascade", "2"], ["2. Crossover", "4"], ["3. Crossover", "4"], ["4. Cascade", "6"], ["5. Cascade", "6"], ["6. Crossover", "8"], ["7. Complex cascade, flipped", "10"],
+]);
 await page.evaluate((row) => { state.logic.mss.row = JSON.parse(row); persist(); render(); }, kept);
 // Plotted, not made: Pick your module stays the step, the rest wait for Make the module.
 assert.equal(await current(), "logic-step-pick");

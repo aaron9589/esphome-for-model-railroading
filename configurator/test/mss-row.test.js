@@ -247,4 +247,63 @@ test("a sensor, turnout or signal renamed on its page is renamed in the row", ()
   assert.equal(L.renameReferences(config, "mast", "Block 1 current", "X"), 0, "a sensor's name is not a signal's");
 });
 
+test("columns: boards on different lines after a split stand side by side", () => {
+  const plain = (value) => JSON.parse(JSON.stringify(value));
+  // A Crossover, a split, then a Crossover on the loop and one on the main: the last two share a column.
+  const row = R.named([{ node: "crossover" }, { node: "complex" }, { node: "crossover", line: 1 }, { node: "crossover" }]);
+  assert.deepEqual(plain(R.columns(row)), { col: [0, 1, 2, 2], count: 3 });
+  // A board waits for the last board on each of its lines: a join stands after both.
+  const loop = R.named([{ node: "complex" }, { node: "crossover", line: 1 }, { node: "cascade", line: 1 }, { node: "crossover" }, { node: "complex", turned: true }]);
+  assert.deepEqual(plain(R.columns(loop)), { col: [0, 1, 2, 1, 3], count: 4 });
+  // On one line, one board after another.
+  assert.deepEqual(plain(R.columns(R.preset("cascades"))).col, [0, 1]);
+});
+
+test("pack: the row in column order, the bottom line first in a column, the module the same", () => {
+  const plain = (value) => JSON.parse(JSON.stringify(value));
+  const loop = R.named([{ node: "complex" }, { node: "crossover", line: 1 }, { node: "cascade", line: 1 }, { node: "crossover" }, { node: "complex", turned: true }]);
+  const packed = plain(R.pack(loop));
+  assert.deepEqual(packed.map((n) => [n.node, n.line ?? 0, n.names.block || n.names.ir]), [
+    ["complex", 0, "IR 1"], ["crossover", 0, "Block 3 current"], ["crossover", 1, "Siding 2 current"], ["cascade", 1, "IR 2"], ["complex", 0, "IR 3"],
+  ]);
+  // The same module: every line keeps its boards in order.
+  assert.deepEqual(plain(R.describe(packed)), plain(R.describe(loop)));
+  assert.deepEqual(plain(R.pack(packed)), packed, "packing again changes nothing");
+  // Whichever was dropped first, side by side they come bottom line first.
+  const other = R.named([{ node: "complex" }, { node: "crossover" }, { node: "crossover", line: 1 }]);
+  const swapped = R.named([{ node: "complex" }, { node: "crossover", line: 1 }, { node: "crossover" }]);
+  assert.deepEqual(plain(R.pack(swapped)).map((n) => [n.node, n.line ?? 0]), plain(R.pack(other)).map((n) => [n.node, n.line ?? 0]));
+  // A row with a problem comes back as it is.
+  const bad = [{ node: "crossover", line: 3 }];
+  assert.deepEqual(plain(R.pack(bad)), bad);
+});
+
+test("pack never changes the module: random rows", () => {
+  let seed = 11;
+  const rnd = (n) => { seed = (seed * 48271) % 2147483647; return seed % n; };
+  // The same module, up to how its junctions are numbered and where each board is in the row.
+  const canon = (d) => {
+    const ir = new Map(d.junctions.map((j) => [j.name, j.sensors[0]]));
+    const c = JSON.parse(JSON.stringify(d, (k, v) => (k === "node" ? undefined : k === "junction" ? ir.get(v) : k === "name" && ir.has(v) ? ir.get(v) : v)));
+    return JSON.stringify([c.ends, c.tracks.map((t) => JSON.stringify(t)).sort(), c.junctions.map((j) => JSON.stringify(j)).sort()]);
+  };
+  let moved = 0;
+  for (let t = 0; t < 1500; t += 1) {
+    let row = [];
+    for (let k = 0; k < 2 + rnd(7); k += 1) {
+      const at = rnd(row.length + 1);
+      const lanes = R.walk(row.slice(0, at)).right.length;
+      const join = rnd(4) === 0;
+      const node = join ? { node: "complex", turned: true, line: rnd(Math.max(1, lanes - 1)) } : { node: ["crossover", "cascade", "complex"][rnd(3)], line: rnd(lanes) };
+      if (R.fits(row, at, node)) row = R.insertNode(row, at, node);
+    }
+    if (!row.length || R.problems(row).length) continue;
+    const packed = R.pack(row);
+    if (JSON.stringify(packed) !== JSON.stringify(row)) moved += 1;
+    assert.deepEqual(R.problems(packed).length, 0);
+    assert.equal(canon(R.describe(packed)), canon(R.describe(row)), JSON.stringify(row));
+  }
+  assert.ok(moved > 20, `only ${moved} rows were reordered`);
+});
+
 if (!process.exitCode) console.log("\nAll MSS row tests passed.");
