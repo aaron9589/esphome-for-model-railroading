@@ -16,7 +16,7 @@
   const TEXT = Object.freeze({
     label: "Picture of the module",
     end: (name) => `End ${name}`,
-    node: (n, title, turned) => `${n}. ${title}${turned ? " (turned round)" : ""}`,
+    node: (n, title, turned) => `${n}. ${title}${turned ? " (flipped)" : ""}`,
     noSensor: "(no sensor)",
   });
 
@@ -117,7 +117,7 @@
    * to light (a Set). `marks`: { [name]: "done" | "error" | "warning" } for a
    * tick or a dot. `badges`: { [name]: number }.
    */
-  function draw(row, { lit = new Set(), marks = {}, badges = {} } = {}) {
+  function draw(row, { lit = new Set(), marks = {}, badges = {}, bare = false } = {}) {
     const shape = layout(row);
     if (!shape) return null;
     // Bands, from the top: node titles; the siding's signals and its block's
@@ -215,6 +215,11 @@
         g.append(bg);
       });
       root.append(g);
+    }
+    // A card's small picture: the track and its parts, without words.
+    if (bare) {
+      root.querySelectorAll("text").forEach((t) => t.remove());
+      root.classList.add("is-bare");
     }
     return root;
   }

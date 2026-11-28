@@ -5,11 +5,13 @@
 //              whole module on its own: in a row it would add nothing.
 //   cascade    MSS Cascade (ISE MSS-CASCADE-BASIC): a block each side of an
 //              IR sensor, and a signal facing each way at it.
-//   siding     MSS Complex Cascade (ISE MSS-SWITCH), a siding end: a block to
-//              the points, then the main line and the siding. An IR sensor at
-//              the points, a two-head signal facing the points from the
-//              single track, and one head facing back from each of the main
-//              and the siding. Turned round, its points face the other way.
+//   complex    MSS Complex Cascade (ISE MSS-SWITCH), where the track divides
+//              at a turnout: a block to the points, then the main line and
+//              the diverging track (drawn as a siding). An IR sensor at the
+//              points, a two-head signal facing the points from the single
+//              track, and one head facing back from each of the main and the
+//              diverging track. Flipped (`turned`), its points face the other
+//              way. Two, the second flipped, make a passing siding.
 //
 // Nodes join where the sides have the same number of tracks, and the blocks
 // either side of a joint are one block. The row is stored (`logic.mss.row`);
@@ -32,14 +34,17 @@
     nodes: Object.freeze({
       crossover: Object.freeze({ title: "Crossover", board: "ISE MSS-CROSSOVER", about: "One block right across the module, with one current detector and no signals." }),
       cascade: Object.freeze({ title: "Cascade", board: "ISE MSS-CASCADE-BASIC", about: "A block each side of an IR sensor, and a signal facing each way at it." }),
-      siding: Object.freeze({ title: "Siding end", board: "ISE MSS-SWITCH", about: "A block to the points, then the main line and the siding. A two-head signal faces the points from the single track, and one head faces back from each of the main and the siding." }),
+      complex: Object.freeze({ title: "Complex cascade", board: "ISE MSS-SWITCH", about: "Where the track divides at a turnout: a block to the points, then the main line and the diverging track. A two-head signal faces the points from the single track, and one head faces back from each of the others." }),
     }),
+    // One-click starting points: a board on its own, or a sample of boards stitched together.
     presets: Object.freeze({
       crossover: Object.freeze({ title: "Crossover", about: "One block, no signals." }),
       cascade: Object.freeze({ title: "Cascade", about: "Two blocks, a signal each way between them." }),
-      siding: Object.freeze({ title: "Siding end", about: "The points of a siding, with the main line and the siding going on to the next module." }),
-      passing: Object.freeze({ title: "Passing siding", about: "A siding end at each end of a passing siding: two blocks either side, the main line and the siding between." }),
+      complex: Object.freeze({ title: "Complex cascade", about: "The points of a junction or siding, with the main line and the diverging track going on to the next module." }),
+      passing: Object.freeze({ title: "Passing siding", about: "A Complex cascade, then one flipped: two blocks either side, the main line and the siding between." }),
+      cascades: Object.freeze({ title: "Two cascades", about: "Two Cascades in a row: three blocks, with a signal each way at each IR sensor." }),
     }),
+    flipped: "flipped",
     // Names, numbered along the row.
     block: (n) => `Block ${n} current`,
     sidingBlock: (n) => `Siding ${n} current`,
@@ -51,20 +56,20 @@
     siding: "siding",
     junction: (n) => `J${n}`,
     // Problems.
-    empty: "Pick your module: the row has no nodes yet.",
-    unknown: (n, node) => `Node ${n} is "${node}", which is not an MSS node. Remove it and add a Crossover, Cascade or Siding end.`,
-    crossoverAlone: "A Crossover is a whole module on its own: on one board with other nodes it adds nothing. Remove it, or make the board a Crossover only.",
+    empty: "Pick your module: it has no MSS boards yet.",
+    unknown: (n, node) => `Board ${n} is "${node}", which is not an MSS board. Remove it and add a Crossover, Cascade or Complex cascade.`,
+    crossoverAlone: "A Crossover is a whole module on its own: stitched to other MSS boards it adds nothing. Remove it, or make the module a Crossover only.",
     notThere: Object.freeze({
       sensor: (name) => `Sensor "${name}" is not on the Sensors page. Add it there with that name, or start the module again.`,
       turnout: (name) => `Turnout "${name}" is not on the Turnouts page. Add it there with that name, or start the module again.`,
       mast: (name) => `Signal "${name}" is not on the Signal Masts page. Add it there with that name, or start the module again.`,
     }),
-    sides: (n, left, right) => `Node ${n} has ${left} track${left === 1 ? "" : "s"} on its right side, and node ${n + 1} has ${right} on its left. Joined nodes need the same number: turn one round, or put another node between them.`,
+    sides: (n, left, right) => `Board ${n} has ${left} track${left === 1 ? "" : "s"} on its right side, and board ${n + 1} has ${right} on its left. Stitched boards need the same number: flip one, or put another board between them.`,
   });
 
   // Each node's sides: how many tracks on the left and on the right, and
   // which roads they are. A turned node's sides swap.
-  const SIDES = Object.freeze({ crossover: [1, 1], cascade: [1, 1], siding: [1, 2] });
+  const SIDES = Object.freeze({ crossover: [1, 1], cascade: [1, 1], complex: [1, 2] });
   const NODE_IDS = Object.freeze(Object.keys(SIDES));
   const roads = (count) => (count === 2 ? ["main", "siding"] : ["main"]);
 
@@ -84,10 +89,13 @@
   const PRESETS = Object.freeze({
     crossover: Object.freeze([{ node: "crossover" }]),
     cascade: Object.freeze([{ node: "cascade" }]),
-    siding: Object.freeze([{ node: "siding" }]),
-    passing: Object.freeze([{ node: "siding" }, { node: "siding", turned: true }]),
+    complex: Object.freeze([{ node: "complex" }]),
+    passing: Object.freeze([{ node: "complex" }, { node: "complex", turned: true }]),
+    cascades: Object.freeze([{ node: "cascade" }, { node: "cascade" }]),
   });
-  const PRESET_IDS = Object.freeze(Object.keys(PRESETS));
+  // The three MSS boards, and the samples made of them.
+  const BOARD_IDS = Object.freeze(["crossover", "cascade", "complex"]);
+  const SAMPLE_IDS = Object.freeze(["passing", "cascades"]);
 
   // ===== Names ===============================================================
 
@@ -109,7 +117,7 @@
       add("toA", "mast", n.signals?.toA, "signal", { heads: "plain" });
       add("toB", "mast", n.signals?.toB, "signal", { heads: "plain" });
     }
-    if (node?.node === "siding") {
+    if (node?.node === "complex") {
       add("points", "turnout", n.points, "points");
       add("single", "mast", n.signals?.single, "signal", { heads: "twoHeads" });
       add("main", "mast", n.signals?.main, "signal", { heads: "plain" });
@@ -277,7 +285,7 @@
         t.blocks.push(block(list(n.right)[0]));
         return;
       }
-      // A siding end: leg 1 the single track, leg 2 the main, leg 3 the siding.
+      // A Complex cascade: leg 1 the single track, leg 2 the main, leg 3 the diverging track.
       const name = TEXT.junction(junctions.length + 1);
       const leg = { single: 1, main: 2, siding: 3 };
       const at = (l) => ({ junction: name, leg: l });
@@ -429,16 +437,16 @@
     return named(nodes);
   }
 
-  /** Can node `i` be turned round: a Siding end, still fitting beside its neighbours? */
+  /** Can node `i` be flipped: a Complex cascade, still fitting beside its neighbours? */
   function canTurn(row, i) {
     const nodes = list(row);
-    if (nodes[i]?.node !== "siding") return false;
+    if (nodes[i]?.node !== "complex") return false;
     const turned = nodes.map((n, k) => (k === i ? { ...n, turned: n.turned !== true } : n));
     return problems(turned).length === 0;
   }
 
   /**
-   * The row with node `i` turned round: { row, renames: [[from, to]] }. Its
+   * The row with node `i` flipped: { row, renames: [[from, to]] }. Its
    * blocks keep their names and swap sides (the single track's block, the
    * main's and the siding's). Each signal named as the pattern names it is
    * renamed for the way it now faces; one named otherwise keeps its name.
@@ -502,7 +510,7 @@
   }
 
   global.EsphomeMrMssRow = {
-    TEXT, NODE_IDS, PRESET_IDS, PRESETS, sidesOf, endTrack, partsOf, named, preset, fits, problems, missing, describe, descriptionOf, parts, needs, use, rename,
+    TEXT, NODE_IDS, BOARD_IDS, SAMPLE_IDS, PRESETS, sidesOf, endTrack, partsOf, named, preset, fits, problems, missing, describe, descriptionOf, parts, needs, use, rename,
     canAdd, addNode, canRemove, removeNode, canTurn, turnNode,
   };
 })(typeof globalThis !== "undefined" ? globalThis : window);
