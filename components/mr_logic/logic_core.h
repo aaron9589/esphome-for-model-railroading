@@ -158,6 +158,10 @@ struct Rule {
   uint16_t locks_first = 0, locks_count = 0;
   uint16_t cancel = NONE;  // a moment node
   uint16_t withdraw = NONE;  // a moment node
+  // Rule 39: a request asked for while try_once (and try_if, a condition
+  // node, if any) holds is tried once; it waits only while try_wait holds.
+  bool try_once = false;
+  uint16_t try_if = NONE, try_wait = NONE;
   uint16_t approach_block = NONE;  // its own approach locking: a block ref in Table::block_refs
   uint32_t approach_ms = 0;
   uint16_t lamp = NONE;  // a lamp it lights (rule 36), in Table::lamps
@@ -277,7 +281,8 @@ struct LogEvent {
   // DISAGREES: what is the end, rule its link, by the linked end's link.
   // IGNORED: by is "release" (what, a resource) or "releaseGroup" (what, a
   // group). RELEASE_GROUP: what is the group.
-  enum Kind : uint8_t { STARTUP, GRANT, CANCEL, PASS, RELEASE, IGNORED, RESYNC, PAIRING, DISAGREES, RELEASE_GROUP };
+  // DROPPED: rule is the first rule of a request tried once and not set (rule 39).
+  enum Kind : uint8_t { STARTUP, GRANT, CANCEL, PASS, RELEASE, IGNORED, RESYNC, PAIRING, DISAGREES, RELEASE_GROUP, DROPPED };
   Kind kind;
   std::string what;
   std::string rule;  // empty: none (a start-up pass)
@@ -361,7 +366,7 @@ class Engine {
   struct TrigState {
     int64_t run_true = -1, run_false = -1, since = -1;
     bool eff = false, guard = false;
-    bool asked = false, cancelled = false, withdrawn = false;  // this scan's moments, for its request
+    bool asked = false, once = false, cancelled = false, withdrawn = false;  // this scan's moments, for its request
     int8_t prev_raw = -1;
     uint16_t seq_p = 0;
   };
@@ -375,6 +380,7 @@ class Engine {
   // A request, a rule's own or shared by a routes group's rules (rule 5).
   struct Ask {
     bool request = false;
+    bool once = false;  // tried once (rule 39)
     int64_t since = -1;
     std::vector<uint16_t> rules;
   };

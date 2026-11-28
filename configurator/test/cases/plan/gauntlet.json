@@ -3,7 +3,7 @@
   "covers": [
     "Track plan: the gauntlet asked for by CATS"
   ],
-  "about": "In Manual, CATS asks for a route by clearing a signal: Held to Unheld. The Unheld left on the broker from before the board restarted asks for nothing; CATS, restarting, holds the signal and clears it again, and the route over the bridge is set. CATS clears Right Bridge too, but the bridge is taken, so that request waits. Once the first train has crossed and the bridge has been clear for 3 seconds, the waiting route is set.",
+  "about": "In Manual, CATS asks for a route by clearing a signal: Held to Unheld. The Unheld left on the broker from before the board restarted asks for nothing; CATS, restarting, holds the signal and clears it again, and the route over the bridge is set. CATS clears Right Bridge too, but the bridge is taken: a request in Manual is tried once, so it is dropped (decided 2026-11-28). Once the first train has crossed and the bridge has been clear for 3 seconds, the bridge is free, and nothing takes it until CATS holds Right Bridge and clears it again.",
   "module": {
     "sensors": [
       "Left current",
@@ -394,13 +394,17 @@
         }
       ],
       "expect": {
-        "events": [],
+        "events": [
+          {
+            "dropped": "Right Bridge moves/1"
+          }
+        ],
         "masts": {
           "Left Bridge": "R281",
           "Right Bridge": "R292"
         },
         "rules": {
-          "Right Bridge moves/1": "waiting"
+          "Right Bridge moves/1": "idle"
         },
         "holders": {
           "Bridge": "Left Bridge moves/1"
@@ -474,7 +478,7 @@
       ],
       "expect": {
         "rules": {
-          "Right Bridge moves/1": "waiting"
+          "Right Bridge moves/1": "idle"
         }
       }
     },
@@ -497,7 +501,49 @@
           {
             "release": "Bridge",
             "by": "release"
-          },
+          }
+        ],
+        "writes": [],
+        "masts": {
+          "Left Bridge": "R292",
+          "Right Bridge": "R292"
+        },
+        "resources": {
+          "Bridge": "IDLE"
+        },
+        "holders": {
+          "Bridge": null
+        }
+      }
+    },
+    {
+      "at": 74,
+      "do": [
+        {
+          "jmri": "Right Bridge",
+          "message": "R292; Lit; Held"
+        }
+      ],
+      "expect": {
+        "events": [],
+        "masts": {
+          "Right Bridge": "R292"
+        },
+        "resources": {
+          "Bridge": "IDLE"
+        }
+      }
+    },
+    {
+      "at": 75,
+      "do": [
+        {
+          "jmri": "Right Bridge",
+          "message": "R281; Lit; Unheld"
+        }
+      ],
+      "expect": {
+        "events": [
           {
             "grant": "Bridge",
             "rule": "Right Bridge moves/1"
@@ -507,6 +553,16 @@
           {
             "mast": "Right Bridge",
             "aspect": "R281"
+          }
+        ],
+        "publishes": [
+          {
+            "resource": "Bridge",
+            "held": "ACTIVE"
+          },
+          {
+            "resource": "Bridge",
+            "state": "ACTIVE"
           }
         ],
         "masts": {

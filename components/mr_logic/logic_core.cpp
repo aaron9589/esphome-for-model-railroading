@@ -818,6 +818,7 @@ void Engine::reset_trigger(uint16_t r) {
   if (rules_[r].ask != NONE) {
     asks_[rules_[r].ask].request = false;
     asks_[rules_[r].ask].since = -1;
+    asks_[rules_[r].ask].once = false;
   }
 }
 
@@ -848,6 +849,7 @@ void Engine::eval_trigger(uint16_t r, const Ctx &) {
       // Read now, settled for the whole request once every rule has been
       // read (settle_asks), so rules sharing one see the same moments.
       st.asked = asked;
+      st.once = asked && rule.try_once && (rule.try_if == NONE || condition(rule.try_if));
       st.cancelled = rule.cancel != NONE && moment(rule.cancel);
       st.withdrawn = rule.withdraw != NONE && moment(rule.withdraw);
       rs.checks_now = true;
@@ -892,10 +894,11 @@ void Engine::eval_trigger(uint16_t r, const Ctx &) {
 // moment asks.
 void Engine::settle_asks() {
   for (auto &ask : asks_) {
-    bool asked = false, cancelled = false, withdrawn = false, active = false;
+    bool asked = false, once = false, cancelled = false, withdrawn = false, active = false;
     for (uint16_t r : ask.rules) {
       const TrigState &st = rules_[r].trig;
       asked = asked || st.asked;
+      once = once || st.once;
       cancelled = cancelled || st.cancelled;
       withdrawn = withdrawn || st.withdrawn;
       active = active || rules_[r].phase == ACTIVE;
@@ -907,10 +910,15 @@ void Engine::settle_asks() {
       for (uint16_t r : ask.rules)
         if (rules_[r].phase == ACTIVE) rules_[r].cancel_now = true;
     } else if (asked) {
+      // Rule 39: a new request is tried once if a moment that asked says so.
+      if (!ask.request) ask.once = once;
       ask.request = true;
     }
     if (ask.request && ask.since < 0) ask.since = n_;
-    if (!ask.request) ask.since = -1;
+    if (!ask.request) {
+      ask.since = -1;
+      ask.once = false;
+    }
     for (uint16_t r : ask.rules) {
       rules_[r].true_now = ask.request;
       rules_[r].trig.since = ask.since;
@@ -1331,11 +1339,29 @@ ScanOut Engine::scan() {
       Ask &ask = asks_[rs.ask];
       ask.request = false;
       ask.since = -1;
+      ask.once = false;
       for (uint16_t other : ask.rules) rules_[other].trig.since = -1;
     }
   }
   for (size_t i = 0; i < t_.resources.size(); i++)
     if (granted[i] != NONE) out.events.push_back(LogEvent{LogEvent::GRANT, t_.names[t_.resources[i].name], t_.rule_ref(granted[i]), ""});
+  // Rule 39: a request tried once and not granted is dropped, unless its
+  // rule's waitWhile holds (a turnout on its way still moving).
+  for (auto &ask : asks_) {
+    if (!ask.request || !ask.once || ask.rules.empty()) continue;
+    bool wait = false;
+    for (uint16_t r : ask.rules)
+      if (t_.rules[r].try_wait != NONE && condition(t_.rules[r].try_wait)) wait = true;
+    if (wait) continue;
+    ask.request = false;
+    ask.since = -1;
+    ask.once = false;
+    for (uint16_t r : ask.rules) {
+      rules_[r].trig.since = -1;
+      rules_[r].true_now = false;
+    }
+    out.events.push_back(LogEvent{LogEvent::DROPPED, "", t_.rule_ref(ask.rules[0]), ""});
+  }
 
   // 6.4: who wins each mast (rule 12), approach lighting, then the locks.
   std::vector<int16_t> new_out(t_.masts.size(), SHOWS_NOTHING);

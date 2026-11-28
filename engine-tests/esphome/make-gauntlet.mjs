@@ -85,6 +85,7 @@ config.logic = {
         ] } },
         cancel: { when: { any: [{ button: "Depart", is: "pressed", if: { auto: "off" } }, { block: "Far", is: "clear", for: "1s", if: { auto: "on" } }] } },
         withdraw: { when: { any: [{ auto: "on" }, { auto: "off" }] } },
+        tryOnce: { if: { auto: "off" }, waitWhile: { turnout: "P2", is: "moving" } },
         checks: [{ block: "Right", is: "clear" }],
         then: { mast: "Bridge Exit", aspect: "Clear", reserve: ["Approach"], next: { Approach: ["Bridge"] }, lock: [{ turnout: "P2", with: "Approach" }] } },
     ] },

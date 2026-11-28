@@ -1942,7 +1942,7 @@
       ...(layer.routes === true ? { routes: true } : {}),
       rules: list(layer.rules).filter(isObject).map((rule) => {
         const out = {};
-        for (const key of ["trigger", "checks", "then", "cancel", "withdraw", "approachLock"]) if (rule[key] !== undefined) out[key] = sorted(rule[key]);
+        for (const key of ["trigger", "checks", "then", "cancel", "withdraw", "tryOnce", "approachLock"]) if (rule[key] !== undefined) out[key] = sorted(rule[key]);
         return out;
       }),
     }));

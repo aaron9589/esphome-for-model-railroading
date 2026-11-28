@@ -8,6 +8,7 @@
 // Plain JS, no DOM and no ESPHome: kept simple so the C++ can follow it.
 (function (global) {
   const SCAN_MS = 100;
+  const isObject = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
   const RELEASE_WINDOW_MS = 5000; // rule 16: a release this soon after connecting was waiting on the broker
   const PAIR_MS = 30000; // rule 28: how long an end is pairing after a press
   const TAGS = Object.freeze(["stop", "restricting", "approach", "advance", "clear"]);
@@ -99,7 +100,7 @@
     const rules = [];
     const asks = []; // a routes group's one request, shared by its rules
     const layers = (logic.layers || []).map((layer) => {
-      const ask = layer.routes === true ? { request: false, since: null, rules: [] } : null;
+      const ask = layer.routes === true ? { request: false, since: null, once: false, rules: [] } : null;
       if (ask) asks.push(ask);
       const list = (layer.rules || []).map((def, i) => {
         const rule = {
@@ -157,7 +158,7 @@
         // A reserving When rule's request: its own, or its routes group's,
         // which the group's reserving When rules share (rule 5).
         if (rule.resource && rule.def.trigger?.when) {
-          rule.ask = layer.ask || { request: false, since: null, rules: [] };
+          rule.ask = layer.ask || { request: false, since: null, once: false, rules: [] };
           if (!layer.ask) asks.push(rule.ask);
           rule.ask.rules.push(rule);
         }
@@ -691,12 +692,13 @@
     }
 
     function resetTrigger(rule) {
-      rule.trig = { runTrue: null, runFalse: null, eff: false, guard: false, prevRaw: null, seq: { p: 0 }, since: null, asked: false, cancelled: false, withdrawn: false };
+      rule.trig = { runTrue: null, runFalse: null, eff: false, guard: false, prevRaw: null, seq: { p: 0 }, since: null, asked: false, once: false, cancelled: false, withdrawn: false };
       rule.phase = "idle";
       rule.cancelNow = false;
       if (rule.ask) {
         rule.ask.request = false;
         rule.ask.since = null;
+        rule.ask.once = false;
       }
     }
     function resetRelease(res) {
@@ -717,6 +719,7 @@
           // Read now, settled for the whole request once every rule has been
           // read (settleAsks), so rules sharing one see the same moments.
           st.asked = asked;
+          st.once = asked && tryOnce(rule.def.tryOnce);
           st.cancelled = rule.def.cancel?.when ? moment(rule.def.cancel.when) : false;
           st.withdrawn = rule.def.withdraw?.when ? moment(rule.def.withdraw.when) : false;
           rule.checksNow = (rule.def.checks || []).every(condition);
@@ -742,6 +745,10 @@
       rule.checksNow = (rule.def.checks || []).every(condition);
     }
 
+    // Rule 39: a request asked for while `tryOnce` is true, or its `if`
+    // holds, is tried once.
+    const tryOnce = (t) => t === true || (isObject(t) && (t.if === undefined || condition(t.if)));
+
     // Rule 5: a reserving When rule's request, read for every rule that
     // shares it. A withdraw takes back a request still waiting; then a cancel
     // with something to cancel (that request, or a rule that is ACTIVE) takes
@@ -756,9 +763,16 @@
         if (any("cancelled") && (ask.request || active.length)) {
           ask.request = false;
           for (const rule of active) rule.cancelNow = true;
-        } else if (any("asked")) ask.request = true;
+        } else if (any("asked")) {
+          // Rule 39: a new request is tried once if a moment that asked says so.
+          if (!ask.request) ask.once = any("once");
+          ask.request = true;
+        }
         if (ask.request && ask.since === null) ask.since = n;
-        if (!ask.request) ask.since = null;
+        if (!ask.request) {
+          ask.since = null;
+          ask.once = false;
+        }
         for (const rule of ask.rules) {
           rule.trueNow = ask.request;
           rule.trig.since = ask.since;
@@ -1076,10 +1090,25 @@
         if (rule.ask) {
           rule.ask.request = false;
           rule.ask.since = null;
+          rule.ask.once = false;
           for (const other of rule.ask.rules) other.trig.since = null;
         }
       }
       for (const res of resources) if (granted.has(res)) out.events.push({ grant: res.name, rule: granted.get(res).ref });
+      // Rule 39: a request tried once and not granted is dropped, unless its
+      // rule's waitWhile holds (a turnout on its way still moving).
+      for (const ask of asks) {
+        if (!ask.request || !ask.once) continue;
+        if (ask.rules.some((rule) => isObject(rule.def.tryOnce) && rule.def.tryOnce.waitWhile !== undefined && condition(rule.def.tryOnce.waitWhile))) continue;
+        ask.request = false;
+        ask.since = null;
+        ask.once = false;
+        for (const rule of ask.rules) {
+          rule.trig.since = null;
+          rule.trueNow = false;
+        }
+        out.events.push({ dropped: ask.rules[0].ref });
+      }
 
       // 6.4: who wins each mast (rule 12), approach lighting, then the locks.
       const newOut = new Map();
@@ -1262,6 +1291,7 @@
           resources.filter((res) => res.seen).map((res) => res.name),
           [...timedStart.keys()],
           [...lastHeld],
+          asks.filter((a) => a.once).map((a) => a.rules[0].ref),
         ],
       };
     }
@@ -1276,7 +1306,7 @@
     function snapshot() {
       return {
         rules: rules.map((r) => ({ phase: r.phase, cancelAt: r.cancelAt, trueNow: r.trueNow, checksNow: r.checksNow, cancelNow: r.cancelNow, trig: { ...r.trig, seq: { ...r.trig.seq } } })),
-        asks: asks.map((a) => ({ request: a.request, since: a.since })),
+        asks: asks.map((a) => ({ request: a.request, since: a.since, once: a.once })),
         resources: resources.map((r) => ({ holder: ruleAt(r.holder), passed: r.passed, seen: r.seen, startupHeld: r.startupHeld, releaseNow: r.releaseNow, rel: { ...r.rel, seq: { ...r.rel.seq } } })),
         ends: ends.map((e) => ({ link: e.link, theirLink: e.theirLink, online: e.online, block: [...e.block], mast: [...e.mast], announce: e.announce, prevState: e.prevState })),
         pairGroup: pairGroup.map((x) => ({ ...x })),

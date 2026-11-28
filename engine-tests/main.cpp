@@ -168,6 +168,7 @@ Value to_json(const LogEvent &e) {
       return object({{"ignored", str("release")}, {"resource", str(e.what)}});
     case LogEvent::RELEASE_GROUP: return object({{"releaseGroup", str(e.what)}});
     case LogEvent::RESYNC: return object({{"resync", str(e.what)}});
+    case LogEvent::DROPPED: return object({{"dropped", str(e.rule)}});
     case LogEvent::PAIRING:
       if (e.by == "paired") return object({{"pairing", str(e.what)}, {"result", str(e.by)}, {"with", str(e.rule)}});
       return object({{"pairing", str(e.what)}, {"result", str(e.by)}});

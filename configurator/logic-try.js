@@ -86,6 +86,7 @@
       release: (section, by) => `Section "${section}" is free again ${TEXT_BY[by] || ""}`.trim(),
       ignored: (section) => `A release of section "${section}" just after connecting was ignored`,
       resync: (turnout) => `Turnout "${turnout}" can move to match its switch again`,
+      dropped: (group) => `A route was asked for in group "${group}", but none could be set then, so the request was dropped`,
     }),
     trainBefore: "Before the train",
     trainEnters: (block) => `Train enters ${block}`,
@@ -367,6 +368,7 @@
         else if (e.release !== undefined && e.by) text = TEXT.log.release(e.release, e.by);
         else if (e.ignored !== undefined) text = TEXT.log.ignored(e.resource);
         else if (e.resync !== undefined) text = TEXT.log.resync(e.resync);
+        else if (e.dropped !== undefined) text = TEXT.log.dropped(String(e.dropped).slice(0, String(e.dropped).lastIndexOf("/")));
         if (text) log.push({ time: engine.time(), text });
       }
       if (log.length > 40) log.splice(0, log.length - 40);

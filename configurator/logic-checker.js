@@ -937,7 +937,19 @@
    * Returns { complete, states, runs, parts, problems: [{ level, kind, text,
    * rule?, mast?, sequence? }] }.
    */
+  // Rule 39: a request in Manual is tried once, and dropped if its route
+  // cannot be set; the person asks again. The checker keeps it waiting
+  // instead, so a request that waits for ever still finds a route that can
+  // never be set again (decided 2026-11-28).
+  function keptRequests(board) {
+    const layers = list(board?.logic?.layers);
+    if (!layers.some((l) => list(l.rules).some((r) => r?.tryOnce !== undefined))) return board;
+    const strip = ({ tryOnce: _t, ...rule }) => rule;
+    return { ...board, logic: { ...board.logic, layers: layers.map((l) => ({ ...l, rules: list(l.rules).map((r) => (isObject(r) ? strip(r) : r)) })) } };
+  }
+
   function checkBoard(board, options = {}) {
+    board = keptRequests(board);
     const { maxStates, maxMs, runs, steps, runsMs } = { ...BUDGETS.full, ...options };
     const { seed = 1, split = true, allInputs = false, quick = false } = options;
     const ignore = new Set(list(options.ignore));

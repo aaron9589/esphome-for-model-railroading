@@ -642,6 +642,23 @@ class Compiler {
           } else
             r_.skip();
         }
+      } else if (key == "tryOnce") {
+        // Rule 39: true, or { "if": <condition>, "waitWhile": <condition> }.
+        if (r_.peek() == '{') {
+          rule.try_once = true;
+          bool f2 = true;
+          std::string k;
+          while (r_.member(&f2, &k)) {
+            if (k == "if")
+              rule.try_if = read_condition();
+            else if (k == "waitWhile")
+              rule.try_wait = read_condition();
+            else
+              r_.skip();
+          }
+        } else {
+          rule.try_once = r_.boolean();
+        }
       } else if (key == "cancel" || key == "withdraw") {
         uint16_t *into = key == "cancel" ? &rule.cancel : &rule.withdraw;
         bool f2 = true;

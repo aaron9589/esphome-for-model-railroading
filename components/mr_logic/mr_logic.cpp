@@ -697,6 +697,7 @@ void MrLogicComponent::apply_(const ::logic_core::ScanOut &out) {
         break;
       case LogEvent::IGNORED: ESP_LOGW(TAG, "%s: a release waiting on the broker was ignored", e.what.c_str()); break;
       case LogEvent::RELEASE_GROUP: ESP_LOGW(TAG, "%s: route released by hand", e.what.c_str()); break;
+      case LogEvent::DROPPED: ESP_LOGI(TAG, "%s: asked for, but no route could be set; request dropped", e.rule.c_str()); break;
       case LogEvent::RESYNC:
         for (auto &t : this->turnouts_) {
           if (t.name != e.what || !t.resync) continue;

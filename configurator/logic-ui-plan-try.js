@@ -41,7 +41,7 @@
     shows: (meaning) => `Shows ${meaning}.`,
     ask: "Ask for a route",
     cancel: "Cancel its route",
-    askHint: "As its button, or CATS clearing it, would: it asks only in Manual, or for a Manual only signal.",
+    askHint: "As its button, or CATS clearing it, would: it asks only in Manual, or for a Manual only signal. The route is tried once: if it can't be set now, nothing happens.",
     why: "Why",
     turnoutTitle: (name) => `Turnout ${name}`,
     happened: "What happened",
